@@ -8,7 +8,7 @@ This is an intelligent cybersecurity assistant using large language models with 
 - **MCP Server Integration**: Through the `mcp.json` configuration file, multiple MCP servers can be flexibly integrated and managed to extend the assistant's capabilities.
 - **Tool Management**: Configure, connect to, and manage MCP tools through an interactive menu, including the ability to clear all configurations.
 - **Improved Input Handling**: Support for both single-line and multi-line input modes to accommodate complex queries.
-- **Tool Invocation**: The AI assistant can call tools provided by configured MCP servers (such as: nmap, gobuster, fofa, tavily-search, etc.) based on user requests.
+- **Tool Invocation**: The AI assistant can call tools provided by configured MCP servers (such as: nmap, metasploit, ffuf, etc.) based on user requests.
 - **Conversation History**: Supports multi-turn dialogues, remembering previous interaction content.
 - **Streaming Output**: AI responses can be streamed for a better user experience.
 - **Knowledge Base Enhancement (Optional)**: Supports enhancing AI responses through a local knowledge base RAG (`knowledge` directory).
