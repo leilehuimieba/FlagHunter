@@ -18,14 +18,14 @@ This is an intelligent cybersecurity assistant using large language models with 
 <p align="center">
   <img width="650" alt="GHOSTCREW Terminal Startup Screen" src="https://github.com/user-attachments/assets/ae70a6cf-7712-4455-bed5-56ed45a1ed8f">
   <br>
-  <em>GHOSTCREW's terminal startup interface with ASCII art logo</em>
+  <em>GHOSTCREW's terminal startup interface</em>
 </p>
 
 ### Metasploit Tool Call
 <p align="center">
   <img width="800" alt="GHOSTCREW Metasploit Integration" src="https://github.com/user-attachments/assets/d788b88e-bdd6-457b-a54f-63c773dd85f6">
   <br>
-  <em>Example of GHOSTCREW invoking Metasploit Framework for security testing</em>
+  <em>Example of GHOSTCREW invoking Metasploit Framework</em>
 </p>
 
 ## Installation Guide
