@@ -12,6 +12,15 @@ if errorlevel 1 (
     exit /b 1
 )
 
+:: Check if Node.js is installed
+node --version >nul 2>&1
+if errorlevel 1 (
+    echo Node.js is not installed, please install Node.js first
+    echo Most MCP servers require Node.js to function properly
+    pause
+    exit /b 1
+)
+
 :: Check and install dependencies from requirements.txt
 echo Installing dependencies from requirements.txt...
 pip install -r requirements.txt

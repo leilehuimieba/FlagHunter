@@ -21,7 +21,7 @@ ASCII_TITLE = f"""
 {Fore.WHITE}(|  | '. (_/|  .-.  |  \ |  | |  |.-._)   \   |  |  ||  |`-'| |  .  '.' |  .--' |         |  {Style.RESET_ALL}
 {Fore.WHITE} |  '--'  | |  | |  |   `'  '-'  '\       /   |  | (_'  '--'\ |  |\  \  |  `---.|   ,'.   |  {Style.RESET_ALL}
 {Fore.WHITE}  `------'  `--' `--'     `-----'  `-----'    `--'    `-----' `--' '--' `------''--'   '--'  {Style.RESET_ALL}
-{Fore.RED}====================== GHOSTCREW ======================{Style.RESET_ALL}
+{Fore.WHITE}====================== GHOSTCREW ======================{Style.RESET_ALL}
 """
 
 # Import Agent-related modules
