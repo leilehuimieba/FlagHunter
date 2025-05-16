@@ -16,8 +16,9 @@ This is an intelligent cybersecurity assistant using large language models with 
 
 ### Startup Effect
 <p align="center">
-  <img width="650" alt="GHOSTCREW Terminal Startup Screen" src="https://github.com/user-attachments/assets/ae70a6cf-7712-4455-bed5-56ed45a1ed8f">
+  <img width="650" alt="GHOSTCREW Terminal Startup Screen" src="https://github.com/user-attachments/assets/f92941e6-31c9-44a4-81f8-f30aa2b3ada8">
   <br>
+
   <em>GHOSTCREW's terminal startup interface</em>
 </p>
 
