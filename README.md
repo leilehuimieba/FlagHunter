@@ -147,7 +147,7 @@ This configuration uses OpenAI's API for both the language model and embeddings 
 
 ## Configuration File (`mcp.json`)
 
-This file is used to define MCP servers that the AI assistant can connect to and use. Each server entry should include:
+This file is used to define MCP servers that the AI assistant can connect to and use. Most MCP servers require Node.js to be installed on your system. Each server entry should include:
 - `name`: Unique name of the server.
 - `params`: Parameters needed to start the server, usually including `command` and `args`.
 - `cache_tools_list`: Whether to cache the tools list.

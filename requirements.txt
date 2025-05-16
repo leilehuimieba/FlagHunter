@@ -8,4 +8,6 @@ langchain-community
 numpy
 ollama
 openai-agents
+fastapi
+pymetasploit3
 # Add other necessary dependencies
