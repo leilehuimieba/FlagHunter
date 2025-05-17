@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+import time
 from pathlib import Path
 from colorama import init, Fore, Style
 
@@ -107,6 +108,9 @@ MCP_SERVERS = [
 
 def find_executable(exe_name):
     """Try to find the executable in common installation paths"""
+    timeout_seconds = 5
+    start_time = time.time()
+    
     common_paths = [
         "C:\\Program Files",
         "C:\\Program Files (x86)",
@@ -119,10 +123,20 @@ def find_executable(exe_name):
     ]
     
     for base_path in common_paths:
+        # Check if we've exceeded the timeout
+        if time.time() - start_time > timeout_seconds:
+            print(f"{Fore.YELLOW}Search timed out after {timeout_seconds} seconds{Style.RESET_ALL}")
+            return None
+            
         if not os.path.exists(base_path):
             continue
             
         for root, dirs, files in os.walk(base_path):
+            # Check timeout periodically during search
+            if time.time() - start_time > timeout_seconds:
+                print(f"{Fore.YELLOW}Search timed out after {timeout_seconds} seconds{Style.RESET_ALL}")
+                return None
+                
             if exe_name in files:
                 return os.path.join(root, exe_name)
     
