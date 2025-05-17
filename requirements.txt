@@ -10,4 +10,5 @@ ollama
 openai-agents
 fastapi
 pymetasploit3
+tiktoken
 # Add other necessary dependencies

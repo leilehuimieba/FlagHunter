@@ -67,7 +67,7 @@ This is an intelligent cybersecurity assistant using large language models with 
 ## Usage
 
 1. **Configure MCP Servers**: 
-   - Run the application and select "Configure or manage MCP tools" when prompted
+   - Run the application and select "Configure or connect MCP tools" when prompted
    - Use the interactive tool configuration menu to add, configure, or clear MCP tools
    - The configuration is stored in the `mcp.json` file
 
@@ -80,7 +80,7 @@ This is an intelligent cybersecurity assistant using large language models with 
    ```
    After the program starts, you can:
    - Choose whether to use the knowledge base
-   - Configure or manage MCP tools
+   - Configure or activate MCP tools
    - Enter your questions or instructions according to the prompts
    - Use 'multi' command to enter multi-line input mode for complex queries
    - Enter 'quit' to exit the program
@@ -140,7 +140,7 @@ agent/
 # OpenAI API configurations
 OPENAI_API_KEY=your_api_key_here
 OPENAI_BASE_URL=https://api.openai.com/v1
-MODEL_NAME=gpt-4
+MODEL_NAME=gpt-4o
 ```
 
 This configuration uses OpenAI's API for both the language model and embeddings (when using the knowledge base RAG feature).

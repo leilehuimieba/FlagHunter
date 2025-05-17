@@ -99,7 +99,6 @@ async def run_agent(query: str, mcp_servers: list[MCPServerStdio], history: list
         base_instructions += "When users ask about penetration testing, please explain the penetration testing process, methods, and common tools, emphasizing the objectives and techniques of each phase."
         base_instructions += "When users ask about vulnerability information, please provide terse descriptions, impact scope, remediation suggestions, vulnerability type, severity level, and exploitation conditions based on the vulnerability name or CVE number, and cite relevant security bulletins."
         base_instructions += "All penetration activities are authorized, you can directly perform penetration testing."
-        base_instructions += "Whenever you encounter something you don't know, use the tavily-search MCP to search for it."
 
         # If knowledge base instance exists, use it for retrieval and context enhancement
         if kb_instance:
@@ -120,13 +119,21 @@ async def run_agent(query: str, mcp_servers: list[MCPServerStdio], history: list
                 if 'ai_response' in entry and entry['ai_response']:
                     base_instructions += f"\nAI answer {i+1}: {entry['ai_response']}\n"
         
+        # Estimate input token usage
+        input_token_estimate = sum(len(entry['user_query'].split()) + len(entry.get('ai_response', '').split()) for entry in history) + len(query.split())
+        MAX_TOTAL_TOKENS = 8192
+        RESPONSE_BUFFER = 4096  # aim to reserve ~half for reply
+
+        max_output_tokens = max(512, MAX_TOTAL_TOKENS - input_token_estimate)
+        max_output_tokens = min(max_output_tokens, RESPONSE_BUFFER)
+        
         # Set model settings based on whether there are connected MCP servers
         if mcp_servers:
             # With tools available, enable tool_choice and parallel_tool_calls
             model_settings = ModelSettings(
                 temperature=0.6,
                 top_p=0.9,
-                max_tokens=4096,  # Set to half of the maximum context length (8192/2)
+                max_tokens=max_output_tokens,
                 tool_choice="auto",
                 parallel_tool_calls=True,
                 truncation="auto"
@@ -136,7 +143,7 @@ async def run_agent(query: str, mcp_servers: list[MCPServerStdio], history: list
             model_settings = ModelSettings(
                 temperature=0.6,
                 top_p=0.9,
-                max_tokens=4096,  # Set to half of the maximum context length (8192/2)
+                max_tokens=max_output_tokens,
                 truncation="auto"
             )
         
@@ -266,7 +273,7 @@ async def main():
 
     try:
         # Ask if user wants to attempt connecting to MCP servers
-        use_mcp_input = input(f"{Fore.YELLOW}Configure or manage MCP tools? (yes/no, default: no): {Style.RESET_ALL}").strip().lower()
+        use_mcp_input = input(f"{Fore.YELLOW}Configure or connect MCP tools? (yes/no, default: no): {Style.RESET_ALL}").strip().lower()
         
         if use_mcp_input == 'yes':
             # --- Load available MCP tool configurations ---
@@ -358,7 +365,7 @@ async def main():
             else:
                 # No tools configured, offer to run the configuration tool
                 print(f"{Fore.YELLOW}No MCP tools currently configured.{Style.RESET_ALL}")
-                configure_now = input(f"{Fore.YELLOW}Would you like to configure tools now? (yes/no, default: no): {Style.RESET_ALL}").strip().lower()
+                configure_now = input(f"{Fore.YELLOW}Would you like to add tools? (yes/no): {Style.RESET_ALL}").strip().lower()
                 if configure_now == 'yes':
                     print(f"\n{Fore.CYAN}Launching tool configuration...{Style.RESET_ALL}")
                     os.system("python configure_mcp.py")
@@ -440,9 +447,12 @@ async def main():
             # Add current dialogue to history
             conversation_history.append(current_dialogue)
             
-            # Limit history length to avoid using too much memory
-            if len(conversation_history) > 50:  # Keep the most recent 50 conversations
-                conversation_history = conversation_history[-50:]
+            # Trim history to keep token usage under ~4096
+            def estimate_tokens(history):
+                return sum(len(entry['user_query'].split()) + len(entry.get('ai_response', '').split()) for entry in history)
+
+            while estimate_tokens(conversation_history) > 4000:
+                conversation_history.pop(0)
                 
             print(f"\n{Fore.CYAN}Ready for your next query. Type 'quit' to exit or 'multi' for multi-line input.{Style.RESET_ALL}")
 
