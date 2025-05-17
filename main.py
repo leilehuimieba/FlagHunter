@@ -6,6 +6,7 @@ import threading
 import traceback
 from colorama import init, Fore, Back, Style
 from ollama import chat,Message
+import tiktoken
 
 
 init(autoreset=True)
@@ -92,6 +93,15 @@ async def run_agent(query: str, mcp_servers: list[MCPServerStdio], history: list
     if history is None:
         history = []
     try:
+        # Helper function to count tokens
+        def count_tokens(text):
+            try:
+                encoding = tiktoken.encoding_for_model(MODEL_NAME)
+                return len(encoding.encode(text))
+            except Exception:
+                # Fall back to approximate counting if tiktoken fails
+                return len(text.split())
+                
         # Directly use the passed connected server list to create Agent
         # Build instructions containing conversation history
         base_instructions = "You are an experienced penetration tester and security analyst, focused on Web application security and network infrastructure security. Your name is GHOSTCREW. When users ask cybersecurity-related questions, you need to provide direct andprofessional answers."
@@ -120,7 +130,7 @@ async def run_agent(query: str, mcp_servers: list[MCPServerStdio], history: list
                     base_instructions += f"\nAI answer {i+1}: {entry['ai_response']}\n"
         
         # Estimate input token usage
-        input_token_estimate = sum(len(entry['user_query'].split()) + len(entry.get('ai_response', '').split()) for entry in history) + len(query.split())
+        input_token_estimate = count_tokens(base_instructions) + count_tokens(query)
         MAX_TOTAL_TOKENS = 8192
         RESPONSE_BUFFER = 4096  # aim to reserve ~half for reply
 
@@ -365,7 +375,7 @@ async def main():
             else:
                 # No tools configured, offer to run the configuration tool
                 print(f"{Fore.YELLOW}No MCP tools currently configured.{Style.RESET_ALL}")
-                configure_now = input(f"{Fore.YELLOW}Would you like to add tools? (yes/no): {Style.RESET_ALL}").strip().lower()
+                configure_now = input(f"{Fore.YELLOW}Would you like to add tools? (yes/no, default: no): {Style.RESET_ALL}").strip().lower()
                 if configure_now == 'yes':
                     print(f"\n{Fore.CYAN}Launching tool configuration...{Style.RESET_ALL}")
                     os.system("python configure_mcp.py")
@@ -448,9 +458,24 @@ async def main():
             conversation_history.append(current_dialogue)
             
             # Trim history to keep token usage under ~4096
+            # Define a function to accurately count tokens in history
             def estimate_tokens(history):
-                return sum(len(entry['user_query'].split()) + len(entry.get('ai_response', '').split()) for entry in history)
+                try:
+                    encoding = tiktoken.encoding_for_model(MODEL_NAME)
+                    return sum(
+                        len(encoding.encode(entry['user_query'])) + 
+                        len(encoding.encode(entry.get('ai_response', ''))) 
+                        for entry in history
+                    )
+                except Exception:
+                    # Fall back to approximate counting if tiktoken fails
+                    return sum(
+                        len(entry['user_query'].split()) + 
+                        len(entry.get('ai_response', '').split()) 
+                        for entry in history
+                    )
 
+            # Trim history while token count exceeds the limit
             while estimate_tokens(conversation_history) > 4000:
                 conversation_history.pop(0)
                 
