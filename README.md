@@ -1,6 +1,6 @@
 # GHOSTCREW
 
-This is an intelligent cybersecurity assistant using large language models with MCP and RAG architecture. It aims to help users perform penetration testing tasks, query security information, analyze network traffic, and more through natural language interaction.
+This is an intelligent red team assistant using large language models with MCP and RAG architecture. It aims to help users perform penetration testing tasks, query security information, analyze network traffic, and more through natural language interaction.
 
 https://github.com/user-attachments/assets/73176f92-a94d-4b66-9aa7-ee06c438a741
 
