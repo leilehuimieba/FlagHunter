@@ -1,13 +1,14 @@
-# Project Name: GHOSTCREW
+# GHOSTCREW
 
 This is an intelligent cybersecurity assistant using large language models with MCP and RAG architecture. It aims to help users perform penetration testing tasks, query security information, analyze network traffic, and more through natural language interaction.
+
+https://github.com/user-attachments/assets/73176f92-a94d-4b66-9aa7-ee06c438a741
 
 ## Features
 
 - **Natural Language Interaction**: Users can ask questions and give instructions to the AI assistant using natural language.
 - **MCP Server Integration**: Through the `mcp.json` configuration file, multiple MCP servers can be flexibly integrated and managed to extend the assistant's capabilities.
 - **Tool Management**: Configure, connect to, and manage MCP tools through an interactive menu, including the ability to clear all configurations.
-- **Improved Input Handling**: Support for both single-line and multi-line input modes to accommodate complex queries.
 - **Tool Invocation**: The AI assistant can call tools provided by configured MCP servers (such as: nmap, metasploit, ffuf, etc.) based on user requests.
 - **Conversation History**: Supports multi-turn dialogues, remembering previous interaction content.
 - **Streaming Output**: AI responses can be streamed for a better user experience.
@@ -73,7 +74,7 @@ This is an intelligent cybersecurity assistant using large language models with 
    - The configuration is stored in the `mcp.json` file
 
 2. **Prepare Knowledge Base (Optional)**:
-   If you want to use the knowledge base enhancement feature, place relevant text files (e.g., `.txt`) in the `knowledge` folder.
+   If you want to use the knowledge base enhancement feature, place relevant text files (e.g., `.json`) in the `knowledge` folder.
 
 3. **Run the Main Program**:
    ```bash
