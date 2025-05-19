@@ -24,7 +24,7 @@ https://github.com/user-attachments/assets/73176f92-a94d-4b66-9aa7-ee06c438a741
 
 ### Metasploit Tool Call
 <p align="center">
-  <img width="800" alt="GHOSTCREW Metasploit Integration" src="https://github.com/user-attachments/assets/d788b88e-bdd6-457b-a54f-63c773dd85f6">
+  <img width="926" alt="GHOSTCREW Metasploit Integration" src="https://github.com/user-attachments/assets/fb5eb8cf-a3d6-486b-99ba-778be2474564" />
   <br>
   <em>Example of GHOSTCREW invoking Metasploit Framework</em>
 </p>
