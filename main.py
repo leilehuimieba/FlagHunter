@@ -260,13 +260,12 @@ async def run_agent(query: str, mcp_servers: list[MCPServerStdio], history: list
 
 async def main():
     print(ASCII_TITLE)
-    print(f"{Fore.YELLOW}Please enter a natural language query, for example:{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}1. Scan the target machine for vulnerabilities{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}2. Query information about a domain{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}3. Check the security status of a specific IP{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}4. Security analysis and audit of network traffic packets{Style.RESET_ALL}")
+    
+    version = "0.1.0" 
+    print(f"{Fore.WHITE}GHOSTCREW v{version}{Style.RESET_ALL}")
+    print(f"{Fore.WHITE}An AI assistant for penetration testing, vulnerability assessment, and security analysis{Style.RESET_ALL}")
     print(f"{Fore.RED}Enter 'quit' to end the program{Style.RESET_ALL}")
-    print(f"{Fore.YELLOW}======================================\n{Style.RESET_ALL}")
+    print(f"{Fore.WHITE}======================================\n{Style.RESET_ALL}")
 
     kb_instance = None
     use_kb_input = input(f"{Fore.YELLOW}Use knowledge base to enhance answers? (yes/no, default: no): {Style.RESET_ALL}").strip().lower()
