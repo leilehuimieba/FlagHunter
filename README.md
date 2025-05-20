@@ -117,6 +117,16 @@ GHOSTCREW supports integration with the following security tools through the MCP
 
 Each tool can be configured through the interactive configuration menu by selecting "Configure new tools" from the MCP tools menu.
 
+## Coming Soon
+
+- Amass
+- BloodHound
+- CrackMapExec
+- Gobuster
+- Hydra
+- Responder
+- Bettercap
+
 ## File Structure
 
 ```
