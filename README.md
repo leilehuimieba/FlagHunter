@@ -1,6 +1,6 @@
 # GHOSTCREW
 
-This is an intelligent red team assistant using large language models with MCP and RAG architecture. It aims to help users perform penetration testing tasks, query security information, analyze network traffic, and more through natural language interaction.
+This is an AI red team assistant using large language models with MCP and RAG architecture. It aims to help users perform penetration testing tasks, query security information, analyze network traffic, and more through natural language interaction.
 
 https://github.com/user-attachments/assets/73176f92-a94d-4b66-9aa7-ee06c438a741
 
@@ -67,15 +67,14 @@ GHOSTCREW includes automated penetration testing workflows that provide structur
 
 ### Startup Effect
 <p align="center">
-  <img width="650" alt="GHOSTCREW Terminal Startup Screen" src="https://github.com/user-attachments/assets/f92941e6-31c9-44a4-81f8-f30aa2b3ada8">
+  <img width="517" alt="GHOSTCREW Terminal Startup Screen" src="https://github.com/user-attachments/assets/13d97cf7-5652-4c64-8e49-a3cd556b3419" />
   <br>
-
   <em>GHOSTCREW's terminal startup interface</em>
 </p>
 
 ### Metasploit Tool Call
 <p align="center">
-  <img width="800" alt="GHOSTCREW Metasploit Integration" src="https://github.com/user-attachments/assets/d788b88e-bdd6-457b-a54f-63c773dd85f6">
+  <img width="926" alt="GHOSTCREW Metasploit Integration" src="https://github.com/user-attachments/assets/fb5eb8cf-a3d6-486b-99ba-778be2474564" />
   <br>
   <em>Example of GHOSTCREW invoking Metasploit Framework</em>
 </p>
@@ -167,6 +166,16 @@ GHOSTCREW supports integration with the following security tools through the MCP
 9. **Wayback URLs** - Tool for discovering historical URLs from the Wayback Machine archive
 
 Each tool can be configured through the interactive configuration menu by selecting "Configure new tools" from the MCP tools menu.
+
+## Coming Soon
+
+- Amass
+- BloodHound
+- CrackMapExec
+- Gobuster
+- Hydra
+- Responder
+- Bettercap
 
 ## File Structure
 
