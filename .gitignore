@@ -3,3 +3,7 @@ __pycache__/
 *.pyo 
 .env 
 venv/ 
+
+# Reports directory - contains sensitive penetration test results
+reports/
+*.txt

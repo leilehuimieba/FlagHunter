@@ -10,10 +10,60 @@ https://github.com/user-attachments/assets/73176f92-a94d-4b66-9aa7-ee06c438a741
 - **MCP Server Integration**: Through the `mcp.json` configuration file, multiple MCP servers can be flexibly integrated and managed to extend the assistant's capabilities.
 - **Tool Management**: Configure, connect to, and manage MCP tools through an interactive menu, including the ability to clear all configurations.
 - **Tool Invocation**: The AI assistant can call tools provided by configured MCP servers (such as: nmap, metasploit, ffuf, etc.) based on user requests.
+- **Automated Pentesting Workflows**: Execute predefined penetration testing workflows that systematically use configured security tools to perform comprehensive assessments.
 - **Conversation History**: Supports multi-turn dialogues, remembering previous interaction content.
 - **Streaming Output**: AI responses can be streamed for a better user experience.
 - **Knowledge Base Enhancement (Optional)**: Supports enhancing AI responses through a local knowledge base RAG (`knowledge` directory).
 - **Configurable Models**: Supports configuration of different language model parameters.
+
+## Automated Penetration Testing Workflows
+
+GHOSTCREW includes automated penetration testing workflows that provide structured, systematic security assessments. These workflows require MCP tools to be configured and connected to function properly.
+
+### Available Workflows
+
+1. **Reconnaissance and Discovery**
+   - Comprehensive information gathering and target profiling
+   - Performs reconnaissance, subdomain discovery, port scanning, technology fingerprinting, and historical data analysis
+   - **Steps**: 5 systematic phases
+
+2. **Web Application Security Assessment**
+   - Comprehensive web application penetration testing
+   - Tests for directory traversal, SQL injection, web vulnerabilities, SSL/TLS security, authentication flaws, and file inclusion
+   - **Steps**: 6 focused web security phases
+
+3. **Network Infrastructure Penetration Test**
+   - Network-focused penetration testing and exploitation
+   - Includes network scanning, service enumeration, vulnerability identification, misconfiguration testing, and exploitation attempts
+   - **Steps**: 6 network security phases
+
+4. **Complete Penetration Test**
+   - Full-scope penetration testing methodology
+   - Comprehensive assessment covering reconnaissance, enumeration, vulnerability scanning, web testing, network exploitation, post-exploitation, and reporting
+   - **Steps**: 7 complete assessment phases
+
+### Workflow Features
+
+- **Tool Integration**: All workflows utilize configured MCP tools (Nmap, Metasploit, Nuclei, etc.) for real security testing
+- **Professional Output**: Each step provides detailed technical findings, vulnerability analysis, risk assessment, and remediation recommendations
+- **Report Generation**: Automatically save reports to organized `reports/` directory with workflow-specific naming
+- **Target Flexibility**: Works with IP addresses, domain names, or network ranges
+- **Progress Tracking**: Real-time progress indication through each workflow step
+
+### Usage Requirements
+
+- **MCP Tools Required**: Automated workflows require at least one MCP security tool to be configured and connected
+- **Access Control**: The system prevents workflow execution without proper tools to avoid generating simulated results
+- **Professional Context**: Designed for authorized penetration testing and security assessments only
+
+### How to Use Workflows
+
+1. Start GHOSTCREW and configure MCP tools when prompted
+2. Select "Automated Penetration Testing" from the main menu
+3. Choose your desired workflow type
+4. Enter the target (IP, domain, or network range)
+5. Confirm execution and monitor progress
+6. Optionally save results to file for documentation
 
 ### Startup Effect
 <p align="center">
@@ -125,8 +175,11 @@ agent/
 ├── .venv/                  # Python virtual environment (ignored by .gitignore)
 ├── knowledge/             # Knowledge base documents directory
 │   └── ...
+├── reports/               # Automated penetration test reports directory
+│   └── ghostcrew_pentest_*.txt
 ├── .gitignore              # Git ignore file configuration
 ├── main.py                 # Main program entry
+├── workflows.py            # Automated penetration testing workflows
 ├── configure_mcp.py        # MCP tool configuration utility
 ├── mcp.json                # MCP server configuration file
 ├── rag_embedding.py        # RAG embedding related (if used)
