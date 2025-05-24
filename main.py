@@ -7,6 +7,7 @@ import traceback
 from colorama import init, Fore, Back, Style
 from ollama import chat,Message
 import tiktoken
+from datetime import datetime
 
 # Import workflows
 try:
@@ -14,6 +15,14 @@ try:
     WORKFLOWS_AVAILABLE = True
 except ImportError:
     WORKFLOWS_AVAILABLE = False
+
+# Import report generation module
+try:
+    from reporting import generate_report_from_workflow
+    REPORTING_AVAILABLE = True
+except ImportError:
+    print(f"{Fore.YELLOW}Reporting module not found. Basic text export will be available.{Style.RESET_ALL}")
+    REPORTING_AVAILABLE = False
 
 init(autoreset=True)
 
@@ -145,7 +154,6 @@ Be thorough and professional in your analysis. Use the available tools effective
         await asyncio.sleep(1)
     
     # Workflow completion summary
-    print(f"\n{Fore.GREEN}Automated workflow completed successfully{Style.RESET_ALL}")
     print(f"{Fore.CYAN}Steps executed: {len(results)}/{len(workflow['steps'])}{Style.RESET_ALL}")
     
     return results
@@ -200,7 +208,7 @@ async def run_agent(query: str, mcp_servers: list[MCPServerStdio], history: list
                 
         # Directly use the passed connected server list to create Agent
         # Build instructions containing conversation history
-        base_instructions = "You are an experienced penetration tester and security analyst, focused on Web application security and network infrastructure security. Your name is GHOSTCREW. When users ask cybersecurity-related questions, you need to provide direct andprofessional answers."
+        base_instructions = "You are an experienced penetration tester and security analyst, focused on Web application security and network infrastructure security. Your name is GHOSTCREW. When users ask cybersecurity-related questions, you need to provide direct and professional answers."
         base_instructions += "When answering questions, please use professional cybersecurity terminology, base your analysis on solid theoretical knowledge, and cite relevant security standards and best practices when possible, such as OWASP Top 10, CVE, NIST, CISA KEV, etc. Maintain a professional tone, clear logic, and organized structure."
         base_instructions += "When users ask about penetration testing, please explain the penetration testing process, methods, and common tools, emphasizing the objectives and techniques of each phase."
         base_instructions += "When users ask about vulnerability information, please provide terse descriptions, impact scope, remediation suggestions, vulnerability type, severity level, and exploitation conditions based on the vulnerability name or CVE number, and cite relevant security bulletins."
@@ -649,42 +657,54 @@ async def main():
                             
                             confirm = input(f"{Fore.YELLOW}Execute '{workflow['name']}' on {target}? (yes/no): {Style.RESET_ALL}").strip().lower()
                             if confirm == 'yes':
+                                # Store initial workflow data  
+                                workflow_start_time = datetime.now()
+                                initial_history_length = len(conversation_history)
+                                
+                                # Execute the workflow
                                 await run_automated_workflow(workflow, target, connected_servers, conversation_history, kb_instance)
                                 
-                                # Option to save results
-                                export_choice = input(f"\n{Fore.CYAN}Save results to file? (yes/no): {Style.RESET_ALL}").strip().lower()
-                                if export_choice == 'yes':
-                                    import time
+                                # After workflow completion, offer report generation
+                                print(f"\n{Fore.GREEN}Workflow completed successfully!{Style.RESET_ALL}")
+                                
+                                if REPORTING_AVAILABLE:
+                                    generate_report = input(f"\n{Fore.CYAN}Generate markdown report? (yes/no): {Style.RESET_ALL}").strip().lower()
                                     
-                                    # Create reports directory if it doesn't exist
-                                    reports_dir = "reports"
-                                    if not os.path.exists(reports_dir):
-                                        os.makedirs(reports_dir)
-                                        print(f"{Fore.GREEN}Created reports directory: {reports_dir}{Style.RESET_ALL}")
-                                    
-                                    # Generate filename with timestamp
-                                    timestamp = int(time.time())
-                                    filename = f"{reports_dir}/ghostcrew_{workflow_key}_{timestamp}.txt"
-                                    
-                                    with open(filename, 'w') as f:
-                                        f.write(f"GHOSTCREW Automated Penetration Test Report\n")
-                                        f.write("="*60 + "\n")
-                                        f.write(f"Workflow: {workflow['name']}\n")
-                                        f.write(f"Target: {target}\n")
-                                        f.write(f"Timestamp: {time.ctime()}\n")
-                                        f.write(f"Report Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
-                                        f.write("="*60 + "\n\n")
+                                    if generate_report == 'yes':
+                                        # Ask about additional report options
+                                        save_raw_history = input(f"{Fore.YELLOW}Save raw conversation history? (yes/no, default: no): {Style.RESET_ALL}").strip().lower() == 'yes'
                                         
-                                        # Save recent conversation history related to this workflow
-                                        recent_history = conversation_history[-len(workflow['steps']):]
-                                        for i, entry in enumerate(recent_history, 1):
-                                            f.write(f"STEP {i}: {workflow['steps'][i-1].format(target=target)}\n")
-                                            f.write("-"*40 + "\n")
-                                            f.write(f"Query: {entry['user_query']}\n\n")
-                                            f.write(f"Response: {entry.get('ai_response', 'No response')}\n")
-                                            f.write("="*60 + "\n\n")
-                                    
-                                    print(f"{Fore.GREEN}Results saved to: {filename}{Style.RESET_ALL}")
+                                        try:
+                                            # Prepare report data
+                                            workflow_conversation = conversation_history[initial_history_length:]
+                                            
+                                            report_data = {
+                                                'workflow_name': workflow['name'],
+                                                'workflow_key': workflow_key,
+                                                'target': target,
+                                                'timestamp': workflow_start_time,
+                                                'conversation_history': workflow_conversation,
+                                                'tools_used': get_available_tools(connected_servers)
+                                            }
+                                            
+                                            # Generate professional report
+                                            print(f"\n{Fore.CYAN}Generating report...{Style.RESET_ALL}")
+                                            report_path = await generate_report_from_workflow(
+                                                report_data, 
+                                                run_agent, 
+                                                connected_servers, 
+                                                kb_instance,
+                                                save_raw_history
+                                            )
+                                            
+                                            print(f"\n{Fore.GREEN}Report generated: {report_path}{Style.RESET_ALL}")
+                                            print(f"{Fore.CYAN}Open the markdown file in any markdown viewer for best formatting{Style.RESET_ALL}")
+                                            
+                                        except Exception as e:
+                                            print(f"\n{Fore.RED}Error generating report: {e}{Style.RESET_ALL}")
+                                            print(f"{Fore.YELLOW}Raw workflow data is still available in conversation history{Style.RESET_ALL}")
+                                else:
+                                    print(f"\n{Fore.YELLOW}Reporting not available.{Style.RESET_ALL}")
                                 
                                 input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
                             else:

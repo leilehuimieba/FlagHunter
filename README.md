@@ -11,6 +11,7 @@ https://github.com/user-attachments/assets/73176f92-a94d-4b66-9aa7-ee06c438a741
 - **Tool Management**: Configure, connect to, and manage MCP tools through an interactive menu, including the ability to clear all configurations.
 - **Tool Invocation**: The AI assistant can call tools provided by configured MCP servers (such as: nmap, metasploit, ffuf, etc.) based on user requests.
 - **Automated Pentesting Workflows**: Execute predefined penetration testing workflows that systematically use configured security tools to perform comprehensive assessments.
+- **Report Generation**: Generate markdown reports with structured findings, evidence, and recommendations.
 - **Conversation History**: Supports multi-turn dialogues, remembering previous interaction content.
 - **Streaming Output**: AI responses can be streamed for a better user experience.
 - **Knowledge Base Enhancement (Optional)**: Supports enhancing AI responses through a local knowledge base RAG (`knowledge` directory).
@@ -132,7 +133,8 @@ GHOSTCREW includes automated penetration testing workflows that provide structur
    After the program starts, you can:
    - Choose whether to use the knowledge base
    - Configure or activate MCP tools
-   - Enter your questions or instructions according to the prompts
+   - Select between Interactive Chat Mode or Automated Penetration Testing
+   - Execute workflows and generate reports
    - Use 'multi' command to enter multi-line input mode for complex queries
    - Enter 'quit' to exit the program
 
@@ -184,11 +186,13 @@ agent/
 ├── .venv/                  # Python virtual environment (ignored by .gitignore)
 ├── knowledge/             # Knowledge base documents directory
 │   └── ...
-├── reports/               # Automated penetration test reports directory
-│   └── ghostcrew_pentest_*.txt
+├── reports/               # Professional penetration test reports directory
+│   ├── ghostcrew_*_*.md   # Professional markdown reports
+│   └── ghostcrew_*_*_raw_history.txt  # Raw conversation history (optional)
 ├── .gitignore              # Git ignore file configuration
 ├── main.py                 # Main program entry
 ├── workflows.py            # Automated penetration testing workflows
+├── reporting.py            # Professional report generation system
 ├── configure_mcp.py        # MCP tool configuration utility
 ├── mcp.json                # MCP server configuration file
 ├── rag_embedding.py        # RAG embedding related (if used)
