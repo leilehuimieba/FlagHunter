@@ -1,7 +1,6 @@
 import json
 import os
 import shutil
-import time
 from pathlib import Path
 from colorama import init, Fore, Style
 
@@ -19,6 +18,46 @@ MCP_SERVERS = [
         "homepage": "https://www.npmjs.com/package/gc-alterx-mcp"
     },
     {
+        "name": "Amass",
+        "key": "Amass",
+        "command": "npx",
+        "args": ["-y", "gc-amass-mcp"],
+        "description": "MCP server for advanced subdomain enumeration and reconnaissance using the Amass tool.",
+        "exe_name": "amass.exe",
+        "env_var": "AMASS_PATH",
+        "homepage": "https://www.npmjs.com/package/gc-amass-mcp"
+    },
+    {
+        "name": "Arjun",
+        "key": "Arjun",
+        "command": "npx",
+        "args": ["-y", "gc-arjun-mcp"],
+        "description": "MCP server for discovering hidden HTTP parameters using the Arjun tool.",
+        "exe_name": "arjun.py",
+        "env_var": "ARJUN_PATH",
+        "homepage": "https://www.npmjs.com/package/gc-arjun-mcp"
+    },
+    {
+        "name": "Assetfinder",
+        "key": "Assetfinder",
+        "command": "npx",
+        "args": ["-y", "gc-assetfinder-mcp"],
+        "description": "MCP server for passive subdomain discovery using the Assetfinder tool.",
+        "exe_name": "assetfinder.exe",
+        "env_var": "ASSETFINDER_PATH",
+        "homepage": "https://www.npmjs.com/package/gc-assetfinder-mcp"
+    },
+    {
+        "name": "Certificate Transparency",
+        "key": "CrtSh",
+        "command": "npx",
+        "args": ["-y", "gc-crtsh-mcp"],
+        "description": "MCP server for subdomain discovery using SSL certificate transparency logs (crt.sh).",
+        "exe_name": None,  # No executable needed for this service
+        "env_var": None,
+        "homepage": "https://www.npmjs.com/package/gc-crtsh-mcp"
+    },
+    {
         "name": "FFUF Fuzzer",
         "key": "FFUF",
         "command": "npx",
@@ -27,6 +66,26 @@ MCP_SERVERS = [
         "exe_name": "ffuf.exe",
         "env_var": "FFUF_PATH",
         "homepage": "https://www.npmjs.com/package/gc-ffuf-mcp"
+    },
+    {
+        "name": "httpx",
+        "key": "HTTPx",
+        "command": "npx",
+        "args": ["-y", "gc-httpx-mcp"],
+        "description": "MCP server for fast HTTP toolkit and port scanning using the httpx tool.",
+        "exe_name": "httpx.exe",
+        "env_var": "HTTPX_PATH",
+        "homepage": "https://www.npmjs.com/package/gc-httpx-mcp"
+    },
+    {
+        "name": "Katana",
+        "key": "Katana",
+        "command": "npx",
+        "args": ["-y", "gc-katana-mcp"],
+        "description": "MCP server for fast web crawling with JavaScript parsing using the Katana tool.",
+        "exe_name": "katana.exe",
+        "env_var": "KATANA_PATH",
+        "homepage": "https://www.npmjs.com/package/gc-katana-mcp"
     },
     {
         "name": "Masscan",
@@ -43,7 +102,7 @@ MCP_SERVERS = [
         "key": "MetasploitMCP",
         "command": "uvx",
         "args": ["gc-metasploit", "--transport", "stdio"],
-        "description": "MCP Server for interacting with Metasploit Framework, providing tools for exploit execution, payload generation, and session management.",
+        "description": "MCP server for Metasploit Framework with exploit execution, payload generation, and session management.",
         "exe_name": "msfconsole.exe",
         "env_var": "MSF_PASSWORD",
         "env_extra": {
@@ -73,6 +132,29 @@ MCP_SERVERS = [
         "exe_name": "nuclei.exe",
         "env_var": "NUCLEI_PATH",
         "homepage": "https://www.npmjs.com/package/gc-nuclei-mcp"
+    },
+    {
+        "name": "Scout Suite",
+        "key": "ScoutSuite",
+        "command": "npx",
+        "args": ["-y", "gc-scoutsuite-mcp"],
+        "description": "MCP server for cloud security auditing using the Scout Suite tool.",
+        "exe_name": "scout.py",
+        "env_var": "SCOUTSUITE_PATH",
+        "homepage": "https://www.npmjs.com/package/gc-scoutsuite-mcp"
+    },
+    {
+        "name": "shuffledns",
+        "key": "ShuffleDNS",
+        "command": "npx",
+        "args": ["-y", "gc-shuffledns-mcp"],
+        "description": "MCP server for high-speed DNS brute-forcing and resolution using the shuffledns tool.",
+        "exe_name": "shuffledns.exe",
+        "env_var": "SHUFFLEDNS_PATH",
+        "env_extra": {
+            "MASSDNS_PATH": ""
+        },
+        "homepage": "https://www.npmjs.com/package/gc-shuffledns-mcp"
     },
     {
         "name": "SQLMap",
@@ -106,41 +188,7 @@ MCP_SERVERS = [
     }
 ]
 
-def find_executable(exe_name):
-    """Try to find the executable in common installation paths"""
-    timeout_seconds = 5
-    start_time = time.time()
-    
-    common_paths = [
-        "C:\\Program Files",
-        "C:\\Program Files (x86)",
-        str(Path.home()),
-        os.path.join(str(Path.home()), "AppData", "Local"),
-        os.path.join(str(Path.home()), "Desktop"),
-        "C:\\ProgramData",
-        "C:\\Tools",
-        "C:\\Security"
-    ]
-    
-    for base_path in common_paths:
-        # Check if we've exceeded the timeout
-        if time.time() - start_time > timeout_seconds:
-            print(f"{Fore.YELLOW}Search timed out after {timeout_seconds} seconds{Style.RESET_ALL}")
-            return None
-            
-        if not os.path.exists(base_path):
-            continue
-            
-        for root, dirs, files in os.walk(base_path):
-            # Check timeout periodically during search
-            if time.time() - start_time > timeout_seconds:
-                print(f"{Fore.YELLOW}Search timed out after {timeout_seconds} seconds{Style.RESET_ALL}")
-                return None
-                
-            if exe_name in files:
-                return os.path.join(root, exe_name)
-    
-    return None
+
 
 def check_npm_installed():
     """Check if npm is installed"""
@@ -232,42 +280,74 @@ def main():
             print(f"{Fore.GREEN}{server['name']} configured successfully!{Style.RESET_ALL}")
             continue
             
-        # Regular tool configuration
-        # Try to find the executable automatically
-        auto_path = find_executable(server['exe_name'])
-        if auto_path:
-            print(f"{Fore.GREEN}Found {server['exe_name']} at: {auto_path}{Style.RESET_ALL}")
-            use_auto = input(f"Use this path? (yes/no, default: yes): ").strip().lower()
-            if use_auto != "no":
-                exe_path = auto_path
-            else:
-                exe_path = input(f"Enter path to {server['exe_name']}: ").strip()
-        else:
-            print(f"{Fore.YELLOW}Could not automatically find {server['exe_name']}.{Style.RESET_ALL}")
-            exe_path = input(f"Enter path to {server['exe_name']} (or leave empty to skip): ").strip()
-        
-        if exe_path:
-            if not os.path.exists(exe_path):
-                print(f"{Fore.RED}Warning: The specified path does not exist.{Style.RESET_ALL}")
-                cont = input(f"Continue anyway? (yes/no, default: no): ").strip().lower()
-                if cont != "yes":
-                    continue
+        # Special handling for Certificate Transparency (no executable needed)
+        elif server['key'] == "CrtSh":
+            print(f"{Fore.GREEN}Certificate Transparency service requires no local executable.{Style.RESET_ALL}")
+            configured_servers.append({
+                "name": server['name'],
+                "params": {
+                    "command": server['command'],
+                    "args": server['args'],
+                    "env": {}
+                },
+                "cache_tools_list": True
+            })
+            print(f"{Fore.GREEN}{server['name']} configured successfully!{Style.RESET_ALL}")
+            continue
             
-            # Add to configured servers
+        # Special handling for shuffledns (needs both shuffledns and massdns)
+        elif server['key'] == "ShuffleDNS":
+            print(f"{Fore.YELLOW}shuffledns requires both shuffledns and massdns executables:{Style.RESET_ALL}")
+            
+            shuffledns_path = input(f"Enter path to {server['exe_name']} (or leave empty to skip): ").strip()
+            if not shuffledns_path:
+                print(f"{Fore.YELLOW}Skipping {server['name']}.{Style.RESET_ALL}")
+                continue
+                
+            massdns_path = input(f"Enter path to massdns.exe: ").strip()
+            
+            # Configure shuffledns
             configured_servers.append({
                 "name": server['name'],
                 "params": {
                     "command": server['command'],
                     "args": server['args'],
                     "env": {
-                        server['env_var']: exe_path
+                        "SHUFFLEDNS_PATH": shuffledns_path,
+                        "MASSDNS_PATH": massdns_path
                     }
                 },
                 "cache_tools_list": True
             })
             print(f"{Fore.GREEN}{server['name']} configured successfully!{Style.RESET_ALL}")
+            continue
+            
+        # Regular tool configuration
         else:
-            print(f"{Fore.YELLOW}Skipping {server['name']}.{Style.RESET_ALL}")
+            exe_path = input(f"Enter path to {server['exe_name']} (or leave empty to skip): ").strip()
+            
+            if exe_path:
+                if not os.path.exists(exe_path):
+                    print(f"{Fore.RED}Warning: The specified path does not exist.{Style.RESET_ALL}")
+                    cont = input(f"Continue anyway? (yes/no, default: no): ").strip().lower()
+                    if cont != "yes":
+                        continue
+                
+                # Add to configured servers
+                configured_servers.append({
+                    "name": server['name'],
+                    "params": {
+                        "command": server['command'],
+                        "args": server['args'],
+                        "env": {
+                            server['env_var']: exe_path
+                        }
+                    },
+                    "cache_tools_list": True
+                })
+                print(f"{Fore.GREEN}{server['name']} configured successfully!{Style.RESET_ALL}")
+            else:
+                print(f"{Fore.YELLOW}Skipping {server['name']}.{Style.RESET_ALL}")
     
     # Update mcp.json
     if "servers" not in mcp_config:

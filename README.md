@@ -158,20 +158,27 @@ When starting the application, you can:
 GHOSTCREW supports integration with the following security tools through the MCP protocol:
 
 1. **AlterX** - Subdomain permutation and wordlist generation tool
-2. **FFUF Fuzzer** - Fast web fuzzing tool for discovering hidden content
-3. **Masscan** - High-speed network port scanner
-4. **Metasploit** - Penetration testing framework providing exploit execution, payload generation, and session management
-5. **Nmap Scanner** - Network discovery and security auditing tool
-6. **Nuclei Scanner** - Template-based vulnerability scanner
-7. **SQLMap** - Automated SQL injection detection and exploitation tool
-8. **SSL Scanner** - Analysis tool for SSL/TLS configurations and security issues
-9. **Wayback URLs** - Tool for discovering historical URLs from the Wayback Machine archive
+2. **Amass** - Advanced subdomain enumeration and reconnaissance tool
+3. **Arjun** - Hidden HTTP parameters discovery tool
+4. **Assetfinder** - Passive subdomain discovery tool
+5. **Certificate Transparency** - SSL certificate transparency logs for subdomain discovery (no executable needed)
+6. **FFUF Fuzzer** - Fast web fuzzing tool for discovering hidden content
+7. **HTTPx** - Fast HTTP toolkit and port scanning tool
+8. **Katana** - Fast web crawling with JavaScript parsing tool
+9. **Masscan** - High-speed network port scanner
+10. **Metasploit** - Penetration testing framework with exploit execution, payload generation, and session management
+11. **Nmap Scanner** - Network discovery and security auditing tool
+12. **Nuclei Scanner** - Template-based vulnerability scanner
+13. **Scout Suite** - Cloud security auditing tool
+14. **shuffledns** - High-speed DNS brute-forcing and resolution tool
+15. **SQLMap** - Automated SQL injection detection and exploitation tool
+16. **SSL Scanner** - Analysis tool for SSL/TLS configurations and security issues
+17. **Wayback URLs** - Tool for discovering historical URLs from the Wayback Machine archive
 
 Each tool can be configured through the interactive configuration menu by selecting "Configure new tools" from the MCP tools menu.
 
 ## Coming Soon
 
-- Amass
 - BloodHound
 - CrackMapExec
 - Gobuster
