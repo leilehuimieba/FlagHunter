@@ -1,4 +1,4 @@
-# GHOSTCREW
+# PentestMCP
 
 This is an AI red team assistant using large language models with MCP and RAG architecture. It aims to help users perform penetration testing tasks, query security information, analyze network traffic, and more through natural language interaction.
 
@@ -19,7 +19,7 @@ https://github.com/user-attachments/assets/73176f92-a94d-4b66-9aa7-ee06c438a741
 
 ## Automated Penetration Testing Workflows
 
-GHOSTCREW includes automated penetration testing workflows that provide structured, systematic security assessments. These workflows require MCP tools to be configured and connected to function properly.
+PentestMCP includes automated penetration testing workflows that provide structured, systematic security assessments. These workflows require MCP tools to be configured and connected to function properly.
 
 ### Available Workflows
 
@@ -59,7 +59,7 @@ GHOSTCREW includes automated penetration testing workflows that provide structur
 
 ### How to Use Workflows
 
-1. Start GHOSTCREW and configure MCP tools when prompted
+1. Start PentestMCP and configure MCP tools when prompted
 2. Select "Automated Penetration Testing" from the main menu
 3. Choose your desired workflow type
 4. Enter the target (IP, domain, or network range)
@@ -68,23 +68,23 @@ GHOSTCREW includes automated penetration testing workflows that provide structur
 
 ### Startup Effect
 <p align="center">
-  <img width="517" alt="GHOSTCREW Terminal Startup Screen" src="https://github.com/user-attachments/assets/13d97cf7-5652-4c64-8e49-a3cd556b3419" />
+  <img width="517" alt="PentestMCP Terminal Startup Screen" src="https://github.com/user-attachments/assets/13d97cf7-5652-4c64-8e49-a3cd556b3419" />
   <br>
-  <em>GHOSTCREW's terminal startup interface</em>
+  <em>PentestMCP's terminal startup interface</em>
 </p>
 
 ### Metasploit Tool Call
 <p align="center">
-  <img width="926" alt="GHOSTCREW Metasploit Integration" src="https://github.com/user-attachments/assets/fb5eb8cf-a3d6-486b-99ba-778be2474564" />
+  <img width="926" alt="PentestMCP Metasploit Integration" src="https://github.com/user-attachments/assets/fb5eb8cf-a3d6-486b-99ba-778be2474564" />
   <br>
-  <em>Example of GHOSTCREW invoking Metasploit Framework</em>
+  <em>Example of PentestMCP invoking Metasploit Framework</em>
 </p>
 
 ## Installation Guide
 
 1. **Clone Repository**:
    ```bash
-   git clone https://github.com/GH05TCREW/GHOSTCREW.git
+   git clone https://github.com/GH05TCREW/PentestMCP.git
    cd agent
    ```
 
@@ -140,7 +140,7 @@ GHOSTCREW includes automated penetration testing workflows that provide structur
 
 ## Input Modes
 
-GHOSTCREW supports two input modes:
+PentestMCP supports two input modes:
 - **Single-line mode** (default): Type your query and press Enter to submit
 - **Multi-line mode**: Type 'multi' and press Enter, then type your query across multiple lines. Press Enter on an empty line to submit.
 
@@ -155,7 +155,7 @@ When starting the application, you can:
 
 ## Available MCP Tools
 
-GHOSTCREW supports integration with the following security tools through the MCP protocol:
+PentestMCP supports integration with the following security tools through the MCP protocol:
 
 1. **AlterX** - Subdomain permutation and wordlist generation tool
 2. **Amass** - Advanced subdomain enumeration and reconnaissance tool
