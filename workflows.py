@@ -49,13 +49,13 @@ def get_available_workflows():
             "name": "Complete Penetration Test",
             "description": "Full-scope penetration testing methodology",
             "steps": [
-                "Phase 1: Comprehensive reconnaissance and asset discovery on {target}",
-                "Phase 2: Service enumeration and technology fingerprinting",
-                "Phase 3: Vulnerability scanning and identification", 
-                "Phase 4: Web application security testing (if applicable)",
-                "Phase 5: Network service exploitation attempts",
-                "Phase 6: Post-exploitation and privilege escalation testing",
-                "Phase 7: Document findings and provide comprehensive remediation guidance"
+                "Phase 1: Quick port scan to identify open services on {target}",
+                "Phase 2: Service version detection on discovered ports",
+                "Phase 3: Web service discovery and directory enumeration", 
+                "Phase 4: Focused vulnerability scanning of services",
+                "Phase 5: Targeted exploitation of discovered vulnerabilities",
+                "Phase 6: Post-exploitation enumeration if access gained",
+                "Phase 7: Compile findings and remediation recommendations"
             ]
         }
     }

@@ -15,6 +15,7 @@ https://github.com/user-attachments/assets/73176f92-a94d-4b66-9aa7-ee06c438a741
 - **Conversation History**: Supports multi-turn dialogues, remembering previous interaction content.
 - **Streaming Output**: AI responses can be streamed for a better user experience.
 - **Knowledge Base Enhancement (Optional)**: Supports enhancing AI responses through a local knowledge base RAG (`knowledge` directory).
+- **File-Aware Tool Integration**: AI recognizes and uses actual files from the knowledge folder (wordlists, payloads, configs) with security tools.
 - **Configurable Models**: Supports configuration of different language model parameters.
 
 ## Automated Penetration Testing Workflows

@@ -1,10 +1,80 @@
 import json
 import os
 import shutil
+import subprocess
+import platform
 from pathlib import Path
 from colorama import init, Fore, Style
 
 init(autoreset=True)
+
+def find_tool_path(tool_name):
+    """Auto-discover tool path using system commands"""
+    try:
+        if platform.system() == "Windows":
+            # Use 'where' command on Windows
+            result = subprocess.run(['where', tool_name], 
+                                  capture_output=True, text=True, check=False)
+            if result.returncode == 0:
+                # Get first valid path from results
+                paths = result.stdout.strip().split('\n')
+                for path in paths:
+                    path = path.strip()
+                    if path and os.path.exists(path):
+                        return path
+        else:
+            # Use 'which' command on Linux/Mac
+            path = shutil.which(tool_name)
+            if path and os.path.exists(path):
+                return path
+    except Exception:
+        pass
+    return None
+
+def get_tool_search_variants(exe_name):
+    """Get different variants of tool names to search for"""
+    if not exe_name:
+        return []
+    
+    # For Windows, just search for the base name - 'where' will find the actual executable
+    base_name = exe_name.replace('.exe', '').replace('.py', '')
+    variants = [base_name]
+    
+    # Also try the exact name if it's different
+    if exe_name != base_name:
+        variants.append(exe_name)
+    
+    return variants
+
+def auto_discover_tool_path(server):
+    """Auto-discover tool path with user confirmation"""
+    if not server.get('exe_name'):
+        return None
+        
+    print(f"{Fore.CYAN}Searching for {server['name']}...{Style.RESET_ALL}")
+    
+    # Get search variants
+    search_variants = get_tool_search_variants(server['exe_name'])
+    
+    # Try to find the tool
+    found_path = None
+    for variant in search_variants:
+        found_path = find_tool_path(variant)
+        if found_path:
+            break
+    
+    if found_path:
+        print(f"{Fore.GREEN}Found: {found_path}{Style.RESET_ALL}")
+        choice = input(f"   Use this path? (yes/no): ").strip().lower()
+        if choice == 'y' or choice == 'yes':
+            return found_path
+        # If user says no, fall through to manual input
+    else:
+        print(f"{Fore.YELLOW}{server['name']} not found in PATH{Style.RESET_ALL}")
+    
+    # Fallback to manual input
+    manual_path = input(f"   Enter path to {server['exe_name']} manually (or press Enter to skip): ").strip()
+    return manual_path if manual_path else None
 
 MCP_SERVERS = [
     {
@@ -33,7 +103,7 @@ MCP_SERVERS = [
         "command": "npx",
         "args": ["-y", "gc-arjun-mcp"],
         "description": "MCP server for discovering hidden HTTP parameters using the Arjun tool.",
-        "exe_name": "arjun.py",
+        "exe_name": "arjun",
         "env_var": "ARJUN_PATH",
         "homepage": "https://www.npmjs.com/package/gc-arjun-mcp"
     },
@@ -103,7 +173,7 @@ MCP_SERVERS = [
         "command": "uvx",
         "args": ["gc-metasploit", "--transport", "stdio"],
         "description": "MCP server for Metasploit Framework with exploit execution, payload generation, and session management.",
-        "exe_name": "msfconsole.exe",
+        "exe_name": None,  # No local executable needed - uses uvx package
         "env_var": "MSF_PASSWORD",
         "env_extra": {
             "MSF_SERVER": "127.0.0.1",
@@ -149,7 +219,7 @@ MCP_SERVERS = [
         "command": "npx",
         "args": ["-y", "gc-shuffledns-mcp"],
         "description": "MCP server for high-speed DNS brute-forcing and resolution using the shuffledns tool.",
-        "exe_name": "shuffledns.exe",
+        "exe_name": "shuffledns",
         "env_var": "SHUFFLEDNS_PATH",
         "env_extra": {
             "MASSDNS_PATH": ""
@@ -201,7 +271,8 @@ def check_npm_installed():
 def main():
     print(f"{Fore.GREEN}===================== GHOSTCREW MCP SERVER CONFIGURATION ====================={Style.RESET_ALL}")
     print(f"{Fore.YELLOW}This tool will help you configure the MCP servers for your GHOSTCREW installation.{Style.RESET_ALL}")
-    print(f"{Fore.YELLOW}For each tool, you'll need to provide the path to the executable.{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}Auto-discovery will attempt to find tools automatically in your system PATH.{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}You can confirm, decline, or provide custom paths as needed.{Style.RESET_ALL}")
     print()
     
     # Check if npm is installed
@@ -250,104 +321,82 @@ def main():
         server = MCP_SERVERS[idx]
         print(f"\n{Fore.CYAN}Configuring {server['name']}:{Style.RESET_ALL}")
         
-        # Special handling for Metasploit
-        if server['key'] == "MetasploitMCP":
-            print(f"{Fore.YELLOW}Metasploit requires additional configuration:{Style.RESET_ALL}")
-            
-            msf_password = input(f"Enter Metasploit RPC Password: ").strip()
-            msf_server = input(f"Enter Metasploit RPC Server IP (default: 127.0.0.1): ").strip() or "127.0.0.1"
-            msf_port = input(f"Enter Metasploit RPC Port (default: 55553): ").strip() or "55553"
-            msf_ssl = input(f"Use SSL for MSF connection (yes/no, default: no): ").strip().lower()
-            msf_ssl = "true" if msf_ssl == "yes" else "false"
-            payload_dir = input(f"Enter path to save generated payloads: ").strip()
-            
-            # Add to configured servers
-            configured_servers.append({
-                "name": server['name'],
-                "params": {
-                    "command": server['command'],
-                    "args": server['args'],
-                    "env": {
-                        "MSF_PASSWORD": msf_password,
-                        "MSF_SERVER": msf_server,
-                        "MSF_PORT": msf_port,
-                        "MSF_SSL": msf_ssl,
-                        "PAYLOAD_SAVE_DIR": payload_dir
-                    }
-                },
-                "cache_tools_list": True
-            })
-            print(f"{Fore.GREEN}{server['name']} configured successfully!{Style.RESET_ALL}")
-            continue
-            
-        # Special handling for Certificate Transparency (no executable needed)
-        elif server['key'] == "CrtSh":
-            print(f"{Fore.GREEN}Certificate Transparency service requires no local executable.{Style.RESET_ALL}")
-            configured_servers.append({
-                "name": server['name'],
-                "params": {
-                    "command": server['command'],
-                    "args": server['args'],
-                    "env": {}
-                },
-                "cache_tools_list": True
-            })
-            print(f"{Fore.GREEN}{server['name']} configured successfully!{Style.RESET_ALL}")
-            continue
-            
-        # Special handling for shuffledns (needs both shuffledns and massdns)
-        elif server['key'] == "ShuffleDNS":
-            print(f"{Fore.YELLOW}shuffledns requires both shuffledns and massdns executables:{Style.RESET_ALL}")
-            
-            shuffledns_path = input(f"Enter path to {server['exe_name']} (or leave empty to skip): ").strip()
-            if not shuffledns_path:
-                print(f"{Fore.YELLOW}Skipping {server['name']}.{Style.RESET_ALL}")
-                continue
-                
-            massdns_path = input(f"Enter path to massdns.exe: ").strip()
-            
-            # Configure shuffledns
-            configured_servers.append({
-                "name": server['name'],
-                "params": {
-                    "command": server['command'],
-                    "args": server['args'],
-                    "env": {
-                        "SHUFFLEDNS_PATH": shuffledns_path,
-                        "MASSDNS_PATH": massdns_path
-                    }
-                },
-                "cache_tools_list": True
-            })
-            print(f"{Fore.GREEN}{server['name']} configured successfully!{Style.RESET_ALL}")
-            continue
-            
-        # Regular tool configuration
-        else:
-            exe_path = input(f"Enter path to {server['exe_name']} (or leave empty to skip): ").strip()
+        # Unified tool configuration - handles all tools generically
+        env_vars = {}
+        
+        # Handle main executable and environment variable
+        if server.get('exe_name'):
+            # Try to auto-discover the executable
+            exe_path = auto_discover_tool_path(server)
             
             if exe_path:
+                # Verify the path exists
                 if not os.path.exists(exe_path):
-                    print(f"{Fore.RED}Warning: The specified path does not exist.{Style.RESET_ALL}")
-                    cont = input(f"Continue anyway? (yes/no, default: no): ").strip().lower()
+                    print(f"{Fore.YELLOW}Warning: The specified path does not exist: {exe_path}{Style.RESET_ALL}")
+                    cont = input(f"   Continue anyway? (yes/no, default: no): ").strip().lower()
                     if cont != "yes":
+                        print(f"   {Fore.YELLOW}Skipping {server['name']}.{Style.RESET_ALL}")
                         continue
                 
-                # Add to configured servers
-                configured_servers.append({
-                    "name": server['name'],
-                    "params": {
-                        "command": server['command'],
-                        "args": server['args'],
-                        "env": {
-                            server['env_var']: exe_path
-                        }
-                    },
-                    "cache_tools_list": True
-                })
-                print(f"{Fore.GREEN}{server['name']} configured successfully!{Style.RESET_ALL}")
+                # Set the main environment variable
+                if server.get('env_var'):
+                    env_vars[server['env_var']] = exe_path
             else:
-                print(f"{Fore.YELLOW}Skipping {server['name']}.{Style.RESET_ALL}")
+                # Executable not found and user didn't provide manual path
+                print(f"{Fore.YELLOW}Skipping {server['name']} - executable not found.{Style.RESET_ALL}")
+                continue
+        elif server.get('env_var'):
+            # Tool has no executable but needs a main environment variable (like Metasploit)
+            value = input(f"Enter value for {server['env_var']} (default: ): ").strip()
+            
+            if value:
+                env_vars[server['env_var']] = value
+            else:
+                print(f"{Fore.YELLOW}Skipping {server['name']} - {server['env_var']} required.{Style.RESET_ALL}")
+                continue
+        else:
+            # Tool requires no executable (like Certificate Transparency)
+            print(f"{Fore.GREEN}{server['name']} requires no local executable.{Style.RESET_ALL}")
+        
+        # Handle additional environment variables
+        if 'env_extra' in server:
+            for extra_var, default_value in server['env_extra'].items():
+                if extra_var == "MASSDNS_PATH":
+                    # Special auto-discovery for massdns
+                    print(f"\n{Fore.CYAN}Also configuring massdns for {server['name']}...{Style.RESET_ALL}")
+                    print(f"{Fore.CYAN}Searching for massdns...{Style.RESET_ALL}")
+                    
+                    massdns_path = find_tool_path("massdns")
+                    if massdns_path:
+                        print(f"{Fore.GREEN}Found: {massdns_path}{Style.RESET_ALL}")
+                        choice = input(f"   Use this path? (yes/no): ").strip().lower()
+                        if choice != 'y' and choice != 'yes':
+                            massdns_path = input(f"   Enter path to massdns manually: ").strip()
+                    else:
+                        print(f"{Fore.YELLOW}massdns not found in PATH{Style.RESET_ALL}")
+                        massdns_path = input(f"   Enter path to massdns manually (or press Enter to skip): ").strip()
+                    
+                    if massdns_path:
+                        env_vars[extra_var] = massdns_path
+                    else:
+                        print(f"{Fore.YELLOW}Skipping {server['name']} - massdns path required.{Style.RESET_ALL}")
+                        continue
+                else:
+                    # Handle all environment variables generically
+                    value = input(f"Enter value for {extra_var} (default: {default_value}): ").strip()
+                    env_vars[extra_var] = value if value else default_value
+        
+        # Add to configured servers
+        configured_servers.append({
+            "name": server['name'],
+            "params": {
+                "command": server['command'],
+                "args": server['args'],
+                "env": env_vars
+            },
+            "cache_tools_list": True
+        })
+        print(f"{Fore.GREEN}{server['name']} configured successfully!{Style.RESET_ALL}")
     
     # Update mcp.json
     if "servers" not in mcp_config:

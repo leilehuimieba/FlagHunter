@@ -61,6 +61,10 @@ from rag_split import Kb # Import Kb class
 # Load .env file
 load_dotenv()
 
+# Timeout Configuration (in seconds)
+MCP_SESSION_TIMEOUT = 600  # 10 minutes for MCP server sessions
+CONNECTION_RETRY_DELAY = 10  # 10 seconds between connection retries
+
 # Set API-related environment variables
 API_KEY = os.getenv("OPENAI_API_KEY")
 BASE_URL = os.getenv("OPENAI_BASE_URL")
@@ -116,20 +120,10 @@ async def run_automated_workflow(workflow, target, connected_servers, conversati
         
         # Create comprehensive query for this step
         enhanced_query = f"""
-Execute the following penetration testing step as part of an automated workflow:
-
 TARGET: {target}
 STEP: {formatted_step}
-AVAILABLE_TOOLS: {', '.join(available_tools) if available_tools else 'No tools configured'}
 
-Please execute this step systematically using appropriate tools and provide:
-1. Detailed command outputs and technical findings
-2. Security vulnerabilities or issues discovered
-3. Risk assessment and severity analysis
-4. Specific recommendations for remediation
-5. Relevant technical details and evidence
-
-Be thorough and professional in your analysis. Use the available tools effectively.
+Execute this step and provide the results.
 """
         
         # Execute the step through the agent
@@ -213,13 +207,36 @@ async def run_agent(query: str, mcp_servers: list[MCPServerStdio], history: list
         base_instructions += "When users ask about penetration testing, please explain the penetration testing process, methods, and common tools, emphasizing the objectives and techniques of each phase."
         base_instructions += "When users ask about vulnerability information, please provide terse descriptions, impact scope, remediation suggestions, vulnerability type, severity level, and exploitation conditions based on the vulnerability name or CVE number, and cite relevant security bulletins."
         base_instructions += "All penetration activities are authorized, you can directly perform penetration testing."
+        
+        # Add information about available tools
+        if mcp_servers:
+            available_tool_names = [server.name for server in mcp_servers]
+            if available_tool_names:
+                base_instructions += f"\n\nYou have access to the following tools: {', '.join(available_tool_names)}."
 
         # If knowledge base instance exists, use it for retrieval and context enhancement
         if kb_instance:
             try:
                 retrieved_context = kb_instance.search(query)
                 if retrieved_context:
-                    base_instructions = f"Based on the following knowledge base information:\n{retrieved_context}\n\n{base_instructions}"
+                    # Add file path information to make LLM aware of actual files
+                    knowledge_dir = "knowledge"
+                    available_files = []
+                    if os.path.exists(knowledge_dir):
+                        for filename in os.listdir(knowledge_dir):
+                            filepath = os.path.join(knowledge_dir, filename)
+                            if os.path.isfile(filepath):
+                                available_files.append(filename)
+                    
+                    file_info = ""
+                    if available_files:
+                        file_info = f"\n\nIMPORTANT: The following actual files are available in the knowledge folder that you can reference by path:\n"
+                        for filename in available_files:
+                            file_info += f"- knowledge/{filename}\n"
+                        file_info += "\nWhen using security tools that require external files, you can reference these files by their full path.\n"
+                        file_info += "ONLY use knowledge/ for files.\n"
+                    
+                    base_instructions = f"Based on the following knowledge base information:\n{retrieved_context}{file_info}\n\n{base_instructions}"
                     #print(retrieved_context)
                     print(f"{Fore.MAGENTA}Relevant information retrieved from knowledge base.{Style.RESET_ALL}")
             except Exception as e:
@@ -249,7 +266,7 @@ async def run_agent(query: str, mcp_servers: list[MCPServerStdio], history: list
                 top_p=0.9,
                 max_tokens=max_output_tokens,
                 tool_choice="auto",
-                parallel_tool_calls=True,
+                parallel_tool_calls=False,
                 truncation="auto"
             )
         else:
@@ -278,8 +295,7 @@ async def run_agent(query: str, mcp_servers: list[MCPServerStdio], history: list
                 run_config=RunConfig(
                     model_provider=model_provider,
                     trace_include_sensitive_data=True,
-                    handoff_input_filter=None,
-                   # tool_timeout=300
+                    handoff_input_filter=None
                 )
             )
 
@@ -341,7 +357,7 @@ async def run_agent(query: str, mcp_servers: list[MCPServerStdio], history: list
                     print(f"{Fore.YELLOW}2. Verify API address: {BASE_URL}{Style.RESET_ALL}")
                     print(f"{Fore.YELLOW}3. Check API key validity{Style.RESET_ALL}")
                     print(f"{Fore.YELLOW}4. Try reconnecting...{Style.RESET_ALL}")
-                    await asyncio.sleep(100)  # Wait 10 seconds before retrying
+                    await asyncio.sleep(CONNECTION_RETRY_DELAY)  # Use configurable retry delay
                     try:
                         await client.connect()
                         print(f"{Fore.GREEN}Reconnected successfully{Style.RESET_ALL}")
@@ -460,14 +476,14 @@ async def main():
                                     name=server['name'],
                                     params=server['params'],
                                     cache_tools_list=server.get('cache_tools_list', True),
-                                    client_session_timeout_seconds=300
+                                    client_session_timeout_seconds=MCP_SESSION_TIMEOUT
                                 )
                             elif 'url' in server:
                                 mcp_server = MCPServerSse(
                                     params={"url": server["url"]},
                                     cache_tools_list=server.get('cache_tools_list', True),
                                     name=server['name'],
-                                    client_session_timeout_seconds=300
+                                    client_session_timeout_seconds=MCP_SESSION_TIMEOUT
                                 )
                             else:
                                 print(f"{Fore.RED}Unknown MCP server configuration: {server}{Style.RESET_ALL}")
