@@ -2,7 +2,7 @@
 
 This is an AI red team assistant using large language models with MCP and RAG architecture. It aims to help users perform penetration testing tasks, query security information, analyze network traffic, and more through natural language interaction.
 
-https://github.com/user-attachments/assets/73176f92-a94d-4b66-9aa7-ee06c438a741
+https://github.com/user-attachments/assets/0a7abb48-42f5-4a5e-95cb-88143fc83981
 
 ## Features
 
