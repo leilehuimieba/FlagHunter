@@ -1,8 +1,8 @@
-# PentestMCP
+# PentestAgent
 
 This is an AI red team assistant using large language models with MCP and RAG architecture. It aims to help users perform penetration testing tasks, query security information, analyze network traffic, and more through natural language interaction.
 
-https://github.com/user-attachments/assets/0a7abb48-42f5-4a5e-95cb-88143fc83981
+https://github.com/user-attachments/assets/a43d2457-7113-42cc-ad02-f378d57f4d24
 
 ## Features
 
@@ -20,7 +20,7 @@ https://github.com/user-attachments/assets/0a7abb48-42f5-4a5e-95cb-88143fc83981
 
 ## Automated Penetration Testing Workflows
 
-PentestMCP includes automated penetration testing workflows that provide structured, systematic security assessments. These workflows require MCP tools to be configured and connected to function properly.
+PentestAgent includes automated penetration testing workflows that provide structured, systematic security assessments. These workflows require MCP tools to be configured and connected to function properly.
 
 ### Available Workflows
 
@@ -60,7 +60,7 @@ PentestMCP includes automated penetration testing workflows that provide structu
 
 ### How to Use Workflows
 
-1. Start PentestMCP and configure MCP tools when prompted
+1. Start the Pentest Agent and configure MCP tools when prompted
 2. Select "Automated Penetration Testing" from the main menu
 3. Choose your desired workflow type
 4. Enter the target (IP, domain, or network range)
@@ -69,23 +69,23 @@ PentestMCP includes automated penetration testing workflows that provide structu
 
 ### Startup Effect
 <p align="center">
-  <img width="517" alt="PentestMCP Terminal Startup Screen" src="https://github.com/user-attachments/assets/13d97cf7-5652-4c64-8e49-a3cd556b3419" />
+  <img width="517" alt="PentestAgent Terminal Startup Screen" src="https://github.com/user-attachments/assets/13d97cf7-5652-4c64-8e49-a3cd556b3419" />
   <br>
-  <em>PentestMCP's terminal startup interface</em>
+  <em>PentestAgent's terminal startup interface</em>
 </p>
 
 ### Metasploit Tool Call
 <p align="center">
-  <img width="926" alt="PentestMCP Metasploit Integration" src="https://github.com/user-attachments/assets/fb5eb8cf-a3d6-486b-99ba-778be2474564" />
+  <img width="926" alt="PentestAgent Metasploit Integration" src="https://github.com/user-attachments/assets/fb5eb8cf-a3d6-486b-99ba-778be2474564" />
   <br>
-  <em>Example of PentestMCP invoking Metasploit Framework</em>
+  <em>Example of PentestAgent invoking Metasploit Framework</em>
 </p>
 
 ## Installation Guide
 
 1. **Clone Repository**:
    ```bash
-   git clone https://github.com/GH05TCREW/PentestMCP.git
+   git clone https://github.com/GH05TCREW/PentestAgent.git
    cd agent
    ```
 
@@ -141,7 +141,7 @@ PentestMCP includes automated penetration testing workflows that provide structu
 
 ## Input Modes
 
-PentestMCP supports two input modes:
+PentestAgent supports two input modes:
 - **Single-line mode** (default): Type your query and press Enter to submit
 - **Multi-line mode**: Type 'multi' and press Enter, then type your query across multiple lines. Press Enter on an empty line to submit.
 
@@ -156,7 +156,7 @@ When starting the application, you can:
 
 ## Available MCP Tools
 
-PentestMCP supports integration with the following security tools through the MCP protocol:
+PentestAgent supports integration with the following security tools through the MCP protocol:
 
 1. **AlterX** - Subdomain permutation and wordlist generation tool
 2. **Amass** - Advanced subdomain enumeration and reconnaissance tool
