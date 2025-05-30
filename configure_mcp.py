@@ -179,7 +179,7 @@ MCP_SERVERS = [
             "MSF_SERVER": "127.0.0.1",
             "MSF_PORT": "55553",
             "MSF_SSL": "false",
-            "PAYLOAD_SAVE_DIR": ""
+            "PAYLOAD_SAVE_DIR": "knowledge"
         },
         "homepage": "https://github.com/GH05TCREW/MetasploitMCP"
     },

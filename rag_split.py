@@ -29,9 +29,25 @@ class Kb:
             self.embedss = np.array([])
             return
 
+        # Define binary file extensions to skip
+        binary_extensions = {
+            '.exe', '.dll', '.so', '.dylib', '.elf', '.bin', '.dat',
+            '.zip', '.tar', '.gz', '.7z', '.rar', '.pdf', '.doc', '.docx',
+            '.xls', '.xlsx', '.ppt', '.pptx', '.jpg', '.jpeg', '.png', '.gif',
+            '.bmp', '.ico', '.mp3', '.mp4', '.avi', '.mov', '.wav', '.flv',
+            '.iso', '.img', '.vmdk', '.vdi'
+        }
+
         for filename in os.listdir(dirpath):
             filepath = os.path.join(dirpath, filename)
             if os.path.isfile(filepath):
+                # Get file extension in lowercase
+                file_ext = os.path.splitext(filename)[1].lower()
+                
+                # Skip binary files
+                if file_ext in binary_extensions:
+                    continue
+                    
                 try:
                     with open(filepath, 'r', encoding="utf-8") as f:
                         all_content += f.read() + "\n"  # Add a newline to separate file contents
