@@ -107,15 +107,11 @@ GHOSTCREW includes automated penetration testing workflows that provide structur
    pip install -r requirements.txt
    ```
 
-4. **Install `uv` (important)**:
-   This project uses `uv` as a Python package runner and installer in some scenarios.
-   - The `start.bat` script will automatically try to install `uv` for you.
-   - If you want to install it manually or use it in another environment, you can run:
-     ```bash
-     pip install uv
-     ```
-     or refer to the official `uv` documentation for installation.
-   Make sure `uv` is successfully installed and can be called from the command line.
+4. **Install MCP Server Dependencies** (Required for tools):
+   - **Node.js & npm**: Most MCP security tools require Node.js. Install from [nodejs.org](https://nodejs.org/)
+   - **Python uv** (for Metasploit): Install with `pip install uv`
+   
+   Without these, you can still use GHOSTCREW in chat mode, but automated workflows and tool integration won't be available.
 
 ## Usage
 
