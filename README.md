@@ -86,7 +86,7 @@ GHOSTCREW includes automated penetration testing workflows that provide structur
 1. **Clone Repository**:
    ```bash
    git clone https://github.com/GH05TCREW/ghostcrew.git
-   cd agent
+   cd ghostcrew
    ```
 
 2. **Create and Activate Virtual Environment** (recommended):
