@@ -1,4 +1,4 @@
-# PentestAgent
+# GHOSTCREW
 
 This is an AI red team assistant using large language models with MCP and RAG architecture. It aims to help users perform penetration testing tasks, query security information, analyze network traffic, and more through natural language interaction.
 
@@ -20,7 +20,7 @@ https://github.com/user-attachments/assets/a43d2457-7113-42cc-ad02-f378d57f4d24
 
 ## Automated Penetration Testing Workflows
 
-PentestAgent includes automated penetration testing workflows that provide structured, systematic security assessments. These workflows require MCP tools to be configured and connected to function properly.
+GHOSTCREW includes automated penetration testing workflows that provide structured, systematic security assessments. These workflows require MCP tools to be configured and connected to function properly.
 
 ### Available Workflows
 
@@ -69,23 +69,23 @@ PentestAgent includes automated penetration testing workflows that provide struc
 
 ### Startup Effect
 <p align="center">
-  <img width="517" alt="PentestAgent Terminal Startup Screen" src="https://github.com/user-attachments/assets/13d97cf7-5652-4c64-8e49-a3cd556b3419" />
+  <img width="517" alt="GHOSTCREW Terminal Startup Screen" src="https://github.com/user-attachments/assets/13d97cf7-5652-4c64-8e49-a3cd556b3419" />
   <br>
-  <em>PentestAgent's terminal startup interface</em>
+  <em>GHOSTCREW's terminal startup interface</em>
 </p>
 
 ### Metasploit Tool Call
 <p align="center">
-  <img width="926" alt="PentestAgent Metasploit Integration" src="https://github.com/user-attachments/assets/fb5eb8cf-a3d6-486b-99ba-778be2474564" />
+  <img width="926" alt="GHOSTCREW Metasploit Call" src="https://github.com/user-attachments/assets/fb5eb8cf-a3d6-486b-99ba-778be2474564" />
   <br>
-  <em>Example of PentestAgent invoking Metasploit Framework</em>
+  <em>Example of GHOSTCREW invoking Metasploit Framework</em>
 </p>
 
 ## Installation Guide
 
 1. **Clone Repository**:
    ```bash
-   git clone https://github.com/GH05TCREW/PentestAgent.git
+   git clone https://github.com/GH05TCREW/ghostcrew.git
    cd agent
    ```
 
@@ -125,7 +125,7 @@ PentestAgent includes automated penetration testing workflows that provide struc
    - The configuration is stored in the `mcp.json` file
 
 2. **Prepare Knowledge Base (Optional)**:
-   If you want to use the knowledge base enhancement feature, place relevant text files (e.g., `.json`) in the `knowledge` folder.
+   If you want to use the knowledge base enhancement feature, place relevant text files in the `knowledge` folder.
 
 3. **Run the Main Program**:
    ```bash
@@ -141,7 +141,7 @@ PentestAgent includes automated penetration testing workflows that provide struc
 
 ## Input Modes
 
-PentestAgent supports two input modes:
+GHOSTCREW supports two input modes:
 - **Single-line mode** (default): Type your query and press Enter to submit
 - **Multi-line mode**: Type 'multi' and press Enter, then type your query across multiple lines. Press Enter on an empty line to submit.
 
@@ -156,7 +156,7 @@ When starting the application, you can:
 
 ## Available MCP Tools
 
-PentestAgent supports integration with the following security tools through the MCP protocol:
+GHOSTCREW supports integration with the following security tools through the MCP protocol:
 
 1. **AlterX** - Subdomain permutation and wordlist generation tool
 2. **Amass** - Advanced subdomain enumeration and reconnaissance tool
@@ -190,28 +190,50 @@ Each tool can be configured through the interactive configuration menu by select
 ## File Structure
 
 ```
-agent/
-├── .venv/                  # Python virtual environment (ignored by .gitignore)
+GHOSTCREW/
+├── .venv/                  # Python virtual environment
+├── main.py                 # Application entry point
+├── config/                 # Application configuration
+│   ├── __init__.py
+│   ├── constants.py        # Constants and messages
+│   └── app_config.py       # Environment and API configuration
+├── core/                   # Core application logic
+│   ├── __init__.py
+│   ├── model_manager.py    # Model provider and token management
+│   ├── agent_runner.py     # Agent execution and streaming
+│   └── pentest_agent.py    # Main application controller
+├── tools/                  # MCP tool management
+│   ├── __init__.py
+│   ├── mcp_manager.py      # MCP server connection management
+│   └── configure_mcp.py    # Interactive tool configuration utility
+├── ui/                     # User interface components
+│   ├── __init__.py
+│   ├── menu_system.py      # Menu display and user interaction
+│   └── conversation_manager.py  # Chat history management
+├── workflows/              # Automated penetration testing workflows
+│   ├── __init__.py
+│   ├── workflow_engine.py  # Workflow execution engine
+│   └── workflow_definitions.py  # Predefined workflow templates
+├── rag/                    # Knowledge base and RAG functionality
+│   ├── __init__.py
+│   ├── knowledge_base.py   # RAG text splitting and search
+│   └── embedding.py        # Embedding generation and management
+├── reporting/              # Report generation system
+│   ├── __init__.py
+│   └── generators.py       # Professional report generation
 ├── knowledge/             # Knowledge base documents directory
 │   └── ...
 ├── reports/               # Professional penetration test reports directory
 │   ├── ghostcrew_*_*.md   # Professional markdown reports
 │   └── ghostcrew_*_*_raw_history.txt  # Raw conversation history (optional)
 ├── .gitignore              # Git ignore file configuration
-├── main.py                 # Main program entry
-├── workflows.py            # Automated penetration testing workflows
-├── reporting.py            # Professional report generation system
-├── configure_mcp.py        # MCP tool configuration utility
 ├── mcp.json                # MCP server configuration file
-├── rag_embedding.py        # RAG embedding related (if used)
-├── rag_split.py            # RAG text splitting related (if used)
 ├── README.md               # Project documentation
 ├── requirements.txt        # Python dependency list
 ├── LICENSE                 # Project license
-└── ... (other scripts or configuration files)
+└── .env                    # Environment variables
 ```
 
-## Configuration File (`.env`)
 ```
 # OpenAI API configurations
 OPENAI_API_KEY=your_api_key_here
@@ -223,7 +245,7 @@ This configuration uses OpenAI's API for both the language model and embeddings 
 
 ## Configuration File (`mcp.json`)
 
-This file is used to define MCP servers that the AI assistant can connect to and use. Most MCP servers require Node.js to be installed on your system. Each server entry should include:
+This file is used to define MCP servers that the AI assistant can connect to and use. Most MCP servers require Node.js or Python to be installed on your system. Each server entry should include:
 - `name`: Unique name of the server.
 - `params`: Parameters needed to start the server, usually including `command` and `args`.
 - `cache_tools_list`: Whether to cache the tools list.
