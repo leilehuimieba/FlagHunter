@@ -2,33 +2,25 @@
 """
 GHOSTCREW - AI-driven penetration testing assistant
 
-Main entry point for the application.
 """
 
 import asyncio
 import sys
 from colorama import init
 
-# Initialize colorama for cross-platform colored output
 init(autoreset=True)
 
-# CRITICAL: Initialize agents library BEFORE importing modules that use MCP
-# This must happen before any imports that might need MCPServerStdio/MCPServerSse
 from agents import set_tracing_disabled
 set_tracing_disabled(True)
 
-# Now import MCP classes after agents library is initialized
 from agents.mcp import MCPServerStdio, MCPServerSse
 
 
 async def main():
     """Main application entry point."""
     try:
-        # Import and run the main controller
-        # Now it's safe to import modules that use MCP classes
         from core.pentest_agent import PentestAgent
         
-        # Create and run the application, passing MCP classes
         agent = PentestAgent(MCPServerStdio, MCPServerSse)
         await agent.run()
         
@@ -47,5 +39,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    # Run the main application
     asyncio.run(main())
