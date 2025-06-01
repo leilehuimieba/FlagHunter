@@ -49,12 +49,12 @@ class MenuSystem:
     def get_multi_line_input() -> Optional[str]:
         """Get multi-line input from user."""
         print(f"{Fore.CYAN}Entering multi-line mode. Type your query across multiple lines.{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}Type '{MULTI_LINE_END_MARKER}' to end input.{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}Press Enter on empty line to submit.{Style.RESET_ALL}")
         
         lines = []
         while True:
             line = input()
-            if line == MULTI_LINE_END_MARKER:
+            if line == "":  # Empty line ends input
                 break
             lines.append(line)
         

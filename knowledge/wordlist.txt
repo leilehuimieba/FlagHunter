@@ -11,6 +11,7 @@ index.php
 robots.txt
 .htaccess
 uploads
+testpass
 images
 js
 css

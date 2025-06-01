@@ -55,8 +55,8 @@ EXIT_OPTION = f"{Fore.RED}Exit{Style.RESET_ALL}"
 KB_PROMPT = f"{Fore.YELLOW}Use knowledge base to enhance answers? (yes/no, default: no): {Style.RESET_ALL}"
 MCP_PROMPT = f"{Fore.YELLOW}Configure or connect MCP tools? (yes/no, default: no): {Style.RESET_ALL}"
 TOOL_SELECTION_PROMPT = f"{Fore.YELLOW}Enter numbers to connect to (comma-separated, default: all): {Style.RESET_ALL}"
-MULTI_LINE_PROMPT = f"{Fore.MAGENTA}(Enter multi-line mode. Type '###' to end input){Style.RESET_ALL}"
-MULTI_LINE_END_MARKER = "###"
+MULTI_LINE_PROMPT = f"{Fore.MAGENTA}(Enter multi-line mode. Press Enter on empty line to submit){Style.RESET_ALL}"
+MULTI_LINE_END_MARKER = ""
 
 # Error Messages
 ERROR_NO_API_KEY = "API key not set"
