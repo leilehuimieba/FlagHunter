@@ -11,7 +11,7 @@ https://github.com/user-attachments/assets/a43d2457-7113-42cc-ad02-f378d57f4d24
 - **Tool Management**: Configure, connect to, and manage MCP tools through an interactive menu, including the ability to clear all configurations.
 - **Tool Invocation**: The AI assistant can call tools provided by configured MCP servers (such as: nmap, metasploit, ffuf, etc.) based on user requests.
 - **Agent Mode**: Autonomous penetration testing using intelligent Pentesting Task Trees (PTT) for strategic decision making and dynamic goal achievement.
-- **Automated Pentesting Workflows**: Execute predefined penetration testing workflows that systematically use configured security tools to perform comprehensive assessments.
+- **Workflows**: Execute predefined penetration testing workflows that systematically use configured security tools to perform comprehensive assessments.
 - **Report Generation**: Generate markdown reports with structured findings, evidence, and recommendations.
 - **Conversation History**: Supports multi-turn dialogues, remembering previous interaction content.
 - **Streaming Output**: AI responses can be streamed for a better user experience.
@@ -82,7 +82,7 @@ https://github.com/user-attachments/assets/a43d2457-7113-42cc-ad02-f378d57f4d24
    After the program starts, you can:
    - Choose whether to use the knowledge base
    - Configure or activate MCP tools
-   - Select between Interactive Chat Mode or Automated Penetration Testing
+   - Select between Chat, Workflows, or Agent modes
    - Execute workflows and generate reports
    - Use 'multi' command to enter multi-line input mode for complex queries
    - Enter 'quit' to exit the program

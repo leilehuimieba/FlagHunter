@@ -39,7 +39,7 @@ class WorkflowEngine:
     def show_automated_menu() -> Optional[List[tuple]]:
         """Display the automated workflow selection menu."""
         try:
-            print(f"\n{Fore.CYAN}AUTOMATED PENTESTING WORKFLOWS{Style.RESET_ALL}")
+            print(f"\n{Fore.CYAN}WORKFLOWS{Style.RESET_ALL}")
             print(f"{Fore.WHITE}{'='*50}{Style.RESET_ALL}")
             
             workflow_list = list_workflow_names()
@@ -70,7 +70,7 @@ class WorkflowEngine:
         run_agent_func: Any
     ) -> List[Dict[str, Any]]:
         """
-        Execute an automated penetration testing workflow.
+        Execute a workflow.
         
         Args:
             workflow: The workflow definition

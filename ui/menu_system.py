@@ -21,15 +21,15 @@ class MenuSystem:
         if workflows_available and has_connected_servers:
             print(f"2. {AUTOMATED_OPTION}")
         elif workflows_available and not has_connected_servers:
-            print(f"2. {Fore.LIGHTBLACK_EX}Automated Penetration Testing (requires MCP tools){Style.RESET_ALL}")
+            print(f"2. {Fore.LIGHTBLACK_EX}Workflows (requires MCP tools){Style.RESET_ALL}")
         else:
-            print(f"2. {Fore.LIGHTBLACK_EX}Automated Penetration Testing (workflows.py not found){Style.RESET_ALL}")
+            print(f"2. {Fore.LIGHTBLACK_EX}Workflows (workflows.py not found){Style.RESET_ALL}")
         
         # Agent mode option
         if has_connected_servers:
-            print(f"3. {Fore.YELLOW}Agent Mode{Style.RESET_ALL}")
+            print(f"3. {Fore.YELLOW}Agent{Style.RESET_ALL}")
         else:
-            print(f"3. {Fore.LIGHTBLACK_EX}Agent Mode (requires MCP tools){Style.RESET_ALL}")
+            print(f"3. {Fore.LIGHTBLACK_EX}Agent (requires MCP tools){Style.RESET_ALL}")
         
         print(f"4. {EXIT_OPTION}")
     
@@ -41,14 +41,14 @@ class MenuSystem:
     @staticmethod
     def display_interactive_mode_intro() -> None:
         """Display introduction for interactive chat mode."""
-        print(f"\n{Fore.CYAN}INTERACTIVE CHAT MODE{Style.RESET_ALL}")
+        print(f"\n{Fore.CYAN}CHAT MODE{Style.RESET_ALL}")
         print(f"{Fore.WHITE}Type your questions or commands. Use 'multi' for multi-line input.{Style.RESET_ALL}")
         print(f"{Fore.WHITE}Type 'menu' to return to main menu.{Style.RESET_ALL}\n")
     
     @staticmethod
     def display_agent_mode_intro() -> None:
         """Display introduction for agent mode."""
-        print(f"\n{Fore.CYAN}AGENT MODE - Autonomous PTT-based Penetration Testing{Style.RESET_ALL}")
+        print(f"\n{Fore.CYAN}AGENT MODE{Style.RESET_ALL}")
         print(f"{Fore.WHITE}{'='*60}{Style.RESET_ALL}")
         print(f"{Fore.WHITE}The AI agent will autonomously conduct a penetration test{Style.RESET_ALL}")
         print(f"{Fore.WHITE}using a dynamic Pentesting Task Tree (PTT) for strategic{Style.RESET_ALL}")
@@ -171,7 +171,7 @@ class MenuSystem:
     @staticmethod
     def display_workflow_requirements_message() -> None:
         """Display message about automated workflow requirements."""
-        print(f"\n{Fore.YELLOW}Automated penetration testing requires MCP tools to be configured and connected.{Style.RESET_ALL}")
+        print(f"\n{Fore.YELLOW}Workflows requires MCP tools to be configured and connected.{Style.RESET_ALL}")
         print(f"{Fore.WHITE}Without real security tools, the AI would only generate simulated responses.{Style.RESET_ALL}")
         print(f"{Fore.WHITE}Please configure MCP tools to use this feature.{Style.RESET_ALL}")
         input(f"{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")

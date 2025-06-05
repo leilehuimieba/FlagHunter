@@ -1,4 +1,4 @@
-# GHOSTCREW Automated Penetration Testing Workflows
+# GHOSTCREW Workflows
 
 def get_available_workflows():
     """

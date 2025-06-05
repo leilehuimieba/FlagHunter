@@ -46,9 +46,9 @@ All penetration activities are authorized, you can directly perform penetration 
 
 # Menu Options
 MAIN_MENU_TITLE = f"{Fore.CYAN}MAIN MENU{Style.RESET_ALL}"
-INTERACTIVE_OPTION = f"{Fore.YELLOW}Interactive Mode{Style.RESET_ALL}"
-AUTOMATED_OPTION = f"{Fore.YELLOW}Automated Pentesting{Style.RESET_ALL}"
-AGENT_MODE_OPTION = f"{Fore.YELLOW}Agent Mode{Style.RESET_ALL}"
+INTERACTIVE_OPTION = f"{Fore.YELLOW}Chat{Style.RESET_ALL}"
+AUTOMATED_OPTION = f"{Fore.YELLOW}Workflows{Style.RESET_ALL}"
+AGENT_MODE_OPTION = f"{Fore.YELLOW}Agent{Style.RESET_ALL}"
 EXPORT_OPTION = f"{Fore.YELLOW}Export Current Session{Style.RESET_ALL}"
 EXIT_OPTION = f"{Fore.RED}Exit{Style.RESET_ALL}"
 
@@ -74,7 +74,7 @@ WORKFLOW_CANCELLED_MESSAGE = f"{Fore.YELLOW}Workflow execution cancelled.{Style.
 WORKFLOW_COMPLETED_MESSAGE = f"{Fore.GREEN}Workflow execution completed.{Style.RESET_ALL}"
 
 # Agent Mode Messages
-AGENT_MODE_TITLE = f"{Fore.CYAN}AGENT MODE - Autonomous PTT-based Penetration Testing{Style.RESET_ALL}"
+AGENT_MODE_TITLE = f"{Fore.CYAN}AGENT MODE{Style.RESET_ALL}"
 AGENT_MODE_GOAL_PROMPT = f"{Fore.YELLOW}Primary Goal: {Style.RESET_ALL}"
 AGENT_MODE_TARGET_PROMPT = f"{Fore.YELLOW}Target (IP/domain/network): {Style.RESET_ALL}"
 AGENT_MODE_INIT_SUCCESS = f"{Fore.GREEN}Agent Mode initialized successfully!{Style.RESET_ALL}"
