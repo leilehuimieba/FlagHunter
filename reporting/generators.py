@@ -9,6 +9,7 @@ import asyncio
 from datetime import datetime
 from typing import Dict, List, Any
 import re
+from colorama import Fore, Style
 
 
 class PentestReportGenerator:
@@ -467,4 +468,350 @@ async def generate_report_from_workflow(report_data: Dict[str, Any], run_agent_f
     """
     
     generator = PentestReportGenerator(report_data)
-    return await generator.generate_report(run_agent_func, connected_servers, kb_instance, save_raw_history) 
+    return await generator.generate_report(run_agent_func, connected_servers, kb_instance, save_raw_history)
+
+
+async def generate_report_from_ptt(ptt_manager, conversation_history: List[Dict[str, Any]], run_agent_func=None, connected_servers=None, kb_instance=None, save_raw_history=False) -> str:
+    """
+    Generate a professional report from PTT (Pentesting Task Tree) data
+    
+    Args:
+        ptt_manager: TaskTreeManager instance containing the PTT
+        conversation_history: List of conversation history entries
+        run_agent_func: The main agent function for AI analysis
+        connected_servers: Connected MCP servers
+        kb_instance: Knowledge base instance
+        save_raw_history: Whether to save raw conversation history
+        
+    Returns:
+        str: Path to generated report file
+    """
+    
+    # Convert PTT data to report-compatible format
+    report_data = {
+        'workflow_name': f"Agent Mode: {ptt_manager.goal}",
+        'workflow_key': 'agent_mode',
+        'target': ptt_manager.target,
+        'timestamp': ptt_manager.creation_time,
+        'conversation_history': conversation_history,
+        'tools_used': [server.name for server in connected_servers] if connected_servers else [],
+        'ptt_data': {
+            'goal': ptt_manager.goal,
+            'target': ptt_manager.target,
+            'constraints': ptt_manager.constraints,
+            'statistics': ptt_manager.get_statistics(),
+            'tree_structure': ptt_manager.to_natural_language(),
+            'nodes': {node_id: node.to_dict() for node_id, node in ptt_manager.nodes.items()}
+        }
+    }
+    
+    # Create a specialized PTT report generator
+    generator = PTTReportGenerator(report_data)
+    
+    if run_agent_func and connected_servers:
+        return await generator.generate_report(run_agent_func, connected_servers, kb_instance, save_raw_history)
+    else:
+        # Generate a basic report without AI analysis if no agent function available
+        return generator.generate_basic_report(save_raw_history)
+
+
+class PTTReportGenerator:
+    """Generate professional penetration testing reports from PTT data"""
+    
+    def __init__(self, report_data: Dict[str, Any]):
+        self.workflow_name = report_data['workflow_name']
+        self.workflow_key = report_data['workflow_key']
+        self.target = report_data['target']
+        self.timestamp = report_data['timestamp']
+        self.conversation_history = report_data['conversation_history']
+        self.tools_used = report_data.get('tools_used', [])
+        self.ptt_data = report_data.get('ptt_data', {})
+        
+        # Will be populated by AI analysis
+        self.structured_findings = {}
+    
+    def generate_basic_report(self, save_raw_history: bool = False) -> str:
+        """Generate a basic report without AI analysis"""
+        # Extract findings from PTT nodes
+        vulnerabilities = []
+        completed_tasks = []
+        failed_tasks = []
+        
+        for node_data in self.ptt_data.get('nodes', {}).values():
+            if node_data.get('status') == 'completed' and node_data.get('findings'):
+                completed_tasks.append({
+                    'description': node_data.get('description', ''),
+                    'findings': node_data.get('findings', ''),
+                    'tool_used': node_data.get('tool_used', ''),
+                    'output_summary': node_data.get('output_summary', '')
+                })
+            elif node_data.get('status') == 'vulnerable':
+                vulnerabilities.append({
+                    'title': node_data.get('description', 'Unknown Vulnerability'),
+                    'description': node_data.get('findings', 'No description available'),
+                    'severity': 'Medium',  # Default severity
+                    'affected_systems': [self.target],
+                    'evidence': node_data.get('output_summary', ''),
+                    'remediation': 'Review and patch identified vulnerabilities'
+                })
+            elif node_data.get('status') == 'failed':
+                failed_tasks.append({
+                    'description': node_data.get('description', ''),
+                    'tool_used': node_data.get('tool_used', ''),
+                    'error': node_data.get('output_summary', '')
+                })
+        
+        # Create structured findings
+        self.structured_findings = {
+            'executive_summary': f"Autonomous penetration testing completed against {self.target}. Goal: {self.ptt_data.get('goal', 'Unknown')}. {len(completed_tasks)} tasks completed successfully, {len(vulnerabilities)} vulnerabilities identified.",
+            'vulnerabilities': vulnerabilities,
+            'key_statistics': {
+                'total_vulnerabilities': len(vulnerabilities),
+                'critical_count': 0,
+                'high_count': 0,
+                'medium_count': len(vulnerabilities),
+                'systems_compromised': 1 if vulnerabilities else 0
+            },
+            'methodology': f"Autonomous penetration testing using Pentesting Task Tree (PTT) methodology with intelligent task prioritization and execution.",
+            'conclusion': f"Assessment {'successfully identified security weaknesses' if vulnerabilities else 'completed without identifying critical vulnerabilities'}. {'Immediate remediation recommended' if vulnerabilities else 'Continue monitoring and regular assessments'}.",
+            'recommendations': [
+                {
+                    'category': 'Patch Management',
+                    'recommendation': 'Apply security patches to all identified vulnerable services',
+                    'priority': 'Immediate',
+                    'business_justification': 'Prevents exploitation of known vulnerabilities'
+                },
+                {
+                    'category': 'Monitoring',
+                    'recommendation': 'Implement monitoring for the services and ports identified during reconnaissance',
+                    'priority': 'Short-term',
+                    'business_justification': 'Early detection of potential security incidents'
+                }
+            ] if vulnerabilities else [
+                {
+                    'category': 'Continued Security',
+                    'recommendation': 'Maintain current security posture and conduct regular assessments',
+                    'priority': 'Medium-term',
+                    'business_justification': 'Proactive security maintenance'
+                }
+            ]
+        }
+        
+        # Generate the markdown report
+        markdown_report = self.generate_markdown_report()
+        
+        # Save report
+        return self.save_report(markdown_report, save_raw_history)
+    
+    async def generate_report(self, run_agent_func, connected_servers, kb_instance=None, save_raw_history=False) -> str:
+        """Generate a comprehensive report with AI analysis"""
+        try:
+            # Create analysis prompt specifically for PTT data
+            analysis_prompt = self.create_ptt_analysis_prompt()
+            
+            # Get AI analysis
+            ai_response = await self.analyze_with_ai(
+                analysis_prompt,
+                run_agent_func,
+                connected_servers,
+                kb_instance
+            )
+            
+            if ai_response:
+                # Parse AI response
+                self.structured_findings = self.parse_ai_response(ai_response)
+            else:
+                print(f"{Fore.YELLOW}AI analysis failed, generating basic report...{Style.RESET_ALL}")
+                return self.generate_basic_report(save_raw_history)
+            
+        except Exception as e:
+            print(f"{Fore.YELLOW}Error in AI analysis: {e}. Generating basic report...{Style.RESET_ALL}")
+            return self.generate_basic_report(save_raw_history)
+        
+        # Generate markdown report
+        markdown_report = self.generate_markdown_report()
+        
+        # Save report
+        return self.save_report(markdown_report, save_raw_history)
+    
+    def create_ptt_analysis_prompt(self) -> str:
+        """Create analysis prompt for PTT data"""
+        ptt_structure = self.ptt_data.get('tree_structure', 'No PTT structure available')
+        goal = self.ptt_data.get('goal', 'Unknown goal')
+        target = self.target
+        statistics = self.ptt_data.get('statistics', {})
+        
+        # Extract key findings from completed tasks
+        key_findings = []
+        for node_data in self.ptt_data.get('nodes', {}).values():
+            if node_data.get('status') in ['completed', 'vulnerable'] and node_data.get('findings'):
+                key_findings.append(f"- {node_data.get('description', '')}: {node_data.get('findings', '')}")
+        
+        findings_text = '\n'.join(key_findings) if key_findings else 'No significant findings recorded'
+        
+        prompt = f"""You are analyzing the results of an autonomous penetration test conducted using a Pentesting Task Tree (PTT) methodology.
+
+ASSESSMENT DETAILS:
+Goal: {goal}
+Target: {target}
+Statistics: {statistics}
+
+PTT STRUCTURE:
+{ptt_structure}
+
+KEY FINDINGS:
+{findings_text}
+
+Based on this PTT analysis, provide a comprehensive security assessment in the following JSON format:
+
+{{
+    "executive_summary": "Professional executive summary of the assessment",
+    "key_statistics": {{
+        "total_vulnerabilities": 0,
+        "critical_count": 0,
+        "high_count": 0,
+        "medium_count": 0,
+        "low_count": 0,
+        "systems_compromised": 0
+    }},
+    "vulnerabilities": [
+        {{
+            "title": "Vulnerability name",
+            "description": "Detailed description",
+            "severity": "Critical/High/Medium/Low",
+            "impact": "Business impact description",
+            "affected_systems": ["system1", "system2"],
+            "evidence": "Technical evidence",
+            "remediation": "Specific remediation steps",
+            "references": ["CVE-XXXX", "reference links"]
+        }}
+    ],
+    "compromised_systems": [
+        {{
+            "system": "system identifier",
+            "access_level": "user/admin/root",
+            "method": "exploitation method",
+            "evidence": "proof of compromise"
+        }}
+    ],
+    "attack_paths": [
+        {{
+            "path_description": "Attack path name",
+            "impact": "potential impact",
+            "steps": ["step1", "step2", "step3"]
+        }}
+    ],
+    "recommendations": [
+        {{
+            "category": "category name",
+            "recommendation": "specific recommendation",
+            "priority": "Immediate/Short-term/Medium-term/Long-term",
+            "business_justification": "why this matters to business"
+        }}
+    ],
+    "methodology": "Description of the PTT methodology used",
+    "conclusion": "Professional conclusion of the assessment"
+}}
+
+Focus on:
+1. Extracting real security findings from the PTT execution
+2. Proper risk classification
+3. Actionable recommendations
+4. Business-relevant impact assessment"""
+
+        return prompt
+    
+    async def analyze_with_ai(self, prompt: str, run_agent_func, connected_servers, kb_instance) -> str:
+        """Analyze the assessment with AI"""
+        try:
+            result = await run_agent_func(
+                prompt,
+                connected_servers,
+                history=[],
+                streaming=True,
+                kb_instance=kb_instance
+            )
+            
+            if hasattr(result, "final_output"):
+                return result.final_output
+            elif hasattr(result, "output"):
+                return result.output
+            elif isinstance(result, str):
+                return result
+            
+        except Exception as e:
+            print(f"{Fore.RED}Error in AI analysis: {e}{Style.RESET_ALL}")
+        
+        return None
+    
+    def parse_ai_response(self, response: str) -> Dict[str, Any]:
+        """Parse AI response for structured findings"""
+        try:
+            # Try to extract JSON from the response
+            import re
+            
+            # Look for JSON in the response
+            json_match = re.search(r'\{.*\}', response, re.DOTALL)
+            if json_match:
+                json_str = json_match.group()
+                return json.loads(json_str)
+            
+        except Exception as e:
+            print(f"{Fore.YELLOW}Failed to parse AI response: {e}{Style.RESET_ALL}")
+        
+        # Fallback to basic findings
+        return {
+            'executive_summary': 'Assessment completed successfully.',
+            'vulnerabilities': [],
+            'key_statistics': {'total_vulnerabilities': 0},
+            'methodology': 'Autonomous penetration testing using PTT methodology.',
+            'conclusion': 'Assessment completed.',
+            'recommendations': []
+        }
+    
+    def generate_markdown_report(self) -> str:
+        """Generate the final markdown report using the same format as PentestReportGenerator"""
+        # Use the same report generation logic as the workflow reporter
+        temp_generator = PentestReportGenerator({
+            'workflow_name': self.workflow_name,
+            'workflow_key': self.workflow_key,
+            'target': self.target,
+            'timestamp': self.timestamp,
+            'conversation_history': self.conversation_history,
+            'tools_used': self.tools_used
+        })
+        temp_generator.structured_findings = self.structured_findings
+        
+        return temp_generator.generate_markdown_report()
+    
+    def save_report(self, markdown_content: str, save_raw_history: bool = False) -> str:
+        """Save the report to file"""
+        # Create reports directory if it doesn't exist
+        reports_dir = "reports"
+        if not os.path.exists(reports_dir):
+            os.makedirs(reports_dir)
+        
+        # Generate filename
+        timestamp_str = str(int(self.timestamp.timestamp()))
+        safe_target = re.sub(r'[^\w\-_\.]', '_', self.target)
+        filename = f"{reports_dir}/ghostcrew_agent_mode_{safe_target}_{timestamp_str}.md"
+        
+        # Save markdown file
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(markdown_content)
+        
+        # Optionally save raw history and PTT data
+        if save_raw_history:
+            raw_filename = f"{reports_dir}/ghostcrew_agent_mode_{safe_target}_{timestamp_str}_raw.json"
+            raw_data = {
+                'ptt_data': self.ptt_data,
+                'conversation_history': self.conversation_history,
+                'timestamp': self.timestamp.isoformat()
+            }
+            
+            with open(raw_filename, 'w', encoding='utf-8') as f:
+                json.dump(raw_data, f, indent=2, default=str)
+            
+            print(f"{Fore.GREEN}Raw PTT data saved: {raw_filename}{Style.RESET_ALL}")
+        
+        return filename 

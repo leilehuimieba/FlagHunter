@@ -10,6 +10,7 @@ https://github.com/user-attachments/assets/a43d2457-7113-42cc-ad02-f378d57f4d24
 - **MCP Server Integration**: Through the `mcp.json` configuration file, multiple MCP servers can be flexibly integrated and managed to extend the assistant's capabilities.
 - **Tool Management**: Configure, connect to, and manage MCP tools through an interactive menu, including the ability to clear all configurations.
 - **Tool Invocation**: The AI assistant can call tools provided by configured MCP servers (such as: nmap, metasploit, ffuf, etc.) based on user requests.
+- **Agent Mode**: Autonomous penetration testing using intelligent Pentesting Task Trees (PTT) for strategic decision making and dynamic goal achievement.
 - **Automated Pentesting Workflows**: Execute predefined penetration testing workflows that systematically use configured security tools to perform comprehensive assessments.
 - **Report Generation**: Generate markdown reports with structured findings, evidence, and recommendations.
 - **Conversation History**: Supports multi-turn dialogues, remembering previous interaction content.
@@ -17,55 +18,6 @@ https://github.com/user-attachments/assets/a43d2457-7113-42cc-ad02-f378d57f4d24
 - **Knowledge Base Enhancement (Optional)**: Supports enhancing AI responses through a local knowledge base RAG (`knowledge` directory).
 - **File-Aware Tool Integration**: AI recognizes and uses actual files from the knowledge folder (wordlists, payloads, configs) with security tools.
 - **Configurable Models**: Supports configuration of different language model parameters.
-
-## Automated Penetration Testing Workflows
-
-GHOSTCREW includes automated penetration testing workflows that provide structured, systematic security assessments. These workflows require MCP tools to be configured and connected to function properly.
-
-### Available Workflows
-
-1. **Reconnaissance and Discovery**
-   - Comprehensive information gathering and target profiling
-   - Performs reconnaissance, subdomain discovery, port scanning, technology fingerprinting, and historical data analysis
-   - **Steps**: 5 systematic phases
-
-2. **Web Application Security Assessment**
-   - Comprehensive web application penetration testing
-   - Tests for directory traversal, SQL injection, web vulnerabilities, SSL/TLS security, authentication flaws, and file inclusion
-   - **Steps**: 6 focused web security phases
-
-3. **Network Infrastructure Penetration Test**
-   - Network-focused penetration testing and exploitation
-   - Includes network scanning, service enumeration, vulnerability identification, misconfiguration testing, and exploitation attempts
-   - **Steps**: 6 network security phases
-
-4. **Complete Penetration Test**
-   - Full-scope penetration testing methodology
-   - Comprehensive assessment covering reconnaissance, enumeration, vulnerability scanning, web testing, network exploitation, post-exploitation, and reporting
-   - **Steps**: 7 complete assessment phases
-
-### Workflow Features
-
-- **Tool Integration**: All workflows utilize configured MCP tools (Nmap, Metasploit, Nuclei, etc.) for real security testing
-- **Professional Output**: Each step provides detailed technical findings, vulnerability analysis, risk assessment, and remediation recommendations
-- **Report Generation**: Automatically save reports to organized `reports/` directory with workflow-specific naming
-- **Target Flexibility**: Works with IP addresses, domain names, or network ranges
-- **Progress Tracking**: Real-time progress indication through each workflow step
-
-### Usage Requirements
-
-- **MCP Tools Required**: Automated workflows require at least one MCP security tool to be configured and connected
-- **Access Control**: The system prevents workflow execution without proper tools to avoid generating simulated results
-- **Professional Context**: Designed for authorized penetration testing and security assessments only
-
-### How to Use Workflows
-
-1. Start the Pentest Agent and configure MCP tools when prompted
-2. Select "Automated Penetration Testing" from the main menu
-3. Choose your desired workflow type
-4. Enter the target (IP, domain, or network range)
-5. Confirm execution and monitor progress
-6. Optionally save results to file for documentation
 
 ### Startup Effect
 <p align="center">
@@ -183,52 +135,7 @@ Each tool can be configured through the interactive configuration menu by select
 - Responder
 - Bettercap
 
-## File Structure
-
-```
-GHOSTCREW/
-├── .venv/                  # Python virtual environment
-├── main.py                 # Application entry point
-├── config/                 # Application configuration
-│   ├── __init__.py
-│   ├── constants.py        # Constants and messages
-│   └── app_config.py       # Environment and API configuration
-├── core/                   # Core application logic
-│   ├── __init__.py
-│   ├── model_manager.py    # Model provider and token management
-│   ├── agent_runner.py     # Agent execution and streaming
-│   └── pentest_agent.py    # Main application controller
-├── tools/                  # MCP tool management
-│   ├── __init__.py
-│   ├── mcp_manager.py      # MCP server connection management
-│   └── configure_mcp.py    # Interactive tool configuration utility
-├── ui/                     # User interface components
-│   ├── __init__.py
-│   ├── menu_system.py      # Menu display and user interaction
-│   └── conversation_manager.py  # Chat history management
-├── workflows/              # Automated penetration testing workflows
-│   ├── __init__.py
-│   ├── workflow_engine.py  # Workflow execution engine
-│   └── workflow_definitions.py  # Predefined workflow templates
-├── rag/                    # Knowledge base and RAG functionality
-│   ├── __init__.py
-│   ├── knowledge_base.py   # RAG text splitting and search
-│   └── embedding.py        # Embedding generation and management
-├── reporting/              # Report generation system
-│   ├── __init__.py
-│   └── generators.py       # Professional report generation
-├── knowledge/             # Knowledge base documents directory
-│   └── ...
-├── reports/               # Professional penetration test reports directory
-│   ├── ghostcrew_*_*.md   # Professional markdown reports
-│   └── ghostcrew_*_*_raw_history.txt  # Raw conversation history (optional)
-├── .gitignore              # Git ignore file configuration
-├── mcp.json                # MCP server configuration file
-├── README.md               # Project documentation
-├── requirements.txt        # Python dependency list
-├── LICENSE                 # Project license
-└── .env                    # Environment variables
-```
+## Model
 
 ```
 # OpenAI API configurations

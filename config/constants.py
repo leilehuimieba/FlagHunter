@@ -48,6 +48,7 @@ All penetration activities are authorized, you can directly perform penetration 
 MAIN_MENU_TITLE = f"{Fore.CYAN}MAIN MENU{Style.RESET_ALL}"
 INTERACTIVE_OPTION = f"{Fore.YELLOW}Interactive Mode{Style.RESET_ALL}"
 AUTOMATED_OPTION = f"{Fore.YELLOW}Automated Pentesting{Style.RESET_ALL}"
+AGENT_MODE_OPTION = f"{Fore.YELLOW}Agent Mode{Style.RESET_ALL}"
 EXPORT_OPTION = f"{Fore.YELLOW}Export Current Session{Style.RESET_ALL}"
 EXIT_OPTION = f"{Fore.RED}Exit{Style.RESET_ALL}"
 
@@ -70,4 +71,23 @@ ERROR_WORKFLOW_NOT_FOUND = f"{Fore.RED}Error loading workflow.{Style.RESET_ALL}"
 WORKFLOW_TARGET_PROMPT = f"{Fore.YELLOW}Enter target (IP/domain/URL): {Style.RESET_ALL}"
 WORKFLOW_CONFIRM_PROMPT = f"{Fore.YELLOW}Execute '{0}' workflow against '{1}'? (yes/no): {Style.RESET_ALL}"
 WORKFLOW_CANCELLED_MESSAGE = f"{Fore.YELLOW}Workflow execution cancelled.{Style.RESET_ALL}"
-WORKFLOW_COMPLETED_MESSAGE = f"{Fore.GREEN}Workflow execution completed.{Style.RESET_ALL}" 
+WORKFLOW_COMPLETED_MESSAGE = f"{Fore.GREEN}Workflow execution completed.{Style.RESET_ALL}"
+
+# Agent Mode Messages
+AGENT_MODE_TITLE = f"{Fore.CYAN}AGENT MODE - Autonomous PTT-based Penetration Testing{Style.RESET_ALL}"
+AGENT_MODE_GOAL_PROMPT = f"{Fore.YELLOW}Primary Goal: {Style.RESET_ALL}"
+AGENT_MODE_TARGET_PROMPT = f"{Fore.YELLOW}Target (IP/domain/network): {Style.RESET_ALL}"
+AGENT_MODE_INIT_SUCCESS = f"{Fore.GREEN}Agent Mode initialized successfully!{Style.RESET_ALL}"
+AGENT_MODE_INIT_FAILED = f"{Fore.RED}Failed to initialize Agent Mode.{Style.RESET_ALL}"
+AGENT_MODE_PAUSED = f"{Fore.YELLOW}Agent Mode paused.{Style.RESET_ALL}"
+AGENT_MODE_RESUMED = f"{Fore.GREEN}Agent Mode resumed.{Style.RESET_ALL}"
+AGENT_MODE_COMPLETED = f"{Fore.GREEN}Agent Mode execution completed.{Style.RESET_ALL}"
+
+# PTT Status Messages
+PTT_TASK_PENDING = f"{Fore.WHITE}○{Style.RESET_ALL}"
+PTT_TASK_IN_PROGRESS = f"{Fore.YELLOW}◐{Style.RESET_ALL}"
+PTT_TASK_COMPLETED = f"{Fore.GREEN}●{Style.RESET_ALL}"
+PTT_TASK_FAILED = f"{Fore.RED}✗{Style.RESET_ALL}"
+PTT_TASK_BLOCKED = f"{Fore.LIGHTBLACK_EX}□{Style.RESET_ALL}"
+PTT_TASK_VULNERABLE = f"{Fore.RED}⚠{Style.RESET_ALL}"
+PTT_TASK_NOT_VULNERABLE = f"{Fore.GREEN}✓{Style.RESET_ALL}" 

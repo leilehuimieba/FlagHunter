@@ -1,6 +1,6 @@
 """Menu system and user interface components for GHOSTCREW."""
 
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict, Any
 from colorama import Fore, Style
 from config.constants import (
     MAIN_MENU_TITLE, INTERACTIVE_OPTION, AUTOMATED_OPTION, 
@@ -25,10 +25,16 @@ class MenuSystem:
         else:
             print(f"2. {Fore.LIGHTBLACK_EX}Automated Penetration Testing (workflows.py not found){Style.RESET_ALL}")
         
-        print(f"3. {EXIT_OPTION}")
+        # Agent mode option
+        if has_connected_servers:
+            print(f"3. {Fore.YELLOW}Agent Mode{Style.RESET_ALL}")
+        else:
+            print(f"3. {Fore.LIGHTBLACK_EX}Agent Mode (requires MCP tools){Style.RESET_ALL}")
+        
+        print(f"4. {EXIT_OPTION}")
     
     @staticmethod
-    def get_menu_choice(max_option: int = 3) -> str:
+    def get_menu_choice(max_option: int = 4) -> str:
         """Get user's menu selection."""
         return input(f"\n{Fore.GREEN}Select mode (1-{max_option}): {Style.RESET_ALL}").strip()
     
@@ -38,6 +44,88 @@ class MenuSystem:
         print(f"\n{Fore.CYAN}INTERACTIVE CHAT MODE{Style.RESET_ALL}")
         print(f"{Fore.WHITE}Type your questions or commands. Use 'multi' for multi-line input.{Style.RESET_ALL}")
         print(f"{Fore.WHITE}Type 'menu' to return to main menu.{Style.RESET_ALL}\n")
+    
+    @staticmethod
+    def display_agent_mode_intro() -> None:
+        """Display introduction for agent mode."""
+        print(f"\n{Fore.CYAN}AGENT MODE - Autonomous PTT-based Penetration Testing{Style.RESET_ALL}")
+        print(f"{Fore.WHITE}{'='*60}{Style.RESET_ALL}")
+        print(f"{Fore.WHITE}The AI agent will autonomously conduct a penetration test{Style.RESET_ALL}")
+        print(f"{Fore.WHITE}using a dynamic Pentesting Task Tree (PTT) for strategic{Style.RESET_ALL}")
+        print(f"{Fore.WHITE}decision making and maintaining context throughout the test.{Style.RESET_ALL}")
+        print(f"{Fore.WHITE}{'='*60}{Style.RESET_ALL}\n")
+    
+    @staticmethod
+    def get_agent_mode_params() -> Optional[Dict[str, Any]]:
+        """Get parameters for agent mode initialization."""
+        print(f"{Fore.CYAN}Agent Mode Setup{Style.RESET_ALL}")
+        print(f"{Fore.WHITE}Please provide the following information:{Style.RESET_ALL}\n")
+        
+        # Get goal
+        print(f"{Fore.YELLOW}1. Primary Goal{Style.RESET_ALL}")
+        print(f"{Fore.WHITE}What is the main objective of this penetration test?{Style.RESET_ALL}")
+        print(f"{Fore.LIGHTBLACK_EX}Example: 'Gain administrative access to the target system'{Style.RESET_ALL}")
+        print(f"{Fore.LIGHTBLACK_EX}Example: 'Identify and exploit vulnerabilities in the web application'{Style.RESET_ALL}")
+        goal = input(f"{Fore.GREEN}Goal: {Style.RESET_ALL}").strip()
+        
+        if not goal:
+            print(f"{Fore.RED}Goal is required.{Style.RESET_ALL}")
+            return None
+        
+        # Get target
+        print(f"\n{Fore.YELLOW}2. Target Information{Style.RESET_ALL}")
+        print(f"{Fore.WHITE}Specify the target system, network, or application.{Style.RESET_ALL}")
+        print(f"{Fore.LIGHTBLACK_EX}Example: '192.168.1.100' or 'example.com' or '192.168.1.0/24'{Style.RESET_ALL}")
+        target = input(f"{Fore.GREEN}Target: {Style.RESET_ALL}").strip()
+        
+        if not target:
+            print(f"{Fore.RED}Target is required.{Style.RESET_ALL}")
+            return None
+        
+        # Get constraints
+        constraints = {}
+        print(f"\n{Fore.YELLOW}3. Constraints/Scope (Optional){Style.RESET_ALL}")
+        print(f"{Fore.WHITE}Any limitations or specific requirements?{Style.RESET_ALL}")
+        
+        # Iteration limit
+        print(f"\n{Fore.WHITE}Iteration Limit:{Style.RESET_ALL}")
+        print("How many iterations should the agent run?")
+        print("Each iteration involves task selection, execution, and tree updates.")
+        print("Recommended: 10-30 iterations for thorough testing")
+        print("Set to 0 to run until goal is achieved or no more actions available")
+        iteration_limit_input = input(f"{Fore.GREEN}Iteration limit (default: 20): {Style.RESET_ALL}").strip()
+        
+        try:
+            iteration_limit = int(iteration_limit_input) if iteration_limit_input else 20
+            # Allow 0 for unlimited, but cap maximum at 200 for safety
+            iteration_limit = max(0, min(200, iteration_limit))
+            constraints['iteration_limit'] = iteration_limit
+        except ValueError:
+            constraints['iteration_limit'] = 20
+            print(f"{Fore.YELLOW}Invalid input, using default: 20{Style.RESET_ALL}")
+        
+        # Additional notes
+        notes = input(f"{Fore.GREEN}Additional notes/constraints (optional): {Style.RESET_ALL}").strip()
+        if notes:
+            constraints['notes'] = notes
+        
+        # Confirm
+        print(f"\n{Fore.CYAN}Configuration Summary:{Style.RESET_ALL}")
+        print(f"{Fore.WHITE}Goal: {goal}{Style.RESET_ALL}")
+        print(f"{Fore.WHITE}Target: {target}{Style.RESET_ALL}")
+        print(f"{Fore.WHITE}Iteration Limit: {constraints['iteration_limit']}{Style.RESET_ALL}")
+        print(f"{Fore.WHITE}Constraints: {constraints}{Style.RESET_ALL}")
+        
+        confirm = input(f"\n{Fore.YELLOW}Proceed with agent mode? (yes/no): {Style.RESET_ALL}").strip().lower()
+        if confirm != 'yes':
+            print(f"{Fore.YELLOW}Agent mode cancelled.{Style.RESET_ALL}")
+            return None
+        
+        return {
+            'goal': goal,
+            'target': target,
+            'constraints': constraints
+        }
     
     @staticmethod
     def get_user_input() -> str:
@@ -85,6 +173,14 @@ class MenuSystem:
         """Display message about automated workflow requirements."""
         print(f"\n{Fore.YELLOW}Automated penetration testing requires MCP tools to be configured and connected.{Style.RESET_ALL}")
         print(f"{Fore.WHITE}Without real security tools, the AI would only generate simulated responses.{Style.RESET_ALL}")
+        print(f"{Fore.WHITE}Please configure MCP tools to use this feature.{Style.RESET_ALL}")
+        input(f"{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+    
+    @staticmethod
+    def display_agent_mode_requirements_message() -> None:
+        """Display message about agent mode requirements."""
+        print(f"\n{Fore.YELLOW}Agent Mode requires MCP tools to be configured and connected.{Style.RESET_ALL}")
+        print(f"{Fore.WHITE}The autonomous agent needs real security tools to execute PTT tasks.{Style.RESET_ALL}")
         print(f"{Fore.WHITE}Please configure MCP tools to use this feature.{Style.RESET_ALL}")
         input(f"{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
     
