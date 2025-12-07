@@ -13,10 +13,9 @@ ENV PYTHONUNBUFFERED=1
 
 # Update and install Kali tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    # Python
-    python3 \
+    # Python (python3-full includes venv with ensurepip)
+    python3-full \
     python3-pip \
-    python3-venv \
     # Kali meta-packages (selective for size)
     kali-tools-web \
     kali-tools-information-gathering \
@@ -67,11 +66,9 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Copy application code
 COPY . .
 
-# Create directories for VPN configs and output
-RUN mkdir -p /vpn /output /wordlists
-
 # Copy common wordlists
-RUN cp -r /usr/share/wordlists/* /wordlists/ 2>/dev/null || true
+RUN mkdir -p /wordlists && \
+    cp -r /usr/share/wordlists/* /wordlists/ 2>/dev/null || true
 
 # Set permissions
 RUN chmod +x /app/scripts/*.sh 2>/dev/null || true
