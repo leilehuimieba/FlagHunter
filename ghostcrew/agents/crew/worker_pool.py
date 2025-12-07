@@ -44,7 +44,7 @@ class WorkerPool:
 
     def _generate_id(self) -> str:
         """Generate unique worker ID."""
-        worker_id = f"agent-{self._next_id}"
+        worker_id = f"ghost-{self._next_id}"
         self._next_id += 1
         return worker_id
 

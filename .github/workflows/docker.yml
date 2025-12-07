@@ -8,6 +8,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME_LOWER: ${{ github.repository }}
 
 jobs:
   build-base:
@@ -29,12 +30,16 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+        - name: Set lowercase image name
+          id: lower
+          run: echo "IMAGE_NAME_LOWER=${IMAGE_NAME,,}" >> $GITHUB_ENV
       
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+            images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}
           tags: |
             type=semver,pattern={{version}}
             type=raw,value=latest
@@ -76,7 +81,7 @@ jobs:
           context: .
           file: Dockerfile.kali
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:kali
+            tags: |
+              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:kali
           cache-from: type=gha
           cache-to: type=gha,mode=max
