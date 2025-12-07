@@ -55,10 +55,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Create app directory
 WORKDIR /app
 
-# Install Python dependencies
+# Install Python dependencies using virtual environment (PEP 668 compliance)
 COPY requirements.txt .
-RUN pip3 install --no-cache-dir --upgrade pip && \
-    pip3 install --no-cache-dir -r requirements.txt
+RUN python3 -m venv /opt/venv && \
+    /opt/venv/bin/pip install --no-cache-dir --upgrade pip && \
+    /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
+
+# Add venv to PATH
+ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy application code
 COPY . .
