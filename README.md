@@ -2,6 +2,8 @@
 
 AI penetration testing agents. Uses LLMs to coordinate reconnaissance, enumeration, and exploitation with security tools.
 
+https://github.com/user-attachments/assets/a67db2b5-672a-43df-b709-149c8eaee975
+
 ## Requirements
 
 - Python 3.10+
