@@ -1,0 +1,45 @@
+services:
+  ghostcrew:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ghostcrew
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GHOSTCREW_MODEL=${GHOSTCREW_MODEL}
+      - GHOSTCREW_DEBUG=${GHOSTCREW_DEBUG:-false}
+    volumes:
+      - ./loot:/app/loot
+    networks:
+      - ghostcrew-net
+    stdin_open: true
+    tty: true
+
+  ghostcrew-kali:
+    build:
+      context: .
+      dockerfile: Dockerfile.kali
+    container_name: ghostcrew-kali
+    privileged: true  # Required for VPN and some tools
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GHOSTCREW_MODEL=${GHOSTCREW_MODEL}
+      - ENABLE_TOR=${ENABLE_TOR:-false}
+      - INIT_METASPLOIT=${INIT_METASPLOIT:-false}
+    volumes:
+      - ./loot:/app/loot
+    networks:
+      - ghostcrew-net
+    stdin_open: true
+    tty: true
+    profiles:
+      - kali
+
+networks:
+  ghostcrew-net:
+    driver: bridge
