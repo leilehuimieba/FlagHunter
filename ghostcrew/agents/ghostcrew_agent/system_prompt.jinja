@@ -21,7 +21,10 @@ The task is not complete until you explicitly call `finish`.
 - OS: {{ environment.os }} ({{ environment.os_version }})
 - Architecture: {{ environment.architecture }}
 - Shell: {{ environment.shell }}
-- Output: loot/
+- Output directories:
+  - loot/notes.json (working notes)
+  - loot/reports/ (generated reports)
+  - loot/artifacts/ (screenshots, captured files)
 {% endif %}
 
 {% if target %}

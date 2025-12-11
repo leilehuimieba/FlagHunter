@@ -926,6 +926,7 @@ class GhostCrewTUI(App):
             else:
                 lines.append(f"[{key}] {value}")
         lines.append("\nFile: loot/notes.json")
+        lines.append("Reports: loot/reports/")
 
         self._add_system("\n".join(lines))
 
@@ -1080,12 +1081,12 @@ Be concise. Use the actual data from notes."""
                 )
                 return
 
-            # Save to loot/
-            loot_dir = Path("loot")
-            loot_dir.mkdir(exist_ok=True)
+            # Save to loot/reports/
+            reports_dir = Path("loot/reports")
+            reports_dir.mkdir(parents=True, exist_ok=True)
 
             timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-            report_path = loot_dir / f"report_{timestamp}.md"
+            report_path = reports_dir / f"report_{timestamp}.md"
             report_path.write_text(report_content, encoding="utf-8")
 
             self._add_system(f"+ Report saved: {report_path}")

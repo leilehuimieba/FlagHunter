@@ -6,7 +6,7 @@ from typing import Dict
 
 from ..registry import ToolSchema, register_tool
 
-# Notes storage
+# Notes storage - kept at loot root for easy access
 _notes: Dict[str, str] = {}
 _notes_file: Path = Path("loot/notes.json")
 

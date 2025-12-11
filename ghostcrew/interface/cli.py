@@ -35,7 +35,7 @@ async def run_cli(
         target: Target to test
         model: LLM model to use
         task: Optional task description
-        report: Report path ("auto" for loot/<target>_<timestamp>.md)
+        report: Report path ("auto" for loot/reports/<target>_<timestamp>.md)
         max_tools: Max tool calls before stopping
         use_docker: Run tools in Docker container
     """
@@ -253,11 +253,11 @@ async def run_cli(
 
         # Determine path
         if report == "auto":
-            loot_dir = Path("loot")
-            loot_dir.mkdir(exist_ok=True)
+            reports_dir = Path("loot/reports")
+            reports_dir.mkdir(parents=True, exist_ok=True)
             safe_target = target.replace("://", "_").replace("/", "_").replace(":", "_")
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            report_path = loot_dir / f"{safe_target}_{timestamp}.md"
+            report_path = reports_dir / f"{safe_target}_{timestamp}.md"
         else:
             report_path = Path(report)
             report_path.parent.mkdir(parents=True, exist_ok=True)

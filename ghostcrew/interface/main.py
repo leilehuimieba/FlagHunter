@@ -75,13 +75,13 @@ Examples:
     # Task for non-interactive mode
     parser.add_argument("--task", help="Task to run in non-interactive mode")
 
-    # Report output (saves to loot/ by default)
+    # Report output (saves to loot/reports/ by default)
     parser.add_argument(
         "--report",
         "-r",
         nargs="?",
         const="auto",
-        help="Generate report (default: loot/<target>_<timestamp>.md)",
+        help="Generate report (default: loot/reports/<target>_<timestamp>.md)",
     )
 
     # Max tool calls limit

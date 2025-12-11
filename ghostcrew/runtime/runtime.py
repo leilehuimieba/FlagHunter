@@ -174,8 +174,11 @@ class LocalRuntime(Runtime):
     async def start(self):
         """Start the local runtime."""
         self._running = True
-        # Create loot directory for scan output
+        # Create organized loot directory structure
         Path("loot").mkdir(exist_ok=True)
+        Path("loot/reports").mkdir(exist_ok=True)
+        Path("loot/artifacts").mkdir(exist_ok=True)
+        Path("loot/artifacts/screenshots").mkdir(exist_ok=True)
 
     async def stop(self):
         """Stop the local runtime gracefully."""
@@ -315,8 +318,8 @@ class LocalRuntime(Runtime):
                         kwargs["url"], timeout=timeout, wait_until="domcontentloaded"
                     )
 
-                # Save screenshot to loot directory
-                output_dir = Path("loot/screenshots")
+                # Save screenshot to loot/artifacts/screenshots/
+                output_dir = Path("loot/artifacts/screenshots")
                 output_dir.mkdir(parents=True, exist_ok=True)
 
                 filename = f"screenshot_{int(__import__('time').time())}.png"
