@@ -74,30 +74,28 @@ async def web_search(arguments: dict, runtime: "Runtime") -> str:
 
 
 def _format_results(query: str, data: dict) -> str:
-    """Format Tavily results for LLM consumption."""
+    """
+    Format Tavily results for LLM consumption.
+    
+    Returns a lean format with summary + titles + URLs only.
+    Content snippets are excluded to prevent LLM from regurgitating
+    noisy web scrapes in its response.
+    """
     parts = [f"Search: {query}\n"]
 
-    # Include synthesized answer if available
+    # Include synthesized answer if available (this is the valuable part)
     if answer := data.get("answer"):
         parts.append(f"Summary:\n{answer}\n")
 
-    # Include individual results
+    # Include sources as title + URL only (no content snippets)
     results = data.get("results", [])
     if results:
         parts.append("Sources:")
         for i, result in enumerate(results, 1):
             title = result.get("title", "Untitled")
             url = result.get("url", "")
-            content = result.get("content", "")
-
-            # Truncate content if too long
-            if len(content) > 500:
-                content = content[:500] + "..."
-
-            parts.append(f"\n[{i}] {title}")
-            parts.append(f"    URL: {url}")
-            if content:
-                parts.append(f"    {content}")
+            parts.append(f"  [{i}] {title}")
+            parts.append(f"      {url}")
     else:
         parts.append("No results found")
 

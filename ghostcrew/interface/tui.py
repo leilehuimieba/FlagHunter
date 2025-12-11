@@ -869,10 +869,9 @@ class GhostCrewTUI(App):
 
     def _add_tool_result(self, name: str, result: str) -> None:
         """Display tool execution result"""
-        # Truncate long results
-        if len(result) > 2000:
-            result = result[:2000] + "\n... (truncated)"
-        self._add_message(ToolResultMessage(name, result))
+        # Hide tool output - LLM will synthesize it in its response
+        # This prevents duplication and keeps the chat clean
+        pass
 
     def _show_system_prompt(self) -> None:
         """Display the current system prompt"""
