@@ -25,6 +25,7 @@ python -m venv venv
 .\venv\Scripts\Activate.ps1  # Windows
 source venv/bin/activate     # Linux/macOS
 pip install -e ".[all]"
+playwright install chromium  # Required for browser tool
 ```
 
 ## Configure
