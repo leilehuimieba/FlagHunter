@@ -12,6 +12,7 @@ Uses standard MCP configuration format:
 }
 """
 
+import asyncio
 import json
 import os
 from dataclasses import dataclass, field
@@ -43,6 +44,9 @@ class MCPServer:
     transport: MCPTransport
     tools: List[dict] = field(default_factory=list)
     connected: bool = False
+    # Lock for serializing all communication with this server
+    # Prevents message ID collisions and transport interleaving
+    _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
     async def disconnect(self):
         """Disconnect from the server."""
@@ -232,16 +236,21 @@ class MCPManager:
         if not server or not server.connected:
             raise ValueError(f"Server '{server_name}' not connected")
 
-        # Use 5 minute timeout for tool calls (scans can take a while)
-        response = await server.transport.send(
-            {
-                "jsonrpc": "2.0",
-                "method": "tools/call",
-                "params": {"name": tool_name, "arguments": arguments},
-                "id": self._get_next_id(),
-            },
-            timeout=300.0,
-        )
+        # Serialize all communication with this server to prevent:
+        # - Message ID collisions
+        # - Transport write interleaving
+        # - Response routing issues
+        async with server._lock:
+            # Use 5 minute timeout for tool calls (scans can take a while)
+            response = await server.transport.send(
+                {
+                    "jsonrpc": "2.0",
+                    "method": "tools/call",
+                    "params": {"name": tool_name, "arguments": arguments},
+                    "id": self._get_next_id(),
+                },
+                timeout=300.0,
+            )
         if "error" in response:
             raise RuntimeError(f"MCP error: {response['error'].get('message')}")
         return response.get("result", {}).get("content", [])

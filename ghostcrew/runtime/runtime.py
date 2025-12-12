@@ -83,6 +83,7 @@ class Runtime(ABC):
             mcp_manager: Optional MCP manager for tool calls
         """
         self.mcp_manager = mcp_manager
+        self.plan = None  # Set by agent for finish tool access
 
     @property
     def environment(self) -> EnvironmentInfo:
@@ -310,6 +311,8 @@ class LocalRuntime(Runtime):
                 return {"url": self._page.url, "title": await self._page.title()}
 
             elif action == "screenshot":
+                import time
+                import uuid
                 from pathlib import Path
 
                 # Navigate first if URL provided
@@ -322,7 +325,9 @@ class LocalRuntime(Runtime):
                 output_dir = Path("loot/artifacts/screenshots")
                 output_dir.mkdir(parents=True, exist_ok=True)
 
-                filename = f"screenshot_{int(__import__('time').time())}.png"
+                timestamp = int(time.time())
+                unique_id = uuid.uuid4().hex[:8]
+                filename = f"screenshot_{timestamp}_{unique_id}.png"
                 filepath = output_dir / filename
 
                 await self._page.screenshot(path=str(filepath), full_page=True)

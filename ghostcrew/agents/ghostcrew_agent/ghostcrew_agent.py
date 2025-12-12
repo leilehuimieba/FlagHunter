@@ -1,11 +1,9 @@
 """GhostCrew main pentesting agent."""
 
-from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional
 
-from jinja2 import Template
-
 from ..base_agent import BaseAgent
+from ..prompts import ghost_agent, ghost_assist
 
 if TYPE_CHECKING:
     from ...knowledge import RAGEngine
@@ -43,15 +41,13 @@ class GhostCrewAgent(BaseAgent):
         self.target = target
         self.scope = scope or []
         self.rag_engine = rag_engine
-        self._system_prompt_template = self._load_prompt_template()
 
-    def _load_prompt_template(self) -> Template:
-        """Load the Jinja2 system prompt template."""
-        template_path = Path(__file__).parent / "system_prompt.jinja"
-        return Template(template_path.read_text(encoding="utf-8"))
+    def get_system_prompt(self, mode: str = "agent") -> str:
+        """Generate system prompt with context.
 
-    def get_system_prompt(self) -> str:
-        """Generate system prompt with context."""
+        Args:
+            mode: 'agent' for autonomous mode, 'assist' for single-shot assist mode
+        """
         # Get RAG context if available
         rag_context = ""
         if self.rag_engine and self.conversation_history:
@@ -68,15 +64,32 @@ class GhostCrewAgent(BaseAgent):
                 if relevant:
                     rag_context = "\n\n".join(relevant)
 
+        # Get saved notes if available
+        notes_context = ""
+        try:
+            from ...tools.notes import get_all_notes_sync
+
+            notes = get_all_notes_sync()
+            if notes:
+                notes_lines = [f"- {key}: {value}" for key, value in notes.items()]
+                notes_context = "\n".join(notes_lines)
+        except Exception:
+            pass  # Notes not available
+
         # Get environment info from runtime
         env = self.runtime.environment
 
-        return self._system_prompt_template.render(
+        # Select template based on mode
+        template = ghost_assist if mode == "assist" else ghost_agent
+
+        return template.render(
             target=self.target,
             scope=self.scope,
             environment=env,
             rag_context=rag_context,
+            notes_context=notes_context,
             tools=self.tools,
+            plan=self._task_plan if mode == "agent" else None,
         )
 
     def set_target(self, target: str, scope: Optional[List[str]] = None):

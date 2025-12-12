@@ -90,11 +90,21 @@ class BaseAgent(ABC):
             max_iterations: Maximum iterations before forcing stop (safety limit)
         """
         self.llm = llm
-        self.tools = tools
         self.runtime = runtime
         self.max_iterations = max_iterations
         self.state_manager = AgentStateManager()
         self.conversation_history: List[AgentMessage] = []
+
+        # Each agent gets its own plan instance
+        from ..tools.finish import TaskPlan
+
+        self._task_plan = TaskPlan()
+
+        # Attach plan to runtime so finish tool can access it
+        self.runtime.plan = self._task_plan
+
+        # Use tools as-is (finish accesses plan via runtime)
+        self.tools = list(tools)
 
     @property
     def state(self) -> AgentState:
@@ -134,13 +144,19 @@ class BaseAgent(ABC):
         self.state_manager.transition_to(AgentState.IDLE)
 
     @abstractmethod
-    def get_system_prompt(self) -> str:
-        """Return the system prompt for this agent."""
+    def get_system_prompt(self, mode: str = "agent") -> str:
+        """Return the system prompt for this agent.
+
+        Args:
+            mode: 'agent' for autonomous mode, 'assist' for single-shot assist mode
+        """
         pass
 
     async def agent_loop(self, initial_message: str) -> AsyncIterator[AgentMessage]:
         """
         Main agent execution loop.
+
+        Starts a new task session, resetting previous state and history.
 
         Simple control flow:
         - Tool calls: Execute tools, continue loop
@@ -153,6 +169,9 @@ class BaseAgent(ABC):
         Yields:
             AgentMessage objects as the agent processes
         """
+        # Always reset for a new agent loop task to ensure clean state
+        self.reset()
+
         self.state_manager.transition_to(AgentState.THINKING)
         self.conversation_history.append(
             AgentMessage(role="user", content=initial_message)
@@ -186,22 +205,31 @@ class BaseAgent(ABC):
         Core agent loop logic - shared by agent_loop and continue_conversation.
 
         Termination conditions:
-        1. finish tool is called -> clean exit with summary
+        1. finish tool is called AND plan complete -> clean exit with summary
         2. max_iterations reached -> forced exit with warning
         3. error -> exit with error state
 
         Text responses WITHOUT tool calls are treated as "thinking out loud"
         and do NOT terminate the loop. This prevents premature stopping.
 
+        The loop enforces plan completion before allowing finish.
+
         Yields:
             AgentMessage objects as the agent processes
         """
-        from ..tools.completion import extract_completion_summary, is_task_complete
+        # Clear any previous plan for new task
+        self._task_plan.clear()
 
         iteration = 0
 
         while iteration < self.max_iterations:
             iteration += 1
+
+            # ITERATION 1: Force plan creation (loop-enforced, not prompt-based)
+            if iteration == 1 and len(self._task_plan.steps) == 0:
+                plan_msg = await self._auto_generate_plan()
+                if plan_msg:
+                    yield plan_msg
 
             response = await self.llm.generate(
                 system_prompt=self.get_system_prompt(),
@@ -209,89 +237,105 @@ class BaseAgent(ABC):
                 tools=self.tools,
             )
 
-            if response.tool_calls:
-                # Build tool calls list FIRST (before execution)
-                tool_calls = [
-                    ToolCall(
-                        id=tc.id if hasattr(tc, "id") else str(i),
-                        name=(
-                            tc.function.name
-                            if hasattr(tc, "function")
-                            else tc.get("name", "")
-                        ),
-                        arguments=self._parse_arguments(tc),
-                    )
-                    for i, tc in enumerate(response.tool_calls)
-                ]
-
-                # Yield early - show tool calls before execution starts
-                early_msg = AgentMessage(
+            # Case 1: Empty response (Error)
+            if not response.tool_calls and not response.content:
+                stuck_msg = AgentMessage(
                     role="assistant",
-                    content=response.content or "",
-                    tool_calls=tool_calls,
-                    tool_results=[],  # No results yet
-                    usage=response.usage,
+                    content="Agent returned empty response. Exiting gracefully.",
+                    metadata={"empty_response": True},
                 )
-                yield early_msg
+                self.conversation_history.append(stuck_msg)
+                yield stuck_msg
+                self.state_manager.transition_to(AgentState.COMPLETE)
+                return
 
-                # Now execute tools
-                self.state_manager.transition_to(AgentState.EXECUTING)
-                tool_results = await self._execute_tools(response.tool_calls)
-
-                # Record in history
-                assistant_msg = AgentMessage(
+            # Case 2: Thinking / Intermediate Output (Content but no tools)
+            if not response.tool_calls:
+                thinking_msg = AgentMessage(
                     role="assistant",
-                    content=response.content or "",
-                    tool_calls=tool_calls,
+                    content=response.content,
                     usage=response.usage,
+                    metadata={"intermediate": True},
                 )
-                self.conversation_history.append(assistant_msg)
+                self.conversation_history.append(thinking_msg)
+                yield thinking_msg
+                continue
 
-                tool_result_msg = AgentMessage(
-                    role="tool_result", content="", tool_results=tool_results
+            # Case 3: Tool Execution
+            # Build tool calls list
+            tool_calls = [
+                ToolCall(
+                    id=tc.id if hasattr(tc, "id") else str(i),
+                    name=(
+                        tc.function.name
+                        if hasattr(tc, "function")
+                        else tc.get("name", "")
+                    ),
+                    arguments=self._parse_arguments(tc),
                 )
-                self.conversation_history.append(tool_result_msg)
+                for i, tc in enumerate(response.tool_calls)
+            ]
 
-                # Check for explicit task_complete signal
-                for result in tool_results:
-                    if result.success and result.result and is_task_complete(result.result):
-                        summary = extract_completion_summary(result.result)
-                        # Yield results with completion summary
-                        display_msg = AgentMessage(
-                            role="assistant",
-                            content=summary,
-                            tool_calls=tool_calls,
-                            tool_results=tool_results,
-                            usage=response.usage,
-                            metadata={"task_complete": True},
-                        )
-                        yield display_msg
-                        self.state_manager.transition_to(AgentState.COMPLETE)
-                        return
+            # Execute tools
+            self.state_manager.transition_to(AgentState.EXECUTING)
 
-                # Yield results for display update (no completion yet)
-                display_msg = AgentMessage(
+            # Yield thinking message if content exists (before execution)
+            if response.content:
+                thinking_msg = AgentMessage(
                     role="assistant",
-                    content=response.content or "",
-                    tool_calls=tool_calls,
-                    tool_results=tool_results,
+                    content=response.content,
                     usage=response.usage,
+                    metadata={"intermediate": True},
                 )
-                yield display_msg
-                self.state_manager.transition_to(AgentState.THINKING)
-            else:
-                # Text response WITHOUT tool calls = thinking/intermediate output
-                # Store it but DON'T terminate - wait for task_complete
-                if response.content:
-                    thinking_msg = AgentMessage(
-                        role="assistant",
-                        content=response.content,
-                        usage=response.usage,
-                        metadata={"intermediate": True},
-                    )
-                    self.conversation_history.append(thinking_msg)
-                    yield thinking_msg
-                # Continue loop - only task_complete or max_iterations stops us
+                yield thinking_msg
+
+            tool_results = await self._execute_tools(response.tool_calls)
+
+            # Record in history
+            assistant_msg = AgentMessage(
+                role="assistant",
+                content=response.content or "",
+                tool_calls=tool_calls,
+                usage=response.usage,
+            )
+            self.conversation_history.append(assistant_msg)
+
+            tool_result_msg = AgentMessage(
+                role="tool_result", content="", tool_results=tool_results
+            )
+            self.conversation_history.append(tool_result_msg)
+
+            # Yield results for display update immediately
+            display_msg = AgentMessage(
+                role="assistant",
+                content="",  # Suppress content here as it was already yielded as thinking
+                tool_calls=tool_calls,
+                tool_results=tool_results,
+                usage=response.usage,
+            )
+            yield display_msg
+
+            # Check if plan is now complete
+            if self._task_plan.is_complete():
+                # All steps done - generate final summary
+                summary_response = await self.llm.generate(
+                    system_prompt="You are a helpful assistant. Provide a brief, clear summary of what was accomplished.",
+                    messages=self._format_messages_for_llm(),
+                    tools=self.tools,  # Must provide tools if history contains tool calls
+                )
+
+                completion_msg = AgentMessage(
+                    role="assistant",
+                    content=summary_response.content or "Task complete.",
+                    usage=summary_response.usage,
+                    metadata={"task_complete": True},
+                )
+                self.conversation_history.append(completion_msg)
+                yield completion_msg
+                self.state_manager.transition_to(AgentState.COMPLETE)
+                return
+
+            self.state_manager.transition_to(AgentState.THINKING)
 
         # Max iterations reached - force stop
         warning_msg = AgentMessage(
@@ -424,6 +468,128 @@ class BaseAgent(ABC):
                 return tool
         return None
 
+    def _can_finish(self) -> tuple[bool, str]:
+        """Check if the agent can finish based on plan completion."""
+        if len(self._task_plan.steps) == 0:
+            return True, "No plan exists"
+
+        pending = self._task_plan.get_pending_steps()
+        if pending:
+            pending_desc = ", ".join(
+                f"Step {s.id}: {s.description}" for s in pending[:3]
+            )
+            more = f" (+{len(pending) - 3} more)" if len(pending) > 3 else ""
+            return False, f"Incomplete: {pending_desc}{more}"
+
+        return True, "All steps complete"
+
+    async def _auto_generate_plan(self) -> Optional[AgentMessage]:
+        """
+        Automatically generate a plan from the user's request (loop-enforced).
+
+        This is called on iteration 1 to force plan creation before any tool execution.
+        Uses function calling for reliable structured output.
+
+        Returns:
+            AgentMessage with plan display, or None if generation fails
+        """
+        from ..tools.finish import PlanStep
+        from ..tools.registry import Tool, ToolSchema
+
+        # Get the user's original request (last message)
+        user_request = ""
+        for msg in reversed(self.conversation_history):
+            if msg.role == "user":
+                user_request = msg.content
+                break
+
+        if not user_request:
+            return None  # No request to plan
+
+        # Create a temporary tool for plan generation (function calling)
+        plan_generator_tool = Tool(
+            name="create_plan",
+            description="Create a step-by-step plan for the task. Call this with the steps needed.",
+            schema=ToolSchema(
+                properties={
+                    "steps": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of actionable steps (one tool action each)",
+                    },
+                },
+                required=["steps"],
+            ),
+            execute_fn=lambda args, runtime: None,  # Dummy - we parse args directly
+            category="planning",
+        )
+
+        plan_prompt = f"""Break this request into minimal, actionable steps.
+
+Request: {user_request}
+
+Guidelines:
+- Be concise (typically 2-4 steps)
+- One tool action per step
+- Don't include waiting/loading (handled automatically)
+- Do NOT include a "finish", "complete", or "verify" step (handled automatically)
+
+Call the create_plan tool with your steps."""
+
+        try:
+            response = await self.llm.generate(
+                system_prompt="You are a task planning assistant. Always use the create_plan tool.",
+                messages=[{"role": "user", "content": plan_prompt}],
+                tools=[plan_generator_tool],
+            )
+
+            # Extract steps from tool call arguments
+            steps = []
+            if response.tool_calls:
+                for tc in response.tool_calls:
+                    args = self._parse_arguments(tc)
+                    if args.get("steps"):
+                        steps = args["steps"]
+                        break
+
+            # Fallback: if LLM didn't provide steps, create single-step plan
+            if not steps:
+                steps = [user_request]
+
+            # Create the plan
+            self._task_plan.original_request = user_request
+            self._task_plan.steps = [
+                PlanStep(id=i + 1, description=str(step).strip())
+                for i, step in enumerate(steps)
+            ]
+
+            # Add a system message showing the generated plan
+            plan_display = ["Plan:"]
+            for step in self._task_plan.steps:
+                plan_display.append(f"  {step.id}. {step.description}")
+
+            plan_msg = AgentMessage(
+                role="assistant",
+                content="\n".join(plan_display),
+                metadata={"auto_plan": True},
+            )
+            self.conversation_history.append(plan_msg)
+            return plan_msg
+
+        except Exception as e:
+            # Plan generation failed - create fallback single-step plan
+            self._task_plan.original_request = user_request
+            self._task_plan.steps = [PlanStep(id=1, description=user_request)]
+
+            error_msg = AgentMessage(
+                role="assistant",
+                content=f"Plan generation failed: {str(e)}\nUsing fallback: treating request as single step.",
+                metadata={"auto_plan_failed": True},
+            )
+            self.conversation_history.append(error_msg)
+            return error_msg
+            return error_msg
+
     def reset(self):
         """Reset the agent state for a new conversation."""
         self.state_manager.reset()
@@ -453,7 +619,7 @@ class BaseAgent(ABC):
 
         # Single LLM call with tools available
         response = await self.llm.generate(
-            system_prompt=self.get_system_prompt(),
+            system_prompt=self.get_system_prompt(mode="assist"),
             messages=self._format_messages_for_llm(),
             tools=assist_tools,
         )
@@ -476,10 +642,13 @@ class BaseAgent(ABC):
 
             # Yield tool calls IMMEDIATELY (before execution) for UI display
             # Include any thinking/planning content from the LLM
-            thinking_msg = AgentMessage(
-                role="assistant", content=response.content or "", tool_calls=tool_calls
-            )
-            yield thinking_msg
+            if response.content:
+                thinking_msg = AgentMessage(
+                    role="assistant",
+                    content=response.content,
+                    metadata={"intermediate": True},
+                )
+                yield thinking_msg
 
             # NOW execute the tools (this can take a while)
             self.state_manager.transition_to(AgentState.EXECUTING)
@@ -487,7 +656,7 @@ class BaseAgent(ABC):
 
             # Store in history (minimal content to save tokens)
             assistant_msg = AgentMessage(
-                role="assistant", content="", tool_calls=tool_calls
+                role="assistant", content=response.content or "", tool_calls=tool_calls
             )
             self.conversation_history.append(assistant_msg)
 
@@ -498,7 +667,10 @@ class BaseAgent(ABC):
 
             # Yield tool results for display
             results_msg = AgentMessage(
-                role="assistant", content="", tool_results=tool_results
+                role="assistant",
+                content="",
+                tool_calls=tool_calls,
+                tool_results=tool_results,
             )
             yield results_msg
 

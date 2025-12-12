@@ -103,10 +103,16 @@ class WorkerPool:
         worker.started_at = time.time()
         self._emit(worker.id, "status", {"status": "running"})
 
+        # Create isolated runtime for this worker (prevents browser state conflicts)
+        from ...runtime.runtime import LocalRuntime
+
+        worker_runtime = LocalRuntime()
+        await worker_runtime.start()
+
         agent = GhostCrewAgent(
             llm=self.llm,
             tools=self.tools,
-            runtime=self.runtime,
+            runtime=worker_runtime,  # Use isolated runtime
             target=self.target,
             rag_engine=self.rag_engine,
         )
@@ -155,6 +161,13 @@ class WorkerPool:
             worker.status = AgentStatus.ERROR
             worker.completed_at = time.time()
             self._emit(worker.id, "error", {"error": str(e)})
+
+        finally:
+            # Cleanup worker's isolated runtime
+            try:
+                await worker_runtime.stop()
+            except Exception:
+                pass  # Best effort cleanup
 
     async def _wait_for_dependencies(self, depends_on: List[str]) -> None:
         """Wait for dependent workers to complete."""

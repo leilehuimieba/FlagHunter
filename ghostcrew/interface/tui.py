@@ -822,11 +822,11 @@ class GhostCrewTUI(App):
         else:
             self._add_system("Agent not initialized")
 
-    def _show_notes(self) -> None:
+    async def _show_notes(self) -> None:
         """Display saved notes"""
         from ..tools.notes import get_all_notes
 
-        notes = get_all_notes()
+        notes = await get_all_notes()
         if not notes:
             self._add_system(
                 "=== Notes ===\nNo notes saved.\n\nThe AI can save key findings using the notes tool."
@@ -937,7 +937,7 @@ class GhostCrewTUI(App):
             self._add_system("[!] Agent not initialized")
             return
 
-        notes = get_all_notes()
+        notes = await get_all_notes()
         if not notes:
             self._add_system(
                 "No notes found. Ghost saves findings using the notes tool during testing."
@@ -1062,7 +1062,7 @@ Be concise. Use the actual data from notes."""
         elif cmd_lower == "/memory":
             self._show_memory_stats()
         elif cmd_lower == "/notes":
-            self._show_notes()
+            await self._show_notes()
         elif cmd_lower == "/report":
             self._run_report_generation()
         elif cmd_original.startswith("/target"):
@@ -1610,7 +1610,9 @@ Be concise. Use the actual data from notes."""
                 # Show thinking/plan FIRST if there's content with tool calls
                 if response.content:
                     content = response.content.strip()
-                    if response.tool_calls:
+                    # If it has tool calls, it's thinking.
+                    # If it's marked as intermediate, it's thinking.
+                    if response.tool_calls or response.metadata.get("intermediate"):
                         self._add_thinking(content)
                     else:
                         # Check if this is a task completion message
@@ -1619,20 +1621,20 @@ Be concise. Use the actual data from notes."""
                         else:
                             self._add_assistant(content)
 
-                # Show tool calls AFTER thinking (skip 'finish' - internal control)
+                # Show tool calls AFTER thinking
                 if response.tool_calls:
                     for call in response.tool_calls:
-                        if call.name == "finish":
-                            continue  # Skip - summary shown as final message
+                        # Show all tools including finish
                         args_str = str(call.arguments)
                         self._add_tool(call.name, args_str)
 
                 # Show tool results
-                # Skip 'finish' tool - its result is shown as the final summary
                 if response.tool_results:
                     for result in response.tool_results:
                         if result.tool_name == "finish":
-                            continue  # Skip - summary shown separately
+                            # Skip showing result for finish tool as it's redundant with the tool call display
+                            continue
+
                         if result.success:
                             self._add_tool_result(
                                 result.tool_name, result.result or "Done"

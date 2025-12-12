@@ -136,10 +136,14 @@ class LLM:
             call_kwargs = {
                 "model": self.model,
                 "messages": llm_messages,
-                "tools": llm_tools,
                 "temperature": self.config.temperature,
                 "max_tokens": self.config.max_tokens,
             }
+
+            # Only include tools if they exist (Anthropic requires tools param to be omitted, not None/empty)
+            if llm_tools:
+                call_kwargs["tools"] = llm_tools
+
             # Only add optional params if explicitly changed from defaults
             if self.config.top_p != 1.0:
                 call_kwargs["top_p"] = self.config.top_p

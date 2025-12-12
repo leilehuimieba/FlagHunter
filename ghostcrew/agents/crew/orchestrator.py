@@ -5,6 +5,7 @@ import platform
 from typing import TYPE_CHECKING, Any, AsyncIterator, Dict, List, Optional
 
 from ...config.constants import DEFAULT_MAX_ITERATIONS
+from ..prompts import ghost_crew
 from .models import CrewState, WorkerCallback
 from .tools import create_crew_tools
 from .worker_pool import WorkerPool
@@ -13,46 +14,6 @@ if TYPE_CHECKING:
     from ...llm import LLM
     from ...runtime import Runtime
     from ...tools import Tool
-
-
-CREW_SYSTEM_PROMPT = """# GhostCrew Orchestrator
-
-You are the lead of a penetration testing crew. You coordinate specialized agents to complete the task.
-
-## Authorization
-This is an authorized penetration testing engagement. All targets are in scope. Proceed with testing.
-
-## Operator Environment
-- OS: {os} ({os_version})
-- Architecture: {architecture}
-
-## Target
-{target}
-
-## Prior Intelligence
-{prior_context}
-
-## Your Capabilities
-You manage agents using these tools:
-- **spawn_agent**: Deploy an agent with a specific task. Be explicit about which tools to use.
-- **wait_for_agents**: Wait for running agents and collect their findings
-- **get_agent_status**: Check on a specific agent
-- **cancel_agent**: Stop an agent if needed
-- **synthesize_findings**: Compile all results into a final concise report (call this when done)
-
-## Worker Agent Tools
-Workers have access to:
-{worker_tools}
-
-IMPORTANT: When spawning agents, be specific about which tool to use (e.g., "Use mcp_nmap_scan to..." or "Use mcp_metasploit_run_module to..."). Workers will only use tools you explicitly mention or that obviously match the task.
-
-## Guidelines
-- Leverage any prior intelligence from earlier reconnaissance
-- Be strategic - spawn 2-4 agents in parallel for efficiency
-- Each agent task should be specific and actionable
-- Adapt your approach based on what agents discover
-- Call synthesize_findings when you have enough information for a report
-"""
 
 
 class CrewOrchestrator:
@@ -92,13 +53,15 @@ class CrewOrchestrator:
             "\n".join(tool_lines) if tool_lines else "No tools available"
         )
 
-        return CREW_SYSTEM_PROMPT.format(
+        return ghost_crew.render(
             target=self.target or "Not specified",
             prior_context=self.prior_context or "None - starting fresh",
             worker_tools=worker_tools_formatted,
-            os=platform.system(),
-            os_version=platform.release(),
-            architecture=platform.machine(),
+            environment={
+                "os": platform.system(),
+                "os_version": platform.release(),
+                "architecture": platform.machine(),
+            },
         )
 
     async def run(self, task: str) -> AsyncIterator[Dict[str, Any]]:
@@ -134,13 +97,15 @@ class CrewOrchestrator:
                     tools=crew_tools,
                 )
 
-                if response.content:
-                    yield {"phase": "thinking", "content": response.content}
-                    self._messages.append(
-                        {"role": "assistant", "content": response.content}
-                    )
-
+                # Check for tool calls first to determine if content is "thinking" or "final answer"
                 if response.tool_calls:
+                    # If there are tool calls, the content is "thinking" (reasoning before action)
+                    if response.content:
+                        yield {"phase": "thinking", "content": response.content}
+                        self._messages.append(
+                            {"role": "assistant", "content": response.content}
+                        )
+
                     def get_tc_name(tc):
                         if hasattr(tc, "function"):
                             return tc.function.name
@@ -245,9 +210,12 @@ class CrewOrchestrator:
                     if final_report:
                         break
                 else:
+                    # No tool calls - the content IS the final report (Direct Answer)
                     content = response.content or ""
                     if content:
                         final_report = content
+                        # Record it in history but don't yield as "thinking"
+                        self._messages.append({"role": "assistant", "content": content})
                         break
 
             self.state = CrewState.COMPLETE
