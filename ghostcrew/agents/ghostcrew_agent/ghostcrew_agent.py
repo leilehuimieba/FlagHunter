@@ -71,8 +71,40 @@ class GhostCrewAgent(BaseAgent):
 
             notes = get_all_notes_sync()
             if notes:
-                notes_lines = [f"- {key}: {value}" for key, value in notes.items()]
-                notes_context = "\n".join(notes_lines)
+                # Group by category
+                grouped = {}
+                for key, data in notes.items():
+                    # Handle legacy string format just in case
+                    if isinstance(data, str):
+                        cat = "info"
+                        content = data
+                    else:
+                        cat = data.get("category", "info")
+                        content = data.get("content", "")
+                    
+                    if cat not in grouped:
+                        grouped[cat] = []
+                    grouped[cat].append(f"- {key}: {content}")
+                
+                # Format output with specific order
+                sections = []
+                order = ["credential", "vulnerability", "finding", "artifact", "task", "info"]
+                
+                for cat in order:
+                    if cat in grouped:
+                        header = cat.title() + "s"
+                        if cat == "info":
+                            header = "General Information"
+                        sections.append(f"## {header}")
+                        sections.append("\n".join(grouped[cat]))
+                
+                # Add any remaining categories
+                for cat in sorted(grouped.keys()):
+                    if cat not in order:
+                        sections.append(f"## {cat.title()}")
+                        sections.append("\n".join(grouped[cat]))
+                        
+                notes_context = "\n\n".join(sections)
         except Exception:
             pass  # Notes not available
 
