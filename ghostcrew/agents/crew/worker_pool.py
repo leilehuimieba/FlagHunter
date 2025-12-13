@@ -140,9 +140,11 @@ class WorkerPool:
                 # Capture final response (text without tool calls)
                 if response.content and not response.tool_calls:
                     final_response = response.content
-                
+
                 # Check if max iterations was hit
-                if response.metadata and response.metadata.get("max_iterations_reached"):
+                if response.metadata and response.metadata.get(
+                    "max_iterations_reached"
+                ):
                     hit_max_iterations = True
 
             worker.result = final_response or "No findings."

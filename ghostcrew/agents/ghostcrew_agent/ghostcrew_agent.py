@@ -81,7 +81,7 @@ class GhostCrewAgent(BaseAgent):
                     else:
                         cat = data.get("category", "info")
                         content = data.get("content", "")
-                    
+
                     # Truncate long notes in system prompt to save tokens
                     # The agent can use the 'read' tool to get the full content
                     if len(content) > 200:
@@ -90,11 +90,18 @@ class GhostCrewAgent(BaseAgent):
                     if cat not in grouped:
                         grouped[cat] = []
                     grouped[cat].append(f"- {key}: {content}")
-                
+
                 # Format output with specific order
                 sections = []
-                order = ["credential", "vulnerability", "finding", "artifact", "task", "info"]
-                
+                order = [
+                    "credential",
+                    "vulnerability",
+                    "finding",
+                    "artifact",
+                    "task",
+                    "info",
+                ]
+
                 for cat in order:
                     if cat in grouped:
                         header = cat.title() + "s"
@@ -102,13 +109,13 @@ class GhostCrewAgent(BaseAgent):
                             header = "General Information"
                         sections.append(f"## {header}")
                         sections.append("\n".join(grouped[cat]))
-                
+
                 # Add any remaining categories
                 for cat in sorted(grouped.keys()):
                     if cat not in order:
                         sections.append(f"## {cat.title()}")
                         sections.append("\n".join(grouped[cat]))
-                        
+
                 notes_context = "\n\n".join(sections)
         except Exception:
             pass  # Notes not available

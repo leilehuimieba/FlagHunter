@@ -13,7 +13,7 @@ Architecture:
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Set
 
 import networkx as nx
 
@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class GraphNode:
     """A node in the shadow graph."""
+
     id: str
     type: str  # host, service, credential, finding, artifact
     label: str
@@ -35,6 +36,7 @@ class GraphNode:
 @dataclass
 class GraphEdge:
     """An edge in the shadow graph."""
+
     source: str
     target: str
     type: str  # CONNECTS_TO, HAS_SERVICE, AUTH_ACCESS, RELATED_TO
@@ -49,16 +51,16 @@ class ShadowGraph:
     def __init__(self):
         self.graph = nx.DiGraph()
         self._processed_notes: Set[str] = set()
-        
+
         # Regex patterns for entity extraction
-        self._ip_pattern = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b')
-        self._port_pattern = re.compile(r'(\d{1,5})/(tcp|udp)')
-        self._user_pattern = re.compile(r'user[:\s]+([a-zA-Z0-9_.-]+)', re.IGNORECASE)
+        self._ip_pattern = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+        self._port_pattern = re.compile(r"(\d{1,5})/(tcp|udp)")
+        self._user_pattern = re.compile(r"user[:\s]+([a-zA-Z0-9_.-]+)", re.IGNORECASE)
 
     def update_from_notes(self, notes: Dict[str, Dict[str, Any]]) -> None:
         """
         Update the graph based on new notes.
-        
+
         This method is idempotent and incremental. It only processes notes
         that haven't been seen before (based on key).
         """
@@ -79,7 +81,7 @@ class ShadowGraph:
 
     def _process_note(self, key: str, content: str, category: str) -> None:
         """Extract entities and relationships from a single note."""
-        
+
         # 1. Extract IPs (Hosts)
         ips = self._ip_pattern.findall(content)
         hosts = []
@@ -110,12 +112,14 @@ class ShadowGraph:
         if self.graph.has_node(source) and self.graph.has_node(target):
             self.graph.add_edge(source, target, type=edge_type, **kwargs)
 
-    def _process_credential(self, key: str, content: str, related_hosts: List[str]) -> None:
+    def _process_credential(
+        self, key: str, content: str, related_hosts: List[str]
+    ) -> None:
         """Process a credential note."""
         # Extract username
         user_match = self._user_pattern.search(content)
         username = user_match.group(1) if user_match else "unknown"
-        
+
         cred_id = f"cred:{key}"
         self._add_node(cred_id, "credential", f"Creds ({username})")
 
@@ -125,7 +129,9 @@ class ShadowGraph:
             protocol = "ssh" if "ssh" in content.lower() else "unknown"
             self._add_edge(cred_id, host_id, "AUTH_ACCESS", protocol=protocol)
 
-    def _process_finding(self, key: str, content: str, related_hosts: List[str]) -> None:
+    def _process_finding(
+        self, key: str, content: str, related_hosts: List[str]
+    ) -> None:
         """Process a finding note (e.g., open ports)."""
         # Extract ports
         ports = self._port_pattern.findall(content)
@@ -135,15 +141,17 @@ class ShadowGraph:
                 self._add_node(service_id, "service", f"{port}/{proto}")
                 self._add_edge(host_id, service_id, "HAS_SERVICE", protocol=proto)
 
-    def _process_vulnerability(self, key: str, content: str, related_hosts: List[str]) -> None:
+    def _process_vulnerability(
+        self, key: str, content: str, related_hosts: List[str]
+    ) -> None:
         """Process a vulnerability note."""
         vuln_id = f"vuln:{key}"
         # Try to extract CVE
-        cve_match = re.search(r'CVE-\d{4}-\d{4,7}', content, re.IGNORECASE)
+        cve_match = re.search(r"CVE-\d{4}-\d{4,7}", content, re.IGNORECASE)
         label = cve_match.group(0) if cve_match else "Vulnerability"
-        
+
         self._add_node(vuln_id, "vulnerability", label)
-        
+
         for host_id in related_hosts:
             self._add_edge(host_id, vuln_id, "AFFECTED_BY")
 
@@ -152,7 +160,7 @@ class ShadowGraph:
         Analyze the graph and return natural language insights for the Orchestrator.
         """
         insights = []
-        
+
         # Insight 1: Unused Credentials
         # Find credentials that have AUTH_ACCESS to a host, but we haven't "explored" that host fully?
         # Or simply list valid access paths.
@@ -161,29 +169,53 @@ class ShadowGraph:
                 # Find what it connects to
                 targets = [v for u, v in self.graph.out_edges(node)]
                 if targets:
-                    target_labels = [self.graph.nodes[t].get("label", t) for t in targets]
-                    insights.append(f"We have credentials that provide access to: {', '.join(target_labels)}")
+                    target_labels = [
+                        self.graph.nodes[t].get("label", t) for t in targets
+                    ]
+                    insights.append(
+                        f"We have credentials that provide access to: {', '.join(target_labels)}"
+                    )
 
         # Insight 2: High Value Targets (Hosts with many open ports/vulns)
         for node, data in self.graph.nodes(data=True):
             if data.get("type") == "host":
                 # Count services
-                services = [v for u, v in self.graph.out_edges(node) if self.graph.nodes[v].get("type") == "service"]
-                vulns = [v for u, v in self.graph.out_edges(node) if self.graph.nodes[v].get("type") == "vulnerability"]
-                
+                services = [
+                    v
+                    for u, v in self.graph.out_edges(node)
+                    if self.graph.nodes[v].get("type") == "service"
+                ]
+                vulns = [
+                    v
+                    for u, v in self.graph.out_edges(node)
+                    if self.graph.nodes[v].get("type") == "vulnerability"
+                ]
+
                 if len(services) > 0 or len(vulns) > 0:
-                    insights.append(f"Host {data['label']} has {len(services)} services and {len(vulns)} known vulnerabilities.")
+                    insights.append(
+                        f"Host {data['label']} has {len(services)} services and {len(vulns)} known vulnerabilities."
+                    )
 
         # Insight 3: Potential Pivots (Host A -> Cred -> Host B)
         # This is harder without explicit "source" of creds, but we can infer.
-        
+
         return insights
 
     def export_summary(self) -> str:
         """Export a text summary of the graph state."""
         stats = {
-            "hosts": len([n for n, d in self.graph.nodes(data=True) if d['type'] == 'host']),
-            "creds": len([n for n, d in self.graph.nodes(data=True) if d['type'] == 'credential']),
-            "vulns": len([n for n, d in self.graph.nodes(data=True) if d['type'] == 'vulnerability']),
+            "hosts": len(
+                [n for n, d in self.graph.nodes(data=True) if d["type"] == "host"]
+            ),
+            "creds": len(
+                [n for n, d in self.graph.nodes(data=True) if d["type"] == "credential"]
+            ),
+            "vulns": len(
+                [
+                    n
+                    for n, d in self.graph.nodes(data=True)
+                    if d["type"] == "vulnerability"
+                ]
+            ),
         }
         return f"Graph State: {stats['hosts']} Hosts, {stats['creds']} Credentials, {stats['vulns']} Vulnerabilities"

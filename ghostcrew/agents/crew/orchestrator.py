@@ -5,11 +5,11 @@ import platform
 from typing import TYPE_CHECKING, Any, AsyncIterator, Dict, List, Optional
 
 from ...config.constants import DEFAULT_MAX_ITERATIONS
+from ...knowledge.graph import ShadowGraph
 from ..prompts import ghost_crew
 from .models import CrewState, WorkerCallback
 from .tools import create_crew_tools
 from .worker_pool import WorkerPool
-from ...knowledge.graph import ShadowGraph
 
 if TYPE_CHECKING:
     from ...llm import LLM
@@ -77,7 +77,7 @@ class CrewOrchestrator:
                     else:
                         cat = data.get("category", "info")
                         content = data.get("content", "")
-                    
+
                     # Truncate long notes in system prompt to save tokens
                     if len(content) > 200:
                         content = content[:197] + "..."
@@ -85,11 +85,18 @@ class CrewOrchestrator:
                     if cat not in grouped:
                         grouped[cat] = []
                     grouped[cat].append(f"- {key}: {content}")
-                
+
                 # Format output with specific order
                 sections = []
-                order = ["credential", "vulnerability", "finding", "artifact", "task", "info"]
-                
+                order = [
+                    "credential",
+                    "vulnerability",
+                    "finding",
+                    "artifact",
+                    "task",
+                    "info",
+                ]
+
                 for cat in order:
                     if cat in grouped:
                         header = cat.title() + "s"
@@ -97,13 +104,13 @@ class CrewOrchestrator:
                             header = "General Information"
                         sections.append(f"## {header}")
                         sections.append("\n".join(grouped[cat]))
-                
+
                 # Add any remaining categories
                 for cat in sorted(grouped.keys()):
                     if cat not in order:
                         sections.append(f"## {cat.title()}")
                         sections.append("\n".join(grouped[cat]))
-                        
+
                 notes_context = "\n\n".join(sections)
         except Exception:
             pass  # Notes not available
@@ -111,7 +118,9 @@ class CrewOrchestrator:
         # Format insights for prompt
         insights_text = ""
         if graph_insights:
-            insights_text = "\n\n## Strategic Insights (Graph Analysis)\n" + "\n".join(f"- {i}" for i in graph_insights)
+            insights_text = "\n\n## Strategic Insights (Graph Analysis)\n" + "\n".join(
+                f"- {i}" for i in graph_insights
+            )
 
         return ghost_crew.render(
             target=self.target or "Not specified",

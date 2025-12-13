@@ -24,7 +24,11 @@ def _load_notes_unlocked() -> None:
             _notes = {}
             for k, v in loaded.items():
                 if isinstance(v, str):
-                    _notes[k] = {"content": v, "category": "info", "confidence": "medium"}
+                    _notes[k] = {
+                        "content": v,
+                        "category": "info",
+                        "confidence": "medium",
+                    }
                 else:
                     _notes[k] = v
         except (json.JSONDecodeError, IOError):
@@ -55,7 +59,11 @@ def get_all_notes_sync() -> Dict[str, Dict[str, Any]]:
             result = {}
             for k, v in loaded.items():
                 if isinstance(v, str):
-                    result[k] = {"content": v, "category": "info", "confidence": "medium"}
+                    result[k] = {
+                        "content": v,
+                        "category": "info",
+                        "confidence": "medium",
+                    }
                 else:
                     result[k] = v
             return result
@@ -96,7 +104,14 @@ _load_notes_unlocked()
             },
             "category": {
                 "type": "string",
-                "enum": ["finding", "credential", "task", "info", "vulnerability", "artifact"],
+                "enum": [
+                    "finding",
+                    "credential",
+                    "task",
+                    "info",
+                    "vulnerability",
+                    "artifact",
+                ],
                 "description": "Category for organization (default: info)",
             },
             "confidence": {
@@ -123,13 +138,20 @@ async def notes(arguments: dict, runtime) -> str:
     action = arguments["action"]
     key = arguments.get("key", "").strip()
     value = arguments.get("value", "")
-    
+
     # Soft validation for category
     category = arguments.get("category", "info")
-    valid_categories = ["finding", "credential", "task", "info", "vulnerability", "artifact"]
+    valid_categories = [
+        "finding",
+        "credential",
+        "task",
+        "info",
+        "vulnerability",
+        "artifact",
+    ]
     if category not in valid_categories:
         category = "info"
-        
+
     confidence = arguments.get("confidence", "medium")
 
     async with _notes_lock:
@@ -144,7 +166,7 @@ async def notes(arguments: dict, runtime) -> str:
             _notes[key] = {
                 "content": value,
                 "category": category,
-                "confidence": confidence
+                "confidence": confidence,
             }
             _save_notes_unlocked()
             return f"Created note '{key}' ({category})"
@@ -156,7 +178,9 @@ async def notes(arguments: dict, runtime) -> str:
                 return f"Note '{key}' not found"
 
             note = _notes[key]
-            return f"[{key}] ({note['category']}, {note['confidence']}) {note['content']}"
+            return (
+                f"[{key}] ({note['category']}, {note['confidence']}) {note['content']}"
+            )
 
         elif action == "update":
             if not key:
@@ -165,17 +189,17 @@ async def notes(arguments: dict, runtime) -> str:
                 return "Error: value is required for update"
 
             existed = key in _notes
-            # Preserve existing metadata if not provided? No, overwrite is cleaner for now, 
+            # Preserve existing metadata if not provided? No, overwrite is cleaner for now,
             # but maybe we should default to existing if not provided.
             # For now, let's just overwrite with defaults if missing, or use provided.
             # Actually, if updating, we might want to keep category if not specified.
             # But arguments.get("category", "info") defaults to info.
             # Let's stick to simple overwrite for now to match previous behavior.
-            
+
             _notes[key] = {
                 "content": value,
                 "category": category,
-                "confidence": confidence
+                "confidence": confidence,
             }
             _save_notes_unlocked()
             return f"{'Updated' if existed else 'Created'} note '{key}'"
@@ -195,7 +219,7 @@ async def notes(arguments: dict, runtime) -> str:
                 return "No notes saved"
 
             lines = [f"Notes ({len(_notes)} entries):"]
-            
+
             # Group by category for display
             by_category = {}
             for k, v in _notes.items():
@@ -203,12 +227,14 @@ async def notes(arguments: dict, runtime) -> str:
                 if cat not in by_category:
                     by_category[cat] = []
                 by_category[cat].append((k, v))
-            
+
             for cat in sorted(by_category.keys()):
                 lines.append(f"\n## {cat.title()}")
                 for k, v in by_category[cat]:
                     content = v["content"]
-                    display_val = content if len(content) <= 60 else content[:57] + "..."
+                    display_val = (
+                        content if len(content) <= 60 else content[:57] + "..."
+                    )
                     conf = v.get("confidence", "medium")
                     lines.append(f"  [{k}] ({conf}) {display_val}")
 

@@ -153,12 +153,11 @@ ghostcrew mcp add <name> <command> [args...]  # Add MCP server
 ghostcrew mcp test <name>    # Test MCP connection
 ```
 
-## Knowledge Base (RAG)
+## Knowledge
 
-Place files in `ghostcrew/knowledge/sources/` for RAG context injection:
-- `methodologies.md` - Testing methodologies
-- `cves.json` - CVE database
-- `wordlists.txt` - Common wordlists
+- **RAG:** Place methodologies, CVEs, or wordlists in `ghostcrew/knowledge/sources/` for automatic context injection.
+- **Notes:** Agents save findings to `loot/notes.json` with categories (`credential`, `vulnerability`, `finding`, `artifact`). Notes persist across sessions and are injected into agent context.
+- **Shadow Graph:** In Crew mode, the orchestrator builds a knowledge graph from notes to derive strategic insights (e.g., "We have credentials for host X").
 
 ## Project Structure
 
@@ -167,7 +166,7 @@ ghostcrew/
   agents/         # Agent implementations
   config/         # Settings and constants
   interface/      # TUI and CLI
-  knowledge/      # RAG system
+  knowledge/      # RAG system and shadow graph
   llm/            # LiteLLM wrapper
   mcp/            # MCP client and server configs
   runtime/        # Execution environment
