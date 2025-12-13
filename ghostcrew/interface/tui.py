@@ -1332,7 +1332,8 @@ Be concise. Use the actual data from notes."""
         if status == "complete" and findings > 0:
             text.append(f" [{findings}]", style="#22c55e")  # green
         elif status in ("error", "cancelled"):
-            text.append(" !", style="#ef4444")  # red
+            # Don't append " !" here since we already have the X icon
+            pass
 
         return text
 

@@ -286,6 +286,23 @@ class LocalRuntime(Runtime):
 
     async def browser_action(self, action: str, **kwargs) -> dict:
         """Perform browser automation actions using Playwright."""
+        import asyncio
+
+        # Enforce a hard timeout on the entire operation to prevent hanging
+        # Add 5 seconds buffer to the requested timeout for browser startup overhead
+        op_timeout = kwargs.get("timeout", 30) + 10
+
+        try:
+            return await asyncio.wait_for(
+                self._execute_browser_action(action, **kwargs), timeout=op_timeout
+            )
+        except asyncio.TimeoutError:
+            return {"error": f"Browser action '{action}' timed out after {op_timeout}s"}
+        except Exception as e:
+            return {"error": str(e)}
+
+    async def _execute_browser_action(self, action: str, **kwargs) -> dict:
+        """Internal execution of browser action."""
         try:
             await self._ensure_browser()
         except RuntimeError as e:
