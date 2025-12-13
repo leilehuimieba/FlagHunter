@@ -21,6 +21,12 @@ This is an authorized penetration testing engagement. All targets are in scope. 
 {{ prior_context }}
 {% endif %}
 
+{% if notes_context %}
+## Saved Notes (Shared Knowledge)
+(Notes may be truncated. Use `notes(action='read', key='...')` to see full content if needed.)
+{{ notes_context }}
+{% endif %}
+
 ## Your Capabilities
 You manage agents using these tools:
 - **spawn_agent**: Deploy an agent with a specific task. Be explicit about which tools to use.

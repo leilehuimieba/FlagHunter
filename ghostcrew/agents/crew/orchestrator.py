@@ -9,6 +9,7 @@ from ..prompts import ghost_crew
 from .models import CrewState, WorkerCallback
 from .tools import create_crew_tools
 from .worker_pool import WorkerPool
+from ...knowledge.graph import ShadowGraph
 
 if TYPE_CHECKING:
     from ...llm import LLM
@@ -39,6 +40,7 @@ class CrewOrchestrator:
 
         self.state = CrewState.IDLE
         self.pool: Optional[WorkerPool] = None
+        self.graph = ShadowGraph()
         self._messages: List[Dict[str, Any]] = []
 
     def _get_system_prompt(self) -> str:
@@ -53,9 +55,68 @@ class CrewOrchestrator:
             "\n".join(tool_lines) if tool_lines else "No tools available"
         )
 
+        # Get saved notes if available
+        notes_context = ""
+        graph_insights = []
+        try:
+            from ...tools.notes import get_all_notes_sync
+
+            notes = get_all_notes_sync()
+            if notes:
+                # Update shadow graph
+                self.graph.update_from_notes(notes)
+                graph_insights = self.graph.get_strategic_insights()
+
+                # Group by category
+                grouped = {}
+                for key, data in notes.items():
+                    # Handle legacy string format just in case
+                    if isinstance(data, str):
+                        cat = "info"
+                        content = data
+                    else:
+                        cat = data.get("category", "info")
+                        content = data.get("content", "")
+                    
+                    # Truncate long notes in system prompt to save tokens
+                    if len(content) > 200:
+                        content = content[:197] + "..."
+
+                    if cat not in grouped:
+                        grouped[cat] = []
+                    grouped[cat].append(f"- {key}: {content}")
+                
+                # Format output with specific order
+                sections = []
+                order = ["credential", "vulnerability", "finding", "artifact", "task", "info"]
+                
+                for cat in order:
+                    if cat in grouped:
+                        header = cat.title() + "s"
+                        if cat == "info":
+                            header = "General Information"
+                        sections.append(f"## {header}")
+                        sections.append("\n".join(grouped[cat]))
+                
+                # Add any remaining categories
+                for cat in sorted(grouped.keys()):
+                    if cat not in order:
+                        sections.append(f"## {cat.title()}")
+                        sections.append("\n".join(grouped[cat]))
+                        
+                notes_context = "\n\n".join(sections)
+        except Exception:
+            pass  # Notes not available
+
+        # Format insights for prompt
+        insights_text = ""
+        if graph_insights:
+            insights_text = "\n\n## Strategic Insights (Graph Analysis)\n" + "\n".join(f"- {i}" for i in graph_insights)
+
         return ghost_crew.render(
             target=self.target or "Not specified",
             prior_context=self.prior_context or "None - starting fresh",
+            notes_context=notes_context + insights_text,
             worker_tools=worker_tools_formatted,
             environment={
                 "os": platform.system(),
