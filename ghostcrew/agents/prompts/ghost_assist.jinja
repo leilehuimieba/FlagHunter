@@ -44,5 +44,6 @@ Scope: {{ scope | join(', ') }}
 
 {% if notes_context %}
 ## Saved Notes (from previous tasks)
+(Notes may be truncated. Use `notes(action='read', key='...')` to see full content if needed.)
 {{ notes_context }}
 {% endif %}

@@ -82,6 +82,11 @@ class GhostCrewAgent(BaseAgent):
                         cat = data.get("category", "info")
                         content = data.get("content", "")
                     
+                    # Truncate long notes in system prompt to save tokens
+                    # The agent can use the 'read' tool to get the full content
+                    if len(content) > 200:
+                        content = content[:197] + "..."
+
                     if cat not in grouped:
                         grouped[cat] = []
                     grouped[cat].append(f"- {key}: {content}")
