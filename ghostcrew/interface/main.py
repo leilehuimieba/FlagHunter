@@ -267,16 +267,19 @@ def main():
         if not args.target:
             print("Error: --target is required for headless mode")
             return
-        asyncio.run(
-            run_cli(
-                target=args.target,
-                model=args.model,
-                task=args.task,
-                report=args.report,
-                max_tools=args.max,
-                use_docker=args.docker,
+        try:
+            asyncio.run(
+                run_cli(
+                    target=args.target,
+                    model=args.model,
+                    task=args.task,
+                    report=args.report,
+                    max_tools=args.max,
+                    use_docker=args.docker,
+                )
             )
-        )
+        except KeyboardInterrupt:
+            print("\n[!] Interrupted by user.")
     else:
         # TUI doesn't need asyncio.run - it runs its own event loop
         run_tui(target=args.target, model=args.model, use_docker=args.docker)
