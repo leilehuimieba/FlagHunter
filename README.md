@@ -1,6 +1,17 @@
-# GHOSTCREW
+<div align="center">
 
-AI penetration testing agents. Uses LLMs to coordinate reconnaissance, enumeration, and exploitation with security tools.
+<img src="assets/ghostcrew-logo.png" alt="GhostCrew Logo" width="220" style="margin-bottom: 20px;"/>
+
+# GHOSTCREW
+### AI Penetration Testing Agents
+
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/) [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE.txt) [![Version](https://img.shields.io/badge/Version-0.2.0-orange.svg)](https://github.com/GH05TCREW/ghostcrew/releases) [![Stars](https://img.shields.io/github/stars/GH05TCREW/ghostcrew?style=social)](https://github.com/GH05TCREW/ghostcrew)
+
+[![Security](https://img.shields.io/badge/Security-Penetration%20Testing-red.svg)](https://github.com/GH05TCREW/ghostcrew) [![MCP](https://img.shields.io/badge/MCP-Compatible-purple.svg)](https://github.com/GH05TCREW/ghostcrew)
+
+[🇺🇸 English](README.md) | [🇨🇳 中文文档](README_zh.md)
+
+</div>
 
 https://github.com/user-attachments/assets/a67db2b5-672a-43df-b709-149c8eaee975
 
