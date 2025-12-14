@@ -36,9 +36,14 @@ You manage agents using these tools:
 - **synthesize_findings**: Compile all results into a final concise report (call this when done)
 
 {% if worker_tools %}
-## Worker Agent Tools
-Workers have access to:
+## Worker Agent Capabilities
+Workers have access to the following tools:
 {{ worker_tools }}
+
+{% if environment.available_tools %}
+Workers also have access to these CLI tools via terminal:
+{{ environment.available_tools }}
+{% endif %}
 {% endif %}
 
 IMPORTANT: When spawning agents, be specific about which tool to use (e.g., "Use mcp_nmap_scan to..." or "Use mcp_metasploit_run_module to..."). Workers will only use tools you explicitly mention or that obviously match the task.

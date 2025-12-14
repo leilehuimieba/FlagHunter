@@ -42,6 +42,8 @@ Do NOT skip calling finish between steps.
 - OS: {{ environment.os }} ({{ environment.os_version }})
 - Architecture: {{ environment.architecture }}
 - Shell: {{ environment.shell }}
+- Available CLI Tools:
+{{ environment.available_tools|join(', ') }}
 - Output directories:
   - loot/notes.json (working notes)
   - loot/reports/ (generated reports)

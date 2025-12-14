@@ -1,13 +1,91 @@
 """Runtime abstraction for GhostCrew."""
 
 import platform
+import shutil
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 if TYPE_CHECKING:
     from ..mcp import MCPManager
+
+
+# Categorized list of tools to check for
+INTERESTING_TOOLS = {
+    "network_scan": [
+        "nmap",
+        "masscan",
+        "rustscan",
+        "naabu",
+        "unicornscan",
+    ],
+    "web_scan": [
+        "nikto",
+        "gobuster",
+        "dirb",
+        "dirbuster",
+        "ffuf",
+        "feroxbuster",
+        "wpscan",
+        "nuclei",
+        "whatweb",
+    ],
+    "exploitation": [
+        "msfconsole",
+        "searchsploit",
+        "sqlmap",
+        "commix",
+    ],
+    "password_attacks": [
+        "hydra",
+        "medusa",
+        "john",
+        "hashcat",
+        "crackmapexec",
+        "thc-hydra",
+    ],
+    "network_analysis": [
+        "tcpdump",
+        "tshark",
+        "wireshark",
+        "ngrep",
+    ],
+    "tunneling": [
+        "proxychains",
+        "proxychains4",
+        "socat",
+        "chisel",
+        "ligolo",
+    ],
+    "utilities": [
+        "curl",
+        "wget",
+        "nc",
+        "netcat",
+        "ncat",
+        "ssh",
+        "git",
+        "docker",
+        "kubectl",
+        "jq",
+        "python3",
+        "perl",
+        "ruby",
+        "gcc",
+        "g++",
+        "make",
+    ],
+}
+
+
+@dataclass
+class ToolInfo:
+    """Information about an available tool."""
+
+    name: str
+    path: str
+    category: str
 
 
 @dataclass
@@ -18,31 +96,85 @@ class EnvironmentInfo:
     os_version: str
     shell: str  # "powershell", "bash", "zsh", etc.
     architecture: str  # "x86_64", "arm64", etc.
+    available_tools: List[ToolInfo] = field(default_factory=list)
 
     def __str__(self) -> str:
         """Concise string representation for prompts."""
-        return f"{self.os} ({self.architecture}), shell: {self.shell}"
+        # Group tools by category for cleaner output
+        grouped = {}
+        for tool in self.available_tools:
+            if tool.category not in grouped:
+                grouped[tool.category] = []
+            grouped[tool.category].append(tool.name)
+
+        tools_str = ""
+        if grouped:
+            lines = []
+            for cat, tools in grouped.items():
+                lines.append(f"  - {cat}: {', '.join(tools)}")
+            tools_str = "\n" + "\n".join(lines)
+        else:
+            tools_str = " None"
+
+        return (
+            f"{self.os} ({self.architecture}), shell: {self.shell}\n"
+            f"Available CLI Tools:{tools_str}"
+        )
 
 
 def detect_environment() -> EnvironmentInfo:
     """Detect the current system environment."""
+    import os
+
     os_name = platform.system()
     os_version = platform.release()
     arch = platform.machine()
+    shell = "unknown"
 
-    # Detect shell
+    # Detect shell and OS nuances
     if os_name == "Windows":
-        # Check for PowerShell vs CMD
-        shell = "powershell"
+        # Better Windows shell detection
+        comspec = os.environ.get("COMSPEC", "").lower()
+        if "powershell" in comspec:
+            shell = "powershell"
+        elif "cmd.exe" in comspec:
+            shell = "cmd"
+        else:
+            # Fallback: check if we are in a PS session via env vars
+            if "PSModulePath" in os.environ:
+                shell = "powershell"
+            else:
+                shell = "cmd"  # Default to cmd on Windows if unsure
     else:
-        # Unix-like: check common shells
-        import os
-
+        # Unix-like
         shell_path = os.environ.get("SHELL", "/bin/sh")
-        shell = shell_path.split("/")[-1]  # Extract shell name
+        shell = shell_path.split("/")[-1]
+
+        # WSL Detection
+        if os_name == "Linux":
+            try:
+                with open("/proc/version", "r") as f:
+                    if "microsoft" in f.read().lower():
+                        os_name = "Linux (WSL)"
+            except Exception:
+                pass
+
+    # Detect available tools with categories
+    available_tools = []
+    for category, tools in INTERESTING_TOOLS.items():
+        for tool_name in tools:
+            tool_path = shutil.which(tool_name)
+            if tool_path:
+                available_tools.append(
+                    ToolInfo(name=tool_name, path=tool_path, category=category)
+                )
 
     return EnvironmentInfo(
-        os=os_name, os_version=os_version, shell=shell, architecture=arch
+        os=os_name,
+        os_version=os_version,
+        shell=shell,
+        architecture=arch,
+        available_tools=available_tools,
     )
 
 
