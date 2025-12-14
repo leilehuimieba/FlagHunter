@@ -55,7 +55,13 @@ class ShadowGraph:
         # Regex patterns for entity extraction
         self._ip_pattern = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
         self._port_pattern = re.compile(r"(\d{1,5})/(tcp|udp)")
-        self._user_pattern = re.compile(r"user[:\s]+([a-zA-Z0-9_.-]+)", re.IGNORECASE)
+        self._user_pattern = re.compile(
+            r"(?:user|username)[:\s]+([a-zA-Z0-9_.-]+)", re.IGNORECASE
+        )
+        self._source_pattern = re.compile(
+            r"(?:found on|dumped from|extracted from|on host)\s+((?:\d{1,3}\.){3}\d{1,3})",
+            re.IGNORECASE,
+        )
 
     def update_from_notes(self, notes: Dict[str, Dict[str, Any]]) -> None:
         """
@@ -72,31 +78,54 @@ class ShadowGraph:
             if isinstance(note_data, str):
                 content = note_data
                 category = "info"
+                metadata = {}
             else:
                 content = note_data.get("content", "")
                 category = note_data.get("category", "info")
+                metadata = note_data.get("metadata", {})
 
-            self._process_note(key, content, category)
+            self._process_note(key, content, category, metadata)
             self._processed_notes.add(key)
 
-    def _process_note(self, key: str, content: str, category: str) -> None:
+    def _process_note(
+        self, key: str, content: str, category: str, metadata: Dict[str, Any]
+    ) -> None:
         """Extract entities and relationships from a single note."""
 
         # 1. Extract IPs (Hosts)
-        ips = self._ip_pattern.findall(content)
+        # Prefer metadata if available
         hosts = []
-        for ip in ips:
-            node_id = f"host:{ip}"
-            self._add_node(node_id, "host", ip)
+
+        # Check target in metadata
+        if metadata.get("target"):
+            target_ip = metadata["target"]
+            # Validate it looks like an IP or hostname? For now just accept it.
+            node_id = f"host:{target_ip}"
+            self._add_node(node_id, "host", target_ip)
             hosts.append(node_id)
+
+        # Check source in metadata
+        if metadata.get("source"):
+            source_ip = metadata["source"]
+            node_id = f"host:{source_ip}"
+            self._add_node(node_id, "host", source_ip)
+            hosts.append(node_id)
+
+        # Fallback to regex if no hosts found in metadata
+        if not hosts:
+            ips = self._ip_pattern.findall(content)
+            for ip in ips:
+                node_id = f"host:{ip}"
+                self._add_node(node_id, "host", ip)
+                hosts.append(node_id)
 
         # 2. Handle specific categories
         if category == "credential":
-            self._process_credential(key, content, hosts)
+            self._process_credential(key, content, hosts, metadata)
         elif category == "finding":
-            self._process_finding(key, content, hosts)
+            self._process_finding(key, content, hosts, metadata)
         elif category == "vulnerability":
-            self._process_vulnerability(key, content, hosts)
+            self._process_vulnerability(key, content, hosts, metadata)
 
         # 3. Link note to hosts (provenance)
         # We don't add the note itself as a node usually, but we could.
@@ -113,46 +142,121 @@ class ShadowGraph:
             self.graph.add_edge(source, target, type=edge_type, **kwargs)
 
     def _process_credential(
-        self, key: str, content: str, related_hosts: List[str]
+        self, key: str, content: str, related_hosts: List[str], metadata: Dict[str, Any]
     ) -> None:
         """Process a credential note."""
-        # Extract username
-        user_match = self._user_pattern.search(content)
-        username = user_match.group(1) if user_match else "unknown"
+        # Extract username from metadata or regex
+        username = metadata.get("username")
+        if not username:
+            user_match = self._user_pattern.search(content)
+            username = user_match.group(1) if user_match else None
 
         cred_id = f"cred:{key}"
-        self._add_node(cred_id, "credential", f"Creds ({username})")
+        label = f"Creds ({username})" if username else "Credentials"
+        self._add_node(cred_id, "credential", label)
+
+        # Check for "found on" source host
+        source_host = None
+        if metadata.get("source"):
+            source_ip = metadata["source"]
+            source_host = f"host:{source_ip}"
+        else:
+            source_match = self._source_pattern.search(content)
+            if source_match:
+                source_ip = source_match.group(1)
+                source_host = f"host:{source_ip}"
+
+        if source_host:
+            # Add CONTAINS edge: Host -> Cred
+            if self.graph.has_node(source_host):
+                self._add_edge(source_host, cred_id, "CONTAINS")
 
         # Link cred to hosts it belongs to (or works on)
         for host_id in related_hosts:
+            # If this host is the source, skip adding it as a target unless explicitly clear?
+            # For now, if we identified it as source, assume it's NOT the target unless it's the only one?
+            # Let's just exclude the source host from being an AUTH_ACCESS target to avoid loops,
+            # unless we want to represent local privesc (which is valid).
+            # But for pivoting, we care about A -> Cred -> B.
+
+            # If we found a source, and this host is that source, treat it as CONTAINS (already done).
+            # Otherwise, treat as AUTH_ACCESS.
+            if source_host and host_id == source_host:
+                continue
+
             # If the note says "ssh", assume SSH access
             protocol = "ssh" if "ssh" in content.lower() else "unknown"
             self._add_edge(cred_id, host_id, "AUTH_ACCESS", protocol=protocol)
 
     def _process_finding(
-        self, key: str, content: str, related_hosts: List[str]
+        self, key: str, content: str, related_hosts: List[str], metadata: Dict[str, Any]
     ) -> None:
         """Process a finding note (e.g., open ports)."""
-        # Extract ports
-        ports = self._port_pattern.findall(content)
+        # Filter related_hosts: If we have explicit target metadata, ONLY use that.
+        # Otherwise, use all related hosts (fallback to regex behavior).
+        target_hosts = related_hosts
+        if metadata.get("target"):
+            target_ip = metadata["target"]
+            target_id = f"host:{target_ip}"
+            # Only use the target if it's in the related_hosts list (sanity check)
+            if target_id in related_hosts:
+                target_hosts = [target_id]
+
+        # Extract ports from metadata or regex
+        ports = []
+        if metadata.get("port"):
+            # Handle single port in metadata
+            p = str(metadata["port"])
+            # Assume tcp if not specified?
+            proto = "tcp"
+            if "/" in p:
+                p, proto = p.split("/")
+            ports.append((p, proto))
+
+        # Always check regex too, in case metadata missed some
+        regex_ports = self._port_pattern.findall(content)
+        for p, proto in regex_ports:
+            if (p, proto) not in ports:
+                ports.append((p, proto))
+
         for port, proto in ports:
-            for host_id in related_hosts:
+            for host_id in target_hosts:
                 service_id = f"service:{host_id}:{port}"
-                self._add_node(service_id, "service", f"{port}/{proto}")
+
+                # Add URL to label if present
+                label = f"{port}/{proto}"
+                if metadata.get("url"):
+                    label += f" ({metadata['url']})"
+
+                self._add_node(service_id, "service", label)
                 self._add_edge(host_id, service_id, "HAS_SERVICE", protocol=proto)
 
     def _process_vulnerability(
-        self, key: str, content: str, related_hosts: List[str]
+        self, key: str, content: str, related_hosts: List[str], metadata: Dict[str, Any]
     ) -> None:
         """Process a vulnerability note."""
+        # Filter related_hosts: If we have explicit target metadata, ONLY use that.
+        target_hosts = related_hosts
+        if metadata.get("target"):
+            target_ip = metadata["target"]
+            target_id = f"host:{target_ip}"
+            if target_id in related_hosts:
+                target_hosts = [target_id]
+
         vuln_id = f"vuln:{key}"
-        # Try to extract CVE
-        cve_match = re.search(r"CVE-\d{4}-\d{4,7}", content, re.IGNORECASE)
-        label = cve_match.group(0) if cve_match else "Vulnerability"
+
+        # Try to extract CVE from metadata or regex
+        label = "Vulnerability"
+        if metadata.get("cve"):
+            label = metadata["cve"]
+        else:
+            cve_match = re.search(r"CVE-\d{4}-\d{4,7}", content, re.IGNORECASE)
+            if cve_match:
+                label = cve_match.group(0)
 
         self._add_node(vuln_id, "vulnerability", label)
 
-        for host_id in related_hosts:
+        for host_id in target_hosts:
             self._add_edge(host_id, vuln_id, "AFFECTED_BY")
 
     def get_strategic_insights(self) -> List[str]:
@@ -197,9 +301,75 @@ class ShadowGraph:
                     )
 
         # Insight 3: Potential Pivots (Host A -> Cred -> Host B)
-        # This is harder without explicit "source" of creds, but we can infer.
+        # Use NetworkX to find paths from Credentials to Hosts that aren't directly connected
+        attack_paths = self._find_attack_paths()
+        if attack_paths:
+            insights.extend(attack_paths)
 
         return insights
+
+    def _find_attack_paths(self) -> List[str]:
+        """
+        Find multi-step attack paths using shortest path algorithms.
+        Example: Credential A -> Host A -> Credential B -> Host B
+        """
+        paths = []
+        creds = [n for n, d in self.graph.nodes(data=True) if d["type"] == "credential"]
+        hosts = [n for n, d in self.graph.nodes(data=True) if d["type"] == "host"]
+
+        for cred in creds:
+            for host in hosts:
+                # Skip if directly connected (we already know we have access)
+                if self.graph.has_edge(cred, host):
+                    continue
+
+                try:
+                    # Find shortest path
+                    path = nx.shortest_path(self.graph, cred, host)
+                    # Only interesting if it involves intermediate steps
+                    if len(path) > 2:
+                        # Convert IDs to Labels for readability
+                        readable_path = []
+                        for node_id in path:
+                            node_data = self.graph.nodes[node_id]
+                            readable_path.append(node_data.get("label", node_id))
+
+                        paths.append(f"Attack Path Found: {' -> '.join(readable_path)}")
+                except nx.NetworkXNoPath:
+                    continue
+
+        return paths
+
+    def to_mermaid(self) -> str:
+        """Export graph to Mermaid flowchart format."""
+        lines = ["graph TD"]
+
+        # Add nodes
+        for node, data in self.graph.nodes(data=True):
+            # Sanitize ID for mermaid
+            safe_id = re.sub(r"[^a-zA-Z0-9]", "_", node)
+            label = data.get("label", node).replace('"', "'")
+
+            # Style based on type
+            if data["type"] == "host":
+                lines.append(f'    {safe_id}["🖥️ {label}"]')
+            elif data["type"] == "credential":
+                lines.append(f'    {safe_id}["🔑 {label}"]')
+            elif data["type"] == "vulnerability":
+                lines.append(f'    {safe_id}["⚠️ {label}"]')
+            elif data["type"] == "service":
+                lines.append(f'    {safe_id}["🔌 {label}"]')
+            else:
+                lines.append(f'    {safe_id}["{label}"]')
+
+        # Add edges
+        for u, v, data in self.graph.edges(data=True):
+            safe_u = re.sub(r"[^a-zA-Z0-9]", "_", u)
+            safe_v = re.sub(r"[^a-zA-Z0-9]", "_", v)
+            edge_label = data.get("type", "")
+            lines.append(f"    {safe_u} -->|{edge_label}| {safe_v}")
+
+        return "\n".join(lines)
 
     def export_summary(self) -> str:
         """Export a text summary of the graph state."""

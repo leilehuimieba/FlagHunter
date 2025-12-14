@@ -119,6 +119,38 @@ _load_notes_unlocked()
                 "enum": ["high", "medium", "low"],
                 "description": "Confidence level (default: medium)",
             },
+            "source": {
+                "type": "string",
+                "description": "Source IP/Hostname where the finding originated (e.g., where creds were found)",
+            },
+            "target": {
+                "type": "string",
+                "description": "Target IP/Hostname the finding applies to (e.g., the host with the open port)",
+            },
+            "username": {
+                "type": "string",
+                "description": "Username for credentials",
+            },
+            "password": {
+                "type": "string",
+                "description": "Password or hash for credentials",
+            },
+            "port": {
+                "type": "string",
+                "description": "Port number (e.g., 80, 443)",
+            },
+            "cve": {
+                "type": "string",
+                "description": "CVE ID for vulnerabilities",
+            },
+            "url": {
+                "type": "string",
+                "description": "URL associated with the finding (e.g., for web apps)",
+            },
+            "evidence_path": {
+                "type": "string",
+                "description": "Path to a screenshot or downloaded file supporting this finding",
+            },
         },
         required=["action"],
     ),
@@ -154,6 +186,21 @@ async def notes(arguments: dict, runtime) -> str:
 
     confidence = arguments.get("confidence", "medium")
 
+    # Extract structured metadata
+    metadata = {}
+    for field in [
+        "source",
+        "target",
+        "username",
+        "password",
+        "port",
+        "cve",
+        "url",
+        "evidence_path",
+    ]:
+        if field in arguments:
+            metadata[field] = arguments[field]
+
     async with _notes_lock:
         if action == "create":
             if not key:
@@ -167,6 +214,7 @@ async def notes(arguments: dict, runtime) -> str:
                 "content": value,
                 "category": category,
                 "confidence": confidence,
+                "metadata": metadata,
             }
             _save_notes_unlocked()
             return f"Created note '{key}' ({category})"
@@ -178,9 +226,12 @@ async def notes(arguments: dict, runtime) -> str:
                 return f"Note '{key}' not found"
 
             note = _notes[key]
-            return (
-                f"[{key}] ({note['category']}, {note['confidence']}) {note['content']}"
+            meta_str = (
+                f" {json.dumps(note.get('metadata', {}))}"
+                if note.get("metadata")
+                else ""
             )
+            return f"[{key}] ({note['category']}, {note['confidence']}) {note['content']}{meta_str}"
 
         elif action == "update":
             if not key:
@@ -189,17 +240,13 @@ async def notes(arguments: dict, runtime) -> str:
                 return "Error: value is required for update"
 
             existed = key in _notes
-            # Preserve existing metadata if not provided? No, overwrite is cleaner for now,
-            # but maybe we should default to existing if not provided.
-            # For now, let's just overwrite with defaults if missing, or use provided.
-            # Actually, if updating, we might want to keep category if not specified.
-            # But arguments.get("category", "info") defaults to info.
-            # Let's stick to simple overwrite for now to match previous behavior.
 
+            # Merge metadata if updating? For now, overwrite to keep it simple and consistent with content
             _notes[key] = {
                 "content": value,
                 "category": category,
                 "confidence": confidence,
+                "metadata": metadata,
             }
             _save_notes_unlocked()
             return f"{'Updated' if existed else 'Created'} note '{key}'"
