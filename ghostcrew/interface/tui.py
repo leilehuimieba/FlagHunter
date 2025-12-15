@@ -1393,6 +1393,14 @@ Be concise. Use the actual data from notes."""
                 wtype = worker.get("worker_type", "worker")
                 self._add_system(f"[!] {wtype.upper()} stopped: {reason}")
                 self._update_crew_stats()
+            elif event_type == "failed":
+                # Worker determined task infeasible
+                self._update_crew_worker(worker_id, status="failed")
+                reason = data.get("reason", "Task infeasible")
+                worker = self._crew_workers.get(worker_id, {})
+                wtype = worker.get("worker_type", "worker")
+                self._add_system(f"[!] {wtype.upper()} failed: {reason}")
+                self._update_crew_stats()
             elif event_type == "error":
                 self._update_crew_worker(worker_id, status="error")
                 worker = self._crew_workers.get(worker_id, {})

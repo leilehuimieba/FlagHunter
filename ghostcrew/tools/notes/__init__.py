@@ -119,6 +119,11 @@ _load_notes_unlocked()
                 "enum": ["high", "medium", "low"],
                 "description": "Confidence level (default: medium)",
             },
+            "status": {
+                "type": "string",
+                "enum": ["open", "closed", "filtered", "confirmed", "potential"],
+                "description": "Status of the finding (e.g., 'open' for ports, 'closed' for dead services). Default: confirmed/open.",
+            },
             "source": {
                 "type": "string",
                 "description": "Source IP/Hostname where the finding originated (e.g., where creds were found)",
@@ -185,6 +190,7 @@ async def notes(arguments: dict, runtime) -> str:
         category = "info"
 
     confidence = arguments.get("confidence", "medium")
+    status = arguments.get("status", "confirmed")
 
     # Extract structured metadata
     metadata = {}
@@ -214,10 +220,11 @@ async def notes(arguments: dict, runtime) -> str:
                 "content": value,
                 "category": category,
                 "confidence": confidence,
+                "status": status,
                 "metadata": metadata,
             }
             _save_notes_unlocked()
-            return f"Created note '{key}' ({category})"
+            return f"Created note '{key}' ({category}, {status})"
 
         elif action == "read":
             if not key:
@@ -231,7 +238,8 @@ async def notes(arguments: dict, runtime) -> str:
                 if note.get("metadata")
                 else ""
             )
-            return f"[{key}] ({note['category']}, {note['confidence']}) {note['content']}{meta_str}"
+            status_str = f", {note.get('status', 'confirmed')}"
+            return f"[{key}] ({note['category']}, {note['confidence']}{status_str}) {note['content']}{meta_str}"
 
         elif action == "update":
             if not key:
@@ -246,6 +254,7 @@ async def notes(arguments: dict, runtime) -> str:
                 "content": value,
                 "category": category,
                 "confidence": confidence,
+                "status": status,
                 "metadata": metadata,
             }
             _save_notes_unlocked()

@@ -79,16 +79,23 @@ class ShadowGraph:
                 content = note_data
                 category = "info"
                 metadata = {}
+                status = "confirmed"
             else:
                 content = note_data.get("content", "")
                 category = note_data.get("category", "info")
                 metadata = note_data.get("metadata", {})
+                status = note_data.get("status", "confirmed")
 
-            self._process_note(key, content, category, metadata)
+            self._process_note(key, content, category, metadata, status)
             self._processed_notes.add(key)
 
     def _process_note(
-        self, key: str, content: str, category: str, metadata: Dict[str, Any]
+        self,
+        key: str,
+        content: str,
+        category: str,
+        metadata: Dict[str, Any],
+        status: str,
     ) -> None:
         """Extract entities and relationships from a single note."""
 
@@ -121,11 +128,11 @@ class ShadowGraph:
 
         # 2. Handle specific categories
         if category == "credential":
-            self._process_credential(key, content, hosts, metadata)
+            self._process_credential(key, content, hosts, metadata, status)
         elif category == "finding":
-            self._process_finding(key, content, hosts, metadata)
+            self._process_finding(key, content, hosts, metadata, status)
         elif category == "vulnerability":
-            self._process_vulnerability(key, content, hosts, metadata)
+            self._process_vulnerability(key, content, hosts, metadata, status)
 
         # 3. Link note to hosts (provenance)
         # We don't add the note itself as a node usually, but we could.
@@ -142,9 +149,18 @@ class ShadowGraph:
             self.graph.add_edge(source, target, type=edge_type, **kwargs)
 
     def _process_credential(
-        self, key: str, content: str, related_hosts: List[str], metadata: Dict[str, Any]
+        self,
+        key: str,
+        content: str,
+        related_hosts: List[str],
+        metadata: Dict[str, Any],
+        status: str,
     ) -> None:
         """Process a credential note."""
+        # Skip if status is closed/filtered (invalid creds)
+        if status in ["closed", "filtered"]:
+            return
+
         # Extract username from metadata or regex
         username = metadata.get("username")
         if not username:
@@ -189,9 +205,18 @@ class ShadowGraph:
             self._add_edge(cred_id, host_id, "AUTH_ACCESS", protocol=protocol)
 
     def _process_finding(
-        self, key: str, content: str, related_hosts: List[str], metadata: Dict[str, Any]
+        self,
+        key: str,
+        content: str,
+        related_hosts: List[str],
+        metadata: Dict[str, Any],
+        status: str,
     ) -> None:
         """Process a finding note (e.g., open ports)."""
+        # Skip if status is closed/filtered
+        if status in ["closed", "filtered"]:
+            return
+
         # Filter related_hosts: If we have explicit target metadata, ONLY use that.
         # Otherwise, use all related hosts (fallback to regex behavior).
         target_hosts = related_hosts
@@ -232,9 +257,18 @@ class ShadowGraph:
                 self._add_edge(host_id, service_id, "HAS_SERVICE", protocol=proto)
 
     def _process_vulnerability(
-        self, key: str, content: str, related_hosts: List[str], metadata: Dict[str, Any]
+        self,
+        key: str,
+        content: str,
+        related_hosts: List[str],
+        metadata: Dict[str, Any],
+        status: str,
     ) -> None:
         """Process a vulnerability note."""
+        # Skip if status is closed/filtered (patched or not vulnerable)
+        if status in ["closed", "filtered"]:
+            return
+
         # Filter related_hosts: If we have explicit target metadata, ONLY use that.
         target_hosts = related_hosts
         if metadata.get("target"):

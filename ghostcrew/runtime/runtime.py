@@ -384,7 +384,17 @@ class LocalRuntime(Runtime):
     async def execute_command(self, command: str, timeout: int = 300) -> CommandResult:
         """Execute a command locally."""
         import asyncio
+        import os
+        import re
         import subprocess
+
+        # Regex to strip ANSI escape codes
+        ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+
+        # Set environment variables to discourage ANSI output
+        env = os.environ.copy()
+        env["TERM"] = "dumb"
+        env["NO_COLOR"] = "1"
 
         try:
             process = await asyncio.create_subprocess_shell(
@@ -392,16 +402,24 @@ class LocalRuntime(Runtime):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 stdin=subprocess.DEVNULL,  # Prevent interactive prompts
+                env=env,
             )
 
             stdout, stderr = await asyncio.wait_for(
                 process.communicate(), timeout=timeout
             )
 
+            # Decode and strip ANSI codes
+            stdout_str = stdout.decode(errors="replace")
+            stderr_str = stderr.decode(errors="replace")
+
+            stdout_clean = ansi_escape.sub("", stdout_str)
+            stderr_clean = ansi_escape.sub("", stderr_str)
+
             return CommandResult(
                 exit_code=process.returncode or 0,
-                stdout=stdout.decode(errors="replace"),
-                stderr=stderr.decode(errors="replace"),
+                stdout=stdout_clean,
+                stderr=stderr_clean,
             )
 
         except asyncio.TimeoutError:

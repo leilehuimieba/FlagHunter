@@ -123,6 +123,8 @@ class WorkerPool:
         try:
             final_response = ""
             hit_max_iterations = False
+            is_infeasible = False
+
             async for response in agent.agent_loop(worker.task):
                 # Track tool calls
                 if response.tool_calls:
@@ -141,17 +143,28 @@ class WorkerPool:
                 if response.content and not response.tool_calls:
                     final_response = response.content
 
-                # Check if max iterations was hit
-                if response.metadata and response.metadata.get(
-                    "max_iterations_reached"
-                ):
-                    hit_max_iterations = True
+                # Check metadata flags
+                if response.metadata:
+                    if response.metadata.get("max_iterations_reached"):
+                        hit_max_iterations = True
+                    if response.metadata.get("replan_impossible"):
+                        is_infeasible = True
 
             worker.result = final_response or "No findings."
             worker.completed_at = time.time()
             self._results[worker.id] = worker.result
 
-            if hit_max_iterations:
+            if is_infeasible:
+                worker.status = AgentStatus.FAILED
+                self._emit(
+                    worker.id,
+                    "failed",
+                    {
+                        "summary": worker.result[:200],
+                        "reason": "Task determined infeasible",
+                    },
+                )
+            elif hit_max_iterations:
                 worker.status = AgentStatus.WARNING
                 self._emit(
                     worker.id,

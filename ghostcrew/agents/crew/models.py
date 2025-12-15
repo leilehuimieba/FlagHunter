@@ -22,6 +22,7 @@ class AgentStatus(Enum):
     COMPLETE = "complete"
     WARNING = "warning"  # Completed but hit max iterations
     ERROR = "error"
+    FAILED = "failed"  # Task determined infeasible
     CANCELLED = "cancelled"
 
 

@@ -62,8 +62,8 @@ async def test_read_note():
     }, runtime=None)
     
     assert "Content to read" in result
-    # The format is "[key] (category, confidence) content"
-    assert "(info, medium)" in result
+    # The format is "[key] (category, confidence, status) content"
+    assert "(info, medium, confirmed)" in result
 
 @pytest.mark.asyncio
 async def test_update_note():

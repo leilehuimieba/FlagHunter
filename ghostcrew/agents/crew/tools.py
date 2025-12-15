@@ -109,6 +109,48 @@ Present concrete findings. Be factual and concise about what was discovered.
 
         return response.content
 
+    async def formulate_strategy_fn(arguments: dict, runtime: "Runtime") -> str:
+        """Formulate and select a strategic Course of Action (COA)."""
+        problem = arguments.get("problem", "")
+        candidates = arguments.get("candidates", [])
+        selected_id = arguments.get("selected_id", "")
+        rationale = arguments.get("rationale", "")
+        feasible = arguments.get("feasible", True)
+
+        if not problem:
+            return "Error: problem is required."
+
+        if not feasible:
+            return f"## Strategic Decision: TERMINATE MISSION\n**Problem:** {problem}\n**Rationale:** {rationale}\n\nMission marked as infeasible."
+
+        if not candidates or not selected_id:
+            return "Error: candidates and selected_id are required when feasible=True."
+
+        # Find selected candidate
+        selected = next((c for c in candidates if c.get("id") == selected_id), None)
+        if not selected:
+            return f"Error: Selected ID '{selected_id}' not found in candidates."
+
+        # Format the decision for the log/history
+        output = [
+            f"## Strategic Decision: {selected.get('name', 'Unknown')}",
+            f"**Problem:** {problem}",
+            "",
+            "**Considered Options:**",
+        ]
+
+        for c in candidates:
+            mark = "(SELECTED)" if c.get("id") == selected_id else ""
+            output.append(f"- **{c.get('name')}** {mark}")
+            output.append(f"  - Pros: {c.get('pros')}")
+            output.append(f"  - Cons: {c.get('cons')}")
+            output.append(f"  - Risk: {c.get('risk')}")
+
+        output.append("")
+        output.append(f"**Rationale:** {rationale}")
+
+        return "\n".join(output)
+
     # Create Tool objects
     tools = [
         Tool(
@@ -190,6 +232,53 @@ Present concrete findings. Be factual and concise about what was discovered.
             description="Compile all agent results into a unified penetration test report. Call this after all agents have completed.",
             schema=ToolSchema(type="object", properties={}, required=[]),
             execute_fn=synthesize_findings_fn,
+            category="orchestration",
+        ),
+        Tool(
+            name="formulate_strategy",
+            description="Define and select a strategic Course of Action (COA). Use this when facing a strategic blocker or choosing an initial approach. This logs the decision process. Set feasible=False to terminate if no options exist.",
+            schema=ToolSchema(
+                type="object",
+                properties={
+                    "problem": {
+                        "type": "string",
+                        "description": "The strategic problem or blocker encountered.",
+                    },
+                    "feasible": {
+                        "type": "boolean",
+                        "description": "Whether a feasible solution exists. Set to False to terminate the mission.",
+                        "default": True,
+                    },
+                    "candidates": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string"},
+                                "name": {"type": "string"},
+                                "pros": {"type": "string"},
+                                "cons": {"type": "string"},
+                                "risk": {
+                                    "type": "string",
+                                    "enum": ["Low", "Medium", "High", "Critical"],
+                                },
+                            },
+                            "required": ["id", "name", "pros", "cons", "risk"],
+                        },
+                        "description": "List of potential Courses of Action (COAs). Required if feasible=True.",
+                    },
+                    "selected_id": {
+                        "type": "string",
+                        "description": "The ID of the selected COA. Required if feasible=True.",
+                    },
+                    "rationale": {
+                        "type": "string",
+                        "description": "Why this COA was selected over others (or why mission is infeasible).",
+                    },
+                },
+                required=["problem", "rationale"],
+            ),
+            execute_fn=formulate_strategy_fn,
             category="orchestration",
         ),
     ]

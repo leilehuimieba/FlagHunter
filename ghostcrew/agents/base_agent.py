@@ -315,6 +315,31 @@ class BaseAgent(ABC):
             )
             yield display_msg
 
+            # Check for plan failure (Tactical Replanning)
+            if (
+                hasattr(self._task_plan, "has_failure")
+                and self._task_plan.has_failure()
+            ):
+                # Find the failed step
+                failed_step = None
+                for s in self._task_plan.steps:
+                    if s.status == "fail":
+                        failed_step = s
+                        break
+
+                if failed_step:
+                    replan_msg = await self._replan(failed_step)
+                    if replan_msg:
+                        self.conversation_history.append(replan_msg)
+                        yield replan_msg
+
+                        # Check if replan indicated impossibility
+                        if replan_msg.metadata.get("replan_impossible"):
+                            self.state_manager.transition_to(AgentState.COMPLETE)
+                            return
+
+                        continue
+
             # Check if plan is now complete
             if self._task_plan.is_complete():
                 # All steps done - generate final summary
@@ -589,6 +614,117 @@ Call the create_plan tool with your steps."""
             self.conversation_history.append(error_msg)
             return error_msg
             return error_msg
+
+    async def _replan(self, failed_step: Any) -> Optional[AgentMessage]:
+        """
+        Handle plan failure by generating a new plan (Tactical Replanning).
+        """
+        from ..tools.finish import PlanStep
+        from ..tools.registry import Tool, ToolSchema
+
+        # 1. Archive current plan (log it)
+        old_plan_str = "\n".join(
+            [f"{s.id}. {s.description} ({s.status})" for s in self._task_plan.steps]
+        )
+
+        # 2. Generate new plan
+        # Create a temporary tool for plan generation
+        plan_generator_tool = Tool(
+            name="create_plan",
+            description="Create a NEW step-by-step plan. Call this with the steps needed.",
+            schema=ToolSchema(
+                properties={
+                    "feasible": {
+                        "type": "boolean",
+                        "description": "Can the task be completed with a new plan? Set false if impossible/out-of-scope.",
+                    },
+                    "steps": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of actionable steps (required if feasible=true).",
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "Reason for the new plan OR reason why it's impossible.",
+                    },
+                },
+                required=["feasible", "reason"],
+            ),
+            execute_fn=lambda args, runtime: None,
+            category="planning",
+        )
+
+        replan_prompt = f"""The previous plan failed at step {failed_step.id}.
+
+Failed Step: {failed_step.description}
+Reason: {failed_step.result}
+
+Previous Plan:
+{old_plan_str}
+
+Original Request: {self._task_plan.original_request}
+
+Task: Generate a NEW plan (v2) that addresses this failure.
+- If the failure invalidates the entire approach, try a different tactical approach.
+- If the task is IMPOSSIBLE or OUT OF SCOPE (e.g., requires installing software on a remote target, physical access, or permissions you don't have), set feasible=False.
+- Do NOT propose steps that violate standard pentest constraints (no installing agents/services on targets unless exploited).
+
+Call create_plan with the new steps OR feasible=False."""
+
+        try:
+            response = await self.llm.generate(
+                system_prompt="You are a tactical planning assistant. The previous plan failed. Create a new one or declare it impossible.",
+                messages=[{"role": "user", "content": replan_prompt}],
+                tools=[plan_generator_tool],
+            )
+
+            # Extract steps
+            steps = []
+            feasible = True
+            reason = ""
+
+            if response.tool_calls:
+                for tc in response.tool_calls:
+                    args = self._parse_arguments(tc)
+                    feasible = args.get("feasible", True)
+                    reason = args.get("reason", "")
+                    if feasible and args.get("steps"):
+                        steps = args["steps"]
+                    break
+
+            if not feasible:
+                return AgentMessage(
+                    role="assistant",
+                    content=f"Task determined to be infeasible after failure.\nReason: {reason}",
+                    metadata={"replan_impossible": True},
+                )
+
+            if not steps:
+                return None
+
+            # Update plan
+            self._task_plan.steps = [
+                PlanStep(id=i + 1, description=str(step).strip())
+                for i, step in enumerate(steps)
+            ]
+
+            # Return message
+            plan_display = [f"Plan v2 (Replanned) - {reason}:"]
+            for step in self._task_plan.steps:
+                plan_display.append(f"  {step.id}. {step.description}")
+
+            return AgentMessage(
+                role="assistant",
+                content="\n".join(plan_display),
+                metadata={"replanned": True},
+            )
+
+        except Exception as e:
+            return AgentMessage(
+                role="assistant",
+                content=f"Replanning failed: {str(e)}",
+                metadata={"replan_failed": True},
+            )
 
     def reset(self):
         """Reset the agent state for a new conversation."""

@@ -20,7 +20,8 @@ class StepStatus(str, Enum):
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     COMPLETE = "complete"
-    SKIPPED = "skipped"
+    SKIP = "skip"
+    FAIL = "fail"
 
 
 @dataclass
@@ -46,8 +47,11 @@ class TaskPlan:
 
     def is_complete(self) -> bool:
         return all(
-            s.status in (StepStatus.COMPLETE, StepStatus.SKIPPED) for s in self.steps
+            s.status in (StepStatus.COMPLETE, StepStatus.SKIP) for s in self.steps
         )
+
+    def has_failure(self) -> bool:
+        return any(s.status == StepStatus.FAIL for s in self.steps)
 
     def clear(self) -> None:
         self.steps.clear()
@@ -65,13 +69,13 @@ class TaskPlan:
 
 @register_tool(
     name="finish",
-    description="Mark plan steps as complete or skipped. Actions: 'complete' (mark step done), 'skip' (step not applicable). Once all steps are complete/skipped, task automatically finishes.",
+    description="Mark plan steps as complete, skipped, or failed. Actions: 'complete' (mark step done), 'skip' (step not applicable), 'fail' (step failed, invalidating plan). Once all steps are complete/skipped, task automatically finishes.",
     schema=ToolSchema(
         properties={
             "action": {
                 "type": "string",
-                "enum": ["complete", "skip"],
-                "description": "Action: 'complete' (mark step done) or 'skip' (step not applicable)",
+                "enum": ["complete", "skip", "fail"],
+                "description": "Action: 'complete', 'skip', or 'fail'",
             },
             "step_id": {
                 "type": "integer",
@@ -83,7 +87,7 @@ class TaskPlan:
             },
             "reason": {
                 "type": "string",
-                "description": "[skip only] Why step is being skipped",
+                "description": "[skip/fail only] Why step is being skipped or failed",
             },
         },
         required=["action", "step_id"],
@@ -131,12 +135,21 @@ async def finish(arguments: dict, runtime: "Runtime") -> str:
         if not reason:
             return "Error: 'reason' required for skip action."
 
-        step.status = StepStatus.SKIPPED
+        step.status = StepStatus.SKIP
         step.result = f"Skipped: {reason}"
         return f"Step {step_id} skipped: {reason}"
 
+    elif action == "fail":
+        reason = arguments.get("reason", "")
+        if not reason:
+            return "Error: 'reason' required for fail action."
+
+        step.status = StepStatus.FAIL
+        step.result = f"Failed: {reason}"
+        return f"Step {step_id} marked as FAILED: {reason}. Initiating replanning..."
+
     else:
-        return f"Error: Unknown action '{action}'. Use 'complete' or 'skip'."
+        return f"Error: Unknown action '{action}'. Use 'complete', 'skip', or 'fail'."
 
 
 class CompletionReport:
