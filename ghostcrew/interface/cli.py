@@ -27,6 +27,7 @@ async def run_cli(
     report: str = None,
     max_loops: int = 50,
     use_docker: bool = False,
+    mode: str = "agent",
 ):
     """
     Run GhostCrew in non-interactive mode.
@@ -38,6 +39,7 @@ async def run_cli(
         report: Report path ("auto" for loot/reports/<target>_<timestamp>.md)
         max_loops: Max agent loops before stopping
         use_docker: Run tools in Docker container
+        mode: Execution mode ("agent" or "crew")
     """
     from ..agents.ghostcrew_agent import GhostCrewAgent
     from ..knowledge import RAGEngine
@@ -54,6 +56,8 @@ async def run_cli(
     start_text.append(f"{target}\n", style=GHOST_PRIMARY)
     start_text.append("Model: ", style=GHOST_SECONDARY)
     start_text.append(f"{model}\n", style=GHOST_PRIMARY)
+    start_text.append("Mode: ", style=GHOST_SECONDARY)
+    start_text.append(f"{mode.title()}\n", style=GHOST_PRIMARY)
     start_text.append("Runtime: ", style=GHOST_SECONDARY)
     start_text.append(f"{'Docker' if use_docker else 'Local'}\n", style=GHOST_PRIMARY)
     start_text.append("Max loops: ", style=GHOST_SECONDARY)
@@ -110,14 +114,6 @@ async def run_cli(
     llm = LLM(model=model, rag_engine=rag)
     tools = get_all_tools()
 
-    agent = GhostCrewAgent(
-        llm=llm,
-        tools=tools,
-        runtime=runtime,
-        target=target,
-        rag_engine=rag,
-    )
-
     # Stats tracking
     start_time = time.time()
     tool_count = 0
@@ -137,6 +133,23 @@ async def run_cli(
         timestamp = f"[{mins:02d}:{secs:02d}]"
         console.print(f"[{GHOST_DIM}]{timestamp}[/] [{style}]{msg}[/]")
 
+    def display_message(content: str, title: str) -> bool:
+        """Display a message panel if it hasn't been shown yet."""
+        nonlocal last_content
+        if content and content != last_content:
+            console.print()
+            console.print(
+                Panel(
+                    Markdown(content),
+                    title=f"[{GHOST_PRIMARY}]{title}",
+                    border_style=GHOST_BORDER,
+                )
+            )
+            console.print()
+            last_content = content
+            return True
+        return False
+
     def generate_report() -> str:
         """Generate markdown report."""
         elapsed = int(time.time() - start_time)
@@ -154,9 +167,21 @@ async def run_cli(
         ]
 
         # Add AI summary at top if available
+        # If the last finding is a full report (Crew mode), use it as the main body
+        # and avoid adding duplicate headers
+        main_content = ""
         if findings:
-            lines.append(findings[-1])
-            lines.append("")
+            main_content = findings[-1]
+            # If it's a full report (starts with #), don't add our own headers if possible
+            if not main_content.strip().startswith("#"):
+                lines.append(main_content)
+                lines.append("")
+            else:
+                # It's a full report, so we might want to replace the default header
+                # or just append it. Let's append it but skip the "Executive Summary" header above if we could.
+                # For now, just append it.
+                lines.append(main_content)
+                lines.append("")
         else:
             lines.append("*Assessment incomplete - no analysis generated.*")
             lines.append("")
@@ -217,27 +242,25 @@ async def run_cli(
                 lines.append("")
 
         # Findings section
-        lines.extend(
-            [
-                "---",
-                "",
-                "## Analysis",
-                "",
-            ]
-        )
+        # Only show if there are other findings besides the final report we already showed
+        other_findings = findings[:-1] if findings and len(findings) > 1 else []
 
-        if findings:
-            for i, finding in enumerate(findings, 1):
-                if len(findings) > 1:
-                    lines.append(f"### Analysis {i}")
+        if other_findings:
+            lines.extend(
+                [
+                    "---",
+                    "",
+                    "## Detailed Findings",
+                    "",
+                ]
+            )
+
+            for i, finding in enumerate(other_findings, 1):
+                if len(other_findings) > 1:
+                    lines.append(f"### Finding {i}")
                     lines.append("")
                 lines.append(finding)
                 lines.append("")
-        else:
-            lines.append(
-                "*No AI analysis generated. Try running with higher `--max` value.*"
-            )
-            lines.append("")
 
         # Footer
         lines.extend(
@@ -348,57 +371,201 @@ async def run_cli(
         )
 
         # Show summary/messages only if it's new content (not just displayed)
-        if messages and messages[-1] != last_content:
-            console.print()
-            console.print(
-                Panel(
-                    Markdown(messages[-1]),
-                    title=f"[{GHOST_PRIMARY}]Summary",
-                    border_style=GHOST_BORDER,
-                )
-            )
+        if messages:
+            display_message(messages[-1], "Summary")
 
         # Save report
         save_report()
 
-    print_status("Initializing agent...")
+    print_status("Initializing...")
 
     try:
-        async for response in agent.agent_loop(task_msg):
-            iteration += 1
+        if mode == "crew":
+            from ..agents.crew import CrewOrchestrator
 
-            # Track token usage
-            if response.usage:
-                usage = response.usage.get("total_tokens", 0)
-                is_intermediate = response.metadata.get("intermediate", False)
-                has_tools = bool(response.tool_calls)
+            def on_worker_event(worker_id: str, event_type: str, data: dict):
+                nonlocal tool_count, findings_count, total_tokens
 
-                # Logic to avoid double counting:
-                # 1. Intermediate messages (thinking) always count
-                # 2. Tool messages count ONLY if not preceded by intermediate message
-                if is_intermediate:
-                    total_tokens += usage
-                    last_msg_intermediate = True
-                elif has_tools:
-                    if not last_msg_intermediate:
-                        total_tokens += usage
-                    last_msg_intermediate = False
-                else:
-                    # Other messages (like plan)
-                    total_tokens += usage
-                    last_msg_intermediate = False
+                if event_type == "spawn":
+                    task = data.get("task", "")
+                    print_status(f"Spawned worker {worker_id}: {task}", GHOST_ACCENT)
 
-            # Show tool calls and results as they happen
-            if response.tool_calls:
-                for i, call in enumerate(response.tool_calls):
+                elif event_type == "tool":
+                    tool_name = data.get("tool", "unknown")
                     tool_count += 1
-                    name = getattr(call, "name", None) or getattr(
-                        call.function, "name", "tool"
+                    print_status(
+                        f"Worker {worker_id} using tool: {tool_name}", GHOST_DIM
                     )
 
-                    # Track findings (notes tool)
-                    if name == "notes":
-                        findings_count += 1
+                    # Log tool usage (limited info available from event)
+                    elapsed = int(time.time() - start_time)
+                    mins, secs = divmod(elapsed, 60)
+                    ts = f"{mins:02d}:{secs:02d}"
+
+                    tool_log.append(
+                        {
+                            "ts": ts,
+                            "name": tool_name,
+                            "command": f"(Worker {worker_id})",
+                            "result": "",
+                            "exit_code": None,
+                        }
+                    )
+
+                elif event_type == "tokens":
+                    tokens = data.get("tokens", 0)
+                    total_tokens += tokens
+
+                elif event_type == "complete":
+                    f_count = data.get("findings_count", 0)
+                    findings_count += f_count
+                    print_status(
+                        f"Worker {worker_id} complete ({f_count} findings)", "green"
+                    )
+
+                elif event_type == "failed":
+                    reason = data.get("reason", "unknown")
+                    print_status(f"Worker {worker_id} failed: {reason}", "red")
+
+                elif event_type == "status":
+                    status = data.get("status", "")
+                    print_status(f"Worker {worker_id} status: {status}", GHOST_DIM)
+
+                elif event_type == "warning":
+                    reason = data.get("reason", "unknown")
+                    print_status(f"Worker {worker_id} warning: {reason}", "yellow")
+
+                elif event_type == "error":
+                    error = data.get("error", "unknown")
+                    print_status(f"Worker {worker_id} error: {error}", "red")
+
+                elif event_type == "cancelled":
+                    print_status(f"Worker {worker_id} cancelled", "yellow")
+
+            crew = CrewOrchestrator(
+                llm=llm,
+                tools=tools,
+                runtime=runtime,
+                on_worker_event=on_worker_event,
+                rag_engine=rag,
+                target=target,
+            )
+
+            async for update in crew.run(task_msg):
+                iteration += 1
+                phase = update.get("phase", "")
+
+                if phase == "starting":
+                    print_status("Crew orchestrator starting...", GHOST_PRIMARY)
+
+                elif phase == "thinking":
+                    content = update.get("content", "")
+                    if content:
+                        display_message(content, "GhostCrew Plan")
+
+                elif phase == "tool_call":
+                    tool = update.get("tool", "")
+                    args = update.get("args", {})
+                    print_status(f"Orchestrator calling: {tool}", GHOST_ACCENT)
+
+                elif phase == "complete":
+                    report_content = update.get("report", "")
+                    if report_content:
+                        messages.append(report_content)
+                        findings.append(
+                            report_content
+                        )  # Add to findings so it appears in the saved report
+                        display_message(report_content, "Crew Report")
+
+                elif phase == "error":
+                    error = update.get("error", "Unknown error")
+                    print_status(f"Crew error: {error}", "red")
+
+                if iteration >= max_loops:
+                    stopped_reason = "max loops reached"
+                    raise StopIteration()
+
+        else:
+            # Default Agent Mode
+            agent = GhostCrewAgent(
+                llm=llm,
+                tools=tools,
+                runtime=runtime,
+                target=target,
+                rag_engine=rag,
+            )
+
+            async for response in agent.agent_loop(task_msg):
+                iteration += 1
+
+                # Track token usage
+                if response.usage:
+                    usage = response.usage.get("total_tokens", 0)
+                    is_intermediate = response.metadata.get("intermediate", False)
+                    has_tools = bool(response.tool_calls)
+
+                    # Logic to avoid double counting:
+                    # 1. Intermediate messages (thinking) always count
+                    # 2. Tool messages count ONLY if not preceded by intermediate message
+                    if is_intermediate:
+                        total_tokens += usage
+                        last_msg_intermediate = True
+                    elif has_tools:
+                        if not last_msg_intermediate:
+                            total_tokens += usage
+                        last_msg_intermediate = False
+                    else:
+                        # Other messages (like plan)
+                        total_tokens += usage
+                        last_msg_intermediate = False
+
+                # Show tool calls and results as they happen
+                if response.tool_calls:
+                    for i, call in enumerate(response.tool_calls):
+                        tool_count += 1
+                        name = getattr(call, "name", None) or getattr(
+                            call.function, "name", "tool"
+                        )
+
+                        # Track findings (notes tool)
+                        if name == "notes":
+                            findings_count += 1
+                            try:
+                                args = getattr(call, "arguments", None) or getattr(
+                                    call.function, "arguments", "{}"
+                                )
+                                if isinstance(args, str):
+                                    import json
+
+                                    args = json.loads(args)
+                                if isinstance(args, dict):
+                                    note_content = (
+                                        args.get("value", "")
+                                        or args.get("content", "")
+                                        or args.get("note", "")
+                                    )
+                                    if note_content:
+                                        findings.append(note_content)
+                            except Exception:
+                                pass
+
+                        elapsed = int(time.time() - start_time)
+                        mins, secs = divmod(elapsed, 60)
+                        ts = f"{mins:02d}:{secs:02d}"
+
+                        # Get result if available
+                        if response.tool_results and i < len(response.tool_results):
+                            tr = response.tool_results[i]
+                            result_text = tr.result or tr.error or ""
+                            if result_text:
+                                # Truncate for display
+                                preview = result_text[:200].replace("\n", " ")
+                                if len(result_text) > 200:
+                                    preview += "..."
+
+                        # Parse args for command extraction
+                        command_text = ""
+                        exit_code = None
                         try:
                             args = getattr(call, "arguments", None) or getattr(
                                 call.function, "arguments", "{}"
@@ -408,125 +575,87 @@ async def run_cli(
 
                                 args = json.loads(args)
                             if isinstance(args, dict):
-                                note_content = args.get("content", "") or args.get(
-                                    "note", ""
-                                )
-                                if note_content:
-                                    findings.append(note_content)
+                                command_text = args.get("command", "")
                         except Exception:
                             pass
 
-                    elapsed = int(time.time() - start_time)
-                    mins, secs = divmod(elapsed, 60)
-                    ts = f"{mins:02d}:{secs:02d}"
+                        # Extract exit code from result
+                        if response.tool_results and i < len(response.tool_results):
+                            tr = response.tool_results[i]
+                            full_result = tr.result or tr.error or ""
+                            # Try to parse exit code
+                            if "Exit Code:" in full_result:
+                                try:
+                                    import re
 
-                    # Get result if available
-                    if response.tool_results and i < len(response.tool_results):
-                        tr = response.tool_results[i]
-                        result_text = tr.result or tr.error or ""
-                        if result_text:
-                            # Truncate for display
-                            preview = result_text[:200].replace("\n", " ")
-                            if len(result_text) > 200:
-                                preview += "..."
+                                    match = re.search(
+                                        r"Exit Code:\s*(\d+)", full_result
+                                    )
+                                    if match:
+                                        exit_code = int(match.group(1))
+                                except Exception:
+                                    pass
+                        else:
+                            full_result = ""
 
-                    # Parse args for command extraction
-                    command_text = ""
-                    exit_code = None
-                    try:
-                        args = getattr(call, "arguments", None) or getattr(
-                            call.function, "arguments", "{}"
+                        # Store full data for report (not truncated)
+                        tool_log.append(
+                            {
+                                "ts": ts,
+                                "name": name,
+                                "command": command_text,
+                                "result": full_result,
+                                "exit_code": exit_code,
+                            }
                         )
-                        if isinstance(args, str):
-                            import json
 
-                            args = json.loads(args)
-                        if isinstance(args, dict):
-                            command_text = args.get("command", "")
-                    except Exception:
-                        pass
+                        # Metasploit-style output with better spacing
+                        console.print()  # Blank line before each tool
+                        print_status(f"$ {name} ({tool_count})", GHOST_ACCENT)
 
-                    # Extract exit code from result
-                    if response.tool_results and i < len(response.tool_results):
-                        tr = response.tool_results[i]
-                        full_result = tr.result or tr.error or ""
-                        # Try to parse exit code
-                        if "Exit Code:" in full_result:
-                            try:
-                                import re
+                        # Show command/args on separate indented line (truncated for display)
+                        if command_text:
+                            display_cmd = command_text[:80]
+                            if len(command_text) > 80:
+                                display_cmd += "..."
+                            console.print(f"         [{GHOST_DIM}]{display_cmd}[/]")
 
-                                match = re.search(r"Exit Code:\s*(\d+)", full_result)
-                                if match:
-                                    exit_code = int(match.group(1))
-                            except Exception:
-                                pass
-                    else:
-                        full_result = ""
-
-                    # Store full data for report (not truncated)
-                    tool_log.append(
-                        {
-                            "ts": ts,
-                            "name": name,
-                            "command": command_text,
-                            "result": full_result,
-                            "exit_code": exit_code,
-                        }
-                    )
-
-                    # Metasploit-style output with better spacing
-                    console.print()  # Blank line before each tool
-                    print_status(f"$ {name} ({tool_count})", GHOST_ACCENT)
-
-                    # Show command/args on separate indented line (truncated for display)
-                    if command_text:
-                        display_cmd = command_text[:80]
-                        if len(command_text) > 80:
-                            display_cmd += "..."
-                        console.print(f"         [{GHOST_DIM}]{display_cmd}[/]")
-
-                    # Show result on separate line with status indicator
-                    if response.tool_results and i < len(response.tool_results):
-                        tr = response.tool_results[i]
-                        if tr.error:
-                            console.print(
-                                f"         [{GHOST_DIM}][!] {tr.error[:100]}[/]"
-                            )
-                        elif tr.result:
-                            # Show exit code or brief result
-                            result_line = tr.result[:100].replace("\n", " ")
-                            if exit_code == 0 or "success" in result_line.lower():
-                                console.print(f"         [{GHOST_DIM}][+] OK[/]")
-                            elif exit_code is not None and exit_code != 0:
+                        # Show result on separate line with status indicator
+                        if response.tool_results and i < len(response.tool_results):
+                            tr = response.tool_results[i]
+                            if tr.error:
                                 console.print(
-                                    f"         [{GHOST_DIM}][-] Exit {exit_code}[/]"
+                                    f"         [{GHOST_DIM}][!] {tr.error[:100]}[/]"
                                 )
-                            else:
-                                console.print(
-                                    f"         [{GHOST_DIM}][*] {result_line[:60]}...[/]"
-                                )
+                            elif tr.result:
+                                # Show exit code or brief result
+                                result_line = tr.result[:100].replace("\n", " ")
+                                if exit_code == 0 or "success" in result_line.lower():
+                                    console.print(f"         [{GHOST_DIM}][+] OK[/]")
+                                elif exit_code is not None and exit_code != 0:
+                                    console.print(
+                                        f"         [{GHOST_DIM}][-] Exit {exit_code}[/]"
+                                    )
+                                else:
+                                    console.print(
+                                        f"         [{GHOST_DIM}][*] {result_line[:60]}...[/]"
+                                    )
 
-            # Print assistant content immediately (analysis/findings)
-            if response.content and response.content != last_content:
-                last_content = response.content
-                messages.append(response.content)
+                # Print assistant content immediately (analysis/findings)
+                if response.content:
+                    if display_message(response.content, "GhostCrew"):
+                        messages.append(response.content)
 
-                console.print()
-                console.print(
-                    Panel(
-                        Markdown(response.content),
-                        title=f"[{GHOST_PRIMARY}]GhostCrew",
-                        border_style=GHOST_BORDER,
-                    )
-                )
-                console.print()
+                # Check max loops limit
+                if iteration >= max_loops:
+                    stopped_reason = "max loops reached"
+                    console.print()
+                    print_status(f"Max loops limit reached ({max_loops})", "yellow")
+                    raise StopIteration()
 
-            # Check max loops limit
-            if iteration >= max_loops:
-                stopped_reason = "max loops reached"
-                console.print()
-                print_status(f"Max loops limit reached ({max_loops})", "yellow")
-                raise StopIteration()
+        # In agent mode, ensure the final message is treated as the main finding (Executive Summary)
+        if mode != "crew" and messages:
+            findings.append(messages[-1])
 
         await print_summary(interrupted=False)
 

@@ -43,6 +43,11 @@ Examples:
         action="store_true",
         help="Run tools inside Docker container (requires Docker)",
     )
+    runtime_parent.add_argument(
+        "--playbook",
+        "-p",
+        help="Playbook to execute (e.g., thp3_web)",
+    )
 
     # TUI subcommand
     subparsers.add_parser(
@@ -53,7 +58,7 @@ Examples:
     run_parser = subparsers.add_parser(
         "run", parents=[runtime_parent], help="Run in headless mode"
     )
-    run_parser.add_argument("task", nargs="+", help="Task to run")
+    run_parser.add_argument("task", nargs="*", help="Task to run")
     run_parser.add_argument(
         "--report",
         "-r",
@@ -266,8 +271,32 @@ def main():
             print("Error: --target is required for run mode")
             return
 
-        # Join task arguments
-        task_description = " ".join(args.task)
+        # Handle playbook or task
+        task_description = ""
+        mode = "agent"
+        if args.playbook:
+            from ..playbooks import get_playbook
+
+            try:
+                playbook = get_playbook(args.playbook)
+                task_description = playbook.get_task()
+                mode = getattr(playbook, "mode", "agent")
+
+                # Use playbook's max_loops if defined
+                if hasattr(playbook, "max_loops"):
+                    args.max_loops = playbook.max_loops
+
+                print(f"Loaded playbook: {playbook.name}")
+                print(f"Description: {playbook.description}")
+                print(f"Mode: {mode}")
+            except ValueError as e:
+                print(f"Error: {e}")
+                return
+        elif args.task:
+            task_description = " ".join(args.task)
+        else:
+            print("Error: Either task (positional) or --playbook is required")
+            return
 
         try:
             asyncio.run(
@@ -278,6 +307,7 @@ def main():
                     report=args.report,
                     max_loops=args.max_loops,
                     use_docker=args.docker,
+                    mode=mode,
                 )
             )
         except KeyboardInterrupt:

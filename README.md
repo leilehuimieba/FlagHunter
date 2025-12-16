@@ -128,6 +128,16 @@ GhostCrew has three modes, accessible via commands in the TUI:
 
 Press `Esc` to stop a running agent. `Ctrl+Q` to quit.
 
+## Playbooks
+
+GhostCrew includes prebuilt **attack playbooks** for black-box security testing. Playbooks define a structured approach to specific security assessments.
+
+**Run a playbook:**
+
+```bash
+ghostcrew run -t example.com --playbook thp3_web
+```
+
 ## Tools
 
 GhostCrew includes built-in tools and supports MCP (Model Context Protocol) for extensibility.
@@ -178,6 +188,7 @@ ghostcrew/
   knowledge/      # RAG system and shadow graph
   llm/            # LiteLLM wrapper
   mcp/            # MCP client and server configs
+  playbooks/      # Attack playbooks
   runtime/        # Execution environment
   tools/          # Built-in tools
 ```

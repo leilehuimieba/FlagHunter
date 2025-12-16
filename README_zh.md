@@ -178,6 +178,7 @@ ghostcrew/
   knowledge/      # RAG 系统和影子图
   llm/            # LiteLLM 包装器
   mcp/            # MCP 客户端和服务器配置
+  playbooks/      # 攻击剧本
   runtime/        # 执行环境
   tools/          # 内置工具
 ```
