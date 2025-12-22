@@ -40,7 +40,14 @@ class TestShadowGraph:
         notes = {
             "ports_scan": {
                 "content": "Found open ports: 80/tcp, 443/tcp on 10.0.0.5",
-                "category": "finding"
+                "category": "finding",
+                "metadata": {
+                    "target": "10.0.0.5",
+                    "services": [
+                        {"port": 80, "protocol": "tcp", "service": "http"},
+                        {"port": 443, "protocol": "tcp", "service": "https"}
+                    ]
+                }
             }
         }
         graph.update_from_notes(notes)
@@ -63,7 +70,13 @@ class TestShadowGraph:
         notes = {
             "ssh_creds": {
                 "content": "Found user: admin with password 'password123' for SSH on 192.168.1.20",
-                "category": "credential"
+                "category": "credential",
+                "metadata": {
+                    "target": "192.168.1.20",
+                    "username": "admin",
+                    "password": "password123",
+                    "protocol": "ssh"
+                }
             }
         }
         graph.update_from_notes(notes)
