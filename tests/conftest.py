@@ -1,14 +1,14 @@
 """Test fixtures for PentestAgent tests."""
 
-import pytest
 import asyncio
 from pathlib import Path
-from typing import Generator, AsyncGenerator
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
+from pentestagent.agents.state import AgentStateManager
 from pentestagent.config import Settings
-from pentestagent.agents.state import AgentState, AgentStateManager
-from pentestagent.tools import get_all_tools, Tool, ToolSchema
+from pentestagent.tools import Tool, ToolSchema
 
 
 @pytest.fixture
@@ -82,7 +82,7 @@ def sample_tool() -> Tool:
     """Create a sample tool for testing."""
     async def dummy_execute(arguments: dict, runtime) -> str:
         return f"Executed with: {arguments}"
-    
+
     return Tool(
         name="test_tool",
         description="A test tool",
