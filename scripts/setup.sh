@@ -52,22 +52,34 @@ if [ ! -f ".env" ]; then
     echo "Creating .env file..."
     cat > .env << EOF
 # PentestAgent Configuration
-# Add your API keys here
 
-# OpenAI API Key (required for GPT models)
+# API Keys (set at least one for chat model)
 OPENAI_API_KEY=
-
-# Anthropic API Key (required for Claude models)
 ANTHROPIC_API_KEY=
+GEMINI_API_KEY=
 
-# Model Configuration
+# For web search functionality (optional)
+TAVILY_API_KEY=
+
+# Chat Model (any LiteLLM-supported model)
+# OpenAI: gpt-5, gpt-4.1, gpt-4.1-mini
+# Anthropic: claude-sonnet-4-20250514, claude-opus-4-20250514
+# Google: gemini models require gemini/ prefix (e.g., gemini/gemini-2.5-flash)
+# Other providers: azure/, bedrock/, groq/, ollama/, together_ai/ (see litellm docs)
 PENTESTAGENT_MODEL=gpt-5
 
-# Debug Mode
+# Embeddings (for RAG knowledge base)
+# Options: openai, local (default: openai if OPENAI_API_KEY set, else local)
+# PENTESTAGENT_EMBEDDINGS=local
+
+# Settings
 PENTESTAGENT_DEBUG=false
 
-# Max Iterations
-PENTESTAGENT_MAX_ITERATIONS=50
+# Agent max iterations (regular agent + crew workers, default: 30)
+# PENTESTAGENT_AGENT_MAX_ITERATIONS=30
+
+# Orchestrator max iterations (crew mode coordinator, default: 50)
+# PENTESTAGENT_ORCHESTRATOR_MAX_ITERATIONS=50
 EOF
     echo "[OK] .env file created"
     echo "[!] Please edit .env and add your API keys"
