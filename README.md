@@ -210,3 +210,14 @@ Only use against systems you have explicit authorization to test. Unauthorized a
 ## License
 
 MIT
+
+## HexStrike Integration & Thanks
+
+This branch vendors an optional integration with HexStrike (a powerful MCP-enabled scoring and tooling framework). HexStrike acts as a force-multiplier for PentestAgent by exposing a rich set of automated pentesting tools and workflows that the agent can call via MCP — greatly expanding available capabilities with minimal setup.
+
+Special thanks and credit to the HexStrike project and its author: https://github.com/0x4m4/hexstrike-ai
+
+Notes:
+- HexStrike is vendored under `third_party/hexstrike` and is opt-in; follow `scripts/install_hexstrike_deps.sh` to install its Python dependencies.
+- Auto-start of the vendored HexStrike adapter is controlled via the `.env` flag `LAUNCH_HEXTRIKE` and can be enabled per-user.
+- This update also includes several TUI fixes (improved background worker handling and safer task cancellation) to stabilize the terminal UI while using long-running MCP tools.
