@@ -95,6 +95,17 @@ PENTESTAGENT_DEBUG=false
 New-Item -ItemType Directory -Force -Path "loot" | Out-Null
 Write-Host "[OK] Loot directory created"
 
+# Install vendored HexStrike dependencies automatically if present
+$hexReq = Join-Path -Path (Get-Location) -ChildPath "third_party/hexstrike/requirements.txt"
+if (Test-Path -Path $hexReq) {
+    Write-Host "Installing vendored HexStrike dependencies..."
+    try {
+        & .\scripts\install_hexstrike_deps.ps1
+    } catch {
+        Write-Host "Warning: Failed to install HexStrike deps: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+}
+
 Write-Host ""
 Write-Host "Setup complete!"
 Write-Host ""
