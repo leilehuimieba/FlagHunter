@@ -13,6 +13,20 @@ echo "You can override the upstream repo with: METASPLOIT_SUBTREE_REPO=...\n"
 echo "If the subtree already exists, the script will pull and rebase the subtree instead.\n"
 
 if [ -d "${PREFIX}" ]; then
+	# If directory exists but is empty (left by manual mkdir or previous failed import),
+	# treat it as if the subtree is not yet added so we can perform the add operation.
+	if [ -z "$(ls -A "${PREFIX}" 2>/dev/null)" ]; then
+		echo "Detected empty directory at ${PREFIX}; adding subtree into it..."
+		mkdir -p "$(dirname "${PREFIX}")"
+		if git subtree add --prefix="${PREFIX}" "${REPO_URL}" "${BRANCH}" --squash; then
+			echo "MetasploitMCP subtree added under ${PREFIX}."
+		else
+			echo "Failed to add subtree from ${REPO_URL}." >&2
+			echo "Check that the URL is correct or override with METASPLOIT_SUBTREE_REPO." >&2
+			exit 1
+		fi
+		exit 0
+	fi
 	echo "Detected existing subtree at ${PREFIX}."
 	if [ "${FORCE_SUBTREE_PULL:-false}" = "true" ]; then
 		echo "FORCE_SUBTREE_PULL=true: pulling latest changes into existing subtree..."
