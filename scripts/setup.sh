@@ -79,6 +79,10 @@ PENTESTAGENT_DEBUG=false
 # If true, the MCP manager will attempt to start vendored HexStrike servers
 # that are configured or detected under `third_party/hexstrike`.
 LAUNCH_HEXTRIKE=false
+# Auto-launch vendored Metasploit MCP on connect (true/false)
+# If true, the MCP manager will attempt to start vendored MetasploitMCP
+# servers that are configured or detected under `third_party/MetasploitMCP`.
+LAUNCH_METASPLOIT_MCP=false
 
 # Agent max iterations (regular agent + crew workers, default: 30)
 # PENTESTAGENT_AGENT_MAX_ITERATIONS=30
@@ -98,6 +102,12 @@ echo "[OK] Loot directory created"
 if [ -f "third_party/hexstrike/requirements.txt" ]; then
     echo "Installing vendored HexStrike dependencies..."
     bash scripts/install_hexstrike_deps.sh
+fi
+
+# Install vendored MetasploitMCP dependencies automatically if present
+if [ -f "third_party/MetasploitMCP/requirements.txt" ]; then
+    echo "Installing vendored MetasploitMCP dependencies..."
+    bash scripts/install_metasploit_deps.sh
 fi
 
 echo ""
