@@ -151,12 +151,15 @@ if [ "${LAUNCH_METASPLOIT_MCP,,}" = "true" ] && [ -n "${MSF_PASSWORD:-}" ]; then
         # interface and does not require root privileges on modern systems for ephemeral ports.
         msfrpcd_cmd=$(command -v msfrpcd || true)
         if [ -n "$msfrpcd_cmd" ]; then
+            LOG_DIR="loot/artifacts"
+            mkdir -p "$LOG_DIR"
+            MSF_LOG="$LOG_DIR/metasploit_msfrpcd.log"
             if [ "${MSF_SSL,,}" = "true" ] || [ "${MSF_SSL}" = "1" ]; then
-                "$msfrpcd_cmd" -U "$MSF_USER" -P "$MSF_PASSWORD" -a "$MSF_SERVER" -p "$MSF_PORT" -S &>/dev/null &
+                "$msfrpcd_cmd" -U "$MSF_USER" -P "$MSF_PASSWORD" -a "$MSF_SERVER" -p "$MSF_PORT" -S >"$MSF_LOG" 2>&1 &
             else
-                "$msfrpcd_cmd" -U "$MSF_USER" -P "$MSF_PASSWORD" -a "$MSF_SERVER" -p "$MSF_PORT" &>/dev/null &
+                "$msfrpcd_cmd" -U "$MSF_USER" -P "$MSF_PASSWORD" -a "$MSF_SERVER" -p "$MSF_PORT" >"$MSF_LOG" 2>&1 &
             fi
-            echo "msfrpcd started (check with: ss -ltn | grep $MSF_PORT)"
+            echo "msfrpcd started (logs: $MSF_LOG)"
         else
             echo "msfrpcd not found; please install Metasploit Framework to enable Metasploit RPC."
         fi
