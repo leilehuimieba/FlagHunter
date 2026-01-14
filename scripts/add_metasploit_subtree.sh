@@ -43,14 +43,29 @@ if [ -d "${PREFIX}" ]; then
 			echo "Or run manually: git subtree pull --prefix=\"${PREFIX}\" ${REPO_URL} ${BRANCH} --squash"
 		fi
 	else
-		# Directory exists but not tracked by git; attempt to add subtree into it instead
-		echo "Directory ${PREFIX} exists but is not tracked in git; adding subtree into it..."
-		mkdir -p "$(dirname "${PREFIX}")"
-		if git subtree add --prefix="${PREFIX}" "${REPO_URL}" "${BRANCH}" --squash; then
-			echo "MetasploitMCP subtree added under ${PREFIX}."
+		# Directory exists but not tracked by git.
+		echo "Directory ${PREFIX} exists but is not tracked in git."
+		if [ "${FORCE_SUBTREE_PULL:-false}" = "true" ]; then
+			echo "FORCE_SUBTREE_PULL=true: backing up existing directory and attempting to add subtree..."
+			BACKUP="${PREFIX}.backup.$(date +%s)"
+			mv "${PREFIX}" "${BACKUP}" || { echo "Failed to move ${PREFIX} to ${BACKUP}" >&2; exit 1; }
+			# Ensure parent exists after move
+			mkdir -p "$(dirname "${PREFIX}")"
+			if git subtree add --prefix="${PREFIX}" "${REPO_URL}" "${BRANCH}" --squash; then
+				echo "MetasploitMCP subtree added under ${PREFIX}."
+				echo "Removing backup ${BACKUP}."
+				rm -rf "${BACKUP}"
+			else
+				echo "Failed to add subtree from ${REPO_URL}. Restoring backup." >&2
+				rm -rf "${PREFIX}" || true
+				mv "${BACKUP}" "${PREFIX}" || { echo "Failed to restore ${BACKUP} to ${PREFIX}" >&2; exit 1; }
+				exit 1
+			fi
 		else
-			echo "Failed to add subtree from ${REPO_URL}." >&2
-			echo "If this is unexpected, remove or rename ${PREFIX} and retry, or override the repo with METASPLOIT_SUBTREE_REPO." >&2
+			echo "To add the subtree into the existing directory, either remove/rename ${PREFIX} and retry,"
+			echo "or run with FORCE_SUBTREE_PULL=true to back up and add:"
+			echo "  FORCE_SUBTREE_PULL=true bash scripts/add_metasploit_subtree.sh"
+			echo "Or override the repo with METASPLOIT_SUBTREE_REPO to use a different source."
 			exit 1
 		fi
 	fi
