@@ -9,8 +9,24 @@ PREFIX="third_party/MetasploitMCP"
 BRANCH="main"
 
 echo "This will add MetasploitMCP as a git subtree under ${PREFIX}."
-echo "If you already have a subtree, use 'git subtree pull' instead.\n"
+echo "If the subtree already exists, the script will pull and rebase the subtree instead.\n"
 
-git subtree add --prefix="${PREFIX}" "${REPO_URL}" "${BRANCH}" --squash
-
-echo "MetasploitMCP subtree added under ${PREFIX}."
+if [ -d "${PREFIX}" ]; then
+	echo "Detected existing subtree at ${PREFIX}."
+	if [ "${FORCE_SUBTREE_PULL:-false}" = "true" ]; then
+		echo "FORCE_SUBTREE_PULL=true: pulling latest changes into existing subtree..."
+		git subtree pull --prefix="${PREFIX}" "${REPO_URL}" "${BRANCH}" --squash || {
+			echo "git subtree pull failed; attempting without --squash..."
+			git subtree pull --prefix="${PREFIX}" "${REPO_URL}" "${BRANCH}" || exit 1
+		}
+		echo "Subtree at ${PREFIX} updated."
+	else
+		echo "To update the existing subtree run:"
+		echo "  FORCE_SUBTREE_PULL=true bash scripts/add_metasploit_subtree.sh"
+		echo "Or run manually: git subtree pull --prefix=\"${PREFIX}\" ${REPO_URL} ${BRANCH} --squash"
+	fi
+else
+	echo "Adding subtree for the first time..."
+	git subtree add --prefix="${PREFIX}" "${REPO_URL}" "${BRANCH}" --squash
+	echo "MetasploitMCP subtree added under ${PREFIX}."
+fi
