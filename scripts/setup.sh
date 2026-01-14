@@ -104,10 +104,16 @@ if [ -f "third_party/hexstrike/requirements.txt" ]; then
     bash scripts/install_hexstrike_deps.sh
 fi
 
+# Vendor MetasploitMCP via git-subtree if not already vendored
+if [ ! -d "third_party/MetasploitMCP" ] && [ -f "scripts/add_metasploit_subtree.sh" ]; then
+    echo "Vendoring MetasploitMCP into third_party..."
+    bash scripts/add_metasploit_subtree.sh || echo "Warning: failed to vendor MetasploitMCP; you can run scripts/add_metasploit_subtree.sh manually."
+fi
+
 # Install vendored MetasploitMCP dependencies automatically if present
 if [ -f "third_party/MetasploitMCP/requirements.txt" ]; then
     echo "Installing vendored MetasploitMCP dependencies..."
-    bash scripts/install_metasploit_deps.sh
+    bash scripts/install_metasploit_deps.sh || echo "Warning: failed to install MetasploitMCP dependencies."
 fi
 
 echo ""

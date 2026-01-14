@@ -106,6 +106,38 @@ if (Test-Path -Path $hexReq) {
     }
 }
 
+# Attempt to vendor MetasploitMCP via bundled script if not already present
+$msDir = Join-Path -Path (Get-Location) -ChildPath "third_party/MetasploitMCP"
+$addScript = Join-Path -Path (Get-Location) -ChildPath "scripts/add_metasploit_subtree.sh"
+if (-not (Test-Path -Path $msDir) -and (Test-Path -Path $addScript)) {
+    Write-Host "Vendoring MetasploitMCP into third_party (requires bash)..."
+    if (Get-Command bash -ErrorAction SilentlyContinue) {
+        try {
+            & bash -c "scripts/add_metasploit_subtree.sh"
+        } catch {
+            Write-Host "Warning: Failed to vendor MetasploitMCP via bash: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "Warning: 'bash' not available; please run scripts/add_metasploit_subtree.sh manually." -ForegroundColor Yellow
+    }
+}
+
+# Install vendored MetasploitMCP dependencies automatically if present
+$msReq = Join-Path -Path (Get-Location) -ChildPath "third_party/MetasploitMCP/requirements.txt"
+$installMsScript = Join-Path -Path (Get-Location) -ChildPath "scripts/install_metasploit_deps.sh"
+if (Test-Path -Path $msReq) {
+    Write-Host "Installing vendored MetasploitMCP dependencies..."
+    if (Test-Path -Path $installMsScript -and (Get-Command bash -ErrorAction SilentlyContinue)) {
+        try {
+            & bash -c "scripts/install_metasploit_deps.sh"
+        } catch {
+            Write-Host "Warning: Failed to install MetasploitMCP deps via bash: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "Warning: Could not run install script automatically; run scripts/install_metasploit_deps.sh manually." -ForegroundColor Yellow
+    }
+}
+
 Write-Host ""
 Write-Host "Setup complete!"
 Write-Host ""
