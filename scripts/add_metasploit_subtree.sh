@@ -27,18 +27,32 @@ if [ -d "${PREFIX}" ]; then
 		fi
 		exit 0
 	fi
-	echo "Detected existing subtree at ${PREFIX}."
-	if [ "${FORCE_SUBTREE_PULL:-false}" = "true" ]; then
-		echo "FORCE_SUBTREE_PULL=true: pulling latest changes into existing subtree..."
-		git subtree pull --prefix="${PREFIX}" "${REPO_URL}" "${BRANCH}" --squash || {
-			echo "git subtree pull failed; attempting without --squash..."
-			git subtree pull --prefix="${PREFIX}" "${REPO_URL}" "${BRANCH}" || exit 1
-		}
-		echo "Subtree at ${PREFIX} updated."
+	# Directory exists; check whether the path is tracked in git.
+	if git ls-files --error-unmatch "${PREFIX}" >/dev/null 2>&1; then
+		echo "Detected existing subtree at ${PREFIX}."
+		if [ "${FORCE_SUBTREE_PULL:-false}" = "true" ]; then
+			echo "FORCE_SUBTREE_PULL=true: pulling latest changes into existing subtree..."
+			git subtree pull --prefix="${PREFIX}" "${REPO_URL}" "${BRANCH}" --squash || {
+				echo "git subtree pull failed; attempting without --squash..."
+				git subtree pull --prefix="${PREFIX}" "${REPO_URL}" "${BRANCH}" || exit 1
+			}
+			echo "Subtree at ${PREFIX} updated."
+		else
+			echo "To update the existing subtree run:"
+			echo "  FORCE_SUBTREE_PULL=true bash scripts/add_metasploit_subtree.sh"
+			echo "Or run manually: git subtree pull --prefix=\"${PREFIX}\" ${REPO_URL} ${BRANCH} --squash"
+		fi
 	else
-		echo "To update the existing subtree run:"
-		echo "  FORCE_SUBTREE_PULL=true bash scripts/add_metasploit_subtree.sh"
-		echo "Or run manually: git subtree pull --prefix=\"${PREFIX}\" ${REPO_URL} ${BRANCH} --squash"
+		# Directory exists but not tracked by git; attempt to add subtree into it instead
+		echo "Directory ${PREFIX} exists but is not tracked in git; adding subtree into it..."
+		mkdir -p "$(dirname "${PREFIX}")"
+		if git subtree add --prefix="${PREFIX}" "${REPO_URL}" "${BRANCH}" --squash; then
+			echo "MetasploitMCP subtree added under ${PREFIX}."
+		else
+			echo "Failed to add subtree from ${REPO_URL}." >&2
+			echo "If this is unexpected, remove or rename ${PREFIX} and retry, or override the repo with METASPLOIT_SUBTREE_REPO." >&2
+			exit 1
+		fi
 	fi
 else
 	echo "Adding subtree for the first time..."
