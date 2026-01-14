@@ -126,7 +126,7 @@ if [ -f "third_party/MetasploitMCP/requirements.txt" ]; then
 fi
 
 # Optionally auto-start Metasploit RPC daemon if configured
-# Requires `msfrpcd` (from metasploit-framework) and sudo to run as a service.
+# Start `msfrpcd` without sudo if LAUNCH_METASPLOIT_MCP=true and MSF_PASSWORD is set.
 if [ "${LAUNCH_METASPLOIT_MCP,,}" = "true" ] && [ -n "${MSF_PASSWORD:-}" ]; then
     if command -v msfrpcd >/dev/null 2>&1; then
         MSF_USER="${MSF_USER:-msf}"
@@ -134,11 +134,18 @@ if [ "${LAUNCH_METASPLOIT_MCP,,}" = "true" ] && [ -n "${MSF_PASSWORD:-}" ]; then
         MSF_PORT="${MSF_PORT:-55553}"
         MSF_SSL="${MSF_SSL:-false}"
         echo "Starting msfrpcd (user=${MSF_USER}, host=${MSF_SERVER}, port=${MSF_PORT})..."
-        if sudo -n true 2>/dev/null; then
-            sudo msfrpcd -U "$MSF_USER" -P "$MSF_PASSWORD" -a "$MSF_SERVER" -p "$MSF_PORT" -S || echo "Warning: msfrpcd failed to start."
+        # Start msfrpcd as a background process without sudo. The daemon will bind to the loopback
+        # interface and does not require root privileges on modern systems for ephemeral ports.
+        msfrpcd_cmd=$(command -v msfrpcd || true)
+        if [ -n "$msfrpcd_cmd" ]; then
+            if [ "${MSF_SSL,,}" = "true" ] || [ "${MSF_SSL}" = "1" ]; then
+                "$msfrpcd_cmd" -U "$MSF_USER" -P "$MSF_PASSWORD" -a "$MSF_SERVER" -p "$MSF_PORT" -S &>/dev/null &
+            else
+                "$msfrpcd_cmd" -U "$MSF_USER" -P "$MSF_PASSWORD" -a "$MSF_SERVER" -p "$MSF_PORT" &>/dev/null &
+            fi
+            echo "msfrpcd started (check with: ss -ltn | grep $MSF_PORT)"
         else
-            echo "msfrpcd requires sudo. You may be prompted for your password to start it interactively." 
-            sudo msfrpcd -U "$MSF_USER" -P "$MSF_PASSWORD" -a "$MSF_SERVER" -p "$MSF_PORT" -S || echo "Failed to start msfrpcd. Start it manually with: sudo msfrpcd -U $MSF_USER -P <password> -a $MSF_SERVER -p $MSF_PORT -S"
+            echo "msfrpcd not found; please install Metasploit Framework to enable Metasploit RPC."
         fi
     else
         echo "msfrpcd not found; please install Metasploit Framework to enable Metasploit RPC."

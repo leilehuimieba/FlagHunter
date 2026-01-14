@@ -152,18 +152,24 @@ if (Test-Path -Path $msReq) {
 
 # Optionally auto-start msfrpcd if configured in .env
 if (($env:LAUNCH_METASPLOIT_MCP -eq 'true') -and ($env:MSF_PASSWORD)) {
-    if (Get-Command bash -ErrorAction SilentlyContinue) {
-        $msfUser = if ($env:MSF_USER) { $env:MSF_USER } else { 'msf' }
-        $msfServer = if ($env:MSF_SERVER) { $env:MSF_SERVER } else { '127.0.0.1' }
-        $msfPort = if ($env:MSF_PORT) { $env:MSF_PORT } else { '55553' }
-        Write-Host "Attempting to start msfrpcd (user=$msfUser, host=$msfServer, port=$msfPort)..."
+    $msfUser = if ($env:MSF_USER) { $env:MSF_USER } else { 'msf' }
+    $msfServer = if ($env:MSF_SERVER) { $env:MSF_SERVER } else { '127.0.0.1' }
+    $msfPort = if ($env:MSF_PORT) { $env:MSF_PORT } else { '55553' }
+    Write-Host "Starting msfrpcd (user=$msfUser, host=$msfServer, port=$msfPort) without sudo (background)..."
+    # Start msfrpcd without sudo; if it's already running the cmd will fail harmlessly.
+    if (Get-Command msfrpcd -ErrorAction SilentlyContinue) {
         try {
-            & bash -lc "sudo msfrpcd -U $msfUser -P '$($env:MSF_PASSWORD)' -a $msfServer -p $msfPort -S"
+            if ($env:MSF_SSL -eq 'true' -or $env:MSF_SSL -eq '1') {
+                Start-Process -FilePath msfrpcd -ArgumentList "-U", $msfUser, "-P", $env:MSF_PASSWORD, "-a", $msfServer, "-p", $msfPort, "-S" -NoNewWindow -WindowStyle Hidden
+            } else {
+                Start-Process -FilePath msfrpcd -ArgumentList "-U", $msfUser, "-P", $env:MSF_PASSWORD, "-a", $msfServer, "-p", $msfPort -NoNewWindow -WindowStyle Hidden
+            }
+            Write-Host "msfrpcd start requested; check with: netstat -an | Select-String $msfPort"
         } catch {
-            Write-Host "Warning: Failed to start msfrpcd via bash: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "Warning: Failed to start msfrpcd: $($_.Exception.Message)" -ForegroundColor Yellow
         }
     } else {
-        Write-Host "Warning: Cannot auto-start msfrpcd: 'bash' not available. Start msfrpcd manually with msfrpcd -U <user> -P <password> -a <host> -p <port> -S" -ForegroundColor Yellow
+        Write-Host "msfrpcd not found; please install Metasploit Framework to enable Metasploit RPC." -ForegroundColor Yellow
     }
 }
 
