@@ -91,6 +91,18 @@ PENTESTAGENT_DEBUG=false
     Write-Host "[!] Please edit .env and add your API keys"
 }
 
+# Load .env into process environment variables (so the script can use them)
+if (Test-Path -Path ".env") {
+    Get-Content .env | ForEach-Object {
+        if ($_ -match '^(?:\s*#)|(?:\s*$)') { return }
+        if ($_ -match '^(\s*([^=]+)?)=(.*)$') {
+            $name = $Matches[2].Trim()
+            $value = $Matches[3].Trim()
+            if ($name) { [Environment]::SetEnvironmentVariable($name, $value, 'Process') }
+        }
+    }
+}
+
 # Create loot directory for reports
 New-Item -ItemType Directory -Force -Path "loot" | Out-Null
 Write-Host "[OK] Loot directory created"
@@ -135,6 +147,23 @@ if (Test-Path -Path $msReq) {
         }
     } else {
         Write-Host "Warning: Could not run install script automatically; run scripts/install_metasploit_deps.sh manually." -ForegroundColor Yellow
+    }
+}
+
+# Optionally auto-start msfrpcd if configured in .env
+if (($env:LAUNCH_METASPLOIT_MCP -eq 'true') -and ($env:MSF_PASSWORD)) {
+    if (Get-Command bash -ErrorAction SilentlyContinue) {
+        $msfUser = if ($env:MSF_USER) { $env:MSF_USER } else { 'msf' }
+        $msfServer = if ($env:MSF_SERVER) { $env:MSF_SERVER } else { '127.0.0.1' }
+        $msfPort = if ($env:MSF_PORT) { $env:MSF_PORT } else { '55553' }
+        Write-Host "Attempting to start msfrpcd (user=$msfUser, host=$msfServer, port=$msfPort)..."
+        try {
+            & bash -lc "sudo msfrpcd -U $msfUser -P '$($env:MSF_PASSWORD)' -a $msfServer -p $msfPort -S"
+        } catch {
+            Write-Host "Warning: Failed to start msfrpcd via bash: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "Warning: Cannot auto-start msfrpcd: 'bash' not available. Start msfrpcd manually with msfrpcd -U <user> -P <password> -a <host> -p <port> -S" -ForegroundColor Yellow
     }
 }
 

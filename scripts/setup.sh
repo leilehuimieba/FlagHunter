@@ -94,6 +94,15 @@ EOF
     echo "[!] Please edit .env and add your API keys"
 fi
 
+# Load .env into environment if present
+if [ -f ".env" ]; then
+    # Export variables defined in .env for the duration of this script
+    set -a
+    # shellcheck disable=SC1091
+    . .env
+    set +a
+fi
+
 # Create loot directory for reports
 mkdir -p loot
 echo "[OK] Loot directory created"
@@ -114,6 +123,26 @@ fi
 if [ -f "third_party/MetasploitMCP/requirements.txt" ]; then
     echo "Installing vendored MetasploitMCP dependencies..."
     bash scripts/install_metasploit_deps.sh || echo "Warning: failed to install MetasploitMCP dependencies."
+fi
+
+# Optionally auto-start Metasploit RPC daemon if configured
+# Requires `msfrpcd` (from metasploit-framework) and sudo to run as a service.
+if [ "${LAUNCH_METASPLOIT_MCP,,}" = "true" ] && [ -n "${MSF_PASSWORD:-}" ]; then
+    if command -v msfrpcd >/dev/null 2>&1; then
+        MSF_USER="${MSF_USER:-msf}"
+        MSF_SERVER="${MSF_SERVER:-127.0.0.1}"
+        MSF_PORT="${MSF_PORT:-55553}"
+        MSF_SSL="${MSF_SSL:-false}"
+        echo "Starting msfrpcd (user=${MSF_USER}, host=${MSF_SERVER}, port=${MSF_PORT})..."
+        if sudo -n true 2>/dev/null; then
+            sudo msfrpcd -U "$MSF_USER" -P "$MSF_PASSWORD" -a "$MSF_SERVER" -p "$MSF_PORT" -S || echo "Warning: msfrpcd failed to start."
+        else
+            echo "msfrpcd requires sudo. You may be prompted for your password to start it interactively." 
+            sudo msfrpcd -U "$MSF_USER" -P "$MSF_PASSWORD" -a "$MSF_SERVER" -p "$MSF_PORT" -S || echo "Failed to start msfrpcd. Start it manually with: sudo msfrpcd -U $MSF_USER -P <password> -a $MSF_SERVER -p $MSF_PORT -S"
+        fi
+    else
+        echo "msfrpcd not found; please install Metasploit Framework to enable Metasploit RPC."
+    fi
 fi
 
 echo ""
