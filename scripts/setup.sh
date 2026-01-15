@@ -154,6 +154,17 @@ if [ "${LAUNCH_METASPLOIT_MCP,,}" = "true" ] && [ -n "${MSF_PASSWORD:-}" ]; then
             LOG_DIR="loot/artifacts"
             mkdir -p "$LOG_DIR"
             MSF_LOG="$LOG_DIR/metasploit_msfrpcd.log"
+            # For safety, bind msfrpcd to loopback by default. To intentionally expose RPC to the host
+            # set EXPOSE_MSF_RPC=true in your environment (not recommended on shared hosts).
+            if [ "${EXPOSE_MSF_RPC,,}" != "true" ]; then
+                if [ "$MSF_SERVER" != "127.0.0.1" ] && [ "$MSF_SERVER" != "localhost" ]; then
+                    echo "Warning: MSF_SERVER is set to '$MSF_SERVER' but EXPOSE_MSF_RPC is not true. Overriding to 127.0.0.1 for safety."
+                fi
+                MSF_SERVER=127.0.0.1
+            else
+                echo "EXPOSE_MSF_RPC=true: msfrpcd will bind to $MSF_SERVER and may be reachable from the host network. Ensure you know the risks."
+            fi
+
             if [ "${MSF_SSL,,}" = "true" ] || [ "${MSF_SSL}" = "1" ]; then
                 "$msfrpcd_cmd" -U "$MSF_USER" -P "$MSF_PASSWORD" -a "$MSF_SERVER" -p "$MSF_PORT" -S >"$MSF_LOG" 2>&1 &
             else
