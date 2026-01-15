@@ -75,6 +75,28 @@ PENTESTAGENT_MODEL=gpt-5
 # Settings
 PENTESTAGENT_DEBUG=false
 
+# Auto-launch vendored HexStrike on connect (true/false)
+# If true, the MCP manager will attempt to start vendored HexStrike servers
+# that are configured or detected under `third_party/hexstrike`.
+LAUNCH_HEXTRIKE=false
+# Auto-launch vendored Metasploit MCP on connect (true/false)
+# If true, the MCP manager will attempt to start vendored MetasploitMCP
+# servers that are configured or detected under `third_party/MetasploitMCP`.
+LAUNCH_METASPLOIT_MCP=false
+
+# Metasploit RPC (msfrpcd) settings — used when LAUNCH_METASPLOIT_MCP=true
+# Set MSF_PASSWORD to enable automatic msfrpcd startup. Example:
+# MSF_USER=msf
+# MSF_PASSWORD=change_me
+# MSF_SERVER=127.0.0.1
+# MSF_PORT=55553
+# MSF_SSL=false
+MSF_USER=msf
+MSF_PASSWORD=
+MSF_SERVER=127.0.0.1
+MSF_PORT=55553
+MSF_SSL=false
+
 # Agent max iterations (regular agent + crew workers, default: 30)
 # PENTESTAGENT_AGENT_MAX_ITERATIONS=30
 
@@ -85,9 +107,66 @@ EOF
     echo "[!] Please edit .env and add your API keys"
 fi
 
+# Load .env into environment if present
+if [ -f ".env" ]; then
+    # Export variables defined in .env for the duration of this script
+    set -a
+    # shellcheck disable=SC1091
+    . .env
+    set +a
+fi
+
 # Create loot directory for reports
 mkdir -p loot
 echo "[OK] Loot directory created"
+
+# Install vendored HexStrike dependencies automatically if present
+if [ -f "third_party/hexstrike/requirements.txt" ]; then
+    echo "Installing vendored HexStrike dependencies..."
+    bash scripts/install_hexstrike_deps.sh
+fi
+
+# Vendor MetasploitMCP via git-subtree if not already vendored
+if [ ! -d "third_party/MetasploitMCP" ] && [ -f "scripts/add_metasploit_subtree.sh" ]; then
+    echo "Vendoring MetasploitMCP into third_party..."
+    bash scripts/add_metasploit_subtree.sh || echo "Warning: failed to vendor MetasploitMCP; you can run scripts/add_metasploit_subtree.sh manually."
+fi
+
+# Install vendored MetasploitMCP dependencies automatically if present
+if [ -f "third_party/MetasploitMCP/requirements.txt" ]; then
+    echo "Installing vendored MetasploitMCP dependencies..."
+    bash scripts/install_metasploit_deps.sh || echo "Warning: failed to install MetasploitMCP dependencies."
+fi
+
+# Optionally auto-start Metasploit RPC daemon if configured
+# Start `msfrpcd` without sudo if LAUNCH_METASPLOIT_MCP=true and MSF_PASSWORD is set.
+if [ "${LAUNCH_METASPLOIT_MCP,,}" = "true" ] && [ -n "${MSF_PASSWORD:-}" ]; then
+    if command -v msfrpcd >/dev/null 2>&1; then
+        MSF_USER="${MSF_USER:-msf}"
+        MSF_SERVER="${MSF_SERVER:-127.0.0.1}"
+        MSF_PORT="${MSF_PORT:-55553}"
+        MSF_SSL="${MSF_SSL:-false}"
+        echo "Starting msfrpcd (user=${MSF_USER}, host=${MSF_SERVER}, port=${MSF_PORT})..."
+        # Start msfrpcd as a background process without sudo. The daemon will bind to the loopback
+        # interface and does not require root privileges on modern systems for ephemeral ports.
+        msfrpcd_cmd=$(command -v msfrpcd || true)
+        if [ -n "$msfrpcd_cmd" ]; then
+            LOG_DIR="loot/artifacts"
+            mkdir -p "$LOG_DIR"
+            MSF_LOG="$LOG_DIR/metasploit_msfrpcd.log"
+            if [ "${MSF_SSL,,}" = "true" ] || [ "${MSF_SSL}" = "1" ]; then
+                "$msfrpcd_cmd" -U "$MSF_USER" -P "$MSF_PASSWORD" -a "$MSF_SERVER" -p "$MSF_PORT" -S >"$MSF_LOG" 2>&1 &
+            else
+                "$msfrpcd_cmd" -U "$MSF_USER" -P "$MSF_PASSWORD" -a "$MSF_SERVER" -p "$MSF_PORT" >"$MSF_LOG" 2>&1 &
+            fi
+            echo "msfrpcd started (logs: $MSF_LOG)"
+        else
+            echo "msfrpcd not found; please install Metasploit Framework to enable Metasploit RPC."
+        fi
+    else
+        echo "msfrpcd not found; please install Metasploit Framework to enable Metasploit RPC."
+    fi
+fi
 
 echo ""
 echo "=================================================================="
