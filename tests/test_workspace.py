@@ -1,9 +1,8 @@
-import os
 from pathlib import Path
 
 import pytest
 
-from pentestagent.workspaces.manager import WorkspaceManager, WorkspaceError
+from pentestagent.workspaces.manager import WorkspaceError, WorkspaceManager
 
 
 def test_invalid_workspace_names(tmp_path: Path):
@@ -19,7 +18,7 @@ def test_invalid_workspace_names(tmp_path: Path):
 def test_create_and_idempotent(tmp_path: Path):
     wm = WorkspaceManager(root=tmp_path)
     name = "eng1"
-    meta = wm.create(name)
+    wm.create(name)
     assert (tmp_path / "workspaces" / name).exists()
     assert (tmp_path / "workspaces" / name / "meta.yaml").exists()
     # create again should not raise and should return meta

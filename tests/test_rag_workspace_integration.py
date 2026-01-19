@@ -1,11 +1,8 @@
-import os
 from pathlib import Path
 
-import pytest
-
-from pentestagent.workspaces.manager import WorkspaceManager
-from pentestagent.knowledge.rag import RAGEngine
 from pentestagent.knowledge.indexer import KnowledgeIndexer
+from pentestagent.knowledge.rag import RAGEngine
+from pentestagent.workspaces.manager import WorkspaceManager
 
 
 def test_rag_and_indexer_use_workspace(tmp_path, monkeypatch):
