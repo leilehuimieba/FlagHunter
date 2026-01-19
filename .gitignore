@@ -90,3 +90,6 @@ tests/tmp/
 tests/*.local.py
 scripts/test_*.sh
 *.test.sh
+
+# Workspaces directory (user data should not be committed)
+/workspaces/
