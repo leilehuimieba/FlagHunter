@@ -1,4 +1,10 @@
 import tarfile
+import warnings
+
+# Suppress DeprecationWarning from the stdlib `tarfile` regarding future
+# changes to `extractall()` behavior; tests exercise archive extraction
+# and are not affected by the warning.
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="tarfile")
 from pathlib import Path
 
 import pytest
@@ -38,7 +44,10 @@ def test_import_workspace_nested(tmp_path):
     dest_root = tmp_path / "dest"
     dest_root.mkdir()
 
-    name = import_workspace(archive, root=dest_root)
+    import warnings
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=DeprecationWarning, module="tarfile")
+        name = import_workspace(archive, root=dest_root)
     assert name == ws_name
     dest_ws = dest_root / "workspaces" / ws_name
     assert dest_ws.exists()
@@ -61,7 +70,10 @@ def test_import_workspace_flat(tmp_path):
     dest_root = tmp_path / "dest2"
     dest_root.mkdir()
 
-    name = import_workspace(archive, root=dest_root)
+    import warnings
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=DeprecationWarning, module="tarfile")
+        name = import_workspace(archive, root=dest_root)
     assert name == "flat-test"
     assert (dest_root / "workspaces" / "flat-test" / "meta.yaml").exists()
 
@@ -80,4 +92,7 @@ def test_import_workspace_missing_meta(tmp_path):
     dest_root.mkdir()
 
     with pytest.raises(ValueError):
-        import_workspace(archive, root=dest_root)
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=DeprecationWarning, module="tarfile")
+            import_workspace(archive, root=dest_root)
