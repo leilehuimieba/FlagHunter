@@ -40,8 +40,14 @@ def test_rag_and_indexer_use_workspace(tmp_path, monkeypatch):
     assert rag.get_chunk_count() >= 1
     assert rag.get_document_count() >= 1
 
-    # Now create a new RAGEngine and ensure it loads persisted index automatically
+    # Now create a new RAGEngine and ensure it loads the persisted index instead of re-indexing
+    # Record the persisted index mtime so we can assert it is not overwritten by a re-index
+    mtime_before = emb_path.stat().st_mtime
+
     rag2 = RAGEngine(use_local_embeddings=True)
-    # If load-on-init doesn't run, calling index() should load from saved file
+    # If load-on-init doesn't run, calling index() would re-index and rewrite the file
     rag2.index()
     assert rag2.get_chunk_count() >= 1
+
+    mtime_after = emb_path.stat().st_mtime
+    assert mtime_after == mtime_before, "Expected persisted index to be loaded, not re-written"
