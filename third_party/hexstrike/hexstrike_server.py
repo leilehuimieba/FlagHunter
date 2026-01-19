@@ -34,7 +34,7 @@ import sys
 import threading
 import time
 import traceback
-import urllib.parse
+...existing code...
 import venv
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
@@ -7276,7 +7276,7 @@ exec(base64.b64decode('{base64.b64encode(code.encode()).decode()}'))
 
     def _analyze_vulnerability_details(self, description, cve_data):
         """Analyze CVE data to extract specific vulnerability details"""
-        import re  # Import at the top of the method
+        # ...existing code...
 
         vuln_type = "generic"
         specific_details = {
@@ -13372,7 +13372,7 @@ class HTTPTestingFramework:
         return False
 
     def _apply_match_replace(self, url: str, data, headers: dict):
-        import re
+        # ...existing code...
         from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
         original_url = url
         out_headers = dict(headers)
