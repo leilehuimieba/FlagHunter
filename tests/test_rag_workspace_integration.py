@@ -48,6 +48,9 @@ def test_rag_and_indexer_use_workspace(tmp_path, monkeypatch):
     # If load-on-init doesn't run, calling index() would re-index and rewrite the file
     rag2.index()
     assert rag2.get_chunk_count() >= 1
+    # Assert that the index file was not overwritten (mtime unchanged)
+    mtime_after = emb_path.stat().st_mtime
+    assert mtime_after == mtime_before, "Index file was unexpectedly overwritten (should have been loaded)"
 
     mtime_after = emb_path.stat().st_mtime
     assert mtime_after == mtime_before, "Expected persisted index to be loaded, not re-written"
