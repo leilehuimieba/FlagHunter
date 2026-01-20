@@ -90,6 +90,9 @@ tests/tmp/
 tests/*.local.py
 scripts/test_*.sh
 *.test.sh
+# Ignore all test_*.py scripts in tests/
+tests/test_*.py
+*.test.sh
 
 # Workspaces directory (user data should not be committed)
 /workspaces/
