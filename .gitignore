@@ -81,3 +81,15 @@ Thumbs.db
 tmp/
 temp/
 *.tmp
+
+# Local test artifacts and test scripts (do not commit local test runs)
+tests/*.log
+tests/*.out
+tests/output/
+tests/tmp/
+tests/*.local.py
+scripts/test_*.sh
+*.test.sh
+
+# Workspaces directory (user data should not be committed)
+/workspaces/
