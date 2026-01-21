@@ -120,64 +120,15 @@ fi
 mkdir -p loot
 echo "[OK] Loot directory created"
 
-# Install vendored HexStrike dependencies automatically if present
-if [ -f "third_party/hexstrike/requirements.txt" ]; then
-    echo "Installing vendored HexStrike dependencies..."
-    bash scripts/install_hexstrike_deps.sh
-fi
-
-# Vendor MetasploitMCP via git-subtree if not already vendored
-if [ ! -d "third_party/MetasploitMCP" ] && [ -f "scripts/add_metasploit_subtree.sh" ]; then
-    echo "Vendoring MetasploitMCP into third_party..."
-    bash scripts/add_metasploit_subtree.sh || echo "Warning: failed to vendor MetasploitMCP; you can run scripts/add_metasploit_subtree.sh manually."
-fi
-
-# Install vendored MetasploitMCP dependencies automatically if present
-if [ -f "third_party/MetasploitMCP/requirements.txt" ]; then
-    echo "Installing vendored MetasploitMCP dependencies..."
-    bash scripts/install_metasploit_deps.sh || echo "Warning: failed to install MetasploitMCP dependencies."
-fi
-
-# Optionally auto-start Metasploit RPC daemon if configured
-# Start `msfrpcd` without sudo if LAUNCH_METASPLOIT_MCP=true and MSF_PASSWORD is set.
-if [ "${LAUNCH_METASPLOIT_MCP,,}" = "true" ] && [ -n "${MSF_PASSWORD:-}" ]; then
-    if command -v msfrpcd >/dev/null 2>&1; then
-        MSF_USER="${MSF_USER:-msf}"
-        MSF_SERVER="${MSF_SERVER:-127.0.0.1}"
-        MSF_PORT="${MSF_PORT:-55553}"
-        MSF_SSL="${MSF_SSL:-false}"
-        echo "Starting msfrpcd (user=${MSF_USER}, host=${MSF_SERVER}, port=${MSF_PORT})..."
-        # Start msfrpcd as a background process without sudo. The daemon will bind to the loopback
-        # interface and does not require root privileges on modern systems for ephemeral ports.
-        msfrpcd_cmd=$(command -v msfrpcd || true)
-        if [ -n "$msfrpcd_cmd" ]; then
-            LOG_DIR="loot/artifacts"
-            mkdir -p "$LOG_DIR"
-            MSF_LOG="$LOG_DIR/metasploit_msfrpcd.log"
-            # For safety, bind msfrpcd to loopback by default. To intentionally expose RPC to the host
-            # set EXPOSE_MSF_RPC=true in your environment (not recommended on shared hosts).
-            if [ "${EXPOSE_MSF_RPC,,}" != "true" ]; then
-                if [ "$MSF_SERVER" != "127.0.0.1" ] && [ "$MSF_SERVER" != "localhost" ]; then
-                    echo "Warning: MSF_SERVER is set to '$MSF_SERVER' but EXPOSE_MSF_RPC is not true. Overriding to 127.0.0.1 for safety."
-                fi
-                MSF_SERVER=127.0.0.1
-            else
-                echo "EXPOSE_MSF_RPC=true: msfrpcd will bind to $MSF_SERVER and may be reachable from the host network. Ensure you know the risks."
-            fi
-
-            if [ "${MSF_SSL,,}" = "true" ] || [ "${MSF_SSL}" = "1" ]; then
-                "$msfrpcd_cmd" -U "$MSF_USER" -P "$MSF_PASSWORD" -a "$MSF_SERVER" -p "$MSF_PORT" -S >"$MSF_LOG" 2>&1 &
-            else
-                "$msfrpcd_cmd" -U "$MSF_USER" -P "$MSF_PASSWORD" -a "$MSF_SERVER" -p "$MSF_PORT" >"$MSF_LOG" 2>&1 &
-            fi
-            echo "msfrpcd started (logs: $MSF_LOG)"
-        else
-            echo "msfrpcd not found; please install Metasploit Framework to enable Metasploit RPC."
-        fi
-    else
-        echo "msfrpcd not found; please install Metasploit Framework to enable Metasploit RPC."
-    fi
-fi
+# NOTE: Automatic vendored MCP installation/start has been removed.
+# If you need vendored MCP servers (e.g., HexStrike, MetasploitMCP), run
+# the helper scripts under `third_party/` or the `scripts/` helpers manually.
+# Example manual steps:
+#   bash scripts/install_hexstrike_deps.sh
+#   bash scripts/add_metasploit_subtree.sh
+#   bash scripts/install_metasploit_deps.sh
+# Starting msfrpcd or other networked services should be done explicitly by
+# the operator in a controlled environment.
 
 echo ""
 echo "=================================================================="
