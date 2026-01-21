@@ -1,3 +1,0 @@
-# Wrapper requirements file for vendored HexStrike dependencies
-# This delegates to the vendored requirements in third_party/hexstrike.
--r third_party/hexstrike/requirements.txt
