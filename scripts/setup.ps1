@@ -129,71 +129,9 @@ if (Test-Path -Path ".env") {
 New-Item -ItemType Directory -Force -Path "loot" | Out-Null
 Write-Host "[OK] Loot directory created"
 
-# Install vendored HexStrike dependencies automatically if present
-$hexReq = Join-Path -Path (Get-Location) -ChildPath "third_party/hexstrike/requirements.txt"
-if (Test-Path -Path $hexReq) {
-    Write-Host "Installing vendored HexStrike dependencies..."
-    try {
-        & .\scripts\install_hexstrike_deps.ps1
-    } catch {
-        Write-Host "Warning: Failed to install HexStrike deps: $($_.Exception.Message)" -ForegroundColor Yellow
-    }
-}
-
-# Attempt to vendor MetasploitMCP via bundled script if not already present
-$msDir = Join-Path -Path (Get-Location) -ChildPath "third_party/MetasploitMCP"
-$addScript = Join-Path -Path (Get-Location) -ChildPath "scripts/add_metasploit_subtree.sh"
-if (-not (Test-Path -Path $msDir) -and (Test-Path -Path $addScript)) {
-    Write-Host "Vendoring MetasploitMCP into third_party (requires bash)..."
-    if (Get-Command bash -ErrorAction SilentlyContinue) {
-        try {
-            & bash -c "scripts/add_metasploit_subtree.sh"
-        } catch {
-            Write-Host "Warning: Failed to vendor MetasploitMCP via bash: $($_.Exception.Message)" -ForegroundColor Yellow
-        }
-    } else {
-        Write-Host "Warning: 'bash' not available; please run scripts/add_metasploit_subtree.sh manually." -ForegroundColor Yellow
-    }
-}
-
-# Install vendored MetasploitMCP dependencies automatically if present
-$msReq = Join-Path -Path (Get-Location) -ChildPath "third_party/MetasploitMCP/requirements.txt"
-$installMsScript = Join-Path -Path (Get-Location) -ChildPath "scripts/install_metasploit_deps.sh"
-if (Test-Path -Path $msReq) {
-    Write-Host "Installing vendored MetasploitMCP dependencies..."
-    if (Test-Path -Path $installMsScript -and (Get-Command bash -ErrorAction SilentlyContinue)) {
-        try {
-            & bash -c "scripts/install_metasploit_deps.sh"
-        } catch {
-            Write-Host "Warning: Failed to install MetasploitMCP deps via bash: $($_.Exception.Message)" -ForegroundColor Yellow
-        }
-    } else {
-        Write-Host "Warning: Could not run install script automatically; run scripts/install_metasploit_deps.sh manually." -ForegroundColor Yellow
-    }
-}
-
-# Optionally auto-start msfrpcd if configured in .env
-if (($env:LAUNCH_METASPLOIT_MCP -eq 'true') -and ($env:MSF_PASSWORD)) {
-    $msfUser = if ($env:MSF_USER) { $env:MSF_USER } else { 'msf' }
-    $msfServer = if ($env:MSF_SERVER) { $env:MSF_SERVER } else { '127.0.0.1' }
-    $msfPort = if ($env:MSF_PORT) { $env:MSF_PORT } else { '55553' }
-    Write-Host "Starting msfrpcd (user=$msfUser, host=$msfServer, port=$msfPort) without sudo (background)..."
-    # Start msfrpcd without sudo; if it's already running the cmd will fail harmlessly.
-    if (Get-Command msfrpcd -ErrorAction SilentlyContinue) {
-        try {
-            if ($env:MSF_SSL -eq 'true' -or $env:MSF_SSL -eq '1') {
-                Start-Process -FilePath msfrpcd -ArgumentList "-U", $msfUser, "-P", $env:MSF_PASSWORD, "-a", $msfServer, "-p", $msfPort, "-S" -NoNewWindow -WindowStyle Hidden
-            } else {
-                Start-Process -FilePath msfrpcd -ArgumentList "-U", $msfUser, "-P", $env:MSF_PASSWORD, "-a", $msfServer, "-p", $msfPort -NoNewWindow -WindowStyle Hidden
-            }
-            Write-Host "msfrpcd start requested; check with: netstat -an | Select-String $msfPort"
-        } catch {
-            Write-Host "Warning: Failed to start msfrpcd: $($_.Exception.Message)" -ForegroundColor Yellow
-        }
-    } else {
-        Write-Host "msfrpcd not found; please install Metasploit Framework to enable Metasploit RPC." -ForegroundColor Yellow
-    }
-}
+# NOTE: Automatic vendored MCP installation/start has been removed.
+# Operators should run `scripts/*` helpers manually when they want to
+# install or vendor third-party MCP adapters and their dependencies.
 
 Write-Host ""
 Write-Host "Setup complete!"
