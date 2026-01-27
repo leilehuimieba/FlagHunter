@@ -53,8 +53,13 @@ COPY . .
 RUN useradd -m -s /bin/bash pentestagent && \
     chown -R pentestagent:pentestagent /app
 
+RUN playwright install-deps
+
 # Switch to non-root user (can switch back for privileged operations)
 USER pentestagent
+
+RUN playwright install
+
 
 # Expose any needed ports
 EXPOSE 8080
