@@ -46,9 +46,6 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
-
 # Create non-root user for security
 RUN useradd -m -s /bin/bash pentestagent && \
     chown -R pentestagent:pentestagent /app
@@ -60,6 +57,8 @@ USER pentestagent
 
 RUN playwright install
 
+# Copy application code
+COPY . .
 
 # Expose any needed ports
 EXPOSE 8080
