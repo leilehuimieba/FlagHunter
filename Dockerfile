@@ -58,7 +58,7 @@ USER pentestagent
 RUN playwright install
 
 # Copy application code
-COPY . .
+COPY --chown=pentestagent:pentestagent . .
 
 # Expose any needed ports
 EXPOSE 8080
