@@ -119,6 +119,7 @@ PentestAgent has three modes, accessible via commands in the TUI:
 /report          Generate report from session
 /memory          Show token/memory usage
 /prompt          Show system prompt
+/mcp <list/add>  Visualizes or adds a new MCP server.
 /clear           Clear chat and history
 /quit            Exit (also /exit, /q)
 /help            Show help (also /h, /?)
@@ -146,10 +147,7 @@ PentestAgent includes built-in tools and supports MCP (Model Context Protocol) f
 
 ### MCP Integration
 
-PentestAgent supports MCP (Model Context Protocol) servers, but automatic
-installation and auto-start of vendored MCP adapters has been removed. Operators
-should run the installers and setup scripts under `third_party/` manually and
-then configure `mcp_servers.json` for any MCP servers they intend to use. Example
+PentestAgent supports MCP (Model Context Protocol) servers. Configure `mcp_servers.json` for any MCP servers they intend to use. Example
 config (place under `mcp_servers.json`):
 
 ```json
@@ -214,14 +212,3 @@ Only use against systems you have explicit authorization to test. Unauthorized a
 ## License
 
 MIT
-
-## HexStrike Integration & Thanks
-
-This branch vendors an optional integration with HexStrike (a powerful MCP-enabled scoring and tooling framework). HexStrike acts as a force-multiplier for PentestAgent by exposing a rich set of automated pentesting tools and workflows that the agent can call via MCP — greatly expanding available capabilities with minimal setup.
-
-Special thanks and credit to the HexStrike project and its author: https://github.com/0x4m4/hexstrike-ai
-
-- Notes:
-- HexStrike is vendored under `third_party/hexstrike` and is opt-in; follow `scripts/install_hexstrike_deps.sh` or the vendor README to install its dependencies and start the service manually.
-- Automatic background install/start of vendored MCP adapters has been removed; operators should use the provided third-party scripts and then update `mcp_servers.json`.
-- This update also includes several TUI fixes (improved background worker handling and safer task cancellation) to stabilize the terminal UI while using long-running MCP tools.
