@@ -32,7 +32,6 @@ env/
 
 # IDE
 .idea/
-.vscode/
 *.swp
 *.swo
 *~
@@ -61,8 +60,6 @@ dmypy.json
 *.log
 logs/
 
-# Output
-loot/
 
 # Secrets
 secrets/
