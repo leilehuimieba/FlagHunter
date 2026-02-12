@@ -1,7 +1,6 @@
 # KALI MCP integration
 
 ## Steps
-Brief description of what this project does.
 
 1. Compile base Docker image.
 
