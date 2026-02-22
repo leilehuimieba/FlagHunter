@@ -10,7 +10,7 @@ WORKDIR /app
 
 RUN pip install --no-cache-dir -r MCP-Kali-Server/requirements.txt
 
-COPY mcp_servers.json /app/pentestagent/mcp/
+COPY --chown=pentestagent:pentestagent mcp_servers.json /app/pentestagent/mcp/
 
 # Expose any needed ports
 EXPOSE 8080
