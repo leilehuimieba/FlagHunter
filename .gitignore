@@ -93,7 +93,6 @@ tests/test_*.py
 
 # Workspaces directory (user data should not be committed)
 /workspaces/
-loot/token_usage.json
+loot/*
 mcp_examples/kali/mcp_servers.json
 pentestagent/mcp/mcp_servers.json
-loot/notes.json
