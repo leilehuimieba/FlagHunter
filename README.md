@@ -104,25 +104,28 @@ PentestAgent has three modes, accessible via commands in the TUI:
 
 | Mode | Command | Description |
 |------|---------|-------------|
-| Assist | (default) | Chat with the agent. You control the flow. |
+| Assist | `/assist <task>` | One single-shot instruction, with tool execution |
 | Agent | `/agent <task>` | Autonomous execution of a single task. |
 | Crew | `/crew <task>` | Multi-agent mode. Orchestrator spawns specialized workers. |
+| Interact | `/interact <task>` | Interactive mode. Chat with the agent, it will help you and guide during the pentesting procedure |
 
 ### TUI Commands
 
 ```
-/agent <task>    Run autonomous agent on task
-/crew <task>     Run multi-agent crew on task
-/target <host>   Set target
-/tools           List available tools
-/notes           Show saved notes
-/report          Generate report from session
-/memory          Show token/memory usage
-/prompt          Show system prompt
-/mcp <list/add>  Visualizes or adds a new MCP server.
-/clear           Clear chat and history
-/quit            Exit (also /exit, /q)
-/help            Show help (also /h, /?)
+/assist <task>    One single-shot instruction.
+/agent <task>     Run autonomous agent on task
+/crew <task>      Run multi-agent crew on task
+/interact <task> Chat with the agent in guided mode
+/target <host>    Set target
+/tools            List available tools
+/notes            Show saved notes
+/report           Generate report from session
+/memory           Show token/memory usage
+/prompt           Show system prompt
+/mcp <list/add>   Visualizes or adds a new MCP server.
+/clear            Clear chat and history
+/quit             Exit (also /exit, /q)
+/help             Show help (also /h, /?)
 ```
 
 Press `Esc` to stop a running agent. `Ctrl+Q` to quit.
