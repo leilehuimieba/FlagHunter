@@ -32,7 +32,6 @@ For authentication:
 2. Execute the docker commands.
 
 ```bash
-docker-compose build 
 docker-compose run --rm pentestagent
 ```
 
