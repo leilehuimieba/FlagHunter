@@ -34,6 +34,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libffi-dev \
     libssl-dev \
+    xclip \
     # Clean up
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
