@@ -2,20 +2,14 @@
 
 ## Steps
 
-1. Compile base Docker image.
-
-```bash
-docker build ../../ -t pentestagent:latest 
-```
-
-2. Configure .env file with API tokens and models for AI.
+1. Configure .env file with API tokens and models for AI.
 
 ```
 OPENAI_API_KEY=sk-...
 PENTESTAGENT_MODEL=gpt-5
 ```
 
-3. Configure the IP address or hostname in the mcp_servers.json file:
+2. Configure the IP address or hostname in the mcp_servers.json file:
 
 ``` json
 {
@@ -28,7 +22,7 @@ PENTESTAGENT_MODEL=gpt-5
 }
 ```
 
-4. Launch docker-compose
+3. Launch docker-compose
 
 ```bash
 # Build
