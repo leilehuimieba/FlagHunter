@@ -1,4 +1,4 @@
-FROM pentestagent:latest
+FROM ghcr.io/gh05tcrew/pentestagent:latest
 
 RUN git clone https://github.com/Wh0am123/MCP-Kali-Server.git
 
