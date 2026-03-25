@@ -182,6 +182,23 @@ child_agent_1__get_task_result  task_id="<id1>"
 child_agent_2__get_task_result  task_id="<id2>"
 ```
 
+### MCP RAG Tool Optimizer
+
+When an MCP server exposes more than 128 tools, PentestAgent automatically replaces the full catalogue with a single `mcp_<server>_rag_optimizer` tool. This meta-tool uses embedding similarity (via LiteLLM, default `text-embedding-3-small`) to retrieve the most relevant tools for the task at hand and injects them into the agent's next turn — keeping the context window manageable without losing access to the full tool set.
+
+The optimizer is transparent to the agent: it calls the RAG tool with focused natural-language queries describing what it needs, and the matching tools become available on the next turn to call directly.
+
+**Usage guidance for the agent:**
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `queries` | string[] | *(required)* | One focused query per capability needed. More specific = higher accuracy |
+| `top_k` | integer | `20` | Tools to retrieve per query (max 128). Results are merged and deduplicated |
+
+Embeddings are computed once at startup and cached, so repeated queries are fast. The optimizer is built per-server, so each MCP server with a large catalogue gets its own independent index.
+
+> **Tip:** Pass one query per distinct capability rather than combining everything into one query. `["list open ports on a host", "get process memory usage"]` retrieves better results than `["list ports and memory and CPU"]`.
+
 ### MCP Integration
 
 PentestAgent supports MCP (Model Context Protocol) in two directions: **consuming** external MCP servers as tool sources, and **exposing itself** as an MCP server so external clients (Claude Desktop, Cursor, etc.) can drive PentestAgent programmatically.
