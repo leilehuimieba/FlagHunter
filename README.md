@@ -146,7 +146,41 @@ pentestagent run -t example.com --playbook thp3_web
 
 PentestAgent includes built-in tools and supports MCP (Model Context Protocol) for extensibility.
 
-**Built-in tools:** `terminal`, `browser`, `notes`, `web_search` (requires `TAVILY_API_KEY`)
+**Built-in tools:** `terminal`, `browser`, `notes`, `web_search` (requires `TAVILY_API_KEY`), `spawn_mcp_agent`
+
+### Agent Self-Spawning (`spawn_mcp_agent`)
+
+`spawn_mcp_agent` is a built-in tool that allows a running agent to spawn a child copy of itself as a subordinate MCP server connected over stdio. The child process is fully isolated — its own runtime, LLM client, conversation history, and notes store — and its complete tool set is injected back into the parent agent's available tools after spawning.
+
+This enables hierarchical, multi-agent workflows without any external orchestration: the agent self-organises by delegating scoped subtasks to children it spawns on demand.
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `target` | string | — | Pentest target to pass to the child |
+| `scope` | string[] | — | In-scope targets/CIDRs for the child |
+| `model` | string | env var | Model identifier, overrides `PENTESTAGENT_MODEL` on the child |
+| `no_rag` | boolean | `false` | Skip RAG engine initialisation on the child |
+| `no_mcp` | boolean | `true` | Skip external MCP server connections on the child (recommended) |
+
+After `spawn_mcp_agent` returns, the child's tools (`run_task`, `run_task_async`, `await_tasks`, etc.) are available on the **next** tool call. The child's server name is assigned automatically (e.g. `child_agent_1`) and returned in the result.
+
+**Example — orchestrator delegating parallel recon to two children:**
+
+```
+# Turn 1: spawn two isolated child agents
+spawn_mcp_agent  target="10.0.1.0/24"  scope=["10.0.1.0/24"]
+spawn_mcp_agent  target="10.0.2.0/24"  scope=["10.0.2.0/24"]
+
+# Turn 2: children's tools are now available — delegate work asynchronously
+child_agent_1__run_task_async  task="Full port scan and service enumeration"
+child_agent_2__run_task_async  task="Full port scan and service enumeration"
+
+# Turn 3: wait and collect
+child_agent_1__await_tasks  task_ids=["<id1>"]  timeout_seconds=600
+child_agent_2__await_tasks  task_ids=["<id2>"]  timeout_seconds=600
+child_agent_1__get_task_result  task_id="<id1>"
+child_agent_2__get_task_result  task_id="<id2>"
+```
 
 ### MCP Integration
 
@@ -266,6 +300,8 @@ When acting as an MCP server, PentestAgent exposes the following tools:
 | `list_tools` | List all tools available to the agent |
 | `enable_tool` | Enable a named tool on the primary agent |
 | `disable_tool` | Disable a named tool on the primary agent |
+
+
 
 **Conversation History**
 
