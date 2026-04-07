@@ -6,7 +6,22 @@
       "type": "python",
       "request": "launch",
       "module": "pentestagent",
-      "cwd": "/app",
+      "cwd": "/home/fernando/pentestagent/",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "MCP Server + TUI (SSE)",
+      "type": "python",
+      "request": "launch",
+      "module": "pentestagent",
+      "args": [
+        "mcp_server",
+        "--type", "sse",
+        "--tui",
+        "--port", "8080"
+      ],
+      "cwd": "/home/fernando/pentestagent/",
       "console": "integratedTerminal",
       "justMyCode": true
     }
