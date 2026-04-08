@@ -6,7 +6,7 @@
       "type": "python",
       "request": "launch",
       "module": "pentestagent",
-      "cwd": "/home/fernando/pentestagent/",
+      "cwd": "/app",
       "console": "integratedTerminal",
       "justMyCode": true
     },
@@ -21,7 +21,7 @@
         "--tui",
         "--port", "8080"
       ],
-      "cwd": "/home/fernando/pentestagent/",
+      "cwd": "/app",
       "console": "integratedTerminal",
       "justMyCode": true
     }
