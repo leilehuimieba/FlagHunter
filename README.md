@@ -123,6 +123,10 @@ PentestAgent has three modes, accessible via commands in the TUI:
 /memory           Show token/memory usage
 /prompt           Show system prompt
 /mcp <list/add>   Visualizes or adds a new MCP server.
+/spawn [target] [--scope CIDR] [--model M] [--no-rag] [--no-mcp]
+                  Manually spawn a child MCP agent from the TUI.
+/despawn <server_name>
+                  Terminate and remove a previously spawned child agent.
 /clear            Clear chat and history
 /quit             Exit (also /exit, /q)
 /help             Show help (also /h, /?)
@@ -180,6 +184,48 @@ child_agent_1__await_tasks  task_ids=["<id1>"]  timeout_seconds=600
 child_agent_2__await_tasks  task_ids=["<id2>"]  timeout_seconds=600
 child_agent_1__get_task_result  task_id="<id1>"
 child_agent_2__get_task_result  task_id="<id2>"
+```
+
+### Manual Child Agent Control (`/spawn` and `/despawn`)
+
+Beyond the automatic `spawn_mcp_agent` tool, the TUI exposes two commands that let you spawn and terminate child agents **manually**, independently of a running agent loop.
+
+#### `/spawn`
+
+```
+/spawn [target] [--scope CIDR ...] [--model MODEL] [--no-rag] [--no-mcp]
+```
+
+Spawns a new child MCP agent over stdio and attaches it to the current session. The child appears as a collapsible terminal panel in the TUI sidebar and its tools become available to the parent agent on the next tool call.
+
+| Argument | Description |
+|----------|-------------|
+| `target` | Pentest target to pass to the child (positional or `--target`) |
+| `--scope CIDR` | One or more in-scope CIDRs (repeatable) |
+| `--model MODEL` | Override the model for the child agent |
+| `--no-rag` | Skip RAG engine initialisation on the child |
+| `--no-mcp` | Skip external MCP server connections on the child |
+
+**Examples:**
+
+```
+/spawn 10.0.1.1
+/spawn 10.0.1.1 --scope 10.0.1.0/24 --model claude-sonnet-4-20250514
+/spawn --target 10.0.1.1 --scope 10.0.1.0/24 --no-rag
+```
+
+#### `/despawn`
+
+```
+/despawn <server_name>
+```
+
+Terminates the child agent identified by `server_name` (e.g. `child_agent_1`), removes its terminal panel from the TUI, and disconnects its tools from the parent session. Use `/mcp list` to see the names of all currently active child agents.
+
+**Example:**
+
+```
+/despawn child_agent_1
 ```
 
 ### MCP RAG Tool Optimizer
