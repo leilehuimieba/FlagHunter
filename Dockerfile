@@ -43,9 +43,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+COPY pyproject.toml README.md ./
+RUN mkdir -p pentestagent && touch pentestagent/__init__.py && \
+    pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -e .
 
 # Create non-root user for security
 RUN useradd -m -s /bin/bash pentestagent && \

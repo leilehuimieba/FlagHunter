@@ -60,14 +60,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Install Python dependencies using virtual environment (PEP 668 compliance)
-COPY requirements.txt .
+COPY pyproject.toml README.md ./
 RUN python3 -m venv /opt/venv && \
     /opt/venv/bin/pip install --no-cache-dir --upgrade pip wheel setuptools
 
 # Install heavy dependencies first (helps with CI memory limits)
 RUN /opt/venv/bin/pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 RUN /opt/venv/bin/pip install --no-cache-dir sentence-transformers faiss-cpu
-RUN /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
+RUN mkdir -p pentestagent && touch pentestagent/__init__.py && \
+    /opt/venv/bin/pip install --no-cache-dir -e ".[rag]"
 
 # Add venv to PATH
 ENV PATH="/opt/venv/bin:$PATH"
