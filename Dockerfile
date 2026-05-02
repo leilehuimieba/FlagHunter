@@ -1,7 +1,7 @@
 # PentestAgent - AI Penetration Testing Agent
 # Base image with common tools
 
-FROM python:3.11-slim
+FROM python:3.14-slim
 
 LABEL maintainer="PentestAgent"
 LABEL description="AI penetration testing"
