@@ -47,6 +47,21 @@ echo "Installing Playwright browsers..."
 playwright install chromium
 echo "[OK] Playwright browsers installed"
 
+# Install clipboard utilities (required for copy/paste in the TUI on Linux)
+if command -v apt-get &>/dev/null; then
+    echo "Installing clipboard utilities (xclip, xsel)..."
+    sudo apt-get install -y xclip xsel 2>/dev/null || echo "[WARN] Could not install xclip/xsel via apt-get (non-fatal)"
+elif command -v dnf &>/dev/null; then
+    echo "Installing clipboard utilities (xclip, xsel)..."
+    sudo dnf install -y xclip xsel 2>/dev/null || echo "[WARN] Could not install xclip/xsel via dnf (non-fatal)"
+elif command -v pacman &>/dev/null; then
+    echo "Installing clipboard utilities (xclip, xsel)..."
+    sudo pacman -S --noconfirm xclip xsel 2>/dev/null || echo "[WARN] Could not install xclip/xsel via pacman (non-fatal)"
+else
+    echo "[WARN] Could not detect package manager — install xclip or xsel manually for clipboard support in the TUI"
+fi
+echo "[OK] Clipboard utilities check done"
+
 # Create .env file if not exists
 if [ ! -f ".env" ]; then
     echo "Creating .env file..."
