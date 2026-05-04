@@ -81,28 +81,6 @@ PENTESTAGENT_MODEL=gpt-5
 # Settings
 PENTESTAGENT_DEBUG=false
 
-# Auto-launch vendored HexStrike on connect (true/false)
-# If true, the MCP manager will attempt to start vendored HexStrike servers
-# that are configured or detected under `third_party/hexstrike`.
-LAUNCH_HEXTRIKE=false
-# Auto-launch vendored Metasploit MCP on connect (true/false)
-# If true, the MCP manager will attempt to start vendored MetasploitMCP
-# servers that are configured or detected under `third_party/MetasploitMCP`.
-LAUNCH_METASPLOIT_MCP=false
-
-# Metasploit RPC (msfrpcd) settings — used when LAUNCH_METASPLOIT_MCP=true
-# Set MSF_PASSWORD to enable automatic msfrpcd startup. Example:
-# MSF_USER=msf
-# MSF_PASSWORD=change_me
-# MSF_SERVER=127.0.0.1
-# MSF_PORT=55553
-# MSF_SSL=false
-MSF_USER=msf
-MSF_PASSWORD=
-MSF_SERVER=127.0.0.1
-MSF_PORT=55553
-MSF_SSL=false
-
 # Agent max iterations (regular agent + crew workers, default: 30)
 # PENTESTAGENT_AGENT_MAX_ITERATIONS=30
 
@@ -128,10 +106,6 @@ if (Test-Path -Path ".env") {
 # Create loot directory for reports
 New-Item -ItemType Directory -Force -Path "loot" | Out-Null
 Write-Host "[OK] Loot directory created"
-
-# NOTE: Automatic vendored MCP installation/start has been removed.
-# Operators should run `scripts/*` helpers manually when they want to
-# install or vendor third-party MCP adapters and their dependencies.
 
 Write-Host ""
 Write-Host "Setup complete!"
