@@ -88,7 +88,7 @@ The MCP external-server config lives in `mcp_servers.json` (Claude Desktop forma
 source venv/bin/activate
 pentestagent                    # TUI
 pentestagent -t 192.168.1.1     # TUI with pre-set target
-pentestagent --docker           # Use Docker sandbox for tool execution
+pentestagent tui --docker       # Use Docker sandbox for tool execution
 pentestagent run -t example.com --playbook thp3_web   # Run a playbook
 pentestagent mcp_server --type stdio   # Expose as MCP server (STDIO)
 pentestagent mcp_server --type sse     # Expose as MCP server (HTTP/SSE, port 8080)
