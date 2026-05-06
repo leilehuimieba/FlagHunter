@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: pentestagent:latest
     container_name: pentestagent
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}

@@ -56,9 +56,9 @@ Any [LiteLLM-supported model](https://docs.litellm.ai/docs/providers) works.
 ## Run
 
 ```bash
-pentestagent                    # Launch TUI
-pentestagent -t 192.168.1.1     # Launch with target
-pentestagent --docker           # Run tools in Docker container
+pentestagent                      # Launch TUI
+pentestagent -t 192.168.1.1       # Launch with target
+pentestagent tui --docker         # Run tools in Docker container
 ```
 
 ## Docker
