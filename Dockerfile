@@ -46,7 +46,7 @@ WORKDIR /app
 COPY pyproject.toml README.md ./
 RUN mkdir -p pentestagent && touch pentestagent/__init__.py && \
     pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -e .
+    pip install --no-cache-dir -e ".[rag]"
 
 # Create non-root user for security
 RUN useradd -m -s /bin/bash pentestagent && \
