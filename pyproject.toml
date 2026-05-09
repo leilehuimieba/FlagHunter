@@ -114,6 +114,23 @@ python_files = ["test_*.py"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
 
+[tool.coverage.run]
+omit = [
+    # TUI and CLI cannot be unit-tested without an interactive terminal
+    "pentestagent/interface/*",
+    "pentestagent/interface/widgets/*",
+    # MCP server transports require a running server process
+    "pentestagent/mcp/server/*",
+    "pentestagent/mcp/stdio_adapter.py",
+    "pentestagent/mcp/example_adapter.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+]
+
 [tool.black]
 line-length = 88
 target-version = ["py310", "py311", "py312"]
