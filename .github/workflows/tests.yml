@@ -13,6 +13,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   # -----------------------------------------------------------------------
   # Unit + security tests (fast, no network, no heavy optional deps)
