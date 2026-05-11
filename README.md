@@ -434,6 +434,9 @@ The `/conversations` command opens a split-pane modal inside the TUI:
 - **Left panel** — list of saved conversations with title and date.
 - **Right panel** — metadata preview plus the first 5 messages (user messages in blue, agent responses in green, tool calls in yellow, tool results in grey). A count shows how many additional messages exist.
 
+<img width="1657" height="662" alt="imagen" src="https://github.com/user-attachments/assets/da42f083-9b7f-445e-8c59-2402ac8e5ddc" />
+
+
 Select a conversation and press **Restore** to reload it into the current session, or **Close** to dismiss the modal.
 
 ## Knowledge
