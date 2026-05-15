@@ -420,6 +420,25 @@ pentestagent mcp add <name> <command> [args...]  # Add MCP server
 pentestagent mcp test <name>    # Test MCP connection
 ```
 
+## Conversation History Controls
+
+Each user message in the TUI exposes two inline action buttons: **rewind** and **fork**.
+
+### Rewind
+
+Click **rewind** on any user message to truncate the conversation back to just before that message — both in the UI and in the agent's in-memory history. Use it to retry a query from scratch without saving the discarded path.
+
+### Fork
+
+Click **>> fork** on any user message to branch the conversation from that point:
+
+1. The current full conversation is **saved** to the conversation store and a short snapshot ID is shown.
+2. The conversation is then **truncated** to just before the selected message (same as rewind).
+
+This lets you try an alternative approach from any point while keeping the original thread retrievable via `/conversations`.
+
+---
+
 ## Conversation History
 
 PentestAgent automatically persists every conversation so you can review, compare, and restore past sessions.

@@ -178,6 +178,32 @@ get_task_result task_id="<id2>"
 | `/mcp list/add` | Manage MCP servers |
 | `Esc` | Stop running agent |
 
+## Conversation history controls (TUI)
+
+Each user message in the TUI exposes two inline buttons: **rewind** and **fork**.
+
+### Rewind
+
+Clicking **rewind** on a user message opens a confirmation dialog and then truncates the
+conversation back to just before that message — both in the UI and in the agent's
+in-memory history. Use it to retry a query from scratch without saving the discarded path.
+
+### Fork
+
+Clicking **>> fork** on a user message:
+
+1. **Saves** the current full conversation to the conversation store
+   (`ConversationStore`, persisted under the workspaces base directory) and reports
+   the short ID of the saved snapshot.
+2. **Truncates** the conversation to just before the selected message (same as rewind).
+
+This lets you branch off from any point while keeping the original conversation
+retrievable. Typical use-case: try an alternative approach from a given message without
+losing the thread you had so far.
+
+Both controls are implemented in `pentestagent/interface/tui.py` via
+`RewindButton` / `ForkButton` widgets and their corresponding `*ConfirmScreen` modals.
+
 ## Key architectural patterns
 
 - **Tool registration**: Tools self-register via `pentestagent/tools/loader.py`. Add a new
