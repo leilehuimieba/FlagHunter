@@ -5,12 +5,15 @@
 """
 
 from datetime import datetime
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .report_models import PentestReport
     from .template_engine import TemplateEngine
+
+logger = logging.getLogger(__name__)
 
 
 def export_html(
@@ -35,6 +38,7 @@ def export_html(
     data["css"] = _get_default_css()
 
     rendered = template_engine.render(template_name + ".html", data)
+    rendered = _inject_attack_path_mermaid(rendered)
 
     out = Path(output_path)
     if str(output_path).endswith("/") or out.is_dir():
@@ -43,6 +47,42 @@ def export_html(
     _ensure_dir(out)
     out.write_text(rendered, encoding="utf-8")
     return str(out.resolve())
+
+
+def _inject_attack_path_mermaid(rendered_html: str) -> str:
+    """Inject a Mermaid attack-path graph block before </body> when notes allow it."""
+    try:
+        from pentestagent.knowledge.graph import ShadowGraph
+        from pentestagent.tools.notes import get_all_notes_sync
+
+        notes = get_all_notes_sync()
+        if not notes:
+            return rendered_html
+
+        graph = ShadowGraph()
+        graph.update_from_notes(notes)
+
+        if graph.graph.number_of_nodes() == 0:
+            return rendered_html
+
+        mermaid_code = graph.to_mermaid()
+        mermaid_block = (
+            '\n<section class="section" id="attack-path-mermaid">\n'
+            "  <h2>Attack Path</h2>\n"
+            '  <div class="mermaid">\n'
+            f"{mermaid_code}\n"
+            "  </div>\n"
+            "</section>\n"
+            '<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>\n'
+            "<script>mermaid.initialize({startOnLoad:true});</script>\n"
+        )
+
+        if "</body>" in rendered_html:
+            return rendered_html.replace("</body>", mermaid_block + "</body>", 1)
+        return rendered_html + mermaid_block
+    except Exception as exc:
+        logger.warning("Failed to inject Mermaid attack path into HTML report: %s", exc)
+        return rendered_html
 
 
 def _ensure_dir(path: Path) -> None:
