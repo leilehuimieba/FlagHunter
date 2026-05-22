@@ -123,7 +123,7 @@ async def test_run_dirscan_auto_falls_back_from_ffuf_to_gobuster(
 
     calls: list[str] = []
 
-    async def _fake_ffuf(url, wordlist, extensions, runtime):
+    async def _fake_ffuf(url, wordlist, extensions, runtime, headers=None):
         calls.append("ffuf")
         return {
             "url": url,
@@ -133,7 +133,7 @@ async def test_run_dirscan_auto_falls_back_from_ffuf_to_gobuster(
             "raw": "ffuf failed",
         }, False
 
-    async def _fake_gobuster(url, wordlist, extensions, runtime):
+    async def _fake_gobuster(url, wordlist, extensions, runtime, headers=None):
         calls.append("gobuster")
         return {
             "url": url,
@@ -143,7 +143,7 @@ async def test_run_dirscan_auto_falls_back_from_ffuf_to_gobuster(
             "raw": "gobuster success",
         }, True
 
-    async def _fake_dirsearch(url, wordlist, extensions, runtime):
+    async def _fake_dirsearch(url, wordlist, extensions, runtime, headers=None):
         calls.append("dirsearch")
         return {
             "url": url,
