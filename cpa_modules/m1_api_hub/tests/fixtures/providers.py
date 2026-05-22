@@ -1,0 +1,131 @@
+"""
+Provider测试数据 - 5个虚拟Provider配置
+
+用于单元测试和集成测试的Provider数据
+"""
+
+import sys
+import os
+
+# 尝试导入models，如果不可用则使用Mock
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+sys.path.insert(0, PROJECT_ROOT)
+
+try:
+    from cpa_modules.m1_api_hub.models import ProviderConfig
+except ImportError:
+    # 使用Mock模型
+    class ProviderConfig:
+        def __init__(self, id, name, model, api_base, api_key, timeout=30,
+                     max_retries=3, rpm_limit=60, tpm_limit=100000,
+                     priority=1, enabled=True, is_backup=False):
+            self.id = id
+            self.name = name
+            self.model = model
+            self.api_base = api_base
+            self.api_key = api_key
+            self.timeout = timeout
+            self.max_retries = max_retries
+            self.rpm_limit = rpm_limit
+            self.tpm_limit = tpm_limit
+            self.priority = priority
+            self.enabled = enabled
+            self.is_backup = is_backup
+
+
+# ========== 5个虚拟Provider配置 ==========
+
+TEST_PROVIDERS = [
+    # Provider 1: 中转站A - Claude（主渠道，最高优先级）
+    ProviderConfig(
+        id="zhongzhuan_a_claude",
+        name="中转站A-Claude",
+        model="openai/claude-sonnet-4",
+        api_base="https://api.zhongzhuan-a.com/v1",
+        api_key="sk-test-key-a-12345-67890",
+        timeout=30,
+        max_retries=3,
+        rpm_limit=60,
+        tpm_limit=100000,
+        priority=1,
+        enabled=True,
+        is_backup=False,
+    ),
+    # Provider 2: 中转站B - Claude（备用渠道）
+    ProviderConfig(
+        id="zhongzhuan_b_claude",
+        name="中转站B-Claude",
+        model="openai/claude-sonnet-4",
+        api_base="https://api.zhongzhuan-b.com/v1",
+        api_key="sk-test-key-b-54321-09876",
+        timeout=30,
+        max_retries=3,
+        rpm_limit=40,
+        tpm_limit=80000,
+        priority=2,
+        enabled=True,
+        is_backup=True,
+    ),
+    # Provider 3: 中转站A - GPT4（不同模型）
+    ProviderConfig(
+        id="zhongzhuan_a_gpt4",
+        name="中转站A-GPT4",
+        model="openai/gpt-4",
+        api_base="https://api.zhongzhuan-a.com/v1",
+        api_key="sk-test-key-a-12345-67890",
+        timeout=45,
+        max_retries=3,
+        rpm_limit=30,
+        tpm_limit=50000,
+        priority=3,
+        enabled=True,
+        is_backup=False,
+    ),
+    # Provider 4: DeepSeek官方（应急渠道）
+    ProviderConfig(
+        id="deepseek_official",
+        name="DeepSeek官方",
+        model="deepseek/deepseek-chat",
+        api_base="https://api.deepseek.com/v1",
+        api_key="sk-test-key-deep-abcde-fghij",
+        timeout=60,
+        max_retries=5,
+        rpm_limit=20,
+        tpm_limit=40000,
+        priority=4,
+        enabled=True,
+        is_backup=False,
+    ),
+    # Provider 5: 官方Claude（保底渠道）
+    ProviderConfig(
+        id="official_claude",
+        name="官方-Claude",
+        model="anthropic/claude-3-sonnet",
+        api_base="https://api.anthropic.com/v1",
+        api_key="sk-test-key-ant-zyxwv-utsrq",
+        timeout=30,
+        max_retries=3,
+        rpm_limit=100,
+        tpm_limit=200000,
+        priority=5,
+        enabled=True,
+        is_backup=False,
+    ),
+]
+
+# 按优先级排序的Provider ID列表
+PROVIDER_IDS_BY_PRIORITY = [p.id for p in sorted(TEST_PROVIDERS, key=lambda x: x.priority)]
+
+# 健康状态映射（测试用）
+HEALTH_STATES_ALL_HEALTHY = {p.id: "healthy" for p in TEST_PROVIDERS}
+HEALTH_STATES_ONE_DOWN = {
+    **{p.id: "healthy" for p in TEST_PROVIDERS},
+    "official_claude": "down",
+}
+HEALTH_STATES_MIXED = {
+    "zhongzhuan_a_claude": "healthy",
+    "zhongzhuan_b_claude": "healthy",
+    "zhongzhuan_a_gpt4": "degraded",
+    "deepseek_official": "healthy",
+    "official_claude": "down",
+}
