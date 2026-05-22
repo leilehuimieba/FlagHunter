@@ -46,7 +46,7 @@ class _RoutingRuntime:
 
 
 class _PlanningLLM:
-    async def generate(self, system_prompt, messages, tools):
+    async def generate(self, system_prompt, messages, tools, task_hint="default", **kwargs):
         return SimpleNamespace(
             content=json.dumps(
                 {
