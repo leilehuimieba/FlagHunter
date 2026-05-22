@@ -1,0 +1,15 @@
+<!-- ==================== Cover Page Component ==================== -->
+<div class="cover">
+  {% if meta.company_logo %}
+  <img src="{{ meta.company_logo }}" alt="{{ meta.company_name }}" class="logo">
+  {% endif %}
+  <h1>{{ meta.title }}</h1>
+  {% if meta.subtitle %}
+  <p class="subtitle">{{ meta.subtitle }}</p>
+  {% endif %}
+  <p class="meta">{{ meta.company_name }} | {{ meta.start_date }} ~ {{ meta.end_date }}</p>
+  <div class="classification-badge">保密级别: {{ meta.classification }}</div>
+  {% if meta.disclaimer %}
+  <p class="disclaimer">{{ meta.disclaimer }}</p>
+  {% endif %}
+</div>

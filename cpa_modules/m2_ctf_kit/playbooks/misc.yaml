@@ -1,0 +1,94 @@
+metadata:
+  name: "misc_standard"
+  category: "misc"
+  description: "标准Misc类CTF题解题流程：文件分析→隐写检测→编码识别→数据提取与解码"
+  difficulty: "easy"
+  estimated_time: "30min"
+  required_tools: ["file", "binwalk", "steghide", "zsteg", "exiftool", "strings", "foremost"]
+
+phases:
+  - name: "文件分析"
+    description: "识别文件真实类型，检测是否存在伪装或文件附加数据"
+    tools:
+      - tool: "file"
+        args: {target: "{{target}}"}
+      - tool: "binwalk"
+        args: {target: "{{target}}", flags: "-e"}
+      - tool: "exiftool"
+        args: {target: "{{target}}"}
+    llm_prompt: >
+      分析文件识别和元数据结果：
+      1. 文件真实类型是否与扩展名一致？（如.jpg实际是.zip）
+      2. binwalk是否发现文件内部嵌套了其他文件或数据？
+      3. exiftool提取的元数据中是否隐藏了注释、作者信息或Base64字符串？
+      4. 文件大小是否异常（过大可能包含附加数据，过小可能是截断）？
+      5. 是否有损坏标记但内容可部分读取（暗示数据隐藏）？
+      给出下一步分析方向（隐写/编码/文件修复）。
+    timeout: 60
+    critical: false
+
+  - name: "隐写检测"
+    description: "检测图片/音频中是否隐藏了隐写数据"
+    tools:
+      - tool: "steghide"
+        args: {action: "extract", file: "{{target}}", passphrase: "", output: "/tmp/steg_out"}
+      - tool: "zsteg"
+        args: {target: "{{target}}", flags: "-a"}
+      - tool: "foremost"
+        args: {target: "{{target}}", output_dir: "/tmp/foremost_out"}
+    llm_prompt: >
+      分析隐写检测工具的输出：
+      1. steghide是否成功提取了隐藏数据？是否需要密码？
+      2. zsteg是否发现了LSB（最低有效位）隐藏的数据？
+      3. foremost是否 carving 出了隐藏的文件？
+      4. 提取的数据是什么格式？（文本/压缩包/图片/二进制）
+      5. 如果隐写工具需要密码，是否有线索（文件名、元数据、比赛名）？
+      给出提取数据的处理建议。
+    timeout: 90
+    critical: false
+
+  - name: "编码识别"
+    description: "对提取的数据进行编码类型检测和识别"
+    tools:
+      - tool: "crypto_detect"
+        args: {ciphertext: "{{extracted_data}}", mode: "full"}
+      - tool: "strings"
+        args: {file: "{{target}}", flags: "-n 4 -e l"}
+      - tool: "strings"
+        args: {file: "{{target}}", flags: "-n 4 -e b"}
+    llm_prompt: >
+      分析编码识别结果：
+      1. 提取的数据属于哪种编码类型？（Base系列、十六进制、二进制、摩尔斯）
+      2. 是否可能是二维码/条形码的数据表示？
+      3. 文件内部的字符串是否有可读文本（暗示未加密）？
+      4. 对于音频文件：是否需要频谱分析（SonicVisualiser/Audacity）？
+      5. 对于网络流量：是否需要使用Wireshark分析协议？
+      给出解码方案的建议和具体工具命令。
+    timeout: 30
+    critical: false
+
+  - name: "数据提取与解码"
+    description: "执行最终的数据提取和解码操作，获取Flag"
+    tools:
+      - tool: "crypto_auto_solve"
+        args: {ciphertext: "{{extracted_data}}", mode: "all"}
+      - tool: "binwalk"
+        args: {target: "{{target}}", flags: "-e -M"}
+      - tool: "python_script"
+        args: {script: "extract_lsb.py", file: "{{target}}"}
+        condition: "stego_type == 'lsb'"
+    llm_prompt: >
+      分析数据提取和解码的结果：
+      1. 自动解码工具是否成功识别并解码了数据？
+      2. 嵌套文件提取是否获得了新的可分析文件？
+      3. 对于LSB隐写：提取的比特流是否形成了可识别格式？
+      4. 对于压缩包：是否还有嵌套压缩或密码保护？
+      5. 最终解码结果中是否包含Flag（flag{...}格式）？
+      从所有输出中提取最终Flag，标记Misc任务完成。
+    timeout: 120
+    critical: true
+
+fallback:
+  action: "alternative_tool"
+  alternative: "manual_analysis"
+  max_retries: 2

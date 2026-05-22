@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ meta.title }} - {{ meta.company_name }}</title>
+  <style>{{ css }}</style>
+</head>
+<body>
+  <div class="report-container">
+
+    <!-- ==================== 封面页 ==================== -->
+    <section class="cover-section">
+      <div class="cover">
+        {% if meta.company_logo %}
+        <img src="{{ meta.company_logo }}" alt="{{ meta.company_name }}" class="company-logo">
+        {% endif %}
+        <h1 class="report-title">{{ meta.title }}</h1>
+        {% if meta.subtitle %}
+        <p class="subtitle">{{ meta.subtitle }}</p>
+        {% endif %}
+        <div class="meta-info">
+          <p><strong>公司名称:</strong> {{ meta.company_name }}</p>
+          <p><strong>作者:</strong> {{ meta.author }}</p>
+          <p><strong>版本:</strong> {{ meta.version }}</p>
+          <p><strong>测试周期:</strong> {{ meta.start_date }} ~ {{ meta.end_date }}</p>
+          <p><strong>报告ID:</strong> {{ report_id }}</p>
+        </div>
+        <div class="classification-banner {{ meta.classification | lower }}">
+          保密级别: {{ meta.classification }}
+        </div>
+        {% if meta.disclaimer %}
+        <p class="disclaimer">{{ meta.disclaimer }}</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <!-- ==================== 执行摘要 ==================== -->
+    <section class="section" id="executive-summary">
+      <h2 class="section-title">执行摘要</h2>
+      <div class="content-block">
+        {% if executive_summary %}
+        <p>{{ executive_summary }}</p>
+        {% else %}
+        <p class="empty">未提供执行摘要。</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <!-- ==================== 测试范围 ==================== -->
+    <section class="section" id="scope">
+      <h2 class="section-title">测试范围</h2>
+      <div class="scope-grid">
+        <div class="scope-item">
+          <h4>测试目标</h4>
+          <p>{{ meta.scope or '未指定' }}</p>
+        </div>
+        <div class="scope-item">
+          <h4>测试方法</h4>
+          <p>{{ meta.methodology or '未指定' }}</p>
+        </div>
+        <div class="scope-item">
+          <h4>测试周期</h4>
+          <p>{{ meta.start_date }} ~ {{ meta.end_date }}</p>
+        </div>
+        <div class="scope-item">
+          <h4>报告版本</h4>
+          <p>{{ meta.version }}</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 风险摘要 ==================== -->
+    <section class="section" id="risk-summary">
+      <h2 class="section-title">风险摘要</h2>
+      <div class="risk-dashboard">
+        <div class="risk-badge critical">
+          <span class="risk-count">{{ risk_summary.critical }}</span>
+          <span class="risk-label">严重 (Critical)</span>
+        </div>
+        <div class="risk-badge high">
+          <span class="risk-count">{{ risk_summary.high }}</span>
+          <span class="risk-label">高危 (High)</span>
+        </div>
+        <div class="risk-badge medium">
+          <span class="risk-count">{{ risk_summary.medium }}</span>
+          <span class="risk-label">中危 (Medium)</span>
+        </div>
+        <div class="risk-badge low">
+          <span class="risk-count">{{ risk_summary.low }}</span>
+          <span class="risk-label">低危 (Low)</span>
+        </div>
+        <div class="risk-badge info">
+          <span class="risk-count">{{ risk_summary.info }}</span>
+          <span class="risk-label">信息 (Info)</span>
+        </div>
+        <div class="risk-badge total">
+          <span class="risk-count">{{ risk_summary.total_findings }}</span>
+          <span class="risk-label">总发现数</span>
+        </div>
+      </div>
+      {% if risk_summary.risk_score %}
+      <div class="risk-score">
+        <h4>综合风险评分</h4>
+        <div class="score-value">{{ "%.1f" | format(risk_summary.risk_score) }} / 10.0</div>
+      </div>
+      {% endif %}
+    </section>
+
+    <!-- ==================== 详细发现 ==================== -->
+    <section class="section" id="findings">
+      <h2 class="section-title">详细发现</h2>
+      <p class="section-intro">共发现 <strong>{{ findings | length }}</strong> 个安全问题，按严重程度排序如下：</p>
+
+      {% if findings %}
+        {% for finding in findings %}
+        <div class="finding-card {{ finding.severity | lower }}" id="finding-{{ finding.id }}">
+          <div class="finding-header">
+            <div class="severity-bar" style="background-color: {{ finding.severity_color }}"></div>
+            <div class="finding-meta">
+              <span class="finding-id">{{ finding.id }}</span>
+              <span class="severity-badge" style="background-color: {{ finding.severity_color }}">
+                {{ finding.severity_label }}
+              </span>
+              {% if finding.cvss_score %}
+              <span class="cvss-badge">CVSS: {{ finding.cvss_score }}</span>
+              {% endif %}
+            </div>
+            <h3 class="finding-title">{{ finding.title }}</h3>
+            {% if finding.cwe_id %}
+            <span class="cwe-badge">{{ finding.cwe_id }}</span>
+            {% endif %}
+          </div>
+
+          <div class="finding-body">
+            {% if finding.description %}
+            <div class="field-group">
+              <h4>漏洞描述</h4>
+              <p>{{ finding.description }}</p>
+            </div>
+            {% endif %}
+
+            {% if finding.affected_target %}
+            <div class="field-group">
+              <h4>影响目标</h4>
+              <p><code>{{ finding.affected_target }}</code></p>
+            </div>
+            {% endif %}
+
+            {% if finding.impact %}
+            <div class="field-group">
+              <h4>安全影响</h4>
+              <p>{{ finding.impact }}</p>
+            </div>
+            {% endif %}
+
+            {% if finding.remediation %}
+            <div class="field-group remediation">
+              <h4>修复建议</h4>
+              <p>{{ finding.remediation }}</p>
+            </div>
+            {% endif %}
+
+            {% if finding.reproduction_steps %}
+            <div class="field-group">
+              <h4>复现步骤</h4>
+              <ol class="steps-list">
+                {% for step in finding.reproduction_steps %}
+                <li>{{ step }}</li>
+                {% endfor %}
+              </ol>
+            </div>
+            {% endif %}
+
+            {% if finding.proof_of_concept %}
+            <div class="field-group poc">
+              <h4>概念验证</h4>
+              <pre><code>{{ finding.proof_of_concept }}</code></pre>
+            </div>
+            {% endif %}
+
+            {% if finding.references %}
+            <div class="field-group">
+              <h4>参考链接</h4>
+              <ul class="ref-list">
+                {% for ref in finding.references %}
+                <li><a href="{{ ref }}" target="_blank">{{ ref }}</a></li>
+                {% endfor %}
+              </ul>
+            </div>
+            {% endif %}
+
+            {% if finding.screenshots %}
+            <div class="field-group">
+              <h4>截图证据</h4>
+              <div class="screenshots">
+                {% for img in finding.screenshots %}
+                <img src="{{ img }}" alt="Screenshot" class="screenshot">
+                {% endfor %}
+              </div>
+            </div>
+            {% endif %}
+
+            {% if finding.discovered_at %}
+            <div class="finding-footer">
+              <span>发现时间: {{ finding.discovered_at }}</span>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+      <p class="empty">未发现安全问题。</p>
+      {% endif %}
+    </section>
+
+    <!-- ==================== 攻击路径 ==================== -->
+    <section class="section" id="attack-paths">
+      <h2 class="section-title">攻击路径</h2>
+      {% if attack_paths %}
+        {% for path in attack_paths %}
+        <div class="attack-path-card" id="path-{{ loop.index }}">
+          <div class="path-header">
+            <h3>{{ path.name }}</h3>
+            {% if path.description %}
+            <p>{{ path.description }}</p>
+            {% endif %}
+          </div>
+
+          {% if path.start_point or path.end_point %}
+          <div class="path-endpoints">
+            {% if path.start_point %}
+            <div class="endpoint">
+              <span class="endpoint-label">起始点</span>
+              <span class="endpoint-value">{{ path.start_point }}</span>
+            </div>
+            {% endif %}
+            <div class="endpoint-arrow">&rarr;</div>
+            {% if path.end_point %}
+            <div class="endpoint">
+              <span class="endpoint-label">目标点</span>
+              <span class="endpoint-value">{{ path.end_point }}</span>
+            </div>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          {% if path.steps %}
+          <div class="path-steps">
+            <h4>攻击步骤</h4>
+            <ol class="path-step-list">
+              {% for step in path.steps %}
+              <li class="step-item">
+                <div class="step-header">
+                  <span class="step-order">Step {{ step.order }}</span>
+                  {% if step.tool_used %}
+                  <span class="step-tool">{{ step.tool_used }}</span>
+                  {% endif %}
+                  {% if step.target %}
+                  <span class="step-target">@ {{ step.target }}</span>
+                  {% endif %}
+                </div>
+                <p class="step-desc">{{ step.description }}</p>
+                {% if step.result %}
+                <div class="step-result">
+                  <strong>结果:</strong> {{ step.result }}
+                </div>
+                {% endif %}
+              </li>
+              {% endfor %}
+            </ol>
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      {% else %}
+      <p class="empty">未记录攻击路径。</p>
+      {% endif %}
+    </section>
+
+    <!-- ==================== 技术附录 ==================== -->
+    <section class="section" id="technical-appendix">
+      <h2 class="section-title">技术附录</h2>
+      {% if technical_appendix %}
+        {% for entry in technical_appendix %}
+        <div class="tech-entry">
+          {% if entry.timestamp %}
+          <div class="tech-timestamp">{{ entry.timestamp }}</div>
+          {% endif %}
+          {% if entry.command %}
+          <div class="tech-command">
+            <span class="cmd-prompt">$</span>
+            <code>{{ entry.command }}</code>
+          </div>
+          {% endif %}
+          {% if entry.output %}
+          <pre class="tech-output"><code>{{ entry.output }}</code></pre>
+          {% endif %}
+        </div>
+        {% endfor %}
+      {% else %}
+      <p class="empty">无技术附录数据。</p>
+      {% endif %}
+    </section>
+
+    <!-- ==================== 合规声明 ==================== -->
+    <section class="section" id="compliance">
+      <h2 class="section-title">合规声明</h2>
+      <div class="content-block">
+        {% if compliance_notes %}
+        <p>{{ compliance_notes }}</p>
+        {% else %}
+        <p class="empty">未提供合规声明。</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <!-- ==================== 页脚 ==================== -->
+    <footer class="report-footer">
+      <hr>
+      <div class="footer-content">
+        <p><strong>{{ meta.title }}</strong> | {{ meta.company_name }}</p>
+        <p>生成时间: {{ generated_at }} | 报告ID: {{ report_id }}</p>
+        <p class="disclaimer-footer">{{ meta.disclaimer or '本报告内容仅供授权人员阅读，未经授权不得向第三方披露。' }}</p>
+      </div>
+    </footer>
+
+  </div>
+</body>
+</html>

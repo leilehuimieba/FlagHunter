@@ -1,0 +1,30 @@
+# PentestAgent-CPA 依赖清单
+# Python 3.10+
+#
+# 安装：pip install -r requirements.txt
+# 完整安装（含本地工具辅助依赖）：
+#   pip install -r requirements.txt -r requirements-local-tools.txt
+
+# ── M3 报告生成（必需） ──────────────────────────────────────────
+jinja2>=3.1.0
+
+# ── M1/M2/M4/M5/M6（纯标准库，无额外依赖） ───────────────────────
+# asyncio, dataclasses, os, re, struct, json — Python 3.10+ 内置
+
+
+# ─────────────────────────────────────────────────────────────────
+# 以下为可选依赖，按需安装（推荐在 Kali VM 中安装）：
+#
+# M2 Pwn 工具（Linux/Kali 环境）：
+#   pip install pwntools>=4.12.0
+#
+# M2 逆向工具（需先安装 radare2）：
+#   pip install r2pipe>=1.8.0
+#
+# M3 PDF 导出（需额外初始化浏览器）：
+#   pip install playwright>=1.40.0
+#   playwright install chromium
+#
+# 项目内本地工具集合（nmap/sqlmap/ffuf/gobuster/nuclei/dirsearch）相关依赖：
+#   pip install -r requirements-local-tools.txt
+# ─────────────────────────────────────────────────────────────────

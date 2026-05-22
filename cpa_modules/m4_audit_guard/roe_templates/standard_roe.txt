@@ -1,0 +1,16 @@
+# 标准RoE授权文档模板
+# 填写下方内容，删除不需要的项
+
+CLIENT: <客户名称>
+PROJECT: <项目名称>
+TESTER: <测试人员>
+EMERGENCY: <紧急联系方式>
+
+ALLOW IP: <目标IP列表，逗号分隔>
+ALLOW DOMAIN: <目标域名列表，逗号分隔，支持*.通配符>
+DENY IP: <明确禁止的IP>
+DENY DOMAIN: <明确禁止的域名>
+DENY TOOL: <禁止使用的工具或参数>
+
+TIME WINDOW: <YYYY-MM-DD HH:MM> to <YYYY-MM-DD HH:MM>
+REQUIRE APPROVAL: <需要人工确认的工具>

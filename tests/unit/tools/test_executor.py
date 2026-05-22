@@ -3,6 +3,7 @@
 import asyncio
 import pytest
 
+from pentestagent.tools import executor as executor_module
 from pentestagent.tools.executor import ExecutionResult, ToolExecutor
 from pentestagent.tools.registry import Tool, ToolSchema
 
@@ -125,6 +126,37 @@ class TestToolExecutorFailure:
         tool = _make_tool(success=False)
         await executor.execute(tool, {"cmd": "x"})
         assert executor.execution_history[-1].success is False
+
+    @pytest.mark.asyncio
+    async def test_m4_scope_block_returns_failed_execution_result(self, monkeypatch):
+        executed = {"called": False}
+
+        async def should_not_run(arguments, runtime):
+            executed["called"] = True
+            return "unexpected"
+
+        tool = Tool(
+            name="nmap",
+            description="",
+            schema=ToolSchema(properties={"target": {"type": "string"}}),
+            execute_fn=should_not_run,
+        )
+        executor = _make_executor()
+
+        monkeypatch.setattr(
+            executor_module,
+            "_m4_scope_check",
+            lambda tool_name, args: (False, "目标未授权"),
+        )
+
+        result = await executor.execute(tool, {"target": "8.8.8.8"})
+
+        assert result.success is False
+        assert result.result is None
+        assert result.error is not None
+        assert "[M4 BLOCKED]" in result.error
+        assert executed["called"] is False
+        assert executor.execution_history[-1] == result
 
 
 # ---------------------------------------------------------------------------

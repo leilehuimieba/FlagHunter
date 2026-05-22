@@ -1,10 +1,11 @@
 """Tests for the structured sqlmap wrapper."""
 
+import importlib
 import json
 
 import pytest
 
-from pentestagent.tools.registry import get_tool
+from pentestagent.tools.registry import clear_tools, get_tool
 from pentestagent.tools.sqlmap import run_sqlmap
 
 
@@ -84,6 +85,10 @@ available databases [2]:
 
 @pytest.mark.asyncio
 async def test_registered_tool_returns_json_string():
+    clear_tools()
+    import pentestagent.tools.sqlmap as sqlmap_module
+
+    importlib.reload(sqlmap_module)
     runtime = _FakeRuntime(
         [
             _CommandResult(0, stdout="1.8.5"),

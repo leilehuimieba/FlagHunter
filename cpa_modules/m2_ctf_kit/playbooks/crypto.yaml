@@ -1,0 +1,109 @@
+metadata:
+  name: "crypto_standard"
+  category: "crypto"
+  description: "标准Crypto类CTF题解题流程：编码检测→自动解密→算法识别→密钥破解→Flag提取"
+  difficulty: "medium"
+  estimated_time: "40min"
+  required_tools: ["crypto_detect", "crypto_auto_solve", "ciphey", "hashcat", "john", "openssl", "sage"]
+
+phases:
+  - name: "编码检测"
+    description: "检测密文/密文的编码类型和格式特征"
+    tools:
+      - tool: "crypto_detect"
+        args: {ciphertext: "{{cipher_text}}", mode: "full"}
+      - tool: "file"
+        args: {target: "{{target}}"}
+    llm_prompt: >
+      分析编码检测结果，识别以下特征：
+      1. 基础编码：Base16/32/64/85、URL编码、HTML实体、Unicode转义
+      2. 古典密码：凯撒、维吉尼亚、栅栏、猪圈密码、摩尔斯电码
+      3. 哈希类型：MD5、SHA1、SHA256、NTLM、bcrypt（通过长度和字符集判断）
+      4. 现代加密：RSA公钥、AES密文、PGP消息格式
+      5. 其他：Brainfuck、Ook、培根密码等
+      给出密文类型的最可能判断和下一步分析方向。
+    timeout: 30
+    critical: false
+
+  - name: "自动解密尝试"
+    description: "使用自动化工具对简单编码进行快速解密"
+    tools:
+      - tool: "crypto_auto_solve"
+        args: {ciphertext: "{{cipher_text}}", mode: "all"}
+      - tool: "ciphey"
+        args: {input: "{{cipher_text}}", flags: "-q"}
+    llm_prompt: >
+      分析自动解密工具的输出：
+      1. 是否成功自动识别并解密了编码？
+      2. 解密后的内容是否包含Flag或可读文本？
+      3. 如果部分解密，是否形成了嵌套编码结构（如Base64→Rot13→Flag）？
+      4. 工具给出的置信度和检测到的编码类型是否一致？
+      对于未解密的密文，进入下一阶段进行手动算法分析。
+    timeout: 120
+    critical: false
+
+  - name: "算法识别与分析"
+    description: "对自动解密失败的密文进行深入的密码学算法分析"
+    tools:
+      - tool: "crypto_analyze"
+        args: {ciphertext: "{{cipher_text}}", analysis_type: "frequency"}
+      - tool: "crypto_analyze"
+        args: {ciphertext: "{{cipher_text}}", analysis_type: "periodicity"}
+      - tool: "openssl"
+        args: {subcommand: "rsa", flags: "-in {{target}} -text -noout"}
+        condition: "cipher_type == 'rsa'"
+    llm_prompt: >
+      分析密码算法识别的结果：
+      1. 频率分析：英文字母频率是否符合特定古典密码特征？
+      2. 周期性分析：IC指数是否提示多表替换（如维吉尼亚）？
+      3. 对于RSA：公钥模数N的位数、e的取值（常见3/65537）？
+      4. 对于现代对称加密：IV/Nonce模式、Padding Oracle可能性？
+      5. 是否存在已知明文攻击（Known Plaintext Attack）的条件？
+      确定具体的攻击方法和所需工具。
+    timeout: 60
+    critical: false
+
+  - name: "密钥破解与解密"
+    description: "根据识别的算法类型执行对应的密钥恢复或解密操作"
+    tools:
+      - tool: "crypto_bruteforce"
+        args: {cipher: "caesar", range: "1-25"}
+        condition: "cipher_type == 'caesar'"
+      - tool: "hashcat"
+        args: {hash: "{{cipher_text}}", mode: "0", wordlist: "/usr/share/wordlists/rockyou.txt"}
+        condition: "cipher_type == 'hash_md5'"
+      - tool: "sage"
+        args: {script: "rsa_wiener_attack.sage", n: "{{rsa_n}}", e: "{{rsa_e}}"}
+        condition: "cipher_type == 'rsa'"
+      - tool: "crypto_xor_bruteforce"
+        args: {ciphertext: "{{cipher_text}}", key_length: "auto"}
+        condition: "cipher_type == 'xor'"
+    llm_prompt: >
+      分析密钥破解和解密阶段的结果：
+      1. 暴力破解/字典攻击是否成功找到密钥？
+      2. RSA攻击（Wiener/低指数/共模）是否成功分解N或恢复私钥？
+      3. XOR加密的多字节密钥是否正确恢复？
+      4. 解密结果是否包含Flag或进一步嵌套的加密？
+      确认解密正确性，提取明文中的Flag。
+    timeout: 300
+    critical: true
+
+  - name: "Flag提取"
+    description: "从解密结果中提取并验证Flag"
+    tools:
+      - tool: "crypto_flag_check"
+        args: {text: "{{decrypted_text}}"}
+    llm_prompt: >
+      从所有解密和破解输出中搜索Flag：
+      1. 搜索标准Flag格式：flag{...}、FLAG{...}、ctf{...}
+      2. 检查解密后的完整明文，Flag可能直接包含在文本中
+      3. 对于嵌套加密场景，确认所有解密层级都已完成
+      4. 验证Flag格式是否符合比赛要求
+      返回最终Flag并标记Crypto任务完成。
+    timeout: 10
+    critical: false
+
+fallback:
+  action: "alternative_tool"
+  alternative: "manual_analysis"
+  max_retries: 2

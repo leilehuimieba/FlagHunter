@@ -1,0 +1,111 @@
+metadata:
+  name: "pwn_standard"
+  category: "pwn"
+  description: "标准Pwn类CTF题解题流程：连接→信息泄露→保护分析→Payload构造→GetShell+Flag"
+  difficulty: "hard"
+  estimated_time: "60min"
+  required_tools: ["pwntools", "checksec", "objdump", "readelf", "strings"]
+
+phases:
+  - name: "连接靶机"
+    description: "使用pwntools连接远程靶机，获取banner和交互反馈"
+    tools:
+      - tool: "pwn_remote"
+        args: {host: "{{target_host}}", port: "{{target_port}}"}
+      - tool: "pwn_recv"
+        args: {count: 1024, timeout: 5}
+    llm_prompt: >
+      分析靶机返回的banner信息和交互输出：
+      1. 识别程序类型（菜单驱动、直接交互、沙箱等）
+      2. 判断libc版本线索（如泄露的地址前缀）
+      3. 识别保护机制提示（如PIE显示的地址格式）
+      4. 总结交互逻辑和可用功能选项
+      给出下一步信息泄露的策略建议。
+    timeout: 30
+    critical: false
+
+  - name: "信息泄露"
+    description: "触发信息泄露漏洞，获取内存地址用于绕过ASLR/PIE"
+    tools:
+      - tool: "pwn_leak"
+        args: {leak_type: "libc", gadget: "puts@got"}
+      - tool: "pwn_leak"
+        args: {leak_type: "pie", gadget: "__libc_start_main"}
+      - tool: "pwn_leak"
+        args: {leak_type: "stack", gadget: "canary"}
+    llm_prompt: >
+      分析信息泄露的结果：
+      1. 是否成功泄露libc地址？基址计算是否正确？
+      2. 是否泄露了PIE基址？代码段布局是否可推断？
+      3. 是否获取了Canary值？栈保护是否可绕过？
+      4. 根据泄露的地址前缀，推测可能的libc版本
+      给出下一步攻击路径建议（ROP/one_gadget/house of ...）。
+    timeout: 60
+    critical: false
+
+  - name: "保护分析"
+    description: "使用checksec分析二进制文件保护机制"
+    tools:
+      - tool: "checksec"
+        args: {file: "./chall"}
+      - tool: "readelf"
+        args: {file: "./chall", flags: "-l"}
+    llm_prompt: >
+      分析checksec和readelf的保护机制输出：
+      - RELRO: 部分还是完全？GOT表是否可写？
+      - Stack Canary: 是否存在？如何泄露？
+      - NX: 堆栈是否可执行？是否需要纯ROP？
+      - PIE: 地址是否随机化？是否需要泄露基址？
+      结合保护机制分析，确定可用的攻击技术（ret2plt/ROP/ret2libc等）。
+    timeout: 30
+    critical: false
+
+  - name: "Payload构造"
+    description: "根据漏洞类型和保护机制构造利用Payload"
+    tools:
+      - tool: "pwn_build_payload"
+        args:
+          exploit_type: "rop"
+          padding_size: "auto"
+          gadgets: ["pop_rdi", "ret", "bin_sh", "system"]
+      - tool: "pwn_build_payload"
+        args:
+          exploit_type: "format_string"
+          offset: 6
+          target_addr: "{{got_puts}}"
+          write_value: "{{libc_system}}"
+    llm_prompt: >
+      分析Payload构造过程：
+      1. 偏移量计算是否正确？（可通过发送De Bruijn序列验证）
+      2. ROP链的gadget地址是否有效？libc偏移计算是否准确？
+      3. one_gadget约束条件是否满足？
+      4. 对于堆利用：size域和fd/bk指针构造是否正确？
+      验证Payload的有效性，确保能稳定触发漏洞。
+    timeout: 120
+    critical: true
+
+  - name: "GetShell与Flag"
+    description: "发送Payload获取Shell并读取Flag"
+    tools:
+      - tool: "pwn_send_payload"
+        args: {interactive: true}
+      - tool: "pwn_recv"
+        args: {until: "}"}
+      - tool: "pwn_sendline"
+        args: {data: "cat flag.txt"}
+      - tool: "pwn_recv"
+        args: {count: 4096, timeout: 5}
+    llm_prompt: >
+      分析GetShell阶段的结果：
+      1. 是否成功获得shell提示符（$/#/>>>）？
+      2. 如果没有shell，是否获得了稳定的写原语？
+      3. 成功进入后，搜索Flag文件位置（flag/flag.txt/flag/等）
+      4. 确认Flag格式（flag{...}）并提取完整Flag
+      标记Pwn任务完成状态。
+    timeout: 30
+    critical: true
+
+fallback:
+  action: "alternative_tool"
+  alternative: "manual_analysis"
+  max_retries: 2

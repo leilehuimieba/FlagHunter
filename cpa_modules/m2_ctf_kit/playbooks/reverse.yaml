@@ -1,0 +1,109 @@
+metadata:
+  name: "reverse_standard"
+  category: "reverse"
+  description: "标准Reverse类CTF题解题流程：静态分析→字符串提取→函数分析→反编译调试→算法还原+Flag"
+  difficulty: "hard"
+  estimated_time: "60min"
+  required_tools: ["radare2", "ghidra", "ida", "strings", "objdump", "gdb", "ltrace", "strace"]
+
+phases:
+  - name: "静态分析"
+    description: "使用radare2对二进制进行初始分析，识别文件类型和架构"
+    tools:
+      - tool: "r2_analyze"
+        args: {file: "{{target}}", command: "ia"}
+      - tool: "r2_analyze"
+        args: {file: "{{target}}", command: "i~pie,canary,nx,relro"}
+    llm_prompt: >
+      分析二进制文件的基本信息：
+      1. 文件类型：ELF/PE/Mach-O，32位还是64位？
+      2. 架构：x86/ARM/MIPS，操作系统：Linux/Windows？
+      3. 保护机制：PIE/Canary/NX/RELRO/Fortify的状态？
+      4. 链接方式：动态链接还是静态链接（影响函数符号识别）？
+      5. 是否加壳或混淆（UPX/VMProtect/Themida等）？
+      给出脱壳（如需要）和进一步分析的建议。
+    timeout: 60
+    critical: false
+
+  - name: "字符串提取"
+    description: "提取二进制中的字符串，寻找Flag线索和提示"
+    tools:
+      - tool: "r2_strings"
+        args: {file: "{{target}}", min_length: 4, encoding: "ascii"}
+      - tool: "r2_strings"
+        args: {file: "{{target}}", min_length: 4, encoding: "wide"}
+      - tool: "strings"
+        args: {file: "{{target}}", flags: "-a -n 4"}
+    llm_prompt: >
+      分析提取的字符串列表，寻找以下线索：
+      1. Flag相关字符串：包含"flag"、"ctf"、"correct"、"success"等关键词
+      2. 提示信息：输入格式要求、错误提示、成功提示
+      3. 密钥材料：硬编码密钥、IV、盐值、特殊常量
+      4. 函数/库名称：暗示使用的算法（如AES_set_decrypt_key、MD5_Init）
+      5. URL/IP/域名：可能的外连或C2特征
+      给出关键字符串列表及其可能含义。
+    timeout: 30
+    critical: false
+
+  - name: "函数分析"
+    description: "分析函数调用图，定位关键逻辑函数"
+    tools:
+      - tool: "r2_functions"
+        args: {file: "{{target}}", command: "afl~sym.,main,check,verify,encrypt,decrypt"}
+      - tool: "r2_analyze"
+        args: {file: "{{target}}", command: "s main; agf"}
+      - tool: "r2_analyze"
+        args: {file: "{{target}}", command: "s main; pdf"}
+    llm_prompt: >
+      分析函数列表和调用图：
+      1. 识别主函数main()及其调用关系
+      2. 定位关键函数：check/verify/compare/encrypt/decrypt等
+      3. 识别程序执行流程：输入→处理→验证→输出
+      4. 发现可能的反调试/反分析技巧（如ptrace、时间检测）
+      5. 可疑的混淆模式：大量跳转、不透明谓词、控制流平坦化
+      确定需要深入分析的函数地址和名称。
+    timeout: 90
+    critical: false
+
+  - name: "反编译与动态调试"
+    description: "对关键函数进行反编译，必要时进行动态调试"
+    tools:
+      - tool: "r2_decompile"
+        args: {file: "{{target}}", function: "sym.check_flag", output_format: "pseudo"}
+      - tool: "gdb_script"
+        args: {file: "{{target}}", breakpoints: ["main", "check_flag", "strcmp"], commands: ["r", "x/s $rsi", "x/s $rdi"]}
+      - tool: "ltrace"
+        args: {file: "{{target}}", flags: "-f -e strcmp,strlen,memcpy"}
+    llm_prompt: >
+      分析反编译代码和动态调试输出：
+      1. 输入处理逻辑：如何读取和预处理用户输入？
+      2. 核心算法：使用了什么加密/编码/变换算法？
+      3. 比较逻辑：Flag的验证方式（直接strcmp/逐字符比较/哈希比较）？
+      4. 关键常量和魔术数字：S盒、置换表、异或密钥等
+      5. 动态调试中的内存值：寄存器和栈上的关键数据
+      提供算法还原的伪代码和逆向操作步骤。
+    timeout: 180
+    critical: true
+
+  - name: "算法还原与Flag"
+    description: "根据分析结果还原算法，计算或提取Flag"
+    tools:
+      - tool: "crypto_solve"
+        args: {algorithm: "{{identified_algo}}", params: "{{algo_params}}"}
+      - tool: "python_script"
+        args: {script: "reverse_flag.py", inputs: "{{extracted_constraints}}"}
+    llm_prompt: >
+      综合分析所有阶段的输出，还原完整算法并提取Flag：
+      1. 根据伪代码写出逆向解密/验证脚本
+      2. 利用已知的约束条件（长度、字符集、哈希值等）求解Flag
+      3. 如果Flag是硬编码的，定位数据段中的Flag存储位置
+      4. 验证提取的Flag是否符合预期格式（flag{...}）
+      5. 提供完整的Flag和解题思路总结
+      标记Reverse任务完成状态。
+    timeout: 120
+    critical: true
+
+fallback:
+  action: "alternative_tool"
+  alternative: "manual_analysis"
+  max_retries: 2
