@@ -13,6 +13,7 @@ from pentestagent.tools.notes import (
     get_all_notes_sync,
     set_notes_file,
 )
+from pentestagent.workspaces.manager import WorkspaceManager
 
 
 # ---------------------------------------------------------------------------
@@ -140,6 +141,33 @@ class TestNotesDelete:
         assert "x" not in data
 
 
+class TestNotesArchive:
+    @pytest.mark.asyncio
+    async def test_archive_existing_note_moves_to_archive_file(self, isolated_notes):
+        await _call("create", key="arc", value="to archive")
+        result = await _call("archive", key="arc")
+        assert "Archived" in result
+
+        active_notes = json.loads(isolated_notes.read_text(encoding="utf-8"))
+        archive_file = isolated_notes.parent / "notes_archive.json"
+        archived_notes = json.loads(archive_file.read_text(encoding="utf-8"))
+
+        assert "arc" not in active_notes
+        assert archived_notes["arc"]["content"] == "to archive"
+
+    @pytest.mark.asyncio
+    async def test_archive_nonexistent_note(self):
+        result = await _call("archive", key="ghost")
+        assert "not found" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_archive_removes_note_from_get_all_notes(self):
+        await _call("create", key="arc2", value="keep out of prompt")
+        await _call("archive", key="arc2")
+        notes = await get_all_notes()
+        assert "arc2" not in notes
+
+
 class TestNotesList:
     @pytest.mark.asyncio
     async def test_list_all_empty(self):
@@ -166,6 +194,39 @@ class TestNotesList:
             if "long" in line:
                 # Find the content portion — should be truncated
                 assert len(line) < len(long_value)
+
+    @pytest.mark.asyncio
+    async def test_workspace_switch_isolates_notes_files(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        notes_module._custom_notes_file = None
+        notes_module._loaded_notes_file = None
+        notes_module._notes.clear()
+
+        mgr = WorkspaceManager(root=tmp_path)
+        mgr.create("target_one")
+        mgr.set_active("target_one")
+
+        await _call("create", key="ws1_note", value="alpha")
+        ws1_notes = tmp_path / "workspaces" / "target_one" / "loot" / "notes.json"
+        assert ws1_notes.exists()
+        assert json.loads(ws1_notes.read_text(encoding="utf-8"))["ws1_note"]["content"] == "alpha"
+
+        mgr.create("target_two")
+        mgr.set_active("target_two")
+
+        result = await _call("list_all")
+        assert result == "No notes saved"
+
+        await _call("create", key="ws2_note", value="beta")
+        ws2_notes = tmp_path / "workspaces" / "target_two" / "loot" / "notes.json"
+        assert ws2_notes.exists()
+        assert "ws1_note" not in json.loads(ws2_notes.read_text(encoding="utf-8"))
+        assert json.loads(ws2_notes.read_text(encoding="utf-8"))["ws2_note"]["content"] == "beta"
+
+        mgr.set_active("target_one")
+        notes = await get_all_notes()
+        assert "ws1_note" in notes
+        assert "ws2_note" not in notes
 
 
 # ---------------------------------------------------------------------------
