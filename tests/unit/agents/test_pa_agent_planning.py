@@ -146,3 +146,36 @@ async def test_auto_generate_plan_extracts_known_credentials_and_redacts_passwor
     assert "supersec..." in plan_msg.metadata["structured_plan_json"]
     assert "supersecretpw" in agent._task_plan.steps[0].description
 
+
+def test_get_system_prompt_includes_missing_tool_install_hints(monkeypatch):
+    monkeypatch.setattr(
+        "pentestagent.tools.notes.get_all_notes_sync",
+        lambda: {
+            "missing_tool_sqlmap": {
+                "category": "artifact",
+                "content": "Tool 'sqlmap' not found. Install: apt install sqlmap",
+                "metadata": {
+                    "tool": "sqlmap",
+                    "install_hint": "Tool 'sqlmap' not found. Install: apt install sqlmap",
+                },
+            },
+            "other_artifact": {
+                "category": "artifact",
+                "content": "generic artifact",
+                "metadata": {},
+            },
+        },
+    )
+
+    agent = PentestAgentAgent(
+        llm=SimpleNamespace(),
+        tools=[SimpleNamespace(name="sqlmap", enabled=True)],
+        runtime=_DummyRuntime(),
+        target="127.0.0.1",
+        scope=["127.0.0.1/32"],
+    )
+
+    prompt = agent.get_system_prompt()
+
+    assert "## Missing Tools (install before retry):" in prompt
+    assert "- Tool 'sqlmap' not found. Install: apt install sqlmap" in prompt
