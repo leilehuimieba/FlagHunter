@@ -12,10 +12,29 @@ async def test_run_pwn_script_extracts_flag():
 
     result = await run_pwn_script("print('flag{abc123}')")
 
+    assert {"success", "flag", "output", "error"} <= result.keys()
     assert result["success"] is True
     assert result["flag"] == "flag{abc123}"
     assert "flag{abc123}" in result["output"]
     assert result["error"] == ""
+
+
+@pytest.mark.asyncio
+async def test_run_pwn_script_returns_structured_error_when_python_missing(monkeypatch):
+    import pentestagent.tools.pwn as pwn_module
+
+    async def _raise_file_not_found(*args, **kwargs):
+        raise FileNotFoundError("python not found")
+
+    monkeypatch.setattr(pwn_module.asyncio, "create_subprocess_exec", _raise_file_not_found)
+
+    result = await pwn_module.run_pwn_script("print('hello')")
+
+    assert {"success", "flag", "output", "error"} <= result.keys()
+    assert result["success"] is False
+    assert result["flag"] == ""
+    assert result["output"] == ""
+    assert "python not found" in result["error"]
 
 
 @pytest.mark.asyncio

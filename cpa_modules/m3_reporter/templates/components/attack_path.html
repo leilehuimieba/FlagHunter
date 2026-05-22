@@ -1,0 +1,177 @@
+<!-- ==================== Attack Path Component ==================== -->
+<!-- Usage: {% include 'components/attack_path.html' with path=path path_index=loop.index %} -->
+{% set p = path %}
+{% set idx = path_index | default(1) %}
+<div class="attack-path-card" id="path-{{ idx }}">
+  <div class="path-header">
+    <h3>{{ p.name }}</h3>
+    {% if p.description %}
+    <p>{{ p.description }}</p>
+    {% endif %}
+  </div>
+
+  <!-- Endpoints visualization -->
+  {% if p.start_point or p.end_point %}
+  <div class="path-endpoints">
+    {% if p.start_point %}
+    <div class="endpoint">
+      <span class="endpoint-label">起始点</span>
+      <span class="endpoint-value">{{ p.start_point }}</span>
+    </div>
+    {% endif %}
+    <div class="endpoint-arrow">&#10132;</div>
+    {% if p.end_point %}
+    <div class="endpoint">
+      <span class="endpoint-label">目标点</span>
+      <span class="endpoint-value">{{ p.end_point }}</span>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- Mermaid diagram (if available) -->
+  {% if p.to_mermaid %}
+  <div class="mermaid-container">
+    <div class="mermaid-title">攻击路径流程图</div>
+    <div class="mermaid">
+      {{ p.to_mermaid }}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Steps with flow arrows -->
+  {% if p.steps %}
+  <div class="path-steps">
+    <h4>攻击步骤流程</h4>
+    <div class="flow-diagram">
+      {% for step in p.steps %}
+      <div class="flow-step">
+        <div class="flow-step-number">{{ step.order }}</div>
+        <div class="flow-step-content">
+          {% if step.tool_used %}
+          <div class="flow-step-tool">{{ step.tool_used }}</div>
+          {% endif %}
+          <div class="flow-step-desc">{{ step.description }}</div>
+          {% if step.target %}
+          <div class="flow-step-target">&#128279; {{ step.target }}</div>
+          {% endif %}
+          {% if step.result %}
+          <div class="flow-step-result">{{ step.result }}</div>
+          {% endif %}
+        </div>
+      </div>
+      {% if not loop.last %}
+      <div class="flow-arrow">&#8681;</div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Detailed step list (collapsible style) -->
+  {% if p.steps %}
+  <div class="path-steps-detail">
+    <h4>步骤详情</h4>
+    <ol class="path-step-list">
+      {% for step in p.steps %}
+      <li class="step-item">
+        <div class="step-header">
+          <span class="step-order">Step {{ step.order }}</span>
+          {% if step.tool_used %}
+          <span class="step-tool">{{ step.tool_used }}</span>
+          {% endif %}
+          {% if step.target %}
+          <span class="step-target">@ {{ step.target }}</span>
+          {% endif %}
+        </div>
+        <p class="step-desc">{{ step.description }}</p>
+        {% if step.result %}
+        <div class="step-result">
+          <strong>结果:</strong> {{ step.result }}
+        </div>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Additional component-specific styles for flow diagram -->
+<style>
+.flow-diagram {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  margin: 16px 0;
+  padding: 20px;
+  background: #f7fafc;
+  border-radius: 8px;
+}
+.flow-step {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  max-width: 700px;
+  background: #ffffff;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.flow-step-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  background: #2d3748;
+  color: #ffffff;
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+.flow-step-content {
+  flex: 1;
+  padding: 14px 18px;
+}
+.flow-step-tool {
+  display: inline-block;
+  font-family: "Courier New", monospace;
+  font-size: 0.75rem;
+  color: #3182ce;
+  background: #ebf8ff;
+  padding: 2px 10px;
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+.flow-step-desc {
+  font-size: 0.95rem;
+  color: #2d3748;
+  margin: 0;
+  line-height: 1.5;
+}
+.flow-step-target {
+  font-size: 0.8rem;
+  color: #e53e3e;
+  margin-top: 6px;
+  font-weight: 600;
+}
+.flow-step-result {
+  margin-top: 8px;
+  padding: 6px 12px;
+  background: #f0fff4;
+  border-left: 3px solid #48bb78;
+  border-radius: 0 4px 4px 0;
+  font-size: 0.85rem;
+  color: #276749;
+}
+.flow-arrow {
+  font-size: 1.5rem;
+  color: #a0aec0;
+  line-height: 1;
+  padding: 6px 0;
+}
+.path-steps-detail {
+  margin-top: 24px;
+}
+</style>

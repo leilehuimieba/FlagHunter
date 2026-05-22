@@ -1,0 +1,119 @@
+<!-- ==================== Finding Detail Component ==================== -->
+<!-- Usage: {% include 'components/finding_detail.html' with finding=finding %} -->
+{% set f = finding %}
+<div class="finding-card {{ f.severity | lower }}" id="finding-{{ f.id }}">
+  <div class="finding-header">
+    <div class="severity-bar" style="background-color: {{ f.severity_color }}"></div>
+    <div class="finding-meta">
+      <span class="finding-id">{{ f.id }}</span>
+      <span class="severity-badge" style="background-color: {{ f.severity_color }}">
+        {{ f.severity_label }}
+      </span>
+      {% if f.cvss_score %}
+      <span class="cvss-badge">CVSS: {{ f.cvss_score }}</span>
+      {% endif %}
+      {% if f.cwe_id %}
+      <span class="cwe-badge">{{ f.cwe_id }}</span>
+      {% endif %}
+    </div>
+    <h3 class="finding-title">{{ f.title }}</h3>
+    {% if f.discovered_at %}
+    <span class="finding-date">发现于: {{ f.discovered_at }}</span>
+    {% endif %}
+  </div>
+
+  <div class="finding-body">
+    <!-- Description -->
+    {% if f.description %}
+    <div class="field-group">
+      <h4>漏洞描述</h4>
+      <p>{{ f.description }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Affected Target -->
+    {% if f.affected_target %}
+    <div class="field-group">
+      <h4>影响目标</h4>
+      <p><code>{{ f.affected_target }}</code></p>
+    </div>
+    {% endif %}
+
+    <!-- CVSS Bar Visualization -->
+    {% if f.cvss_score %}
+    <div class="field-group">
+      <h4>CVSS 评分</h4>
+      <div class="cvss-bar-container">
+        <div class="cvss-bar-label">
+          <span>Score: {{ f.cvss_score }} / 10.0</span>
+          <span>Severity: {{ f.severity_label }}</span>
+        </div>
+        <div class="cvss-bar">
+          <div class="cvss-bar-fill {{ f.severity | lower }}"
+               style="width: {{ (f.cvss_score / 10.0) * 100 }}%"></div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Impact -->
+    {% if f.impact %}
+    <div class="field-group impact-box">
+      <h4>安全影响</h4>
+      <p>{{ f.impact }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Remediation -->
+    {% if f.remediation %}
+    <div class="field-group remediation">
+      <h4>修复建议</h4>
+      <p>{{ f.remediation }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Reproduction Steps -->
+    {% if f.reproduction_steps %}
+    <div class="field-group">
+      <h4>复现步骤</h4>
+      <ol class="steps-list">
+        {% for step in f.reproduction_steps %}
+        <li>{{ step }}</li>
+        {% endfor %}
+      </ol>
+    </div>
+    {% endif %}
+
+    <!-- Proof of Concept -->
+    {% if f.proof_of_concept %}
+    <div class="field-group poc">
+      <h4>概念验证 (PoC)</h4>
+      <pre><code>{{ f.proof_of_concept }}</code></pre>
+    </div>
+    {% endif %}
+
+    <!-- References -->
+    {% if f.references %}
+    <div class="field-group">
+      <h4>参考链接</h4>
+      <ul class="ref-list">
+        {% for ref in f.references %}
+        <li><a href="{{ ref }}" target="_blank" rel="noopener">{{ ref }}</a></li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <!-- Screenshots -->
+    {% if f.screenshots %}
+    <div class="field-group">
+      <h4>截图证据</h4>
+      <div class="screenshots">
+        {% for img in f.screenshots %}
+        <img src="{{ img }}" alt="Evidence screenshot" class="screenshot">
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>

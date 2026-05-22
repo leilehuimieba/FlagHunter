@@ -1,0 +1,126 @@
+<!-- ==================== Risk Matrix Component ==================== -->
+<div class="risk-matrix-container">
+  <div class="risk-matrix-title">风险矩阵 (影响程度 x 可能性)</div>
+  <div class="risk-matrix">
+    <!-- Header Row -->
+    <div class="matrix-header"></div>
+    <div class="matrix-header">极少</div>
+    <div class="matrix-header">不太可能</div>
+    <div class="matrix-header">可能</div>
+    <div class="matrix-header">很可能</div>
+    <div class="matrix-header">几乎确定</div>
+
+    <!-- Row: Very High Impact -->
+    <div class="matrix-label" title="影响程度">极高</div>
+    <div class="matrix-cell medium" data-impact="5" data-likelihood="1">
+      <span class="matrix-count">{{ risk_summary.matrix_5_1 or 0 }}</span>
+    </div>
+    <div class="matrix-cell high" data-impact="5" data-likelihood="2">
+      <span class="matrix-count">{{ risk_summary.matrix_5_2 or 0 }}</span>
+    </div>
+    <div class="matrix-cell high" data-impact="5" data-likelihood="3">
+      <span class="matrix-count">{{ risk_summary.matrix_5_3 or 0 }}</span>
+    </div>
+    <div class="matrix-cell critical" data-impact="5" data-likelihood="4">
+      <span class="matrix-count">{{ risk_summary.matrix_5_4 or 0 }}</span>
+    </div>
+    <div class="matrix-cell critical" data-impact="5" data-likelihood="5">
+      <span class="matrix-count">{{ risk_summary.matrix_5_5 or 0 }}</span>
+    </div>
+
+    <!-- Row: High Impact -->
+    <div class="matrix-label">高</div>
+    <div class="matrix-cell low" data-impact="4" data-likelihood="1">
+      <span class="matrix-count">{{ risk_summary.matrix_4_1 or 0 }}</span>
+    </div>
+    <div class="matrix-cell medium" data-impact="4" data-likelihood="2">
+      <span class="matrix-count">{{ risk_summary.matrix_4_2 or 0 }}</span>
+    </div>
+    <div class="matrix-cell high" data-impact="4" data-likelihood="3">
+      <span class="matrix-count">{{ risk_summary.matrix_4_3 or 0 }}</span>
+    </div>
+    <div class="matrix-cell high" data-impact="4" data-likelihood="4">
+      <span class="matrix-count">{{ risk_summary.matrix_4_4 or 0 }}</span>
+    </div>
+    <div class="matrix-cell critical" data-impact="4" data-likelihood="5">
+      <span class="matrix-count">{{ risk_summary.matrix_4_5 or 0 }}</span>
+    </div>
+
+    <!-- Row: Medium Impact -->
+    <div class="matrix-label">中</div>
+    <div class="matrix-cell low" data-impact="3" data-likelihood="1">
+      <span class="matrix-count">{{ risk_summary.matrix_3_1 or 0 }}</span>
+    </div>
+    <div class="matrix-cell low" data-impact="3" data-likelihood="2">
+      <span class="matrix-count">{{ risk_summary.matrix_3_2 or 0 }}</span>
+    </div>
+    <div class="matrix-cell medium" data-impact="3" data-likelihood="3">
+      <span class="matrix-count">{{ risk_summary.matrix_3_3 or 0 }}</span>
+    </div>
+    <div class="matrix-cell medium" data-impact="3" data-likelihood="4">
+      <span class="matrix-count">{{ risk_summary.matrix_3_4 or 0 }}</span>
+    </div>
+    <div class="matrix-cell high" data-impact="3" data-likelihood="5">
+      <span class="matrix-count">{{ risk_summary.matrix_3_5 or 0 }}</span>
+    </div>
+
+    <!-- Row: Low Impact -->
+    <div class="matrix-label">低</div>
+    <div class="matrix-cell info" data-impact="2" data-likelihood="1">
+      <span class="matrix-count">{{ risk_summary.matrix_2_1 or 0 }}</span>
+    </div>
+    <div class="matrix-cell low" data-impact="2" data-likelihood="2">
+      <span class="matrix-count">{{ risk_summary.matrix_2_2 or 0 }}</span>
+    </div>
+    <div class="matrix-cell low" data-impact="2" data-likelihood="3">
+      <span class="matrix-count">{{ risk_summary.matrix_2_3 or 0 }}</span>
+    </div>
+    <div class="matrix-cell medium" data-impact="2" data-likelihood="4">
+      <span class="matrix-count">{{ risk_summary.matrix_2_4 or 0 }}</span>
+    </div>
+    <div class="matrix-cell medium" data-impact="2" data-likelihood="5">
+      <span class="matrix-count">{{ risk_summary.matrix_2_5 or 0 }}</span>
+    </div>
+
+    <!-- Row: Very Low Impact -->
+    <div class="matrix-label">极低</div>
+    <div class="matrix-cell info" data-impact="1" data-likelihood="1">
+      <span class="matrix-count">{{ risk_summary.matrix_1_1 or 0 }}</span>
+    </div>
+    <div class="matrix-cell info" data-impact="1" data-likelihood="2">
+      <span class="matrix-count">{{ risk_summary.matrix_1_2 or 0 }}</span>
+    </div>
+    <div class="matrix-cell info" data-impact="1" data-likelihood="3">
+      <span class="matrix-count">{{ risk_summary.matrix_1_3 or 0 }}</span>
+    </div>
+    <div class="matrix-cell low" data-impact="1" data-likelihood="4">
+      <span class="matrix-count">{{ risk_summary.matrix_1_4 or 0 }}</span>
+    </div>
+    <div class="matrix-cell low" data-impact="1" data-likelihood="5">
+      <span class="matrix-count">{{ risk_summary.matrix_1_5 or 0 }}</span>
+    </div>
+  </div>
+  <!-- Legend -->
+  <div class="matrix-legend" style="display:flex; gap:16px; margin-top:12px; flex-wrap:wrap; justify-content:center;">
+    <div style="display:flex; align-items:center; gap:6px;">
+      <div style="width:16px; height:16px; background:#dc3545; border-radius:3px;"></div>
+      <span style="font-size:0.75rem; color:#718096;">严重 Critical</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:6px;">
+      <div style="width:16px; height:16px; background:#fd7e14; border-radius:3px;"></div>
+      <span style="font-size:0.75rem; color:#718096;">高危 High</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:6px;">
+      <div style="width:16px; height:16px; background:#ffc107; border-radius:3px;"></div>
+      <span style="font-size:0.75rem; color:#718096;">中危 Medium</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:6px;">
+      <div style="width:16px; height:16px; background:#17a2b8; border-radius:3px;"></div>
+      <span style="font-size:0.75rem; color:#718096;">低危 Low</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:6px;">
+      <div style="width:16px; height:16px; background:#e2e8f0; border-radius:3px;"></div>
+      <span style="font-size:0.75rem; color:#718096;">信息 Info</span>
+    </div>
+  </div>
+</div>

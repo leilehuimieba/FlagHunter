@@ -1,6 +1,6 @@
 [project]
 name = "pentestagent"
-version = "0.2.0"
+version = "0.3.2"
 description = "AI penetration testing"
 readme = "README.md"
 license = {text = "MIT"}
@@ -72,6 +72,19 @@ rag = [
 all = [
     "pentestagent[dev,rag]",
 ]
+localtools = [
+    "setuptools<81",
+    "PySocks>=1.7.1",
+    "defusedxml>=0.7.0",
+    "pyopenssl>=21.0.0",
+    "charset_normalizer~=2.0.0",
+    "requests_ntlm>=1.1.0",
+    "ntlm_auth>=1.5.0",
+    "pyparsing>=2.4.7",
+    "mysql-connector-python>=8.0.20",
+    "psycopg[binary]>=3.0",
+    "requests-toolbelt>=1.0.0",
+]
 hexstrike = [
     "flask>=2.3.0,<4.0.0",
     "requests>=2.31.0,<3.0.0",
@@ -113,6 +126,9 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
+markers = [
+    "localtools: executes project-local security tool smoke tests",
+]
 
 [tool.coverage.run]
 omit = [

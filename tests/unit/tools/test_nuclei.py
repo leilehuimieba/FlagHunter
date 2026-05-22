@@ -1,11 +1,12 @@
 """Tests for the structured nuclei wrapper."""
 
+import importlib
 import json
 
 import pytest
 
 from pentestagent.tools.nuclei import run_nuclei
-from pentestagent.tools.registry import get_tool
+from pentestagent.tools.registry import clear_tools, get_tool
 
 
 class _CommandResult:
@@ -75,11 +76,15 @@ async def test_run_nuclei_parses_jsonl_output():
     assert "-j" in scan_command
     assert "-severity" in scan_command
     assert "-tags" in scan_command
-    assert "-t 'http/cves'" in scan_command
+    assert '-t "http/cves"' in scan_command
 
 
 @pytest.mark.asyncio
 async def test_registered_tool_returns_json_string():
+    clear_tools()
+    import pentestagent.tools.nuclei as nuclei_module
+
+    importlib.reload(nuclei_module)
     runtime = _FakeRuntime([
         _CommandResult(0, stdout="3.4.0"),
         _CommandResult(0, stdout='{"template-id":"demo","info":{"name":"Demo","severity":"high"},"host":"http://example.com","matched-at":"http://example.com"}'),
