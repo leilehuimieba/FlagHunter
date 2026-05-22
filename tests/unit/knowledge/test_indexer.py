@@ -5,7 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from pentestagent.knowledge.indexer import IndexingResult, KnowledgeIndexer
+from pentestagent.knowledge.indexer import (
+    IndexingResult,
+    KnowledgeIndexer,
+    resolve_knowledge_scan_paths,
+)
 from pentestagent.knowledge.rag import Document
 
 
@@ -147,6 +151,27 @@ class TestIndexDirectory:
         indexer = KnowledgeIndexer()
         docs, result = indexer.index_directory(tmp_path)
         assert len(result.errors) > 0
+
+
+class TestResolveKnowledgeScanPaths:
+    def test_resolves_sources_and_sessions_from_base(self, tmp_path):
+        base = tmp_path / "knowledge"
+        (base / "sources").mkdir(parents=True)
+        (base / "sessions").mkdir(parents=True)
+
+        roots = resolve_knowledge_scan_paths(base)
+        assert base / "sources" in roots
+        assert base / "sessions" in roots
+
+    def test_resolves_sibling_sessions_from_sources_dir(self, tmp_path):
+        sources = tmp_path / "knowledge" / "sources"
+        sessions = tmp_path / "knowledge" / "sessions"
+        sources.mkdir(parents=True)
+        sessions.mkdir(parents=True)
+
+        roots = resolve_knowledge_scan_paths(sources)
+        assert sources in roots
+        assert sessions in roots
 
 
 # ---------------------------------------------------------------------------
