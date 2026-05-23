@@ -34,6 +34,7 @@ class ProviderConfig:
     priority: int = 1; enabled: bool = True; is_backup: bool = False
     tags: List[str] = field(default_factory=list)
     cost_per_1k_input: float = 0.0; cost_per_1k_output: float = 0.0
+    headers: Dict[str, str] = field(default_factory=dict)  # 额外 HTTP 请求头（如 User-Agent）
 
 
 @dataclass
@@ -129,6 +130,13 @@ def load_provider_from_env(prefix: str) -> ProviderConfig:
     if missing:
         raise ValueError(f"Provider 前缀 '{prefix}' 缺少必填字段: {', '.join(missing)}")
 
+    # 解析 HEADERS: "User-Agent:claude-code/1.0,X-Foo:bar"
+    headers: Dict[str, str] = {}
+    for pair in _str_to_list(env.get("HEADERS", "")):
+        if ":" in pair:
+            hk, _, hv = pair.partition(":")
+            headers[hk.strip()] = hv.strip()
+
     return ProviderConfig(
         id=env["ID"], name=env["NAME"], model=env["MODEL"],
         api_base=env["API_BASE"], api_key=env["API_KEY"],
@@ -142,6 +150,7 @@ def load_provider_from_env(prefix: str) -> ProviderConfig:
         tags=_str_to_list(env.get("TAGS", "")),
         cost_per_1k_input=_safe_float(env.get("COST_PER_1K_INPUT", ""), 0.0),
         cost_per_1k_output=_safe_float(env.get("COST_PER_1K_OUTPUT", ""), 0.0),
+        headers=headers,
     )
 
 
