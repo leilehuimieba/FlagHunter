@@ -158,20 +158,25 @@ class TestResolveKnowledgeScanPaths:
         base = tmp_path / "knowledge"
         (base / "sources").mkdir(parents=True)
         (base / "sessions").mkdir(parents=True)
+        (base / "retrospective_export").mkdir(parents=True)
 
         roots = resolve_knowledge_scan_paths(base)
         assert base / "sources" in roots
         assert base / "sessions" in roots
+        assert base / "retrospective_export" in roots
 
     def test_resolves_sibling_sessions_from_sources_dir(self, tmp_path):
         sources = tmp_path / "knowledge" / "sources"
         sessions = tmp_path / "knowledge" / "sessions"
+        retro_export = tmp_path / "knowledge" / "retrospective_export"
         sources.mkdir(parents=True)
         sessions.mkdir(parents=True)
+        retro_export.mkdir(parents=True)
 
         roots = resolve_knowledge_scan_paths(sources)
         assert sources in roots
         assert sessions in roots
+        assert retro_export in roots
 
 
 # ---------------------------------------------------------------------------
