@@ -42,9 +42,12 @@ async def test_search_returns_hints_from_llm(monkeypatch):
 @pytest.mark.asyncio
 async def test_search_empty_on_tavily_fail(monkeypatch):
     async def _boom(*args, **kwargs):
-        raise RuntimeError("tavily unavailable")
+        raise RuntimeError("all search unavailable")
 
+    # Mock all three backends to fail — no network calls should succeed
     monkeypatch.setattr(mod, "tavily_search", _boom)
+    monkeypatch.setattr(mod, "_brave_search", _boom)
+    monkeypatch.setattr(mod, "_opencli_search", _boom)
     llm = MagicMock()
     llm.generate = AsyncMock()
 

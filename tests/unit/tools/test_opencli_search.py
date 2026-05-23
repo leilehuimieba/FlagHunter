@@ -83,9 +83,11 @@ async def test_opencli_not_installed_silent(monkeypatch):
 @pytest.mark.asyncio
 async def test_web_search_falls_back_to_opencli(monkeypatch):
     async def _boom(*args, **kwargs):
-        raise RuntimeError("tavily unavailable")
+        raise RuntimeError("tavily/brave unavailable")
 
+    # Disable both Tavily and Brave so the test reaches the opencli fallback
     monkeypatch.setattr(mod, "tavily_search", _boom)
+    monkeypatch.setattr(mod, "_brave_search", _boom)
     monkeypatch.setattr(
         mod,
         "_opencli_search",
