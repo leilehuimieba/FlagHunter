@@ -13,9 +13,10 @@ from pentestagent.knowledge import ctf_hint_searcher as mod
 
 @pytest.mark.asyncio
 async def test_search_returns_hints_from_llm(monkeypatch):
+    # AH: ctf_hint_searcher now calls _opencli_search first, then tavily_search
     monkeypatch.setattr(
         mod,
-        "tavily_search",
+        "_opencli_search",
         AsyncMock(
             return_value=[
                 {"content": "Check parser confusion and unusual decoding chain."},
