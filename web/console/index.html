@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="src/styles.css?v=2" />
+  <link rel="stylesheet" href="src/styles.css?v=3" />
 </head>
 <body>
   <div id="root"></div>
@@ -24,30 +24,31 @@
           crossorigin="anonymous"></script>
 
   <!-- API layer (probes backend, falls back to MOCK) -->
-  <script src="src/api.js?v=2"></script>
+  <script src="src/api.js?v=3"></script>
 
   <!-- mock data + simulator (plain JS) -->
   <script src="src/mock.js?v=2"></script>
 
   <!-- i18n -->
-  <script src="src/i18n.js?v=2"></script>
+  <script src="src/i18n.js?v=3"></script>
 
   <!-- shared components -->
-  <script type="text/babel" src="src/components.jsx?v=2"></script>
+  <script type="text/babel" src="src/components.jsx?v=3"></script>
 
   <!-- command palette -->
-  <script type="text/babel" src="src/command_palette.jsx"></script>
+  <script type="text/babel" src="src/command_palette.jsx?v=2"></script>
 
   <!-- shell -->
-  <script type="text/babel" src="src/shell.jsx?v=2"></script>
+  <script src="src/shell.jsx?v=2" type="text/babel"></script>
 
   <!-- pages -->
   <script type="text/babel" src="src/pages/dashboard.jsx?v=2"></script>
-  <script type="text/babel" src="src/pages/tasks.jsx?v=2"></script>
+  <script type="text/babel" src="src/pages/tasks.jsx?v=3"></script>
   <script type="text/babel" src="src/pages/traces.jsx?v=2"></script>
   <script type="text/babel" src="src/pages/knowledge.jsx?v=2"></script>
   <script type="text/babel" src="src/pages/logs.jsx?v=2"></script>
   <script type="text/babel" src="src/pages/settings.jsx?v=2"></script>
+  <script type="text/babel" src="src/pages/memory.jsx?v=2"></script>
 
   <!-- app root -->
   <script type="text/babel" src="src/app.jsx?v=2"></script>

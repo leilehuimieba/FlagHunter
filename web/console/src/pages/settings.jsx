@@ -59,11 +59,9 @@ function SettingsPage() {
 
   // Load real settings from backend on mount
   uStE(() => {
-    if (window.IS_LIVE) {
-      window.API.getSettings().then(data => {
-        if (data) setDraft(d => ({ ...d, ...data }));
-      });
-    }
+    window.API.getSettings().then(data => {
+      if (data) setDraft(d => ({ ...d, ...data }));
+    });
   }, []);
 
   return (

@@ -13,6 +13,7 @@ const NAV = [
   ]},
   { groupKey: 'nav.data', items: [
     { id: 'knowledge', tk: 'nav.knowledge', icon: '◉' },
+    { id: 'memory',    tk: 'nav.memory',    icon: '◎' },
     { id: 'logs',      tk: 'nav.logs',      icon: '▤' },
   ]},
   { groupKey: 'nav.system', items: [
@@ -86,6 +87,7 @@ const CRUMBS_KEYS = {
   'traces/detail':  ['brand.tag', 'nav.traces', '_run_002'],
   knowledge:        ['brand.tag', 'nav.knowledge'],
   'knowledge/detail':['brand.tag', 'nav.knowledge', '_doc_002'],
+  memory:           ['brand.tag', 'nav.memory'],
   logs:             ['brand.tag', 'nav.logs'],
   settings:         ['brand.tag', 'nav.settings'],
 };
