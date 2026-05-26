@@ -28,8 +28,8 @@ try {
 
 # Create virtual environment
 Write-Host "Creating virtual environment..."
-if (-not (Test-Path "venv")) {
-    python -m venv venv
+if (-not (Test-Path ".venv")) {
+    python -m venv .venv
     Write-Host "[OK] Virtual environment created"
 } else {
     Write-Host "[OK] Virtual environment exists"
@@ -37,7 +37,7 @@ if (-not (Test-Path "venv")) {
 
 # Activate virtual environment
 Write-Host "Activating virtual environment..."
-& .\venv\Scripts\Activate.ps1
+& .\.venv\Scripts\Activate.ps1
 
 # Upgrade pip
 Write-Host "Upgrading pip..."

@@ -5,7 +5,10 @@ from types import SimpleNamespace
 import pytest
 
 from pentestagent.agents.pa_agent.ctf_planner import (
+    CTF_TOOL_CHAINS,
+    build_ctf_convergence_hint,
     build_ctf_system_prompt,
+    detect_type,
     get_ctf_quick_path,
 )
 from pentestagent.agents.pa_agent.pa_agent import PentestAgentAgent
@@ -22,9 +25,61 @@ class _DummyRuntime:
         self.plan = None
 
 
+class _RuntimeWithGroundTruth(_DummyRuntime):
+    async def browser_action(self, action, **kwargs):
+        if action == "navigate":
+            return {
+                "url": "http://127.0.0.1:3000/",
+                "requested_url": kwargs.get("url"),
+                "title": "easy_login Dashboard",
+            }
+        if action == "get_content":
+            return {
+                "content": "Login Portal Playground /visit /admin",
+                "html": """
+                <html><head><title>easy_login Dashboard</title><script src="/app.js"></script></head>
+                <body>
+                  <form action="/login" method="post">
+                    <input name="username" />
+                    <input name="password" />
+                  </form>
+                </body></html>
+                """,
+            }
+        if action == "get_forms":
+            return {
+                "forms": [
+                    {
+                        "action": "http://127.0.0.1:3000/login",
+                        "method": "post",
+                        "inputs": [
+                            {"name": "username"},
+                            {"name": "password"},
+                        ],
+                    }
+                ]
+            }
+        if action == "get_cookies":
+            return {
+                "cookie_string": "sid=guest-preview; theme=light",
+                "cookies": [
+                    {"name": "sid", "value": "guest-preview"},
+                    {"name": "theme", "value": "light"},
+                ],
+            }
+        raise AssertionError(f"unexpected browser action: {action}")
+
+    async def proxy_action(self, action, **kwargs):
+        assert action == "get"
+        return {"status_code": 200, "body": "fetch('/visit'); fetch('/admin');"}
+
+
 def test_get_quick_path_sqli():
     steps = get_ctf_quick_path("sqli")
-    assert "登录绕过" in steps[0]
+    joined = " ".join(steps)
+    assert "确认注入点" in joined
+    assert "黑名单" in joined
+    assert "sqlmap" in joined.lower()
 
 
 def test_get_quick_path_unknown():
@@ -39,6 +94,74 @@ def test_build_system_prompt_hint():
 def test_build_system_prompt_no_hint():
     prompt = build_ctf_system_prompt("web", "")
     assert "Hint from challenge" not in prompt
+
+
+def test_build_ctf_convergence_hint_for_bot_xss_shape():
+    hint = build_ctf_convergence_hint(
+        "xss",
+        endpoints=["/login", "/visit", "/admin"],
+        forms=[
+            {
+                "action": "http://127.0.0.1:3000/login",
+                "method": "post",
+                "inputs": [
+                    {"name": "username"},
+                    {"name": "password"},
+                    {"name": "bio"},
+                ],
+            }
+        ],
+        cookie_string="sid=guest-preview; theme=light",
+        cookies=[{"name": "sid", "value": "guest-preview"}],
+        evidence_blobs=["document.cookie", "fetch('/visit'); fetch('/admin');"],
+    )
+
+    assert "Likely bot-XSS / sid-theft convergence" in hint
+    assert "payload -> /visit -> collector -> sid -> /admin" in hint
+    assert "local collector" in hint
+    assert "retry once with a second minimal same-origin variant" in hint
+    assert "which variant failed and which one worked" in hint
+    assert "Do not assume cross-origin iframe" in hint
+
+
+def test_build_ctf_convergence_hint_requires_runtime_shape():
+    hint = build_ctf_convergence_hint(
+        "xss",
+        endpoints=["/login", "/admin"],
+        forms=[
+            {
+                "action": "http://127.0.0.1:3000/login",
+                "method": "post",
+                "inputs": [{"name": "username"}, {"name": "password"}],
+            }
+        ],
+        cookie_string="sid=guest-preview",
+    )
+    assert hint == ""
+
+
+@pytest.mark.parametrize(
+    ("page_source", "url", "expected"),
+    [
+        ('<form><input name="username"><input name="password"></form><a href="/visit">visit</a>', "http://ctf.local/", "xss"),
+        ('<form><input type="file" name="file"></form>', "http://ctf.local/upload", "upload"),
+        ("read me", "http://ctf.local/view?file=index.php", "lfi"),
+        ("fetcher", "http://ctf.local/proxy?url=http://127.0.0.1/", "ssrf"),
+        ("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoidXNlciJ9.sig", "http://ctf.local/api/me", "jwt"),
+        ('<form><input name="username"><input name="password"></form>', "http://ctf.local/login", "sqli"),
+        ('<form action="index.php" method="post"><img src="static/piapiapia.gif"><input name="username"><input name="password"></form>', "http://ctf.local/login", "sqli"),
+        ('<html><body><h1>因为我有良好的备份网站习惯</h1><script src="index.js"></script></body></html>', "http://ctf.local/", "web"),
+    ],
+)
+def test_detect_type(page_source, url, expected):
+    assert detect_type(page_source, url) == expected
+
+
+def test_ctf_tool_chains_have_payloads():
+    for vuln_type in ("xss", "sqli", "lfi", "cmdi", "ssrf", "upload"):
+        chain = CTF_TOOL_CHAINS[vuln_type]
+        assert chain["tools"]
+        assert chain["payloads"]
 
 
 @pytest.mark.asyncio
@@ -75,3 +198,82 @@ OBJECTIVE: Find and capture the flag as fast as possible.
     assert runtime.plan.steps
     assert runtime.plan.steps[0].description == get_ctf_quick_path("sqli")[0]
     assert "CTF Quick-Path Mode: SQLI" in agent.get_system_prompt()
+
+
+@pytest.mark.asyncio
+async def test_pa_agent_ctf_mode_adds_runtime_ground_truth(monkeypatch):
+    captured_note = {}
+
+    async def _fake_notes(arguments, runtime=None):
+        captured_note.update(arguments)
+        return "ok"
+
+    monkeypatch.setattr("pentestagent.tools.notes.notes", _fake_notes)
+
+    runtime = _RuntimeWithGroundTruth()
+    agent = PentestAgentAgent(
+        llm=_NoGenerateLLM(),
+        tools=[SimpleNamespace(name="browser", enabled=True)],
+        runtime=runtime,
+        target="http://localhost:3000/",
+        scope=[],
+    )
+    task = """[CTF MODE] Target: http://localhost:3000/
+Challenge type: xss
+Hint: steal sid
+
+OBJECTIVE: Find and capture the flag as fast as possible.
+"""
+    agent.conversation_history.append(SimpleNamespace(role="user", content=task))
+
+    plan_msg = await agent._auto_generate_plan()
+
+    assert plan_msg is None
+    prompt = agent.get_system_prompt()
+    assert "## Runtime Ground Truth" in prompt
+    assert "/visit" in prompt
+    assert "/admin" in prompt
+    assert "Observed cookie names: sid, theme" in prompt
+    assert "Likely bot-XSS / sid-theft convergence" in prompt
+    assert "payload -> /visit -> collector -> sid -> /admin" in prompt
+    assert "retry once with a second minimal same-origin variant" in prompt
+    assert "treat those claims as hypotheses" in prompt
+    assert "Do not assume cross-origin DOM access" in prompt
+    assert captured_note["category"] == "finding"
+    assert "runtime_fingerprint" in captured_note["key"]
+
+
+@pytest.mark.asyncio
+async def test_pa_agent_ctf_mode_runtime_ground_truth_isolated_from_misleading_hint(
+    monkeypatch,
+):
+    async def _fake_notes(arguments, runtime=None):
+        return "ok"
+
+    monkeypatch.setattr("pentestagent.tools.notes.notes", _fake_notes)
+
+    runtime = _RuntimeWithGroundTruth()
+    agent = PentestAgentAgent(
+        llm=_NoGenerateLLM(),
+        tools=[SimpleNamespace(name="browser", enabled=True)],
+        runtime=runtime,
+        target="http://localhost:3000/",
+        scope=[],
+    )
+    task = """[CTF MODE] Target: http://localhost:3000/
+Challenge type: xss
+Hint: maybe /upload kmz xml2json or cross-origin window.open fetch
+
+OBJECTIVE: Find and capture the flag as fast as possible.
+"""
+    agent.conversation_history.append(SimpleNamespace(role="user", content=task))
+
+    plan_msg = await agent._auto_generate_plan()
+
+    assert plan_msg is None
+    prompt = agent.get_system_prompt()
+    runtime_block = prompt.split("## Runtime Ground Truth", 1)[1]
+    assert "/visit" in runtime_block
+    assert "/admin" in runtime_block
+    assert "/upload" not in runtime_block
+    assert "Do not assume cross-origin DOM access" in runtime_block

@@ -13,12 +13,15 @@ PentestAgent-CPA 是对开源项目 [PentestAgent](https://github.com/GH05TCREW/
 
 | 模块 | 功能 | 状态 |
 |------|------|:----:|
+| **M0 原版核心** | Agent 循环、工具调用、TUI/CLI/MCP 接口 | ✅ |
 | **M1 API接入调度** | 多中转站自动切换、故障转移、Token追踪 | ✅ |
 | **M2 CTF增强工具包** | Web/Pwn/Crypto/Reverse/Misc全题型覆盖 | ✅ |
-| **M3 报告生成** | HTML/Markdown专业报告（计划中） | ⬜ |
-| **M4 审计合规** | 操作审计、RoE授权管理（计划中） | ⬜ |
-| **M5 多Agent协作** | Swarm架构协作（计划中） | ⬜ |
+| **M3 报告生成** | HTML/Markdown报告，finish工具自动触发 | 🟡 |
+| **M4 审计合规** | 作用域检查、ToolExecutor审计守卫 | 🟡 |
+| **M5 多Agent协作** | Crew Worker池、Swarm信息素路由 | 🟡 |
 | **M6 性能优化** | 缓存、并发、延迟加载（计划中） | ⬜ |
+
+> 🟡 = 核心框架已落地，部分功能待完善
 
 ---
 
@@ -162,23 +165,47 @@ Flag提交器 — 支持CTFd/HTB/THM/RootMe多平台自动提交
 PentestAgent-CPA 模块化架构
 │
 ├─ M0: 原版PentestAgent核心（侵入<25行）
+│   ├── agents/
+│   │   ├── base_agent.py      # 状态机主循环（THINKING → EXECUTING → COMPLETE）
+│   │   ├── pa_agent/          # 单Agent（含CTF Dispatcher确定性调度器）
+│   │   └── crew/              # 多Agent（Orchestrator + WorkerPool + ShadowGraph）
+│   ├── tools/                 # Self-Register工具系统（装饰器+动态导入）
+│   ├── llm/                   # LLM包装 + ConversationMemory自动摘要 + M1故障转移
+│   ├── mcp/                   # MCP Client（stdio/SSE/FIFO/WebSocket）& Server
+│   ├── runtime/               # LocalRuntime / DockerRuntime / SSHRuntime
+│   ├── knowledge/             # ShadowGraph（NetworkX图） + RAG（FAISS/向量）
+│   └── interface/             # Textual TUI + Typer CLI + 事件总线
 │
 ├─ cpa_modules/
 │   ├─ m1_api_hub/          ← M1 API接入调度
-│   │   ├── models.py       # 9个数据模型
-│   │   ├── config_schema.py   # 环境变量解析
-│   │   ├── provider_manager.py   # Provider调度核心
-│   │   ├── failover_monitor.py   # 故障监控+自动恢复
-│   │   ├── cost_tracker.py   # Token追踪
-│   │   └── status_display.py   # TUI状态面板
+│   │   ├── models.py          # ProviderState / ProviderConfig / RequestLog
+│   │   ├── config_schema.py   # 环境变量解析（CPA_PROVIDER_0_*递增扫描）
+│   │   ├── provider_manager.py   # Provider调度核心（模型路由+预算守卫）
+│   │   ├── model_router.py     # task_hint → light/medium/heavy 模型分级
+│   │   ├── failover_monitor.py   # 双循环：30s健康探测 + 60s恢复探测
+│   │   └── cost_tracker.py     # Token追踪 + 跨日自动重置
 │   │
-│   └─ m2_ctf_kit/          ← M2 CTF增强工具包
-│       ├── playbook_engine.py   # Playbook引擎
-│       ├── pwn_tools.py    # Pwn工具封装
-│       ├── crypto_tools.py   # 密码学工具
-│       ├── reverse_tools.py   # 逆向工具
-│       ├── flag_submitter.py   # Flag提交器
-│       └── playbooks/      # 5个题型模板
+│   ├─ m2_ctf_kit/          ← M2 CTF增强工具包
+│   │   ├── playbook_engine.py   # Playbook引擎（YAML定义，半自动暂停）
+│   │   ├── pwn_tools.py         # pwntools封装（本地/远程/Docker执行）
+│   │   ├── crypto_tools.py      # 23个密码学函数
+│   │   ├── reverse_tools.py     # radare2/capstone封装
+│   │   ├── flag_submitter.py    # CTFd/HTB/THM/RootMe自动提交
+│   │   └── playbooks/           # 5个题型模板
+│   │
+│   ├─ tools/               ← 新增工具（Self-Register自动加载）
+│   │   ├── katana/              # 现代Web爬虫（JS渲染+端点发现）
+│   │   ├── dalfox/              # XSS扫描器（反射/存储/DOM/WAF绕过）
+│   │   ├── gau/                 # 历史URL发现（Wayback/OTX/CommonCrawl）
+│   │   ├── gf/                  # 安全模式匹配（13种SSRF/SQLi/RCE/LFI等）
+│   │   ├── httpx_probe/         # 快速存活探测+指纹获取
+│   │   ├── knowledge_search/    # RAG知识库主动检索（sentence-transformers）
+│   │   └── shadowgraph/         # 知识图战略洞察（insights/mermaid/paths/stats）
+│   │
+│   ├─ m3_reporter/         ← M3 报告生成（finish工具调用时触发）
+│   ├─ m4_audit_guard/      ← M4 审计合规（ToolExecutor作用域检查守卫）
+│   ├─ m5_swarm_link/       ← M5 Swarm桥接（Crew Worker完成时沉积信息素）
+│   └─ m6_turbo/            ← M6 性能优化（计划中）
 │
 └─ 每个模块独立开关（.env中 CPA_MX_YYYY=true/false）
 ```
@@ -202,6 +229,13 @@ PentestAgent-CPA 模块化架构
 | [D1: 用户使用手册](docs/D1_M1M2_用户使用手册.md) | M1/M2模块的完整使用指南 |
 | [D2: 部署指南](docs/D2_部署指南_Windows_KaliVM.md) | Windows+Kali VM从零搭建 |
 | [D3: CTF实战攻略](docs/D3_CTF实战攻略.md) | 5类题型的实战操作步骤 |
+| [AGENTS.md](AGENTS.md) | **Agent开发指南（代码架构详解，必读）** |
+| [CTF Agent 开发规范总览 V1](docs/dev/CTF_Agent_开发规范总览_V1.md) | CTF Agent 主干开发总入口（先读） |
+| [CTF Agent 主干架构规范 V1](docs/dev/CTF_Agent_主干架构规范_V1.md) | 主循环、状态、验证、恢复的推荐架构 |
+| [CTF Agent 状态模型与接口契约 V1](docs/dev/CTF_Agent_状态模型与接口契约_V1.md) | 结构化状态、假设、实验、验证结果契约 |
+| [CTF Agent 实现约束与协作规范 V1](docs/dev/CTF_Agent_实现约束与协作规范_V1.md) | 开发规则、模块边界、协作与 DoD |
+| [CTF Agent 测试层规范与验收矩阵 V1](docs/dev/CTF_Agent_测试层规范与验收矩阵_V1.md) | 行为不变量、测试层、回归门禁 |
+| [CTF Agent 分阶段开发计划 V1](docs/dev/CTF_Agent_分阶段开发计划_V1.md) | 文档驱动的后续开发路线图 |
 | [M1 调度手册](M1_多Agent并行调度手册_完整版.md) | M1模块开发文档 |
 | [M2 调度手册](M2_多Agent并行调度手册_完整版.md) | M2模块开发文档 |
 
@@ -211,14 +245,18 @@ PentestAgent-CPA 模块化架构
 
 | 维度 | 原版PentestAgent | PentestAgent-CPA |
 |------|:---------------:|:----------------:|
-| API Provider | 只支持1个 | **支持任意数量，自动故障转移** |
-| CTF Web题型 | ✅ 支持 | ✅ 支持 + Playbook模板 |
+| API Provider | 只支持1个 | **支持任意数量，自动故障转移+恢复检测** |
+| CTF Web题型 | ✅ 支持 | ✅ 支持 + Playbook模板 + 确定性调度器 |
 | CTF Pwn题型 | ❌ 不支持 | **✅ 支持（pwntools封装）** |
 | CTF Crypto题型 | ❌ 不支持 | **✅ 支持（23个密码学函数）** |
 | CTF Reverse题型 | ❌ 不支持 | **✅ 支持（radare2封装）** |
 | CTF Misc题型 | ❌ 不支持 | **✅ 支持（文件分析+隐写）** |
 | Flag自动提交 | ❌ 不支持 | **✅ 支持（5个平台）** |
 | Token追踪 | ❌ 不支持 | **✅ 支持（精确到请求）** |
+| 多Agent协作 | ❌ 不支持 | **✅ 支持（Crew模式 + Swarm信息素）** |
+| MCP双向集成 | ❌ 不支持 | **✅ 支持（Client+Server，子Agent嵌套）** |
+| 策略记忆学习 | ❌ 不支持 | **✅ 支持（跨题指纹匹配+自动静音）** |
+| ShadowGraph | ❌ 不支持 | **✅ 支持（NetworkX知识图+攻击路径）** |
 | 内存占用 | ~150MB | ~275MB（M1+M2全部加载） |
 | 启动时间 | 2-5秒 | 3-6秒（含模块初始化） |
 
@@ -240,13 +278,13 @@ PentestAgent-CPA 模块化架构
 ├── M1: API接入调度 ✅
 └── M2: CTF增强工具包 ✅
 
-2026-Q3 (计划中)
-├── M3: 报告生成系统
-│   └── HTML/Markdown报告，Jinja2模板
-├── M4: 审计合规守卫
-│   └── 操作审计日志、RoE授权管理
-└── M5: 多Agent协作链
-    └── Swarm架构、共享黑板
+2026-Q3 (部分落地)
+├── M3: 报告生成系统 🟡
+│   └── finish工具已集成自动报告触发，Jinja2模板待完善
+├── M4: 审计合规守卫 🟡
+│   └── ToolExecutor已集成作用域检查，RoE授权管理待完善
+└── M5: 多Agent协作链 🟡
+    └── Crew Worker池+ShadowGraph已落地，Swarm信息素路由已集成
 
 2026-Q4 (计划中)
 └── M6: 性能优化加速

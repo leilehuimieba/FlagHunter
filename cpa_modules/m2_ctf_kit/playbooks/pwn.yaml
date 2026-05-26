@@ -74,13 +74,35 @@ phases:
           offset: 6
           target_addr: "{{got_puts}}"
           write_value: "{{libc_system}}"
+      - tool: "pwn_build_payload"
+        args:
+          exploit_type: "tcache_poisoning"
+          target: "__free_hook"
+          write_value: "{{libc_system}}"
+        condition: "heap_vuln == true"
+      - tool: "pwn_build_payload"
+        args:
+          exploit_type: "fastbin_dup"
+          target: "__malloc_hook"
+          write_value: "{{one_gadget}}"
+        condition: "glibc_version < 2.26"
+      - tool: "pwn_build_payload"
+        args:
+          exploit_type: "house_of_spirit"
+          fake_chunk_addr: "{{stack_addr}}"
+        condition: "arbitrary_write == true"
     llm_prompt: >
       分析Payload构造过程：
       1. 偏移量计算是否正确？（可通过发送De Bruijn序列验证）
       2. ROP链的gadget地址是否有效？libc偏移计算是否准确？
-      3. one_gadget约束条件是否满足？
-      4. 对于堆利用：size域和fd/bk指针构造是否正确？
-      验证Payload的有效性，确保能稳定触发漏洞。
+      3. one_gadget约束条件是否满足？（常用one_gadget约束：rsp+0x30==NULL、rcx==NULL等）
+      4. 对于堆利用：
+         - tcache poisoning：fd指针是否指向目标地址（如__free_hook）？
+         - fastbin dup：double free是否绕过tcache key检查？
+         - house of spirit：伪造的chunk size是否对齐且prev_inuse位正确？
+      5. 格式化字符串：偏移是否正确？写入值是否分多次完成（如hhn/hn）？
+      6. 如果纯ROP不可行，考虑ret2plt → ret2libc → one_gadget的降级链
+      验证Payload的有效性，确保能稳定触发漏洞。提供Payload的十六进制摘要和关键偏移说明。
     timeout: 120
     critical: true
 

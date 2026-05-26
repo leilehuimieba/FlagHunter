@@ -12,6 +12,8 @@ import pytest
 
 from pentestagent.agents.pa_agent.pa_agent import PentestAgentAgent
 from pentestagent.agents.crew.swarm_bridge import on_worker_complete
+from pentestagent.agents.pa_agent.ctf_crew_coordinator import CTFCrewCoordinator
+from pentestagent.agents.pa_agent.ctf_state import CTFState
 from pentestagent.runtime.runtime import LocalRuntime
 from pentestagent.tools.executor import ToolExecutor
 from pentestagent.tools.registry import Tool, ToolSchema, get_tool
@@ -90,6 +92,25 @@ class _PlanningLLM:
             ),
             tool_calls=None,
             usage={"total_tokens": 12},
+        )
+
+
+class _FakeCrewVerifier:
+    async def verify_flag(self, state: CTFState, *, flag: str, evidence_source: str, rationale: str = ""):
+        state.add_flag(
+            flag,
+            level="verified",
+            evidence_source=evidence_source,
+            rationale=rationale or "integration fake verifier",
+            confidence=1.0,
+        )
+        return SimpleNamespace(
+            decision="verified",
+            flag=flag,
+            evidence_source=evidence_source,
+            rationale=rationale,
+            requires_followup=False,
+            metadata={"platform_verified": False, "operator_confirmed": False},
         )
 
 
@@ -250,3 +271,78 @@ async def test_crew_swarm_bridge_writes_blackboard_and_pheromone(tmp_path, monke
     router = m5.get_pheromone_router()
     top_targets = await router.get_top_targets(10)
     assert any(target == "192.168.1.100" for target, _ in top_targets)
+
+
+@pytest.mark.asyncio
+async def test_ctf_crew_shadow_graph_followup_changes_second_wave_tasks():
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    seen: list[dict[str, object]] = []
+
+    async def _runner(spec: dict, shared_state: CTFState, cancel_event):
+        seen.append(
+            {
+                "worker_id": spec["worker_id"],
+                "worker_type": spec["worker_type"],
+                "task": spec["task"],
+                "metadata": dict(spec.get("metadata") or {}),
+            }
+        )
+        if spec["worker_type"] == "recon":
+            return {
+                "worker_id": spec["worker_id"],
+                "observations": [
+                    {
+                        "kind": "endpoint_discovery",
+                        "value": "recon found admin surface",
+                        "source": "recon",
+                        "metadata": {
+                            "endpoints": [
+                                "/admin/login",
+                                "/admin/export",
+                                "/backup.zip",
+                            ]
+                        },
+                    }
+                ],
+                "candidate_flags": [],
+                "verified_flag": None,
+            }
+        return {
+            "worker_id": spec["worker_id"],
+            "observations": [],
+            "candidate_flags": [],
+            "verified_flag": None,
+        }
+
+    coordinator = CTFCrewCoordinator(
+        state=state,
+        verifier=_FakeCrewVerifier(),
+        worker_runner=_runner,
+        timeout_seconds=3,
+    )
+
+    summary = await coordinator.run_with_shadow_graph(
+        target="http://ctf.local",
+        page_features={
+            "endpoints": [
+                "/api/v1/users",
+                "/api/v1/roles",
+                "/api/v1/logs",
+                "/api/v1/debug",
+                "/api/v1/health",
+                "/admin/panel",
+                "/admin/login",
+                "/admin/audit",
+                "/admin/export",
+                "/admin/config",
+            ]
+        },
+    )
+
+    assert summary.stop_reason == "workers_completed"
+    assert [item["worker_type"] for item in seen[:2]] == ["recon", "recon"]
+    assert any(
+        item["metadata"].get("planned_by") == "shadow_graph"
+        for item in seen[2:]
+    )
+    assert any("/admin" in str(item["task"]) for item in seen[2:])

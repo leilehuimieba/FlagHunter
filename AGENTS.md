@@ -2,7 +2,7 @@
 
 ## Project overview
 
-**PentestAgent** (v0.2.0) is an AI-powered penetration testing framework built in Python.
+**PentestAgent** (v0.4.1) is an AI-powered penetration testing framework built in Python.
 It wraps LiteLLM to support any provider (Anthropic, OpenAI, etc.) and exposes a TUI,
 a CLI, and an MCP server interface. The agent can run tools locally or inside a Docker
 sandbox (base or Kali image).
@@ -24,43 +24,85 @@ sandbox (base or Kali image).
 pentestagent/
   agents/
     crew/           # Multi-agent mode: orchestrator + worker pool + shadow graph
-    pa_agent/       # Single-agent implementation
-    state.py        # Shared agent state
+    pa_agent/       # Single-agent implementation (includes CTF dispatcher subsystem)
+    state.py        # Shared agent state machine (AgentStateManager)
   config/
     settings.py     # Global Settings dataclass (singleton via get_settings())
     constants.py    # Model defaults, iteration limits, etc.
   interface/
     cli.py          # Typer CLI entry-point
+    tui.py          # Textual TUI (chat, rewind/fork, embedded terminals)
     notifier.py     # Event bus between agent and UI
     utils.py        # Shared UI helpers
+    initializer.py  # Shared component bootstrap (TUI / CLI / MCP server)
+    conversation_store.py  # Persistent conversation snapshots
   knowledge/
     graph.py        # ShadowGraph — derives strategic insights from notes
     indexer.py      # Indexes knowledge sources for RAG
     rag.py          # FAISS-backed retrieval
+    embeddings.py   # OpenAI & local sentence-transformer embeddings
   llm/
     config.py       # LiteLLM configuration
-    memory.py       # Conversation/token management
-    utils.py        # Streaming helpers
+    llm.py          # LLM wrapper with M1 provider failover
+    memory.py       # Conversation/token management with auto-summarization
+    utils.py        # Streaming helpers, JSON parsing, token counting
   mcp/
-    stdio_adapter.py    # STDIO MCP server transport
-    example_adapter.py  # SSE MCP server transport
+    manager.py      # MCP client manager (connects to external MCP servers)
+    transport.py    # Transport abstractions (stdio / SSE / FIFO / WebSocket)
+    tools.py        # Wraps MCP tools into PentestAgent Tool objects
+    mcp_rag_optimizer.py  # Meta-tool when MCP server exposes >128 tools
+    server/         # PentestAgent as MCP server
   playbooks/
     base_playbook.py
     thp3_recon.py / thp3_network.py / thp3_web.py
   runtime/
-    docker_runtime.py   # Runs tool commands inside Docker
-    tool_server.py      # Local runtime
+    runtime.py      # LocalRuntime (Playwright + subprocess)
+    docker_runtime.py   # DockerRuntime (container exec)
+    ssh_runtime.py      # SSHRuntime (Kali VM)
+    tool_server.py      # TCP tool server for sandbox orchestration
   tools/
+    registry.py     # Tool dataclass & global _tools registry
     loader.py       # Discovers & dynamically imports tool modules
-    executor.py     # Executes tool calls, tracks tokens
+    executor.py     # Executes tool calls, tracks tokens, flag scanning, scope checks
     token_tracker.py
+    tool_guard.py   # Pre-execution tool availability probe
+    _tool_env.py    # Local binary PATH discovery & install hints
+    mcp_agent.py    # spawn_mcp_agent / despawn_mcp_agent dynamic tools
     terminal/       # Shell execution tool
     browser/        # Playwright browser tool
-    web_search/     # Tavily web search (needs TAVILY_API_KEY)
+    web_search/     # Tavily/Brave/OpenCLI web search
     notes/          # Persistent findings store → loot/notes.json
-    finish/         # Signals task completion
+    finish/         # Signals task completion, plan step tracking
+    http_request/   # HTTP proxy via httpx
+    nmap/           # Nmap scanner wrapper
+    sqlmap/         # SQLMap wrapper
+    dirscan/        # Directory brute-force (ffuf/gobuster/dirsearch)
+    nuclei/         # Nuclei scanner wrapper
+    subfinder/      # Subdomain enumeration
+    afrog/          # Afrog vulnerability scanner
+    fscan/          # Fscan network scanner
+    waf/            # WAF detection & bypass config
+    binary/         # Binary static analysis (strings, checksec, r2)
+    pwn/            # Pwntools wrapper
+    msf/            # Metasploit RPC wrapper
+    login_flow/     # Browser-based login automation
+    opencli_browser/# OpenCLI browser bridge
+    katana/         # Modern web crawler (JS rendering, endpoint discovery)
+    dalfox/         # XSS scanner (reflected/stored/DOM, WAF evasion)
+    gau/            # Historical URL discovery (Wayback/OTX/CommonCrawl)
+    knowledge_search/  # RAG-powered knowledge base search
+    shadowgraph/    # ShadowGraph strategic insights & attack paths
+    gf/             # Pattern matcher for security-relevant strings
+    ...
   workspaces/       # Workspace isolation helpers
-loot/               # Persisted notes and findings (git-ignored)
+cpa_modules/
+  m1_api_hub/       # M1: Multi-provider API hub with failover
+  m2_ctf_kit/       # M2: CTF toolkit (playbook engine, crypto, pwn, reverse, flag submitter)
+  m3_reporter/      # M3: Report generation (auto-triggered by finish tool)
+  m4_audit_guard/   # M4: Scope enforcement & audit logging
+  m5_swarm_link/    # M5: Swarm bridge & pheromone routing
+  m6_turbo/         # M6: Performance optimizations
+loot/               # Persisted notes, token usage, strategy memory (git-ignored)
 mcp_examples/       # Example MCP configs and adapters
 scripts/            # setup.sh / setup.ps1
 tests/              # pytest suite
@@ -77,6 +119,15 @@ PENTESTAGENT_MODEL=Codex-sonnet-4-20250514
 # Optional
 TAVILY_API_KEY=...          # web_search tool
 OPENAI_API_KEY=sk-...       # if using OpenAI
+
+# CPA Module switches
+CPA_M1_API_HUB=true
+CPA_M2_CTF_KIT=true
+CPA_M2_PWN_TOOLS=true
+CPA_M2_CRYPTO_TOOLS=true
+CPA_M2_REVERSE_TOOLS=true
+CPA_M2_FLAG_SUBMITTER=true
+CPA_M5_SWARM_LINK=true
 ```
 
 Settings are managed by `pentestagent/config/settings.py` (`get_settings()` singleton).
@@ -176,6 +227,13 @@ get_task_result task_id="<id2>"
 | `/notes` | Show saved findings |
 | `/report` | Generate report from session |
 | `/mcp list/add` | Manage MCP servers |
+| `/api` | M1 API Hub status panel |
+| `/ctf list` | List CTF playbooks |
+| `/ctf run <playbook> <target>` | Execute CTF playbook |
+| `/ctf next` | Advance to next playbook phase |
+| `/ctf flag <flag>` | Submit flag to platform |
+| `/ctf decode <ciphertext>` | Auto crypto solve |
+| `/ctf rev <binary>` | Quick reverse analysis |
 | `Esc` | Stop running agent |
 
 ## Conversation history controls (TUI)
@@ -204,25 +262,170 @@ losing the thread you had so far.
 Both controls are implemented in `pentestagent/interface/tui.py` via
 `RewindButton` / `ForkButton` widgets and their corresponding `*ConfirmScreen` modals.
 
+---
+
 ## Key architectural patterns
 
-- **Tool registration**: Tools self-register via `pentestagent/tools/loader.py`. Add a new
-  tool by creating a directory under `pentestagent/tools/<name>/` with an `__init__.py`
-  that registers it with the tool registry.
-- **Modes**: assist → single LLM call; agent → agentic loop; crew → `CrewOrchestrator`
-  manages a `WorkerPool`; interact → streaming chat.
-- **MCP server tools**: `run_task`, `run_task_async`, `await_tasks`, `get_task_result`,
-  `list_tasks`, `cancel_task`, `list_tools`, `enable_tool`, `disable_tool`, `store_memory`,
-  `retrieve_memory`, `get_logs`, `get_metrics`.
-- **Agent self-spawning** (`spawn_mcp_agent`): running agent can spawn child agents as
-  MCP servers over stdio, enabling hierarchical multi-agent workflows.
-- **RAG tool optimizer**: if an MCP server exposes >128 tools, a single
-  `mcp_<server>_rag_optimizer` meta-tool replaces them and retrieves relevant subsets via
-  embedding similarity.
-- **Notes persistence**: findings saved to `loot/notes.json` via the `notes` tool;
-  categories: `credential`, `vulnerability`, `finding`, `artifact`.
-- **ShadowGraph** (crew mode only): builds a knowledge graph from notes to provide
-  strategic context to the orchestrator.
+### Agent core loop (`BaseAgent._run_loop`)
+
+All agents (single, crew worker, MCP task) inherit from `BaseAgent` and share the same
+state-machine-driven loop:
+
+```text
+agent_loop()
+  ├── reset()
+  ├── state_manager.transition_to(THINKING)
+  ├── _auto_generate_plan()   # Round 1 forces a plan
+  └── _run_loop()             # Core iterator
+        ├── LLM.generate()    # With tool-calling
+        ├── _execute_tools()  # Concurrent execution
+        ├── _expand_plan()    # Discovery-driven plan expansion
+        ├── _replan()         # Tactical replanning on failure
+        └── plan.is_complete() → summary → COMPLETE
+```
+
+States (`agents/state.py`): `IDLE → THINKING → EXECUTING → (THINKING|COMPLETE|ERROR)`.
+Illegal transitions are rejected; `force_transition()` exists for recovery paths.
+
+### Tool registration
+
+Tools self-register via decorators in `pentestagent/tools/registry.py`:
+
+```python
+@register_tool(name="nmap", description="...", schema=ToolSchema(...), category="scanner")
+async def nmap(arguments: dict, runtime: Runtime) -> str:
+    ...
+```
+
+`loader.py` walks `pentestagent/tools/` subdirectories and `importlib.import_module`s
+them, triggering registration into the global `_tools` dict. No explicit `register()`
+calls are required.
+
+### CTF solving engine (`CTFTaskDispatcher`)
+
+The CTF subsystem (`agents/pa_agent/ctf_dispatcher.py`) is **not** an LLM free-for-all.
+It is a deterministic dispatcher wrapped around LLM-assisted strategy selection:
+
+1. **Recon** — browser fingerprinting extracts HTML, forms, endpoints, cookies.
+2. **HypothesisEngine** (`hypothesis_engine.py`) — rule-based generation of attack
+   hypotheses (e.g. `/visit + /admin + auth_form → xss_admin_bot_sid`).
+   Includes *Observation Floor* (hypotheses without evidence cannot outrank supported
+   ones) and *Devil's Advocate* abort conditions.
+3. **StrategyRegistry** (`strategy_registry.py`) — 15+ `StrategyDefinition`s with
+   preconditions, execute lambdas, success/failure signals, escalation conditions.
+4. **CapabilityRegistry** (`capability_registry.py`) — each primitive has multiple
+   implementations ranked by quality. Auto-degrades (e.g. `sqlmap → manual_payload`).
+5. **CTFVerifier** (`verifier.py`) — four-tier flag evidence:
+   `candidate → runtime → verified → rejected`.
+   Runtime flags hit an auto-submit gate; verified flags stop all workers.
+6. **RecoveryController** (`recovery.py`) — post-chain rule-based decisions:
+   `explore_agenda`, `switch_chain`, `stop_no_progress`, `wait_for_verification`.
+7. **StrategyMemory** (`strategy_memory.py`) — cross-challenge persistent memory
+   (NDJSON at `loot/strategy_memory.json`). Fingerprints are matched for similarity
+   scoring; entries auto-mute after ≥5 uses with <20% success.
+
+### Multi-agent / Crew mode
+
+`CrewOrchestrator` (`agents/crew/orchestrator.py`) spawns typed workers via
+`WorkerPool` (`agents/crew/worker_pool.py`):
+
+- Worker types: `default`, `web`, `recon`, `exploit`, `crypto`.
+- Each worker gets a **filtered tool set** and an **isolated `LocalRuntime`**.
+- Dependencies (`depends_on`) are awaited before spawning.
+- ShadowGraph (`knowledge/graph.py`) builds a NetworkX DiGraph from notes to derive
+  strategic insights (unused credentials, high-value targets, multi-hop attack paths).
+- M5 Swarm bridge (`agents/crew/swarm_bridge.py`) deposits pheromone routes when
+  `CPA_M5_SWARM_LINK=true`.
+
+### M1 API failover (`cpa_modules/m1_api_hub`)
+
+`LLM._call_with_provider_failover()` integrates M1 transparently:
+
+- `ProviderManager` selects the healthiest provider matching the `task_hint` tier
+  (`planning` → heavy, `tool_parse` → light) via `model_router.route()`.
+- `FailoverMonitor` runs two concurrent loops per provider:
+  - `_health_check_loop()` (30s) — marks DOWN after 3 consecutive failures.
+  - `_recovery_loop()` (60s) — confirms recovery with a real request before marking
+    HEALTHY again.
+- Error classification: `PERMANENT`, `TRANSIENT_NETWORK`, `TRANSIENT_REMOTE` (rate-limit),
+  `LOGIC` (context length). Rate-limits get local jittered backoff; logic errors are
+  thrown immediately.
+- `CostTracker` enforces daily budgets and auto-rolls over at midnight.
+
+### MCP client & server
+
+**Client** (`mcp/manager.py`, `mcp/transport.py`):
+- Reads `mcp_servers.json`; supports `stdio`, `SSE`, `FIFO`, `WebSocket` transports.
+- Each `MCPServer` serialises communication via `asyncio.Lock` to prevent message-ID
+  collisions.
+- If a server exposes >128 tools, a single `mcp_{server}_rag_optimizer` meta-tool
+  replaces them. It embeds tool names+descriptions and retrieves relevant subsets on
+  demand (`mcp/mcp_rag_optimizer.py`).
+
+**Server** (`mcp/server/`):
+- `MCPRouter` handles JSON-RPC: `initialize`, `tools/list`, `tools/call`.
+- Each task spawns a **fresh** `PentestAgentAgent` + **fresh** `Runtime` to avoid
+  state pollution (`mcp/server/mcp_tools.py::_make_agent()`).
+- `spawn_mcp_agent` / `despawn_mcp_agent` tools (`tools/mcp_agent.py`) launch child
+  agents over FIFO/PTY, inject their tools into the parent, and forward notifications.
+
+### RAG & ShadowGraph
+
+**RAG** (`knowledge/rag.py`):
+- Indexes `.txt`/`.md`/`.json` under `knowledge/` (chunk_size=1000, overlap=200).
+- Supports OpenAI embeddings or local `sentence-transformers` (`all-MiniLM-L6-v2`).
+- Cosine-similarity search with threshold 0.35; results truncated to token budget.
+- Persistent index at `embeddings/index.pkl` (pickle).
+
+**ShadowGraph** (`knowledge/graph.py`):
+- Incremental NetworkX DiGraph built from `notes.json`.
+- Node types: `cred:*`, `service:{host}:{port}`, `endpoint:{host}:{path}`,
+  `tech:{host}:{name}`, `vuln:{key}`.
+- Edge types: `CONTAINS`, `AUTH_ACCESS`, `HAS_SERVICE`, `HAS_ENDPOINT`, `USES_TECH`,
+  `AFFECTED_BY`.
+- Strategic insights: unused credentials, high-value targets (degree counting), and
+  multi-hop attack paths (`nx.shortest_path`).
+
+### Runtime environments
+
+Three interchangeable runtimes:
+
+| Runtime | Commands | Browser | Proxy | Use case |
+|---------|----------|---------|-------|----------|
+| `LocalRuntime` | `asyncio.subprocess_shell` | Playwright (with fallback to system Chrome/Edge) | `httpx.AsyncClient` | Local development |
+| `DockerRuntime` | `container.exec_run` | `curl` + regex (no GUI) | `mitmdump` | Isolated sandbox |
+| `SSHRuntime` | `ssh` subprocess | `curl` + regex | Embedded Python | Kali VM |
+
+`DockerRuntime` supports VPN via `.ovpn` upload + `openvpn --daemon`.
+`SSHRuntime` supports key auth (batch) and password auth (askpass script).
+
+### Tool executor guards (`tools/executor.py`)
+
+Before every tool execution:
+1. **M4 scope check** — `cpa_modules.m4_audit_guard.get_scope_enforcer().validate_sync()`.
+2. **Cookie auto-inject** — for `sqlmap`, `dirscan`, `nuclei`, `afrog`: reads the latest
+   `credential` note with `cookie_string` and injects it into arguments.
+3. **Stealth mode** — if `PENTESTAGENT_STEALTH=1` or a `waf_detected` note exists,
+   adds random delays and random User-Agent rotation.
+4. **Flag scanning** — regex `flag{...}` / `CTF{...}` on stdout; auto-writes to notes.
+5. **Missing-tool detection** — heuristic error matching triggers install suggestions.
+
+### Conversation memory (`llm/memory.py`)
+
+`ConversationMemory` prevents context-window overflow:
+- Budget: `max_tokens * reserve_ratio` (default 128k * 0.8 = 102.4k).
+- Trigger: when history exceeds 60% of budget.
+- Strategy: keep the most recent 10 messages intact; summarise older messages in
+  chunks of 10 via `_summarize_call()`, prepend as a system message.
+- Token counting: `tiktoken` (cl100k_base) preferred; falls back to word-count
+  estimation.
+
+### LLM special handling
+
+- **Anthropic prefill sanitisation** (`llm/llm.py`): if the message list ends with an
+  `assistant` message, it is stripped because Claude rejects prefill.
+- **LiteLLM drop_params**: `litellm.drop_params = True` so unsupported kwargs are
+  silently discarded rather than causing errors.
 
 ## Development
 

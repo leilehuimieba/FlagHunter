@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 from .models import (
     ProviderConfig,
@@ -28,6 +28,16 @@ from .model_router import route
 
 class NoProviderAvailable(Exception):
     """当所有Provider均不可用（禁用、宕机或降级到无法服务）时抛出此异常。"""
+
+
+def _budget_guard() -> None:
+    """Best-effort budget gate; only active when M1 已初始化。"""
+    try:
+        from . import get_cost_tracker
+
+        get_cost_tracker().raise_if_budget_exceeded()
+    except RuntimeError:
+        return
 
 
 # ============================================================
@@ -194,6 +204,7 @@ class ProviderManager:
         self,
         model_hint: Optional[str] = None,
         task_hint: str = "default",
+        exclude_ids: Optional[Set[str]] = None,
     ) -> ProviderConfig:
         """
         为下一次请求选择最佳Provider（异步线程安全）。
@@ -216,11 +227,14 @@ class ProviderManager:
         Raises:
             NoProviderAvailable: 没有任何可用Provider时抛出。
         """
+        _budget_guard()
+        excluded = {str(item).strip() for item in (exclude_ids or set()) if str(item).strip()}
         async with self._lock:
             # 1) 过滤可用且启用的Provider
             available = [
                 config for config in self._providers.values()
                 if config.enabled
+                and config.id not in excluded
                 and (status := self._status.get(config.id)) is not None
                 and status.is_available()
             ]
