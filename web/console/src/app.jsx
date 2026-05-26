@@ -1,4 +1,4 @@
-/* global React, ReactDOM, Sidebar, Topbar, DashboardPage, TasksPage, TracesPage, KnowledgePage, LogsPage, SettingsPage */
+/* global React, ReactDOM, Sidebar, Topbar, DashboardPage, TasksPage, TracesPage, KnowledgePage, LogsPage, SettingsPage, CommandPalette */
 
 const { useState: uA, useEffect: uAE } = React;
 
@@ -10,6 +10,8 @@ function App() {
     return h;
   });
 
+  const [showCP, setShowCP] = uA(false);
+
   uAE(() => {
     const handler = () => {
       const h = window.location.hash.replace(/^#\/?/, '') || 'dashboard';
@@ -17,6 +19,26 @@ function App() {
     };
     window.addEventListener('hashchange', handler);
     return () => window.removeEventListener('hashchange', handler);
+  }, []);
+
+  // Global ⌘K / Ctrl+K
+  uAE(() => {
+    function onKey(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        setShowCP(s => !s);
+      }
+      if (e.key === 'Escape') setShowCP(false);
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
+  // fh:toggle-cp event (from topbar ⌘ button)
+  uAE(() => {
+    const handler = () => setShowCP(s => !s);
+    window.addEventListener('fh:toggle-cp', handler);
+    return () => window.removeEventListener('fh:toggle-cp', handler);
   }, []);
 
   function nav(to) {
@@ -45,6 +67,7 @@ function App() {
         {route === 'logs' && <LogsPage />}
         {route === 'settings' && <SettingsPage />}
       </div>
+      {showCP && <CommandPalette onClose={() => setShowCP(false)} onNav={nav} />}
     </div>
   );
 }

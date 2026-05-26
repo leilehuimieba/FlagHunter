@@ -12,6 +12,13 @@ function TasksPage({ onNav }) {
   const [showModal, setShowModal] = useStateT(false);
   const [tasks, setTasks] = useStateT(MOCK.TASKS);
 
+  // ⌘K "新建任务" command opens this modal from anywhere
+  useEffectT(() => {
+    const handler = () => setShowModal(true);
+    window.addEventListener('fh:open-new-task', handler);
+    return () => window.removeEventListener('fh:open-new-task', handler);
+  }, []);
+
   // Load tasks from API on mount if live
   useEffectT(() => {
     if (!window.IS_LIVE) return;

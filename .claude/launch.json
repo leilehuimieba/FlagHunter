@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "flaghunter-console",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "7433", "--directory", "D:/webstudy/FlagHunter/web/console"],
+      "port": 7433
+    }
+  ]
+}
