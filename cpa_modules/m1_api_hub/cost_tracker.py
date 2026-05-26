@@ -17,6 +17,10 @@ from .models import ProviderConfig, RequestLog
 logger = logging.getLogger(__name__)
 
 
+class BudgetExhausted(RuntimeError):
+    """每日预算已耗尽，阻断新的 Provider 选择/LLM 请求。"""
+
+
 class CostTracker:
     """Token消耗追踪器 — 精确记录每次请求的消耗和成本"""
 
@@ -39,6 +43,10 @@ class CostTracker:
         self._alert_fired = False
         self._callbacks: List[Callable[[float, float], None]] = []
         self._date = datetime.now().date()
+
+    def record_request(self, log: RequestLog, provider_config: ProviderConfig = None) -> None:
+        """兼容旧接口：转发到 ``record``。"""
+        self.record(log, provider_config)
 
     def record(self, log: RequestLog, provider_config: ProviderConfig = None) -> None:
         """
@@ -107,6 +115,7 @@ class CostTracker:
                 total_cost += log.cost_usd
                 total_latency += log.response_time_ms
         return {
+            "provider_id": provider_id,
             "requests": count,
             "tokens": total_tokens,
             "cost": round(total_cost, 6),
@@ -146,12 +155,59 @@ class CostTracker:
             by_provider[pid]["cost"] += log.cost_usd
         for pid in by_provider:
             by_provider[pid]["cost"] = round(by_provider[pid]["cost"], 6)
+        budget_usd = self._budget_usd
+        budget_used_ratio = 0.0
+        if budget_usd is not None and budget_usd > 0:
+            budget_used_ratio = round(total_cost / budget_usd, 4)
         return {
             "total_requests": total_requests,
             "total_tokens": total_tokens,
             "total_cost": round(total_cost, 6),
             "by_provider": by_provider,
+            "daily_budget": budget_usd,
+            "budget_used_ratio": budget_used_ratio,
         }
+
+    def check_budget_alert(self) -> str | None:
+        """显式查询预算告警信息；无告警时返回 None。"""
+        self._rollover_date()
+        if self._budget_usd is None:
+            return None
+        if self._budget_usd <= 0:
+            return "预算告警: 每日预算已耗尽 (0 budget)"
+        ratio = self._daily_consumed / self._budget_usd
+        if ratio >= self._alert_threshold:
+            return (
+                f"预算告警: 已消耗 ${self._daily_consumed:.4f} / "
+                f"预算 ${self._budget_usd:.4f} ({ratio * 100:.1f}%)"
+            )
+        return None
+
+    def is_budget_exceeded(self) -> bool:
+        self._rollover_date()
+        if self._budget_usd is None:
+            return False
+        if self._budget_usd <= 0:
+            return self._daily_consumed > 0
+        return self._daily_consumed >= self._budget_usd
+
+    def allow_request(self) -> bool:
+        return not self.is_budget_exceeded()
+
+    def raise_if_budget_exceeded(self) -> None:
+        if self.is_budget_exceeded():
+            consumed = self._daily_consumed
+            budget = self._budget_usd
+            raise BudgetExhausted(
+                f"daily budget exhausted: consumed=${consumed:.4f}, budget=${budget if budget is not None else 'None'}"
+            )
+
+    def daily_reset(self) -> None:
+        self._daily_consumed = 0.0
+        self._daily_tokens = 0
+        self._alert_fired = False
+        self._logs.clear()
+        self._date = datetime.now().date()
 
     def _check_budget_alert(self) -> None:
         """

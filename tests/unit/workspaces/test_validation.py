@@ -133,6 +133,26 @@ class TestIsTargetInScopeHostnames:
         # "sub.example.com" should NOT match "example.com" unless explicitly allowed
         assert is_target_in_scope("sub.example.com", ["example.com"]) is False
 
+    def test_localhost_alias_matches_loopback_ip(self):
+        assert is_target_in_scope("http://localhost:3000", ["127.0.0.1"]) is True
+
+    def test_loopback_url_matches_loopback_host_port(self):
+        assert is_target_in_scope("http://localhost:3000", ["127.0.0.1:3000"]) is True
+
+    def test_loopback_url_matches_loopback_url_alias(self):
+        assert (
+            is_target_in_scope(
+                "http://localhost:3000/admin", ["http://127.0.0.1:3000"]
+            )
+            is True
+        )
+
+    def test_loopback_url_different_port_rejected_when_port_scoped(self):
+        assert (
+            is_target_in_scope("http://localhost:3000", ["http://127.0.0.1:4000"])
+            is False
+        )
+
 
 # ---------------------------------------------------------------------------
 # is_target_in_scope — security: bypass attempts

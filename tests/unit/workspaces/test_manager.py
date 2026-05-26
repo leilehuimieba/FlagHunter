@@ -30,6 +30,18 @@ class TestTargetManagerNormalize:
     def test_hostname_lowercased(self):
         assert TargetManager.normalize_target("Example.COM") == "example.com"
 
+    def test_loopback_hostname_canonicalized(self):
+        assert TargetManager.normalize_target("localhost") == "127.0.0.1"
+
+    def test_host_port_supported(self):
+        assert TargetManager.normalize_target("localhost:3000") == "127.0.0.1:3000"
+
+    def test_http_url_supported(self):
+        assert (
+            TargetManager.normalize_target("http://localhost:3000/login")
+            == "http://127.0.0.1:3000/login"
+        )
+
     def test_ipv6_accepted(self):
         result = TargetManager.normalize_target("::1")
         assert result is not None

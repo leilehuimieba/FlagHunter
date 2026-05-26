@@ -25,6 +25,7 @@ _cost_tracker: Optional[CostTracker] = None
 _failover_monitor: Optional[FailoverMonitor] = None
 _initialized: bool = False
 _M1_ENV_VAR = "CPA_M1_API_HUB"
+_M1_LEGACY_ENV_VAR = "CPA_M1_ENABLED"
 
 
 def is_m1_enabled() -> bool:
@@ -35,7 +36,9 @@ def is_m1_enabled() -> bool:
 
     :return: True=启用, False=禁用
     """
-    return os.getenv(_M1_ENV_VAR, "true").lower() != "false"
+    if _M1_ENV_VAR in os.environ:
+        return os.getenv(_M1_ENV_VAR, "true").lower() != "false"
+    return os.getenv(_M1_LEGACY_ENV_VAR, "true").lower() != "false"
 
 
 async def init_m1() -> None:

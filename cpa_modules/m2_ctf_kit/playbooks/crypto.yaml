@@ -78,12 +78,27 @@ phases:
       - tool: "crypto_xor_bruteforce"
         args: {ciphertext: "{{cipher_text}}", key_length: "auto"}
         condition: "cipher_type == 'xor'"
+      - tool: "sage"
+        args: {script: "aes_ecb_reorder.sage", ciphertext: "{{cipher_text}}"}
+        condition: "cipher_type == 'aes_ecb'"
+      - tool: "sage"
+        args: {script: "aes_cbc_bitflip.sage", ciphertext: "{{cipher_text}}", iv: "{{iv}}"}
+        condition: "cipher_type == 'aes_cbc'"
+      - tool: "sage"
+        args: {script: "discrete_log_pohlig_hellman.sage", p: "{{p}}", g: "{{g}}", h: "{{h}}"}
+        condition: "cipher_type == 'discrete_log'"
+      - tool: "sage"
+        args: {script: "bsgs.sage", p: "{{p}}", g: "{{g}}", h: "{{h}}"}
+        condition: "cipher_type == 'discrete_log_small'"
     llm_prompt: >
       分析密钥破解和解密阶段的结果：
       1. 暴力破解/字典攻击是否成功找到密钥？
-      2. RSA攻击（Wiener/低指数/共模）是否成功分解N或恢复私钥？
-      3. XOR加密的多字节密钥是否正确恢复？
-      4. 解密结果是否包含Flag或进一步嵌套的加密？
+      2. RSA攻击（Wiener/低指数/共模/Coppersmith）是否成功分解N或恢复私钥？
+      3. XOR加密的多字节密钥是否正确恢复？IC指数是否支持密钥长度判断？
+      4. AES ECB：是否发现相同明文块产生相同密文块？能否通过块重排伪造明文？
+      5. AES CBC：是否存在Padding Oracle？能否通过Bit Flipping篡改明文？
+      6. 离散对数：Pohlig-Hellman是否适用（p-1为光滑数）？BSGS是否适用（小阶群）？
+      7. 解密结果是否包含Flag或进一步嵌套的加密？
       确认解密正确性，提取明文中的Flag。
     timeout: 300
     critical: true

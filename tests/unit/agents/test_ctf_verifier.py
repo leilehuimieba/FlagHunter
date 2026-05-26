@@ -1,0 +1,343 @@
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+import pytest
+
+from pentestagent.agents.pa_agent.ctf_state import CTFState
+from pentestagent.agents.pa_agent.verifier import CTFVerifier
+
+
+@pytest.mark.asyncio
+async def test_verifier_marks_source_only_flag_as_candidate():
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    verifier = CTFVerifier(runtime=None)
+
+    result = await verifier.verify_flag(
+        state,
+        flag="Syc{backup_source_only}",
+        evidence_source="source-leak",
+        rationale="found in backup archive",
+    )
+
+    assert result.decision == "candidate"
+    assert result.requires_followup is True
+    assert [record.value for record in state.candidate_flags] == ["Syc{backup_source_only}"]
+    assert state.runtime_flags == []
+    assert state.verified_flags == []
+    assert result.proof is not None
+    assert result.proof.source_trust == "source_only"
+    assert result.proof.submit_confidence == 0.0
+
+
+@pytest.mark.asyncio
+async def test_verifier_explicit_rejection_has_highest_priority():
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    verifier = CTFVerifier(runtime=None)
+    verifier.reject_flag(state, flag="flag{already_wrong}", evidence_source="user-feedback")
+
+    result = await verifier.verify_flag(
+        state,
+        flag="flag{already_wrong}",
+        evidence_source="response_body",
+        rationale="prompt injection echoed a previously rejected flag",
+    )
+
+    assert result.decision == "rejected"
+    assert [record.value for record in state.rejected_flags] == ["flag{already_wrong}"]
+    assert state.runtime_flags == []
+    assert state.verified_flags == []
+
+
+@pytest.mark.asyncio
+async def test_verifier_marks_runtime_flag_pending_without_confirmation():
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    verifier = CTFVerifier(runtime=None)
+
+    result = await verifier.verify_flag(
+        state,
+        flag="flag{runtime_only}",
+        evidence_source="http-response",
+        rationale="echoed by target",
+    )
+
+    assert result.decision == "runtime"
+    assert result.requires_followup is True
+    assert [record.value for record in state.runtime_flags] == ["flag{runtime_only}"]
+    assert state.verified_flags == []
+    assert state.runtime_flags[0].proof is not None
+    assert state.runtime_flags[0].proof.proof_type == "runtime_http"
+    assert state.runtime_flags[0].proof.submit_confidence == 0.85
+
+
+@pytest.mark.asyncio
+async def test_verifier_treats_response_body_flag_as_runtime_not_verified():
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    verifier = CTFVerifier(runtime=None)
+
+    result = await verifier.verify_flag(
+        state,
+        flag="flag{prompt_injection_echo}",
+        evidence_source="response_body",
+        rationale="flag string was echoed inside a prompt injection response body",
+    )
+
+    assert result.decision == "runtime"
+    assert result.requires_followup is True
+    assert [record.value for record in state.runtime_flags] == ["flag{prompt_injection_echo}"]
+    assert state.verified_flags == []
+    assert state.candidate_flags == []
+
+
+@pytest.mark.asyncio
+async def test_verifier_upgrades_runtime_flag_to_verified_via_confirmation():
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    verifier = CTFVerifier(runtime=None, confirmation_callback=lambda flag: "yes")
+
+    result = await verifier.verify_flag(
+        state,
+        flag="flag{runtime_yes}",
+        evidence_source="http-response",
+        rationale="echoed by target",
+    )
+
+    assert result.decision == "verified"
+    assert [record.value for record in state.verified_flags] == ["flag{runtime_yes}"]
+    assert state.runtime_flags == []
+    assert result.metadata["verification_path"] == "operator_confirmation"
+    assert result.metadata["platform_verified"] is False
+    assert result.metadata["operator_confirmed"] is True
+    assert result.proof is not None
+    assert result.proof.proof_type == "user_confirm"
+
+
+@pytest.mark.asyncio
+async def test_verifier_operator_confirmation_on_weak_runtime_keeps_non_platform_metadata():
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    verifier = CTFVerifier(runtime=None, confirmation_callback=lambda flag: "yes")
+
+    result = await verifier.verify_flag(
+        state,
+        flag="flag{homepage_echo_only}",
+        evidence_source="browser-rendered-page",
+        rationale="flag-like text was rendered on the first page only",
+    )
+
+    assert result.decision == "verified"
+    assert "not platform-verified" in result.rationale
+    assert result.metadata["runtime_strength"] == "weak"
+    assert any(
+        item.get("type") == "flag_verification_decision"
+        and item.get("flag") == "flag{homepage_echo_only}"
+        and item.get("verification_path") == "operator_confirmation"
+        and item.get("platform_verified") is False
+        for item in state.meta_reasonings
+        if isinstance(item, dict)
+    )
+
+
+@pytest.mark.asyncio
+async def test_verifier_rejects_flag_from_wrong_flag_feedback():
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    verifier = CTFVerifier(runtime=None)
+    verifier.reject_flag(state, flag="flag{wrong_one}", evidence_source="user-feedback")
+
+    result = await verifier.verify_flag(
+        state,
+        flag="flag{wrong_one}",
+        evidence_source="http-response",
+        rationale="saw it again",
+    )
+
+    assert result.decision == "rejected"
+    assert [record.value for record in state.rejected_flags] == ["flag{wrong_one}"]
+
+
+@pytest.mark.asyncio
+async def test_verifier_upgrades_runtime_flag_via_platform_auto_submit(monkeypatch):
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    state.submit_auto = True
+    state.submit_platform_type = "ctfd"
+    state.submit_base_url = "https://ctf.example.com"
+    state.submit_challenge_id = "42"
+    verifier = CTFVerifier(runtime=None)
+
+    async def _fake_submit_flag(flag: str, platform_type: str = "manual", challenge_id=None, **kwargs):
+        assert flag == "flag{platform_ok}"
+        assert platform_type == "ctfd"
+        assert challenge_id == "42"
+        assert kwargs["base_url"] == "https://ctf.example.com"
+        return SimpleNamespace(
+            success=True,
+            correct=True,
+            message="correct",
+            error="",
+            platform="CTFd",
+        )
+
+    monkeypatch.setattr(
+        "cpa_modules.m2_ctf_kit.flag_submitter.submit_flag",
+        _fake_submit_flag,
+    )
+
+    result = await verifier.verify_flag(
+        state,
+        flag="flag{platform_ok}",
+        evidence_source="http-response",
+        rationale="echoed by target",
+    )
+
+    assert result.decision == "verified"
+    assert [record.value for record in state.verified_flags] == ["flag{platform_ok}"]
+    assert any(
+        item.get("type") == "flag_submit_attempt" and item.get("correct") is True
+        for item in state.meta_reasonings
+        if isinstance(item, dict)
+    )
+
+
+@pytest.mark.asyncio
+async def test_verifier_rejects_runtime_flag_via_platform_auto_submit(monkeypatch):
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    state.submit_auto = True
+    state.submit_platform_type = "ctfd"
+    state.submit_base_url = "https://ctf.example.com"
+    state.submit_challenge_id = "42"
+    verifier = CTFVerifier(runtime=None)
+
+    async def _fake_submit_flag(flag: str, platform_type: str = "manual", challenge_id=None, **kwargs):
+        return SimpleNamespace(
+            success=True,
+            correct=False,
+            message="wrong answer",
+            error="",
+            platform="CTFd",
+        )
+
+    monkeypatch.setattr(
+        "cpa_modules.m2_ctf_kit.flag_submitter.submit_flag",
+        _fake_submit_flag,
+    )
+
+    result = await verifier.verify_flag(
+        state,
+        flag="flag{platform_bad}",
+        evidence_source="http-response",
+        rationale="echoed by target",
+    )
+
+    assert result.decision == "rejected"
+    assert [record.value for record in state.rejected_flags] == ["flag{platform_bad}"]
+
+
+@pytest.mark.asyncio
+async def test_verifier_operator_confirmation_still_submits_when_submit_channel_exists(monkeypatch):
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    state.submit_auto = True
+    state.submit_platform_type = "ctfd"
+    state.submit_base_url = "https://ctf.example.com"
+    state.submit_challenge_id = "42"
+    verifier = CTFVerifier(runtime=None, confirmation_callback=lambda flag: "yes")
+
+    async def _fake_submit_flag(flag: str, platform_type: str = "manual", challenge_id=None, **kwargs):
+        assert flag == "flag{weak_confirmed_but_wrong}"
+        assert platform_type == "ctfd"
+        assert challenge_id == "42"
+        return SimpleNamespace(
+            success=True,
+            correct=False,
+            message="wrong answer",
+            error="",
+            platform="CTFd",
+        )
+
+    monkeypatch.setattr(
+        "cpa_modules.m2_ctf_kit.flag_submitter.submit_flag",
+        _fake_submit_flag,
+    )
+
+    result = await verifier.verify_flag(
+        state,
+        flag="flag{weak_confirmed_but_wrong}",
+        evidence_source="browser-rendered-page",
+        rationale="homepage rendered a suspicious flag-like string",
+    )
+
+    assert result.decision == "rejected"
+    assert [record.value for record in state.rejected_flags] == ["flag{weak_confirmed_but_wrong}"]
+    assert any(
+        item.get("type") == "flag_submit_attempt"
+        and item.get("flag") == "flag{weak_confirmed_but_wrong}"
+        and item.get("correct") is False
+        for item in state.meta_reasonings
+        if isinstance(item, dict)
+    )
+
+
+@pytest.mark.asyncio
+async def test_verifier_short_circuits_when_platform_previously_rejected_flag(monkeypatch):
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    state.meta_reasonings.append(
+        {
+            "type": "flag_submit_attempt",
+            "flag": "flag{reused_bad}",
+            "source": "platform-submit",
+            "success": True,
+            "correct": False,
+            "message": "wrong answer",
+            "error": "",
+        }
+    )
+    verifier = CTFVerifier(runtime=None)
+
+    async def _unexpected_submit(*args, **kwargs):
+        raise AssertionError("submit_flag should not be called again")
+
+    monkeypatch.setattr(
+        "cpa_modules.m2_ctf_kit.flag_submitter.submit_flag",
+        _unexpected_submit,
+    )
+
+    result = await verifier.verify_flag(
+        state,
+        flag="flag{reused_bad}",
+        evidence_source="http-response",
+        rationale="echoed again",
+    )
+
+    assert result.decision == "rejected"
+    assert [record.value for record in state.rejected_flags] == ["flag{reused_bad}"]
+
+
+@pytest.mark.asyncio
+async def test_verifier_submit_gate_blocks_weak_runtime_auto_submit(monkeypatch):
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    state.submit_auto = True
+    state.submit_platform_type = "ctfd"
+    state.submit_base_url = "https://ctf.example.com"
+    state.submit_challenge_id = "42"
+    verifier = CTFVerifier(runtime=None)
+
+    async def _unexpected_submit(*args, **kwargs):
+        raise AssertionError("submit_flag should be gated off")
+
+    monkeypatch.setattr(
+        "cpa_modules.m2_ctf_kit.flag_submitter.submit_flag",
+        _unexpected_submit,
+    )
+
+    result = await verifier.verify_flag(
+        state,
+        flag="flag{weak_runtime}",
+        evidence_source="browser-rendered-page",
+        rationale="echoed on first page render",
+    )
+
+    assert result.decision == "runtime"
+    assert any(
+        item.get("type") == "submit_gate_decision" and item.get("allow") is False
+        for item in state.meta_reasonings
+        if isinstance(item, dict)
+    )
+    assert result.proof is not None
+    assert result.proof.submit_confidence < 0.5

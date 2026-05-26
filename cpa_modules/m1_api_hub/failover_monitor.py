@@ -275,8 +275,8 @@ class FailoverMonitor:
                     # Provider 已被注销，本循环退出
                     break
 
-                # 仅处理 DOWN 状态的 Provider
-                if status.state != ProviderState.DOWN:
+                # 仅处理 DOWN / RECOVERING 状态的 Provider
+                if status.state not in (ProviderState.DOWN, ProviderState.RECOVERING):
                     consecutive_successes = 0
                     await asyncio.sleep(recovery_interval)
                     continue
@@ -295,13 +295,31 @@ class FailoverMonitor:
                         else:
                             # 真实请求验证失败，重置计数器
                             consecutive_successes = 0
+                            if status.state != ProviderState.DOWN:
+                                old_state = status.state
+                                self._pm.mark_provider_status(
+                                    provider_id,
+                                    ProviderState.DOWN,
+                                    "恢复验证失败",
+                                )
+                                self._fire_callback(provider_id, old_state, ProviderState.DOWN)
                     else:
                         # 恢复中但尚未达到确认阈值
                         if status.state != ProviderState.RECOVERING:
+                            old_state = status.state
                             self._pm.mark_provider_status(provider_id, ProviderState.RECOVERING)
+                            self._fire_callback(provider_id, old_state, ProviderState.RECOVERING)
                 else:
                     # 探测失败，重置恢复计数
                     consecutive_successes = 0
+                    if status.state != ProviderState.DOWN:
+                        old_state = status.state
+                        self._pm.mark_provider_status(
+                            provider_id,
+                            ProviderState.DOWN,
+                            result.error_message or "恢复探测失败",
+                        )
+                        self._fire_callback(provider_id, old_state, ProviderState.DOWN)
 
             except Exception:
                 # 本循环绝不因任何异常而终止
@@ -370,6 +388,7 @@ class FailoverMonitor:
                     api_key=cfg.api_key,
                     api_base=cfg.api_base,
                     max_tokens=1,
+                    extra_headers=dict(cfg.headers) if cfg.headers else None,
                 ),
                 timeout=timeout,
             )
@@ -443,6 +462,7 @@ class FailoverMonitor:
                     api_key=cfg.api_key,
                     api_base=cfg.api_base,
                     max_tokens=5,
+                    extra_headers=dict(cfg.headers) if cfg.headers else None,
                 ),
                 timeout=timeout,
             )

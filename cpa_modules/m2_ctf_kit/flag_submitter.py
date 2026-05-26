@@ -78,6 +78,7 @@ class CtfPlatform:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.auth_token = auth_token
+        self.supports_submit = True
 
     async def submit_flag(self, flag: str, challenge_id: str | None = None) -> SubmitResult:
         """提交 Flag 到平台。子类必须重写。"""
@@ -305,6 +306,15 @@ class RootMePlatform(CtfPlatform):
 class ManualPlatform(CtfPlatform):
     """手动提交平台 —— 不自动发送网络请求，仅在 TUI 中显示 Flag 与目标地址。"""
 
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str | None = None,
+        auth_token: str | None = None,
+    ) -> None:
+        super().__init__(base_url=base_url, api_key=api_key, auth_token=auth_token)
+        self.supports_submit = False
+
     async def submit_flag(self, flag: str, challenge_id: str | None = None) -> SubmitResult:
         """将 Flag 和提交地址组织为消息返回，供 TUI 展示。"""
         msg = f"Flag: {flag}，请手动提交到: {self.base_url}"
@@ -325,6 +335,38 @@ class ManualPlatform(CtfPlatform):
         return {}
 
 
+class ReadOnlyPlatform(ManualPlatform):
+    """只读平台画像 —— 保留平台类型，但暂不执行自动提交。"""
+
+    platform_name: str = "ReadOnly"
+
+    async def submit_flag(self, flag: str, challenge_id: str | None = None) -> SubmitResult:
+        msg = f"{self.platform_name} 当前仅支持平台画像与上下文对齐，请手动提交 Flag"
+        if self.base_url:
+            msg += f"：{self.base_url}"
+        if challenge_id:
+            msg += f"（题目 ID: {challenge_id}）"
+        return SubmitResult(
+            success=True,
+            message=msg,
+            platform=self.platform_name,
+            correct=False,
+            challenge_id=challenge_id or "",
+        )
+
+
+class BuuOJPlatform(ReadOnlyPlatform):
+    """BUUOJ 平台画像适配器（只读）。"""
+
+    platform_name = "BUUOJ"
+
+
+class CTFShowPlatform(ReadOnlyPlatform):
+    """CTFShow 平台画像适配器（只读）。"""
+
+    platform_name = "CTFShow"
+
+
 # ---------------------------------------------------------------------------
 # 通用函数
 # ---------------------------------------------------------------------------
@@ -336,6 +378,8 @@ _PLATFORM_MAP: dict[str, type[CtfPlatform]] = {
     "thm": TryHackMePlatform,
     "rootme": RootMePlatform,
     "root-me": RootMePlatform,
+    "buuoj": BuuOJPlatform,
+    "ctfshow": CTFShowPlatform,
     "manual": ManualPlatform,
 }
 
@@ -391,6 +435,112 @@ async def submit_flag(
         return SubmitResult(success=False, error=str(exc), platform=platform_type)
 
 
+def build_platform_client(
+    platform_type: str = "manual",
+    **kwargs: Any,
+) -> CtfPlatform | None:
+    """构造平台客户端实例，供平台感知层复用。"""
+    key = str(platform_type or "manual").lower()
+    cls = _PLATFORM_MAP.get(key)
+    if cls is None:
+        return None
+    return cls(
+        base_url=kwargs.get("base_url", "https://ctf.example.com"),
+        api_key=kwargs.get("api_key"),
+        auth_token=kwargs.get("auth_token"),
+    )
+
+
+async def get_platform_snapshot(
+    platform_type: str = "manual",
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """抓取平台最小快照：题目数 / 计分板关键字段 / 是否可提交。"""
+    client = build_platform_client(platform_type, **kwargs)
+    if client is None:
+        return {
+            "success": False,
+            "platform_type": platform_type,
+            "error": f"不支持的平台类型: {platform_type}",
+        }
+
+    snapshot: dict[str, Any] = {
+        "success": True,
+        "platform_type": platform_type,
+        "base_url": kwargs.get("base_url", ""),
+        "supports_submit": bool(getattr(client, "supports_submit", str(platform_type).lower() != "manual")),
+        "challenge_count": None,
+        "scoreboard_keys": [],
+        "challenge_briefs": [],
+    }
+    try:
+        challenges = await client.get_challenges()
+        if isinstance(challenges, list):
+            snapshot["challenge_count"] = len(challenges)
+            snapshot["challenge_briefs"] = [
+                _normalize_challenge_brief(item) for item in challenges[:20]
+            ]
+    except Exception as exc:
+        snapshot["challenge_error"] = str(exc)
+
+    try:
+        scoreboard = await client.get_scoreboard()
+        if isinstance(scoreboard, dict):
+            snapshot["scoreboard_keys"] = list(scoreboard.keys())[:8]
+    except Exception as exc:
+        snapshot["scoreboard_error"] = str(exc)
+
+    return snapshot
+
+
+def _normalize_challenge_brief(item: Any) -> dict[str, Any]:
+    if not isinstance(item, dict):
+        return {
+            "id": "",
+            "name": str(item),
+            "category": "",
+            "status": "",
+            "solved": False,
+            "raw": item,
+        }
+
+    challenge_id = (
+        item.get("id")
+        or item.get("challenge_id")
+        or item.get("task_id")
+        or item.get("room_code")
+        or ""
+    )
+    name = (
+        item.get("name")
+        or item.get("title")
+        or item.get("challenge")
+        or item.get("slug")
+        or ""
+    )
+    status = str(
+        item.get("status")
+        or item.get("state")
+        or item.get("result")
+        or ""
+    )
+    solved = bool(
+        item.get("solved")
+        or item.get("completed")
+        or item.get("owned")
+        or str(status).strip().lower() in {"solved", "completed", "owned", "correct"}
+    )
+    return {
+        "id": str(challenge_id or ""),
+        "name": str(name or ""),
+        "category": str(item.get("category") or item.get("type") or ""),
+        "status": status,
+        "solved": solved,
+        "url": str(item.get("url") or item.get("link") or ""),
+        "raw": item,
+    }
+
+
 def detect_platform_from_url(url: str) -> str:
     """从 URL 自动检测平台类型。
 
@@ -412,6 +562,10 @@ def detect_platform_from_url(url: str) -> str:
     url_lower = url.lower()
     if "ctfd" in url_lower:
         return "ctfd"
+    if "buuoj" in url_lower:
+        return "buuoj"
+    if "ctf.show" in url_lower or "ctfshow" in url_lower:
+        return "ctfshow"
     if "hackthebox" in url_lower or "htb" in url_lower:
         return "htb"
     if "tryhackme" in url_lower or "tryhackm" in url_lower:
@@ -441,7 +595,7 @@ def format_flag_result(result: SubmitResult) -> str:
     if result.correct:
         rank_str = f" | 排名: {result.rank}/{result.total_teams}" if result.rank else ""
         return f"[{result.platform}] Flag正确! +{result.points}pts{rank_str}"
-    if result.platform in ("Root-Me", "Manual"):
+    if result.platform in ("Root-Me", "Manual", "BUUOJ", "CTFShow"):
         return f"[{result.platform}] {result.message}"
     return f"[{result.platform}] Flag错误: {result.message}"
 

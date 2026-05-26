@@ -50,6 +50,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0.0",
     "jinja2>=3.1.0",
+    "PyJWT>=2.10.0",
     "pyte>=0.8.0",
     "pyperclip>=1.11.0",
 ]
@@ -128,6 +129,7 @@ python_functions = ["test_*"]
 addopts = "-v --tb=short"
 markers = [
     "localtools: executes project-local security tool smoke tests",
+    "integration: requires external runtime (Kali VM, Docker, etc.)",
 ]
 
 [tool.coverage.run]
