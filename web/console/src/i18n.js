@@ -437,6 +437,19 @@ const DICT = {
     'st.ctf.stratMemHint': 'persist successful attack strategies across tasks',
     'st.ctf.verifierUrl': 'verifier endpoint',
     'st.ctf.verifierUrlHint': 'optional: POST flag to this URL for auto-submission',
+    /* command palette */
+    'cp.placeholder': 'Type a command or search...',
+    'cp.sec.nav':     'Navigate',
+    'cp.sec.action':  'Actions',
+    'cp.sec.recent':  'Recent Tasks',
+    'cp.newTask':     'New Task',
+    'cp.ctfSettings': 'CTF Mode Settings',
+    'cp.toggleTheme': 'Toggle Theme',
+    'cp.toggleLang':  'Toggle Language',
+    'cp.empty':       'No results',
+    'cp.hint.nav':    'navigate',
+    'cp.hint.confirm':'confirm',
+    'cp.hint.close':  'close',
   },
 
   zh: {
@@ -871,6 +884,19 @@ const DICT = {
     'st.ctf.stratMemHint': '跨任务持久化成功攻击策略',
     'st.ctf.verifierUrl': '验证器端点',
     'st.ctf.verifierUrlHint': '可选：自动提交 flag 的 POST 地址',
+    /* command palette */
+    'cp.placeholder': '输入命令或搜索...',
+    'cp.sec.nav':     '导航',
+    'cp.sec.action':  '操作',
+    'cp.sec.recent':  '最近任务',
+    'cp.newTask':     '新建任务',
+    'cp.ctfSettings': 'CTF 模式设置',
+    'cp.toggleTheme': '切换主题',
+    'cp.toggleLang':  '切换语言',
+    'cp.empty':       '无匹配结果',
+    'cp.hint.nav':    '导航',
+    'cp.hint.confirm':'确认',
+    'cp.hint.close':  '关闭',
   },
 };
 

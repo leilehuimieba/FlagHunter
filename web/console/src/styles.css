@@ -1332,6 +1332,141 @@ textarea.input { resize: vertical; min-height: 60px; line-height: 1.5; }
 .kpi-accent-green .val { color: var(--accent); }
 .kpi-accent-green .lbl { color: var(--accent); opacity: 0.7; }
 
+/* ── Command Palette ─────────────────────────────────────── */
+.cp-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 18vh;
+  z-index: 9999;
+}
+.cp {
+  width: 560px;
+  max-width: calc(100vw - 32px);
+  background: var(--bg-1);
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  box-shadow: 0 24px 64px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.04);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 60vh;
+}
+/* search row */
+.cp-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line-1);
+}
+.cp-search-icon { font-size: 15px; color: var(--fg-3); flex-shrink: 0; }
+.cp-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--fg-0);
+  caret-color: var(--accent);
+}
+.cp-input::placeholder { color: var(--fg-3); }
+.cp-clear {
+  background: none;
+  border: none;
+  color: var(--fg-3);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  line-height: 1;
+}
+.cp-clear:hover { background: var(--bg-3); color: var(--fg-1); }
+/* list */
+.cp-list {
+  overflow-y: auto;
+  flex: 1;
+  padding: 6px;
+}
+.cp-section { margin-bottom: 4px; }
+.cp-sec-hd {
+  font-size: 9px;
+  font-family: var(--font-mono);
+  letter-spacing: .08em;
+  color: var(--fg-3);
+  text-transform: uppercase;
+  padding: 6px 8px 3px;
+}
+.cp-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background .08s;
+}
+.cp-item.sel  { background: var(--bg-3); }
+.cp-item:hover { background: var(--bg-3); }
+.cp-item-icon {
+  width: 20px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--fg-3);
+  flex-shrink: 0;
+}
+.cp-item-icon.green { color: var(--accent); }
+.cp-item-icon.amber { color: #f59e0b; }
+.cp-item-icon.red   { color: #ef4444; }
+.cp-item-label {
+  flex: 1;
+  font-size: 13px;
+  color: var(--fg-0);
+  font-family: var(--font-sans);
+}
+.cp-item-sub {
+  font-size: 11px;
+  color: var(--fg-3);
+  font-family: var(--font-mono);
+}
+.cp-empty {
+  padding: 28px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--fg-3);
+}
+/* footer */
+.cp-footer {
+  display: flex;
+  gap: 16px;
+  padding: 7px 14px;
+  border-top: 1px solid var(--line-1);
+  background: var(--bg-2);
+}
+.cp-footer span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--fg-3);
+}
+.cp-kbd {
+  display: inline-block;
+  background: var(--bg-3);
+  border: 1px solid var(--line-2);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 9px;
+  font-family: var(--font-mono);
+  color: var(--fg-2);
+  line-height: 14px;
+}
+
 /* ── Theme: light mode override ──────────────────────────── */
 html.theme-light {
   --bg-0: #f0f2f5;

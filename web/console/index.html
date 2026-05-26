@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="src/styles.css" />
+  <link rel="stylesheet" href="src/styles.css?v=2" />
 </head>
 <body>
   <div id="root"></div>
@@ -24,29 +24,32 @@
           crossorigin="anonymous"></script>
 
   <!-- API layer (probes backend, falls back to MOCK) -->
-  <script src="src/api.js"></script>
+  <script src="src/api.js?v=2"></script>
 
   <!-- mock data + simulator (plain JS) -->
-  <script src="src/mock.js"></script>
+  <script src="src/mock.js?v=2"></script>
 
   <!-- i18n -->
-  <script src="src/i18n.js"></script>
+  <script src="src/i18n.js?v=2"></script>
 
   <!-- shared components -->
-  <script type="text/babel" src="src/components.jsx"></script>
+  <script type="text/babel" src="src/components.jsx?v=2"></script>
+
+  <!-- command palette -->
+  <script type="text/babel" src="src/command_palette.jsx"></script>
 
   <!-- shell -->
-  <script type="text/babel" src="src/shell.jsx"></script>
+  <script type="text/babel" src="src/shell.jsx?v=2"></script>
 
   <!-- pages -->
-  <script type="text/babel" src="src/pages/dashboard.jsx"></script>
-  <script type="text/babel" src="src/pages/tasks.jsx"></script>
-  <script type="text/babel" src="src/pages/traces.jsx"></script>
-  <script type="text/babel" src="src/pages/knowledge.jsx"></script>
-  <script type="text/babel" src="src/pages/logs.jsx"></script>
-  <script type="text/babel" src="src/pages/settings.jsx"></script>
+  <script type="text/babel" src="src/pages/dashboard.jsx?v=2"></script>
+  <script type="text/babel" src="src/pages/tasks.jsx?v=2"></script>
+  <script type="text/babel" src="src/pages/traces.jsx?v=2"></script>
+  <script type="text/babel" src="src/pages/knowledge.jsx?v=2"></script>
+  <script type="text/babel" src="src/pages/logs.jsx?v=2"></script>
+  <script type="text/babel" src="src/pages/settings.jsx?v=2"></script>
 
   <!-- app root -->
-  <script type="text/babel" src="src/app.jsx"></script>
+  <script type="text/babel" src="src/app.jsx?v=2"></script>
 </body>
 </html>

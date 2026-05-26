@@ -165,7 +165,7 @@ function Topbar({ route }) {
           <span className="sep">|</span>
           <span className={lang === 'zh' ? 'on' : ''}>中</span>
         </button>
-        <button className="icon-btn" title="command palette">⌘</button>
+        <button className="icon-btn" title="command palette (Ctrl+K)" onClick={() => window.dispatchEvent(new CustomEvent('fh:toggle-cp'))}>⌘</button>
         <button className="icon-btn" title="theme" onClick={() => {
           const el = document.documentElement;
           el.classList.toggle('theme-light');
