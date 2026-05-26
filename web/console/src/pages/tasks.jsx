@@ -1,4 +1,4 @@
-/* global React, MOCK, fmt, t, NewTaskModal */
+/* global React, MOCK, fmt, t, NewTaskModal, fileIcon */
 // ============================================================
 // Tasks — list (left) + detail (conversation + side panel)
 // ============================================================
@@ -19,9 +19,8 @@ function TasksPage({ onNav }) {
     return () => window.removeEventListener('fh:open-new-task', handler);
   }, []);
 
-  // Load tasks from API on mount if live
+  // Load tasks from API on mount (attempt regardless of IS_LIVE)
   useEffectT(() => {
-    if (!window.IS_LIVE) return;
     window.API.getTasks().then(data => {
       if (data && Array.isArray(data)) setTasks(data);
     });
@@ -152,7 +151,16 @@ function TaskDetail({ task }) {
   const [hintMode, setHintMode] = useStateT(false);
   const [draft, setDraft] = useStateT('');
   const [obsFresh, setObsFresh] = useStateT(null);
+  const [attachments, setAttachments] = useStateT(task.attachments || []);
   const msgEnd = useRefT(null);
+
+  // Load attachments from server when task is selected (live mode)
+  useEffectT(() => {
+    if (!window.IS_LIVE || isMockActive) return;
+    window.API.getAttachments(task.id).then(data => {
+      if (data && Array.isArray(data.files)) setAttachments(data.files);
+    });
+  }, [task.id]);
 
   const panel = isMockActive ? MOCK.TASK_002_PANEL : null;
   const [obs, setObs] = useStateT(panel?.observations || []);
@@ -306,7 +314,7 @@ function TaskDetail({ task }) {
           {panel && <KnowledgeCard hits={panel.knowledgeHits} />}
           {panel && <NotesCard notes={panel.notes} />}
           {panel && <ArtifactsCard artifacts={panel.artifacts} />}
-          {!panel && <SyntheticSidePanel task={task} />}
+          {!panel && <SyntheticSidePanel task={{ ...task, attachments }} />}
         </div>
       </div>
     </div>
@@ -461,6 +469,9 @@ function SyntheticSidePanel({ task }) {
   else if (task.status === 'failed') summaryKey = 'side.summary.failed';
   else if (task.status === 'queued') summaryKey = 'side.summary.queued';
   else summaryKey = 'side.summary.stopped';
+
+  const attachments = task.attachments || [];
+
   return (
     <>
       <div className="side-card">
@@ -474,6 +485,29 @@ function SyntheticSidePanel({ task }) {
           {isFlagged && <div className="kv-row"><span className="k">{t('c.flag')}</span><span className="v green">{task.finalFlag}</span></div>}
         </div>
       </div>
+
+      {attachments.length > 0 && (
+        <div className="side-card">
+          <div className="h">◫ {t('side.attachments')} <span className="dim right">{attachments.length}</span></div>
+          <div className="col gap-4">
+            {attachments.map((a, i) => (
+              <div key={i} className="row gap-8 attach-row">
+                <span style={{ fontSize: 13 }}>{window.fileIcon ? window.fileIcon(a.name) : '◫'}</span>
+                <span className="bright ellipsis flex1" style={{ fontSize: 11.5 }}>{a.name}</span>
+                <span className="dim" style={{ fontSize: 10, fontFamily: 'var(--font-mono)' }}>
+                  {a.size < 1024 ? a.size + 'B'
+                    : a.size < 1048576 ? (a.size / 1024).toFixed(1) + 'KB'
+                    : (a.size / 1048576).toFixed(2) + 'MB'}
+                </span>
+                {a.path && (
+                  <span className="dim" title={a.path} style={{ fontSize: 9 }}>✓</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="side-card">
         <div className="h">◈ {t('side.summary')}</div>
         <div style={{ fontSize: 11.5, color: 'var(--fg-1)', lineHeight: 1.55 }}>

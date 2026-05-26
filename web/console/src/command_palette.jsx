@@ -21,6 +21,7 @@ function CommandPalette({ onClose, onNav }) {
     { id: 'go-tasks',     icon: '▸', label: () => t('nav.tasks'),     action: () => { onNav('tasks');     onClose(); } },
     { id: 'go-traces',    icon: '◈', label: () => t('nav.traces'),    action: () => { onNav('traces');    onClose(); } },
     { id: 'go-knowledge', icon: '◉', label: () => t('nav.knowledge'), action: () => { onNav('knowledge'); onClose(); } },
+    { id: 'go-memory',    icon: '◎', label: () => t('nav.memory'),    action: () => { onNav('memory');    onClose(); } },
     { id: 'go-logs',      icon: '▤', label: () => t('nav.logs'),      action: () => { onNav('logs');      onClose(); } },
     { id: 'go-settings',  icon: '⛭', label: () => t('nav.settings'), action: () => { onNav('settings');  onClose(); } },
   ];

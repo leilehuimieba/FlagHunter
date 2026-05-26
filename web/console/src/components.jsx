@@ -257,56 +257,98 @@ function NewTaskModal({ onClose, onCreated }) {
     docker: false,
     flagFormat: 'flag\\{[^}]+\\}',
   });
-  const [file, setFile] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [files, setFiles] = useState([]);      // Array<File>
+  const [phase, setPhase] = useState('idle');  // idle | creating | uploading | done | error
+  const [uploadPct, setUploadPct] = useState(0);
   const [err, setErr] = useState('');
   const fileRef = useRef(null);
 
   function patch(k, v) { setForm(f => ({ ...f, [k]: v })); setErr(''); }
 
+  function addFiles(newFiles) {
+    setFiles(prev => {
+      const merged = [...prev];
+      Array.from(newFiles).forEach(f => {
+        if (!merged.find(x => x.name === f.name && x.size === f.size)) merged.push(f);
+      });
+      return merged;
+    });
+  }
+
+  function removeFile(idx) {
+    setFiles(prev => prev.filter((_, i) => i !== idx));
+  }
+
   async function submit() {
     if (!form.target.trim()) { setErr(t('nt.err.noTarget')); return; }
-    if (!form.title.trim()) { setErr(t('nt.err.noTitle')); return; }
-    setLoading(true);
-    const payload = { ...form };
-    if (file) payload.attachment = file.name;
+    if (!form.title.trim())  { setErr(t('nt.err.noTitle'));  return; }
+
+    // ── Phase 1: create task (JSON metadata) ──────────────────
+    setPhase('creating');
+    const payload = {
+      ...form,
+      attachments: files.map(f => ({ name: f.name, size: f.size })),
+    };
     let result = null;
     if (window.IS_LIVE) {
       result = await window.API.createTask(payload);
     }
     if (!result) {
-      // mock response when backend offline
+      // mock / offline fallback
       result = {
         id: 'task_' + Date.now().toString().slice(-6),
         ...payload,
         status: 'queued',
         createdAt: new Date().toISOString(),
+        attachments: files.map(f => ({ name: f.name, size: f.size, path: null })),
       };
     }
-    setLoading(false);
+
+    // ── Phase 2: upload files (FormData) ──────────────────────
+    if (files.length > 0 && window.IS_LIVE) {
+      setPhase('uploading');
+      setUploadPct(0);
+      const uploadResult = await window.API.uploadAttachment(
+        result.id,
+        files,
+        pct => setUploadPct(pct),
+      );
+      if (uploadResult && uploadResult.files) {
+        result.attachments = uploadResult.files;
+      }
+    }
+
+    setPhase('done');
     onCreated && onCreated(result);
     onClose();
   }
 
   const CTF_TYPES = ['web', 'crypto', 'reverse', 'pwn', 'misc', 'forensics'];
   const MODES = ['assist', 'agent', 'crew'];
+  const loading = phase === 'creating' || phase === 'uploading';
 
   // close on Escape
   useEffect(() => {
-    const handler = (e) => { if (e.key === 'Escape') onClose(); };
+    const handler = (e) => { if (e.key === 'Escape' && !loading) onClose(); };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, []);
+  }, [loading]);
+
+  function phaseLabel() {
+    if (phase === 'creating')  return t('nt.launching');
+    if (phase === 'uploading') return `${t('nt.uploading')} ${uploadPct}%`;
+    return t('c.launch');
+  }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" onClick={() => !loading && onClose()}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-head">
           <div>
             <div className="modal-title">{t('nt.title')}</div>
             <div className="modal-sub">{t('nt.sub')}</div>
           </div>
-          <button className="icon-btn" onClick={onClose} style={{ fontSize: 16 }}>✕</button>
+          <button className="icon-btn" onClick={() => !loading && onClose()} style={{ fontSize: 16 }}>✕</button>
         </div>
 
         <div className="modal-body">
@@ -378,26 +420,48 @@ function NewTaskModal({ onClose, onCreated }) {
                 value={form.flagFormat} onChange={e => patch('flagFormat', e.target.value)} />
             </div>
 
-            {/* Attachment */}
+            {/* Attachments — multi-file drop zone */}
             <div className="mf full">
               <label>{t('nt.attach')}</label>
               <div
-                className={`drop-zone ${file ? 'has-file' : ''}`}
+                className={`drop-zone ${files.length > 0 ? 'has-file' : ''}`}
                 onClick={() => fileRef.current?.click()}
                 onDragOver={e => e.preventDefault()}
-                onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) setFile(f); }}
+                onDrop={e => { e.preventDefault(); addFiles(e.dataTransfer.files); }}
               >
-                {file ? (
-                  <span className="bright">{file.name} <span className="dim">({(file.size / 1024).toFixed(1)} KB)</span>
-                    <span className="red" style={{ marginLeft: 8, cursor: 'pointer' }}
-                      onClick={ev => { ev.stopPropagation(); setFile(null); }}>✕</span>
-                  </span>
+                {files.length > 0 ? (
+                  <div className="drop-file-list" onClick={e => e.stopPropagation()}>
+                    {files.map((f, i) => (
+                      <div key={i} className="drop-file-row">
+                        <span className="drop-file-icon">{fileIcon(f.name)}</span>
+                        <span className="drop-file-name">{f.name}</span>
+                        <span className="drop-file-size dim">
+                          {f.size < 1024 ? f.size + ' B'
+                            : f.size < 1048576 ? (f.size / 1024).toFixed(1) + ' KB'
+                            : (f.size / 1048576).toFixed(2) + ' MB'}
+                        </span>
+                        <span className="drop-file-del red"
+                          onClick={() => removeFile(i)}>✕</span>
+                      </div>
+                    ))}
+                    <span className="drop-add-more muted">+ {t('nt.attachMore')}</span>
+                  </div>
                 ) : (
                   <span className="muted">{t('nt.attachDrop')}</span>
                 )}
               </div>
-              <input ref={fileRef} type="file" style={{ display: 'none' }}
-                onChange={e => setFile(e.target.files[0] || null)} />
+              <input ref={fileRef} type="file" multiple style={{ display: 'none' }}
+                onChange={e => { addFiles(e.target.files); e.target.value = ''; }} />
+
+              {/* upload progress bar */}
+              {phase === 'uploading' && (
+                <div className="upload-progress">
+                  <div className="upload-track">
+                    <div className="upload-fill" style={{ width: uploadPct + '%' }} />
+                  </div>
+                  <span className="upload-pct">{uploadPct}%</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -405,14 +469,28 @@ function NewTaskModal({ onClose, onCreated }) {
         </div>
 
         <div className="modal-foot">
-          <button className="btn ghost" onClick={onClose}>{t('c.cancel')}</button>
+          <button className="btn ghost" onClick={() => !loading && onClose()} disabled={loading}>
+            {t('c.cancel')}
+          </button>
           <button className="btn primary" onClick={submit} disabled={loading}>
-            {loading ? t('nt.launching') : t('c.launch')}
+            {phaseLabel()}
           </button>
         </div>
       </div>
     </div>
   );
+}
+
+// file type icon helper
+function fileIcon(name) {
+  const ext = (name.split('.').pop() || '').toLowerCase();
+  if (['png','jpg','jpeg','gif','bmp','webp','svg'].includes(ext)) return '🖼';
+  if (['zip','tar','gz','7z','rar','bz2','xz'].includes(ext)) return '📦';
+  if (['py','js','c','cpp','rb','go','rs','java'].includes(ext)) return '📄';
+  if (['elf','exe','dll','so','bin'].includes(ext)) return '⚙';
+  if (['pcap','pcapng'].includes(ext)) return '📡';
+  if (['pdf'].includes(ext)) return '📃';
+  return '◫';
 }
 
 // ── Toggle (reusable) ─────────────────────────────────────────
@@ -422,5 +500,7 @@ function Toggle({ on, onChange }) {
 
 Object.assign(window, {
   StatusBadge, TypeBadge, Sparkline, MiniBarChart, AreaChart, Donut, BarTrend,
-  Panel, Empty, Dots, NewTaskModal, Toggle,
+  Panel, Empty, Dots, NewTaskModal, Toggle, fileIcon,
 });
+// Direct assignment guards against Babel large-file scope issue
+window.fileIcon = fileIcon;

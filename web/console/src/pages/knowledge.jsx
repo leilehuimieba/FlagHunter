@@ -3,7 +3,7 @@
 // Knowledge — list + detail
 // ============================================================
 
-const { useState: uK, useMemo: uKM } = React;
+const { useState: uK, useEffect: uKE, useMemo: uKM } = React;
 
 function KnowledgePage({ docId, onNav }) {
   if (docId) return <KnowledgeDetail docId={docId} onNav={onNav} />;
@@ -13,13 +13,22 @@ function KnowledgePage({ docId, onNav }) {
 function KnowledgeList({ onNav }) {
   const [q, setQ] = uK('');
   const [tag, setTag] = uK('all');
-  const docs = uKM(() => MOCK.KNOWLEDGE.filter(d =>
-    (!q || d.title.toLowerCase().includes(q.toLowerCase()) || d.sourcePath.includes(q))
-    && (tag === 'all' || d.tags.includes(tag))
-  ), [q, tag]);
+  const [apiDocs, setApiDocs] = uK(null);
 
-  const totalHits = MOCK.KNOWLEDGE.reduce((s, d) => s + d.hitCount, 0);
-  const totalChunks = MOCK.KNOWLEDGE.reduce((s, d) => s + d.chunkCount, 0);
+  uKE(() => {
+    window.API.getKnowledge().then(data => {
+      if (data && Array.isArray(data)) setApiDocs(data);
+    });
+  }, []);
+
+  const sourceDocs = apiDocs || MOCK.KNOWLEDGE;
+  const docs = uKM(() => sourceDocs.filter(d =>
+    (!q || d.title.toLowerCase().includes(q.toLowerCase()) || d.sourcePath.includes(q))
+    && (tag === 'all' || (d.tags || []).includes(tag))
+  ), [q, tag, sourceDocs]);
+
+  const totalHits = sourceDocs.reduce((s, d) => s + (d.hitCount || 0), 0);
+  const totalChunks = sourceDocs.reduce((s, d) => s + (d.chunkCount || 0), 0);
 
   const tags = ['all', 'web', 'misc', 'reverse', 'forensics', 'meta', 'recon'];
 
@@ -28,7 +37,7 @@ function KnowledgeList({ onNav }) {
       <div className="page-h">
         <div>
           <div className="t">{t('kb.t')}</div>
-          <div className="sub">{t('kb.sub', MOCK.KNOWLEDGE.length, totalChunks, totalHits)}</div>
+          <div className="sub">{t('kb.sub', sourceDocs.length, totalChunks, totalHits)}</div>
         </div>
         <div className="row">
           <button className="btn ghost">{t('c.reindex')}</button>
@@ -38,8 +47,8 @@ function KnowledgeList({ onNav }) {
       </div>
 
       <div className="dash-row r4">
-        <KSt label={t('kb.stat.docs')}      value={MOCK.KNOWLEDGE.length} sub={t('kb.stat.indexed')} />
-        <KSt label={t('kb.stat.chunks')}    value={totalChunks} sub={t('kb.stat.perDoc', (totalChunks / MOCK.KNOWLEDGE.length).toFixed(1))} />
+        <KSt label={t('kb.stat.docs')}      value={sourceDocs.length} sub={t('kb.stat.indexed')} />
+        <KSt label={t('kb.stat.chunks')}    value={totalChunks} sub={t('kb.stat.perDoc', sourceDocs.length ? (totalChunks / sourceDocs.length).toFixed(1) : '0')} />
         <KSt label={t('kb.stat.hitsToday')} value={totalHits} sub={t('kb.stat.hitsToday.sub')} />
         <KSt label={t('kb.stat.topDoc')}    value="doc_002" sub={t('kb.stat.topDoc.sub')} />
       </div>

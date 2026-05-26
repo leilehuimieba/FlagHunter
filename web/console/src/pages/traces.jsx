@@ -12,7 +12,16 @@ function TracesPage({ runId, onNav }) {
 
 function TraceList({ onNav }) {
   const [filter, setFilter] = uS('all');
-  const runs = MOCK.TRACES.filter(r => filter === 'all' || r.status === filter);
+  const [apiTraces, setApiTraces] = uS(null);
+
+  uE(() => {
+    window.API.getTraces().then(data => {
+      if (data && Array.isArray(data)) setApiTraces(data);
+    });
+  }, []);
+
+  const sourceTraces = apiTraces || MOCK.TRACES;
+  const runs = sourceTraces.filter(r => filter === 'all' || r.status === filter);
   const filterKeys = ['all', 'running', 'success', 'failed', 'stopped'];
   return (
     <div className="page">
@@ -82,7 +91,16 @@ function TraceList({ onNav }) {
 // TraceDetail
 // ----------------------------------------------------------------
 function TraceDetail({ runId, onNav }) {
-  const run = MOCK.TRACES.find(r => r.id === runId) || MOCK.TRACES[0];
+  const [apiTraces, setApiTraces] = uS(null);
+
+  uE(() => {
+    window.API.getTraces().then(data => {
+      if (data && Array.isArray(data)) setApiTraces(data);
+    });
+  }, []);
+
+  const sourceTraces = apiTraces || MOCK.TRACES;
+  const run = sourceTraces.find(r => r.id === runId) || sourceTraces[0];
   const [tab, setTab] = uS('timeline');
   const [drawer, setDrawer] = uS(null);
   const isActive = run.status === 'running';

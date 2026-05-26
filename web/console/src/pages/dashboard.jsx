@@ -33,8 +33,17 @@ function DashboardPage({ onNav }) {
   const { flags, copyFlag, copiedId } = useFlagBoard();
 
   uDE(() => {
-    if (!window.IS_LIVE) return;
     window.API.getDashboard().then(data => { if (data) setLiveData(data); });
+  }, []);
+
+  // Subscribe to SSE for real-time KPI updates — re-fetch dashboard on task events
+  uDE(() => {
+    if (!window.API) return;
+    return window.API.subscribeEvents(ev => {
+      if (ev.type === 'task_status' || ev.type === 'task_created') {
+        window.API.getDashboard().then(data => { if (data) setLiveData(data); });
+      }
+    });
   }, []);
 
   const kpis = liveData?.kpis || d.kpis;

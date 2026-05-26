@@ -1,4 +1,4 @@
-/* global React, ReactDOM, Sidebar, Topbar, DashboardPage, TasksPage, TracesPage, KnowledgePage, LogsPage, SettingsPage, CommandPalette */
+/* global React, ReactDOM, Sidebar, Topbar, DashboardPage, TasksPage, TracesPage, KnowledgePage, LogsPage, SettingsPage, MemoryPage, CommandPalette */
 
 const { useState: uA, useEffect: uAE } = React;
 
@@ -11,6 +11,17 @@ function App() {
   });
 
   const [showCP, setShowCP] = uA(false);
+
+  // Global SSE subscription — ensures the event stream is always open
+  // so all pages (dashboard, traces, knowledge, etc.) receive real-time events.
+  // Each page can also add its own subscribeEvents() for page-specific handling.
+  uAE(() => {
+    if (!window.API) return;
+    return window.API.subscribeEvents(ev => {
+      // Route task_status events to a global event so any page can react
+      window.dispatchEvent(new CustomEvent('fh:event', { detail: ev }));
+    });
+  }, []);
 
   uAE(() => {
     const handler = () => {
@@ -64,6 +75,7 @@ function App() {
         {route.startsWith('knowledge') && (
           <KnowledgePage docId={route.split('/')[1]} onNav={nav} />
         )}
+        {route === 'memory' && <MemoryPage />}
         {route === 'logs' && <LogsPage />}
         {route === 'settings' && <SettingsPage />}
       </div>

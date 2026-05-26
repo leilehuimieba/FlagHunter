@@ -14,7 +14,15 @@ function LogsPage() {
   const [live, setLive]   = uL(true);
   const [picked, setPicked] = uL(null);
   const [appended, setAppended] = uL([]);
+  const [apiLogs, setApiLogs] = uL(null);
   const termRef = uLR(null);
+
+  // Fetch logs from API on mount
+  uLE(() => {
+    window.API.getLogs().then(data => {
+      if (data && Array.isArray(data)) setApiLogs(data);
+    });
+  }, []);
 
   const LIVE_POOL = [
     ['info',  'tool.terminal', '[INFO] retrieved tuple via pg_sleep timing (Δ4.21s)'],
@@ -47,7 +55,8 @@ function LogsPage() {
     }
   }, [appended.length, mode]);
 
-  const all = uLM(() => [...appended, ...MOCK.LOGS], [appended]);
+  const mockLogs = apiLogs || MOCK.LOGS;
+  const all = uLM(() => [...appended, ...mockLogs], [appended, mockLogs]);
   const filtered = uLM(() => all.filter(l => {
     if (level !== 'all' && l.level !== level) return false;
     if (src !== 'all' && !l.source.startsWith(src)) return false;
