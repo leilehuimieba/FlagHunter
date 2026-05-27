@@ -29,7 +29,7 @@
 
 | 文档 | 角色 | 当前是否有效 | 是否历史快照 | 是否需维护 | 备注 |
 |---|---|---|---|---|---|
-| `FlagHunter_Web可视化控制台_当前可用性收口与使用边界_V1.md` | current | **是** | 否 | 是 | 当前可用性主文档 / 使用边界 source of truth |
+| `FlagHunter_Web可视化控制台_当前可用性收口与使用边界_V1.md` | current | **是** | 否 | 是 | 当前可用性主文档 / 使用边界 source of truth；已同步到 `9fff682` truthification 基线 |
 | `FlagHunter_Web可视化控制台_StageV_总验收归档与交接_V1.md` | current | **是** | 否 | 是 | 当前阶段总验收主文档 |
 | `FlagHunter_Web可视化控制台_StageI~III_总验收归档与交接_V2.md` | historical-baseline | 是 | **是** | 低频 | Stage I~III 基线交接文档，供历史恢复参考 |
 | `FlagHunter_Web可视化控制台_文档索引与状态矩阵_V1.md` | current | **是** | 否 | 是 | 当前文档导航入口 |
@@ -51,7 +51,7 @@
 | `FlagHunter_Web可视化控制台_StageIV_总验收归档与交接_V1.md` | historical-baseline | 是 | **是** | 低频 | Stage IV 基线文档，后续仅做参考 |
 | `FlagHunter_Web可视化控制台_StageV_首轮页面级回归验证证据_V1.json` | evidence | 是 | 是 | 否 | Stage V Task A 页面级回归证据 |
 | `FlagHunter_Web可视化控制台_StageV_动作链验收验证证据_V1.json` | evidence | 是 | 是 | 否 | Stage V Task B 动作链证据 |
-| `FlagHunter_Web可视化控制台_当前可用性Smoke验证证据_V1.json` | evidence | 是 | 是 | 否 | post-Stage-V 当前可用性 smoke 证据 |
+| `FlagHunter_Web可视化控制台_当前可用性Smoke验证证据_V1.json` | evidence | 是 | 是 | 否 | post-Stage-V + truthification 当前可用性 smoke 证据 |
 | `FlagHunter_Web可视化控制台建设计划书_V1.md` | planning | 否 | 否 | 否 | 初始规划，描述建设愿景，不代表当前实现 |
 | `FlagHunter_Web可视化控制台_信息架构与API事件草案_V1.md` | planning/reference | 否 | 否 | 低频 | 参考合同文档，部分已实现，部分已偏离 |
 | `FlagHunter_Web可视化控制台_前端原型拆解与组件树规范_V1.md` | planning/reference | 否 | 否 | 低频 | 原型设计参考，不是当前代码结构真相 |

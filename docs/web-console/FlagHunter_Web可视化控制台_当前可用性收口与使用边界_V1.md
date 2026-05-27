@@ -3,8 +3,8 @@
 - 文档版本：V1
 - 编写日期：2026-05-27
 - 文档角色：**当前可用性收口 / 使用边界说明**
-- 验证起点基线：`33a5293` · `docs(web): sync stage v baseline after stability fix`
-- 当前结论：**当前实现已达到“可实际使用”的收口标准，可作为后续继续开发前的稳定可用基线**
+- 验证起点基线：`9fff682` · `fix(web): truthify dashboard knowledge settings live states`
+- 当前结论：**当前实现已达到“可实际使用且边界更诚实”的收口标准，可作为后续继续开发前的稳定可用基线**
 
 ---
 
@@ -22,9 +22,10 @@
 
 本轮只验证**真实使用主路径**，不扩展新功能：
 
-### 2.1 页面可打开性
+### 2.1 页面可打开性 / 真实性复核
 
 - Dashboard
+- Knowledge
 - Logs
 - Settings
 - Task Detail（existing sample）
@@ -41,6 +42,8 @@
 
 - retry
 - continue
+- knowledge reindex / add doc / open file
+- dashboard 运行时筛选 / 时间筛选
 - 新事件 schema 扩展
 - 新图表 / 新页面 / 新控制能力
 
@@ -77,19 +80,40 @@
    - `配置面板 / 模型配置 / API 密钥` 等核心区域可见
    - 当前 partial live save 的 UI 表面存在且可读取
 
-4. `#/tasks/task_260527072428_7b73`
+4. `#/knowledge`
+   - 能打开 Knowledge 列表页
+   - live 下列表可直接读取真实 doc 数据
+   - `reindex / add doc` 已降级为禁用诚实态
+   - `export` 已接成本地 JSON 导出
+
+5. `#/knowledge/not_real_doc`
+   - invalid detail deep-link 可安全打开
+   - 当前会显示真实空态，不再混入 `MOCK.CHUNKS_002`
+   - `open file` 已降级为禁用诚实态
+
+6. `#/tasks/task_260527072428_7b73`
    - deep-link reload 可用
    - `observed session transcript` 可见
    - persisted hint 可见
 
-5. `#/traces/run_260527072428_ac66`
+7. `#/traces/run_260527072428_ac66`
    - deep-link reload 可用
    - timeline 中 `task stopped / recon bundle / hint accepted` 可见
 
-6. `#/tasks/task_260527085302_2fe6`
+8. `#/tasks/task_260527085302_2fe6`
    - fresh smoke task detail 可打开
    - fresh hint 文本已在 detail 中持久化可见
    - detail 仍保持 snapshot-backed transcript
+
+9. Dashboard / Knowledge / Settings 真实性复核：通过
+
+本轮已额外确认：
+
+- Dashboard live 下不再静默显示 `recentNotes / recentArtifacts` mock 内容
+- Dashboard 顶部筛选按钮已改成禁用诚实态，不再表现为“可点但无动作”
+- Dashboard 最近任务点击会直达对应 `Task Detail`
+- Settings 不再以 `MOCK.SETTINGS` 作为 live merge 基底
+- Settings 预算 / 知识库索引只读区块不再显示旧硬编码假数据
 
 ### 3.3 动作主路径：通过
 
@@ -125,6 +149,7 @@
 4. Task List / Task Detail 查看
 5. Trace List / Trace Detail 查看
 6. Knowledge 页面查看
+7. Settings 只读统计查看（已接 live 数据或显式空值）
 
 ### 4.2 详情与 reload
 
@@ -138,12 +163,14 @@
 1. 创建任务
 2. 注入 hint
 3. 停止任务
+4. Tasks / Traces / Logs / Knowledge 的本地 JSON 导出
 
 ### 4.4 live 稳定性
 
 1. 连接徽标已完成稳定性修补
 2. 短时 `/api/status` probe 抖动不再轻易把 live 状态误翻成 offline
 3. SSE 近期活跃时，连接状态会保持 live
+4. 页面上的未接线动作已优先改成禁用/空态/本地导出，而不是继续伪装成 live 能力
 
 ---
 
@@ -155,11 +182,24 @@
    - 目前不是本轮可用性基线的一部分
    - 未做单独 hard acceptance
 
-2. Logs 页自动化 DOM 粒度稳定性
+2. `continue`
+   - 当前仍未接 live 后端合同
+   - 已诚实化为 hint 优先路径，不应被当作真实续跑能力
+
+3. Logs 页自动化 DOM 粒度稳定性
    - 页面正文可验证
    - 但行级 DOM 选择器稳定性弱于整页文本断言
 
-3. 更高阶的后续增强项
+4. Knowledge / Dashboard / Settings 中仍未开放的管理动作
+   - `reindex`
+   - `add doc`
+   - `open file`
+   - `test runtime`
+   - `add server`
+   - `rebuild index`
+   这些当前应被理解为“未接线的禁用动作”，不是坏掉的已上线功能
+
+5. 更高阶的后续增强项
    - richer event schema
    - 更完整 artifact / audit 事件
    - 新动作语义扩展
@@ -174,6 +214,7 @@
 ### 可以依赖
 
 - 当前主页面可打开
+- 当前主页面的未接线能力会显式禁用或显示空态
 - 当前详情页 deep-link 可用
 - create / hint / stop 可用
 - Stage V 收口链路已完成
@@ -182,6 +223,7 @@
 
 - 把 planning 文档当成当前实现真相
 - 把 retry 当成已最终验收能力
+- 把 disabled 的 Dashboard / Knowledge / Settings 管理按钮当成 bug 误判；它们当前是有意诚实化降级
 - 用过细的 Logs DOM 自动化断言替代页面级 smoke 验证
 
 ---
@@ -211,6 +253,7 @@
 - existing trace detail：`run_260527072428_ac66`
 - fresh smoke task：`task_260527085302_2fe6` / `run_260527085302_84f5`
 - fresh action stop sample：`task_260527085724_8899` / `run_260527085724_9a16`
+- truthification verify baseline：`9fff682`
 
 ---
 
@@ -222,7 +265,8 @@
 - 当前核心详情 / deep-link / reload 路径 **可用**
 - 当前 create / hint / stop 动作 **可用**
 - 当前连接状态稳定性已完成最小修补
+- 当前 Dashboard / Knowledge / Settings 已完成一轮“真实性收口”，live/mock 边界比 Stage V 基线更诚实
 
 因此当前可以把 Web Console 标记为：
 
-> **已达到“当前实现可实际使用”的收口标准，可作为后续继续开发前的稳定可用基线。**
+> **已达到“当前实现可实际使用且边界诚实”的收口标准，可作为后续继续开发前的稳定可用基线。**
