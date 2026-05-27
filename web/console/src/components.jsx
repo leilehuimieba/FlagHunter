@@ -494,8 +494,14 @@ function fileIcon(name) {
 }
 
 // ── Toggle (reusable) ─────────────────────────────────────────
-function Toggle({ on, onChange }) {
-  return <div className={`toggle ${on ? 'on' : ''}`} onClick={() => onChange(!on)} />;
+function Toggle({ on, onChange, disabled = false, title = '' }) {
+  return (
+    <div
+      className={`toggle ${on ? 'on' : ''} ${disabled ? 'disabled' : ''}`}
+      onClick={() => !disabled && onChange(!on)}
+      title={title}
+    />
+  );
 }
 
 Object.assign(window, {
