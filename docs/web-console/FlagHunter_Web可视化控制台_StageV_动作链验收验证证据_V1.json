@@ -3,7 +3,7 @@
   "date": "2026-05-27",
   "scope": "Stage V / Task B / live action-chain verification",
   "baseUrl": "http://127.0.0.1:8080",
-  "rollbackPoint": "4de5e52",
+  "rollbackPoint": "d7d7a70",
   "samples": {
     "failedRun": {
       "taskId": "task_260527065152_47b5",
@@ -29,13 +29,21 @@
     {
       "module": "web/console/src/pages/tasks.jsx",
       "change": "preserve enriched detail payload across list refreshes and fetch task detail / attachments regardless of transient window.IS_LIVE probe state"
+    },
+    {
+      "module": "web/console/src/api.js",
+      "change": "stabilize live connection state by tolerating transient /api/status probe failures, keeping recent SSE activity authoritative, and avoiding false disconnected badge flips"
     }
   ],
   "apiEvidence": {
     "taskDetail": {
       "taskId": "task_260527072428_7b73",
       "messagesMode": "session_snapshot",
-      "messageIdsTail": ["msg_9", "hint_msg_1", "hint_msg_2"],
+      "messageIdsTail": [
+        "msg_9",
+        "hint_msg_1",
+        "hint_msg_2"
+      ],
       "hints": [
         {
           "text": "Post-restart persistence proof: hint should remain visible in detail and trace replay.",
@@ -104,13 +112,13 @@
   "currentOpenIssues": [
     {
       "id": "stagev-taskb-001",
-      "severity": "non_blocking",
-      "status": "observed",
-      "detail": "connection badge can still flip to offline when /api/status polling aborts during browser-tool tab focus changes, but task/traces detail fetches now continue to work and no longer block Task Detail reload evidence"
+      "severity": "fixed",
+      "status": "closed",
+      "detail": "connection badge stability follow-up completed in d7d7a70; transient /api/status aborts no longer flip the sidebar badge to offline while SSE remains healthy"
     }
   ],
   "conclusion": {
     "taskBStatus": "completed",
-    "summary": "Stage V Task B now satisfies create/run/observe/hint/trace/log evidence. Task Detail and Trace Detail both retain hint history after reload, and Logs page receives agent.hint in live mode."
+    "summary": "Stage V Task B now satisfies create/run/observe/hint/trace/log evidence, and the post-acceptance connection-state stability follow-up has been closed."
   }
 }
