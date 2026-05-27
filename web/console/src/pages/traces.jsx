@@ -20,6 +20,17 @@ function TraceList({ onNav }) {
     });
   }, []);
 
+  uE(() => {
+    if (!window.API) return;
+    return window.API.subscribeEvents(ev => {
+      if (ev.type === 'task_created' || ev.type === 'task_status') {
+        window.API.getTraces().then(data => {
+          if (data && Array.isArray(data)) setApiTraces(data);
+        });
+      }
+    });
+  }, []);
+
   const sourceTraces = apiTraces || MOCK.TRACES;
   const runs = sourceTraces.filter(r => filter === 'all' || r.status === filter);
   const filterKeys = ['all', 'running', 'success', 'failed', 'stopped'];
@@ -91,20 +102,220 @@ function TraceList({ onNav }) {
 // TraceDetail
 // ----------------------------------------------------------------
 function TraceDetail({ runId, onNav }) {
-  const [apiTraces, setApiTraces] = uS(null);
+  const [run, setRun] = uS(null);
 
   uE(() => {
-    window.API.getTraces().then(data => {
-      if (data && Array.isArray(data)) setApiTraces(data);
-    });
-  }, []);
+    let done = false;
+    if (window.IS_LIVE) {
+      window.API.getTrace(runId).then(data => {
+        if (!done && data && data.id) setRun(data);
+      });
+    } else {
+      const mockRun = MOCK.TRACES.find(r => r.id === runId) || MOCK.TRACES[0];
+      setRun(mockRun);
+    }
+    return () => { done = true; };
+  }, [runId]);
 
-  const sourceTraces = apiTraces || MOCK.TRACES;
-  const run = sourceTraces.find(r => r.id === runId) || sourceTraces[0];
+  const liveFallbackRun = {
+    id: runId || 'trace',
+    taskId: '—',
+    target: '—',
+    status: 'stopped',
+    startedAt: null,
+    finishedAt: null,
+    durationMs: null,
+    totalSteps: 0,
+    totalToolCalls: 0,
+    totalTokens: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    finalFlag: null,
+    timeline: [],
+    toolEvents: [],
+  };
+  const resolvedRun = window.IS_LIVE
+    ? (run || liveFallbackRun)
+    : (run || MOCK.TRACES.find(r => r.id === runId) || MOCK.TRACES[0]);
   const [tab, setTab] = uS('timeline');
   const [drawer, setDrawer] = uS(null);
-  const isActive = run.status === 'running';
-  const timeline = run.timeline || synthTimeline(run);
+  const isActive = resolvedRun.status === 'running';
+  const timeline = resolvedRun.timeline || (!window.IS_LIVE ? synthTimeline(resolvedRun) : []);
+  const hasObservedToolIO = Array.isArray(resolvedRun.toolEvents) && resolvedRun.toolEvents.length > 0;
+
+  uE(() => {
+    window.dispatchEvent(new CustomEvent('fh:route-label', {
+      detail: { label: resolvedRun.id || runId || 'trace' }
+    }));
+  }, [resolvedRun.id, runId]);
+
+  uE(() => {
+    if (!window.IS_LIVE) return;
+    const handler = (event) => {
+      const ev = event?.detail || {};
+      if (ev.run_id !== resolvedRun.id && ev.task_id !== resolvedRun.taskId) return;
+      const at = ev.t || ev.timestamp || new Date().toISOString();
+
+      if (ev.type === 'task_status') {
+        const updates = ev.updates || {};
+        setRun(prev => {
+          const base = prev || liveFallbackRun;
+          const next = {
+            ...base,
+            ...updates,
+            totalTokens: updates.tokensUsed != null ? updates.tokensUsed : base.totalTokens,
+            totalToolCalls: updates.toolCalls != null ? updates.toolCalls : base.totalToolCalls,
+            totalSteps: updates.toolCalls != null
+              ? Math.max(base.totalSteps || 0, updates.toolCalls)
+              : base.totalSteps,
+          };
+          if (updates.status && updates.status !== 'running') {
+            const finishEventId = `evt_finish_${updates.status}_${updates.finishedAt || at}`;
+            const existing = Array.isArray(base.timeline) ? base.timeline : [];
+            const already = existing.some(item => item.id === finishEventId);
+            if (!already) {
+              next.timeline = [...existing, {
+                id: finishEventId,
+                t: updates.finishedAt || at,
+                type: updates.finalFlag ? 'verify' : 'system',
+                kind: updates.finalFlag ? 'verifier.flag.verified' : `task.${updates.status}`,
+                title: updates.finalFlag ? 'flag verified' : `task ${updates.status}`,
+                summary: updates.finalFlag || updates.stopReason || updates.status,
+                status: 'done',
+                tokens: updates.tokensUsed || base.totalTokens || 0,
+              }];
+            }
+          }
+          return next;
+        });
+        return;
+      }
+
+      if (ev.type === 'tool_call') {
+        setRun(prev => {
+          const base = prev || liveFallbackRun;
+          const existing = Array.isArray(base.timeline) ? base.timeline : [];
+          const eventId = `evt_tool_${ev.tool || 'tool'}_${at}`;
+          if (existing.some(item => item.id === eventId)) return base;
+          return {
+            ...base,
+            timeline: [...existing, {
+              id: eventId,
+              t: at,
+              type: 'tool',
+              kind: ev.kind || 'tool.called',
+              title: ev.tool ? `${ev.tool} called` : 'tool called',
+              summary: ev.summary || 'live tool event',
+              status: 'running',
+              tool: ev.tool || null,
+              tokens: 0,
+            }],
+          };
+        });
+        return;
+      }
+
+      if (ev.type === 'tool.finished') {
+        setRun(prev => {
+          const base = prev || liveFallbackRun;
+          const existing = Array.isArray(base.timeline) ? base.timeline : [];
+          const eventId = `evt_tool_finished_${ev.tool || 'tool'}_${at}`;
+          if (existing.some(item => item.id === eventId)) return base;
+          return {
+            ...base,
+            timeline: [...existing, {
+              id: eventId,
+              t: at,
+              type: 'tool',
+              kind: ev.kind || 'tool.finished',
+              title: ev.tool ? `${ev.tool} finished` : 'tool finished',
+              summary: ev.summary || (ev.success === false ? 'tool failed' : 'tool completed'),
+              status: 'done',
+              tool: ev.tool || null,
+              durationMs: typeof ev.duration_ms === 'number' ? ev.duration_ms : null,
+              output: ev.output || '',
+              tokens: 0,
+            }],
+          };
+        });
+        return;
+      }
+
+      if (ev.type === 'knowledge.retrieved') {
+        setRun(prev => {
+          const base = prev || liveFallbackRun;
+          const existing = Array.isArray(base.timeline) ? base.timeline : [];
+          const eventId = `evt_knowledge_${ev.source || 'knowledge'}_${at}`;
+          if (existing.some(item => item.id === eventId)) return base;
+          return {
+            ...base,
+            timeline: [...existing, {
+              id: eventId,
+              t: at,
+              type: 'knowledge',
+              kind: ev.kind || 'knowledge.retrieved',
+              title: 'knowledge retrieved',
+              summary: ev.summary || ev.source || 'knowledge hit observed',
+              status: 'done',
+              tool: ev.source || null,
+              output: ev.output || '',
+              tokens: 0,
+            }],
+          };
+        });
+        return;
+      }
+
+      if (ev.type === 'note.created') {
+        setRun(prev => {
+          const base = prev || liveFallbackRun;
+          const existing = Array.isArray(base.timeline) ? base.timeline : [];
+          const eventId = `evt_note_${at}`;
+          if (existing.some(item => item.id === eventId)) return base;
+          return {
+            ...base,
+            timeline: [...existing, {
+              id: eventId,
+              t: at,
+              type: 'note',
+              kind: ev.kind || 'note.created',
+              title: 'note created',
+              summary: ev.summary || 'note saved',
+              status: 'done',
+              output: ev.output || '',
+              tokens: 0,
+            }],
+          };
+        });
+        return;
+      }
+
+      if (ev.type === 'hint') {
+        setRun(prev => {
+          const base = prev || liveFallbackRun;
+          const existing = Array.isArray(base.timeline) ? base.timeline : [];
+          const eventId = `evt_hint_${at}`;
+          if (existing.some(item => item.id === eventId)) return base;
+          return {
+            ...base,
+            timeline: [...existing, {
+              id: eventId,
+              t: at,
+              type: 'system',
+              kind: 'task.hint',
+              title: 'hint accepted',
+              summary: ev.text || 'hint injected',
+              status: 'done',
+              tokens: 0,
+            }],
+          };
+        });
+      }
+    };
+
+    window.addEventListener('fh:event', handler);
+    return () => window.removeEventListener('fh:event', handler);
+  }, [resolvedRun.id, resolvedRun.taskId, runId]);
 
   return (
     <div className="page" style={{ minHeight: 0 }}>
@@ -112,26 +323,33 @@ function TraceDetail({ runId, onNav }) {
         <div>
           <div className="t row gap-12" style={{ alignItems: 'center' }}>
             <span className="dim" style={{ cursor: 'pointer', fontSize: 13 }} onClick={() => onNav('traces')}>{t('tr.back')}</span>
-            <span>{run.id}</span>
-            <StatusBadge status={run.status} />
+            <span>{resolvedRun.id}</span>
+            <StatusBadge status={resolvedRun.status} />
           </div>
-          <div className="sub">{t('c.task')} <b className="bright">{run.taskId}</b> · {t('c.target')} <b className="bright">{run.target}</b></div>
+          <div className="sub">{t('c.task')} <b className="bright">{resolvedRun.taskId}</b> · {t('c.target')} <b className="bright">{resolvedRun.target}</b></div>
         </div>
         <div className="row">
           <button className="btn ghost">⬇ {t('c.json')}</button>
-          <button className="btn ghost">{t('c.openTask')}</button>
+          <button className="btn ghost" onClick={() => onNav && onNav(`tasks/${resolvedRun.taskId}`)}>{t('c.openTask')}</button>
           <button className="btn">⟲ {t('c.replay')}</button>
         </div>
       </div>
 
       <Panel>
+        {window.IS_LIVE && resolvedRun.detailSource && (
+          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--line-1)', fontSize: 11, color: 'var(--fg-2)', display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+            <span>session: <span className="mono">{resolvedRun.detailSource.session || '—'}</span></span>
+            <span>metrics: <span className="mono">{resolvedRun.detailSource.metrics || '—'}</span></span>
+            <span>tool I/O: <span className={hasObservedToolIO ? 'green' : 'muted'}>{hasObservedToolIO ? 'observed' : 'not captured'}</span></span>
+          </div>
+        )}
         <div className="trace-detail-head">
-          <Kv k={t('c.started')}   v={fmt.hh(run.startedAt) + ' · ' + fmt.since(run.startedAt)} />
-          <Kv k={t('c.duration')}  v={run.durationMs ? (run.durationMs/1000).toFixed(1) + 's' : t('tr.stillRunning')} />
-          <Kv k={t('c.steps')}     v={run.totalSteps} />
-          <Kv k={t('c.toolCalls')} v={run.totalToolCalls} />
-          <Kv k={t('c.tokens')}    v={`${run.totalTokens.toLocaleString()} · ${(run.inputTokens/1000).toFixed(1)}k in / ${(run.outputTokens/1000).toFixed(1)}k out`} />
-          {run.finalFlag && <Kv k={t('c.flag')} v={<span className="green">{run.finalFlag}</span>} />}
+          <Kv k={t('c.started')}   v={resolvedRun.startedAt ? (fmt.hh(resolvedRun.startedAt) + ' · ' + fmt.since(resolvedRun.startedAt)) : '—'} />
+          <Kv k={t('c.duration')}  v={resolvedRun.durationMs ? (resolvedRun.durationMs/1000).toFixed(1) + 's' : t('tr.stillRunning')} />
+          <Kv k={t('c.steps')}     v={resolvedRun.totalSteps} />
+          <Kv k={t('c.toolCalls')} v={resolvedRun.totalToolCalls} />
+          <Kv k={t('c.tokens')}    v={`${(resolvedRun.totalTokens || 0).toLocaleString()} · ${((resolvedRun.inputTokens || 0)/1000).toFixed(1)}k in / ${((resolvedRun.outputTokens || 0)/1000).toFixed(1)}k out`} />
+          {resolvedRun.finalFlag && <Kv k={t('c.flag')} v={<span className="green">{resolvedRun.finalFlag}</span>} />}
         </div>
 
         <div className="tabs">
@@ -147,14 +365,14 @@ function TraceDetail({ runId, onNav }) {
         </div>
 
         {tab === 'timeline' && <TimelineView events={timeline} onPick={setDrawer} isActive={isActive} />}
-        {tab === 'graph' && run.id === 'run_002' && <GraphView onPick={(g) => setDrawer({
-          id: g.id, kind: g.k.toLowerCase() + '.node', title: g.t, summary: '', t: run.startedAt,
+        {tab === 'graph' && resolvedRun.id === 'run_002' && <GraphView onPick={(g) => setDrawer({
+          id: g.id, kind: g.k.toLowerCase() + '.node', title: g.t, summary: '', t: resolvedRun.startedAt,
         })} />}
-        {tab === 'graph' && run.id !== 'run_002' && <Empty>{t('tr.graph.notReady', run.id)}</Empty>}
-        {tab === 'data' && <DataTables run={run} events={timeline} />}
+        {tab === 'graph' && resolvedRun.id !== 'run_002' && <Empty>{t('tr.graph.notReady', resolvedRun.id)}</Empty>}
+        {tab === 'data' && <DataTables run={resolvedRun} events={timeline} />}
       </Panel>
 
-      {drawer && <EventDrawer event={drawer} run={run} onClose={() => setDrawer(null)} />}
+      {drawer && <EventDrawer event={drawer} run={resolvedRun} onClose={() => setDrawer(null)} />}
     </div>
   );
 }
@@ -175,6 +393,10 @@ function typeLabel(type) {
 
 function TimelineView({ events, onPick, isActive }) {
   const [hover, setHover] = uS(null);
+
+  if (!events.length && !isActive) {
+    return <Empty>no observed trace timeline</Empty>;
+  }
 
   return (
     <div className="timeline">
@@ -422,6 +644,8 @@ function NotesTbl({ events }) {
 // ----------------------------------------------------------------
 function EventDrawer({ event, run, onClose }) {
   const e = event;
+  const hasObservedInput = typeof e.input === 'string' && e.input.length > 0;
+  const hasObservedOutput = typeof e.output === 'string' && e.output.length > 0;
   return (
     <div className="drawer">
       <div className="head">
@@ -455,16 +679,19 @@ function EventDrawer({ event, run, onClose }) {
           <div className="section">
             <div className="h">{t('tr.dr.toolIO')}</div>
             <div className="muted" style={{ fontSize: 10, marginBottom: 4 }}>{t('tr.dr.input')}</div>
-            <pre className="code-block">{getToolInput(e)}</pre>
+            <pre className="code-block">{hasObservedInput ? e.input : getToolInput(e)}</pre>
             <div className="muted" style={{ fontSize: 10, margin: '8px 0 4px' }}>{t('tr.dr.output')}</div>
-            <pre className="code-block">{getToolOutput(e)}</pre>
+            <pre className="code-block">{hasObservedOutput ? e.output : getToolOutput(e)}</pre>
+            {!hasObservedInput && !hasObservedOutput && (
+              <div className="muted" style={{ fontSize: 10, marginTop: 6 }}>no observed tool I/O snapshot for this event</div>
+            )}
           </div>
         )}
 
         {e.type === 'knowledge' && (
           <div className="section">
             <div className="h">{t('tr.dr.chunks')}</div>
-            <pre className="code-block">{'doc_002 · chunk_002 (score 0.79)\nDetect backend dialect via timing: pg_sleep, SLEEP, WAITFOR DELAY differ.\nPostgres returns the same response shape for both authenticated and\nunauthenticated probes, so size deltas are the strongest signal.'}</pre>
+            <pre className="code-block">{window.IS_LIVE ? (e.output || e.summary || 'no observed chunk excerpt') : 'doc_002 · chunk_002 (score 0.79)\nDetect backend dialect via timing: pg_sleep, SLEEP, WAITFOR DELAY differ.\nPostgres returns the same response shape for both authenticated and\nunauthenticated probes, so size deltas are the strongest signal.'}</pre>
           </div>
         )}
 
@@ -483,6 +710,7 @@ function EventDrawer({ event, run, onClose }) {
 }
 
 function getToolInput(e) {
+  if (window.IS_LIVE) return t('tr.dr.noOutput');
   if (e.tool === 'terminal' && e.title.includes('curl')) return '$ curl -sI http://10.10.20.45:8080/admin/login';
   if (e.tool === 'terminal' && e.title.includes('nmap')) return '$ nmap -sV -p 8080 10.10.20.45';
   if (e.tool === 'terminal' && e.title.includes('sqlmap')) return [
@@ -495,6 +723,7 @@ function getToolInput(e) {
   return JSON.stringify({ tool: e.tool, args: e.title }, null, 2);
 }
 function getToolOutput(e) {
+  if (window.IS_LIVE) return t('tr.dr.noOutput');
   if (e.tool === 'terminal' && e.title.includes('curl')) return 'HTTP/1.1 200 OK\nserver: nginx/1.25.3\ncontent-type: application/json\nx-powered-by: Express\ncontent-length: 142';
   if (e.tool === 'terminal' && e.title.includes('nmap')) return 'PORT     STATE SERVICE VERSION\n8080/tcp open  http    nginx 1.25.3\nService Info: OS: Linux';
   if (e.tool === 'terminal' && e.title.includes('sqlmap')) return [

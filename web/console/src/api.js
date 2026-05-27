@@ -101,6 +101,10 @@
     return apiFetch('/api/traces' + q);
   }
 
+  async function getTrace(runId) {
+    return apiFetch('/api/traces/' + encodeURIComponent(runId));
+  }
+
   async function getLogs(params) {
     const q = params ? '?' + new URLSearchParams(params) : '';
     return apiFetch('/api/logs' + q);
@@ -108,6 +112,10 @@
 
   async function getKnowledge() {
     return apiFetch('/api/knowledge');
+  }
+
+  async function getKnowledgeDoc(docKey) {
+    return apiFetch('/api/knowledge/' + encodeURIComponent(docKey));
   }
 
   // ── SSE event stream ──────────────────────────────────────────
@@ -187,6 +195,15 @@
     catch { return null; }
   }
 
+  async function getMemoryGraph(params = {}) {
+    try {
+      const qs = new URLSearchParams();
+      if (params.status) qs.set('status', params.status);
+      const r = await fetch('/api/memory/graph?' + qs.toString());
+      return r.ok ? r.json() : null;
+    } catch { return null; }
+  }
+
   async function getAttachments(taskId) {
     return apiFetch('/api/tasks/' + encodeURIComponent(taskId) + '/attachments');
   }
@@ -224,8 +241,8 @@
   window.API = {
     probe, getStatus, getSettings, putSettings,
     getDashboard, getTasks, createTask, getTask, stopTask, hintTask,
-    getTraces, getLogs, getKnowledge, subscribeEvents,
-    getMemory, getMemoryStats, getMemoryEntry, muteMemoryEntry, activateMemoryEntry, deleteMemoryEntry,
+    getTraces, getTrace, getLogs, getKnowledge, getKnowledgeDoc, subscribeEvents,
+    getMemory, getMemoryStats, getMemoryEntry, muteMemoryEntry, activateMemoryEntry, deleteMemoryEntry, getMemoryGraph,
     getAttachments, uploadAttachment,
   };
 })();

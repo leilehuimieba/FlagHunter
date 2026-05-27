@@ -32,7 +32,7 @@ function SettingsPage() {
   const [draft, setDraft] = uSt(MOCK.SETTINGS);
   const [dirty, setDirty] = uSt(false);
   const [saved, setSaved] = uSt(false);
-  const [saving, setSaving] = uSt(false);
+  const [saving] = uSt(false);
 
   function patch(section, key, value) {
     setDraft(d => ({ ...d, [section]: { ...d[section], [key]: value } }));
@@ -41,19 +41,7 @@ function SettingsPage() {
   }
 
   async function save() {
-    setSaving(true);
-    if (window.IS_LIVE) {
-      const result = await window.API.putSettings(draft);
-      if (result && result.ok) {
-        setSaved(true);
-      } else {
-        setSaved(true); // mock fallback
-      }
-    } else {
-      setSaved(true);
-    }
-    setSaving(false);
-    setDirty(false);
+    setSaved(false);
     setTimeout(() => setSaved(false), 3000);
   }
 
@@ -98,9 +86,12 @@ function SettingsPage() {
             <div className="save-bar">
               {dirty && <span className="changes">{t('c.unsaved')}</span>}
               {saved && <span className="green">{t('c.saved')}</span>}
+              <span className="muted" style={{ marginLeft: 12, fontSize: 11 }}>
+                {t('st.readOnly')}
+              </span>
               <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
                 <button className="btn ghost" onClick={() => { setDraft(MOCK.SETTINGS); setDirty(false); }}>{t('c.discard')}</button>
-                <button className={`btn ${dirty ? 'primary' : ''}`} onClick={save} disabled={!dirty || saving}>
+                <button className={`btn ${dirty ? 'primary' : ''}`} onClick={save} disabled={true} title={t('st.readOnly')}>
                   {saving ? '…' : t('c.save')}
                 </button>
               </div>

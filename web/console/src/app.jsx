@@ -9,6 +9,10 @@ function App() {
     const h = window.location.hash.replace(/^#\/?/, '') || 'dashboard';
     return h;
   });
+  const [crumbLeaf, setCrumbLeaf] = uA(() => {
+    const h = window.location.hash.replace(/^#\/?/, '') || 'dashboard';
+    return h.includes('/') ? h.split('/')[1] : '';
+  });
 
   const [showCP, setShowCP] = uA(false);
 
@@ -27,9 +31,18 @@ function App() {
     const handler = () => {
       const h = window.location.hash.replace(/^#\/?/, '') || 'dashboard';
       setRoute(h);
+      setCrumbLeaf(h.includes('/') ? h.split('/')[1] : '');
     };
     window.addEventListener('hashchange', handler);
     return () => window.removeEventListener('hashchange', handler);
+  }, []);
+
+  uAE(() => {
+    const handler = (e) => {
+      if (e?.detail?.label) setCrumbLeaf(e.detail.label);
+    };
+    window.addEventListener('fh:route-label', handler);
+    return () => window.removeEventListener('fh:route-label', handler);
   }, []);
 
   // Global ⌘K / Ctrl+K
@@ -57,6 +70,7 @@ function App() {
   }
 
   const crumbRoute = (() => {
+    if (route.startsWith('tasks/')) return 'tasks/detail';
     if (route.startsWith('traces/')) return 'traces/detail';
     if (route.startsWith('knowledge/')) return 'knowledge/detail';
     return route;
@@ -65,10 +79,10 @@ function App() {
   return (
     <div className="shell">
       <Sidebar route={route.split('/')[0]} onNav={nav} />
-      <Topbar route={crumbRoute} />
+      <Topbar route={crumbRoute} leaf={crumbLeaf} />
       <div className="main">
         {route === 'dashboard' && <DashboardPage onNav={nav} />}
-        {route === 'tasks' && <TasksPage onNav={nav} />}
+        {route.startsWith('tasks') && <TasksPage taskId={route.split('/')[1]} onNav={nav} />}
         {route.startsWith('traces') && (
           <TracesPage runId={route.split('/')[1]} onNav={nav} />
         )}

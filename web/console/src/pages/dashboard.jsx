@@ -6,9 +6,9 @@
 const { useState: uD, useEffect: uDE } = React;
 
 // Flags captured from all tasks
-function useFlagBoard() {
+function useFlagBoard(initialFlags) {
   const [flags, setFlags] = uD(() =>
-    MOCK.TASKS.filter(tk => tk.finalFlag).map(tk => ({
+    initialFlags || MOCK.TASKS.filter(tk => tk.finalFlag).map(tk => ({
       id: tk.id,
       flag: tk.finalFlag,
       target: tk.target,
@@ -17,6 +17,10 @@ function useFlagBoard() {
     }))
   );
   const [copiedId, setCopiedId] = uD(null);
+
+  uDE(() => {
+    if (initialFlags) setFlags(initialFlags);
+  }, [JSON.stringify(initialFlags)]);
 
   function copyFlag(id, text) {
     navigator.clipboard?.writeText(text).catch(() => {});
@@ -30,7 +34,7 @@ function useFlagBoard() {
 function DashboardPage({ onNav }) {
   const d = MOCK.DASHBOARD;
   const [liveData, setLiveData] = uD(null);
-  const { flags, copyFlag, copiedId } = useFlagBoard();
+  const { flags, copyFlag, copiedId } = useFlagBoard(liveData?.flags);
 
   uDE(() => {
     window.API.getDashboard().then(data => { if (data) setLiveData(data); });
@@ -47,6 +51,15 @@ function DashboardPage({ onNav }) {
   }, []);
 
   const kpis = liveData?.kpis || d.kpis;
+  const tokenSeries = liveData?.tokenSeries || d.tokenSeries;
+  const toolDistribution = liveData?.toolDistribution || d.toolDistribution;
+  const failureDistribution = liveData?.failureDistribution || d.failureDistribution;
+  const knowledgeHitTrend = liveData?.knowledgeHitTrend || d.knowledgeHitTrend;
+  const alerts = liveData?.alerts || d.alerts || [];
+  const recentTasks = liveData?.recentTasks || d.recentTasks || [];
+  const recentToolCalls = liveData?.recentToolCalls || d.recentToolCalls || [];
+  const recentNotes = d.recentNotes || [];
+  const recentArtifacts = d.recentArtifacts || [];
   const flagsToday = flags.filter(f => {
     const diff = (Date.now() - Date.parse(f.t)) / 1000;
     return diff < 86400;
@@ -93,7 +106,7 @@ function DashboardPage({ onNav }) {
           value={(kpis.dailyTokens / 1000).toFixed(1)}
           unit="k"
           delta={<span className="muted">{t('kpi.ofCap')}</span>}
-          spark={<Sparkline data={d.tokenSeries.map(s => s.v)} w={56} h={20} />}
+          spark={<Sparkline data={tokenSeries.map(s => s.v)} w={56} h={20} />}
         />
         <KpiCard
           label={t('kpi.estCost')}
@@ -130,19 +143,19 @@ function DashboardPage({ onNav }) {
           className="chart-card"
         >
           <div className="chart-body">
-            <AreaChart series={d.tokenSeries} height={180} color="var(--accent)" />
+            {tokenSeries.length ? <AreaChart series={tokenSeries} height={180} color="var(--accent)" /> : <Empty>{t('lg.noMatch')}</Empty>}
           </div>
         </Panel>
 
         <Panel title={t('dash.failure')} accent={t('dash.today')} className="chart-card">
           <div className="chart-body" style={{ display: 'grid', placeItems: 'center' }}>
-            <Donut data={d.failureDistribution} size={150} label={t('dash.donutLabel')} />
+            {failureDistribution.length ? <Donut data={failureDistribution} size={150} label={t('dash.donutLabel')} /> : <Empty>{t('lg.noMatch')}</Empty>}
           </div>
         </Panel>
 
         <Panel title={t('dash.khits')} accent={t('dash.hourly')} className="chart-card">
           <div className="chart-body">
-            <BarTrend series={d.knowledgeHitTrend} height={160} color="var(--magenta)" />
+            {knowledgeHitTrend.length ? <BarTrend series={knowledgeHitTrend} height={160} color="var(--magenta)" /> : <Empty>{t('lg.noMatch')}</Empty>}
           </div>
         </Panel>
       </div>
@@ -181,42 +194,20 @@ function DashboardPage({ onNav }) {
       <div className="dash-row r2">
         <Panel title={t('dash.toolDist')} accent={t('c.last24h')}>
           <div className="chart-body" style={{ padding: 14 }}>
-            <MiniBarChart data={d.toolDistribution} color="var(--cyan)" height={140} />
+            {toolDistribution.length ? <MiniBarChart data={toolDistribution} color="var(--cyan)" height={140} /> : <Empty>{t('lg.noMatch')}</Empty>}
           </div>
         </Panel>
 
-        <Panel title={t('dash.alerts')} accent={`${d.alerts.length + 2}`}>
+        <Panel title={t('dash.alerts')} accent={`${alerts.length}`}>
           <div>
-            <div className="act-row warn">
-              <span className="time">{fmt.hh(d.alerts[0].t).slice(0,5)}</span>
-              <span className="ico">⚠</span>
-              <span className="ttl">{t('dash.alertA')}</span>
-              <span className="meta">{fmt.since(d.alerts[0].t)}</span>
-            </div>
-            <div className="act-row info">
-              <span className="time">{fmt.hh(d.alerts[1].t).slice(0,5)}</span>
-              <span className="ico">◇</span>
-              <span className="ttl">{t('dash.alertB')}</span>
-              <span className="meta">{fmt.since(d.alerts[1].t)}</span>
-            </div>
-            <div className="act-row info">
-              <span className="time">{fmt.hh(d.alerts[2].t).slice(0,5)}</span>
-              <span className="ico">◇</span>
-              <span className="ttl">{t('dash.alertC')}</span>
-              <span className="meta">{fmt.since(d.alerts[2].t)}</span>
-            </div>
-            <div className="act-row info">
-              <span className="time">10:30</span>
-              <span className="ico">◇</span>
-              <span className="ttl">{t('dash.alertD')}</span>
-              <span className="meta">{t('c.healthy')}</span>
-            </div>
-            <div className="act-row">
-              <span className="time">10:00</span>
-              <span className="ico" style={{ color: 'var(--accent)' }}>✓</span>
-              <span className="ttl">{t('dash.alertE')}</span>
-              <span className="meta">{t('c.ok')}</span>
-            </div>
+            {alerts.length ? alerts.map((a, idx) => (
+              <div key={a.id || idx} className={`act-row ${a.level || ''}`}>
+                <span className="time">{a.t ? fmt.hh(a.t).slice(0,5) : '—'}</span>
+                <span className="ico">{a.level === 'warn' ? '⚠' : a.level === 'error' ? '✗' : '◇'}</span>
+                <span className="ttl">{a.message || '—'}</span>
+                <span className="meta">{a.t ? fmt.since(a.t) : t('c.ok')}</span>
+              </div>
+            )) : <Empty>{t('lg.noMatch')}</Empty>}
           </div>
         </Panel>
       </div>
@@ -225,18 +216,18 @@ function DashboardPage({ onNav }) {
       <div className="dash-row r3">
         <Panel
           title={t('dash.recentTasks')}
-          accent={`${d.recentTasks.length}`}
+          accent={`${recentTasks.length}`}
           actions={<button className="btn sm ghost muted" onClick={() => onNav('tasks')}>{t('c.viewAll')}</button>}
         >
           <div>
-            {d.recentTasks.map(tk => (
+            {recentTasks.length ? recentTasks.map(tk => (
               <div key={tk.id} className="act-row" onClick={() => onNav('tasks')} style={{ cursor: 'pointer' }}>
                 <span className="time">{tk.startedAt ? fmt.hh(tk.startedAt).slice(0,5) : '—'}</span>
                 <span className="ico" style={{ color: { running: 'var(--amber)', success: 'var(--accent)', failed: 'var(--red)', queued: 'var(--blue)', stopped: 'var(--fg-2)' }[tk.status] }}>●</span>
                 <span className="ttl ellipsis"><span className="dim" style={{ marginRight: 6 }}>{tk.id}</span>{tk.title}</span>
                 <span className="meta"><StatusBadge status={tk.status} /></span>
               </div>
-            ))}
+            )) : <Empty>{t('tasks.noMatch')}</Empty>}
           </div>
         </Panel>
 
@@ -245,7 +236,7 @@ function DashboardPage({ onNav }) {
           actions={<button className="btn sm ghost muted" onClick={() => onNav('traces')}>{t('c.tracesArrow')}</button>}
         >
           <div>
-            {d.recentToolCalls.map(c => (
+            {recentToolCalls.length ? recentToolCalls.map(c => (
               <div key={c.id} className="act-row">
                 <span className="time">{fmt.hh(c.time).slice(0,5)}</span>
                 <span className="ico" style={{ color: c.status === 'running' ? 'var(--amber)' : c.status === 'failed' ? 'var(--red)' : 'var(--accent)' }}>
@@ -254,7 +245,7 @@ function DashboardPage({ onNav }) {
                 <span className="ttl ellipsis"><span className="cyan" style={{ marginRight: 6 }}>{c.tool}</span>{c.summary}</span>
                 <span className="meta dim">{c.runId}</span>
               </div>
-            ))}
+            )) : <Empty>{t('lg.noMatch')}</Empty>}
           </div>
         </Panel>
 
@@ -263,7 +254,7 @@ function DashboardPage({ onNav }) {
           actions={<button className="btn sm ghost muted">{t('c.browse')}</button>}
         >
           <div>
-            {d.recentNotes.map(n => (
+            {recentNotes.map(n => (
               <div key={n.id} className="act-row">
                 <span className="time">{fmt.hh(n.t).slice(0,5)}</span>
                 <span className="ico" style={{ color: 'var(--amber)' }}>✎</span>
@@ -271,7 +262,7 @@ function DashboardPage({ onNav }) {
                 <span className="meta dim">{n.tag}</span>
               </div>
             ))}
-            {d.recentArtifacts.map(a => (
+            {recentArtifacts.map(a => (
               <div key={a.id} className="act-row">
                 <span className="time">{fmt.hh(a.t).slice(0,5)}</span>
                 <span className="ico" style={{ color: 'var(--magenta)' }}>◫</span>

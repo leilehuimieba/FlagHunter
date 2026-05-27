@@ -98,3 +98,18 @@ loot/*
 /conversations
 mcp_examples/kali/mcp_servers.json
 pentestagent/mcp/mcp_servers.json
+
+# Local runtime / debug artifacts
+/.claude/scheduled_tasks.lock
+/.tmp_notes_render.json
+/agent_unicorn_test.out
+/easy_login.cookies
+/embeddings/
+/reports/
+/knowledge/retrospective_export/
+/knowledge/retrospective_notes.md
+/pentestagent/knowledge/retrospective.json
+/pentestagent/knowledge/sessions/
+/tools/_downloads/
+/tools/nuclei/nuclei-templates/
+/tmp_*

@@ -14,7 +14,9 @@ const hhmm = (iso) => {
   return d.toTimeString().slice(0, 5);
 };
 const since = (iso) => {
-  const diff = (NOW_BASE - Date.parse(iso)) / 1000;
+  const parsed = Date.parse(iso);
+  if (Number.isNaN(parsed)) return '—';
+  const diff = Math.max(0, (Date.now() - parsed) / 1000);
   if (diff < 60) return `${Math.round(diff)}s ago`;
   if (diff < 3600) return `${Math.round(diff/60)}m ago`;
   if (diff < 86400) return `${Math.round(diff/3600)}h ago`;

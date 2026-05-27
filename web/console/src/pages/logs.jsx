@@ -5,6 +5,21 @@
 
 const { useState: uL, useEffect: uLE, useRef: uLR, useMemo: uLM } = React;
 
+function normalizeLog(entry) {
+  if (!entry) return null;
+  const msg = entry.msg || entry.message || '';
+  return {
+    ...entry,
+    msg,
+    message: entry.message || msg,
+    runId: entry.runId || '—',
+    taskId: entry.taskId || '—',
+    source: entry.source || 'unknown',
+    level: entry.level || 'info',
+    t: entry.t || new Date().toISOString(),
+  };
+}
+
 function LogsPage() {
   const [mode, setMode]   = uL('table');
   const [level, setLevel] = uL('all');
@@ -20,33 +35,23 @@ function LogsPage() {
   // Fetch logs from API on mount
   uLE(() => {
     window.API.getLogs().then(data => {
-      if (data && Array.isArray(data)) setApiLogs(data);
+      if (data && Array.isArray(data)) setApiLogs(data.map(normalizeLog).filter(Boolean));
     });
   }, []);
 
-  const LIVE_POOL = [
-    ['info',  'tool.terminal', '[INFO] retrieved tuple via pg_sleep timing (Δ4.21s)'],
-    ['debug', 'token_tracker', 'cumulative tokens=18,840 / 500,000'],
-    ['info',  'tool.terminal', 'sqlmap: fetched column password_hash'],
-    ['info',  'agent.observer','observation feed +1 · CHAR-based payload heuristic'],
-    ['info',  'tool.terminal', 'sqlmap: row 15 retrieved · 4.17s'],
-    ['warn',  'tool.terminal', 'sqlmap: timing variance Δ=±0.3s within tolerance'],
-    ['info',  'rag', 'cache hit · postgres timing primitives (score 0.74)'],
-    ['debug', 'runtime', 'pid=18472 alive · rss=42M'],
-  ];
+  // Subscribe to SSE for real-time log lines (live tail)
   uLE(() => {
     if (!live) return;
-    let i = 0;
-    const id = setInterval(() => {
-      const [lv, source, msg] = LIVE_POOL[i % LIVE_POOL.length];
-      i++;
-      setAppended(prev => [{
-        id: `live_${Date.now()}_${i}`,
-        t: new Date().toISOString(),
-        level: lv, source, msg, runId: 'run_002', taskId: 'task_002',
-      }, ...prev].slice(0, 80));
-    }, 2400);
-    return () => clearInterval(id);
+    return window.API.subscribeEvents(ev => {
+      if (ev.type !== 'log_line') return;
+      setAppended(prev => [normalizeLog({
+        id: `live_${ev.t || Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        t: ev.t || new Date().toISOString(),
+        level: ev.level, source: ev.source,
+        msg: ev.message, message: ev.message,
+        runId: ev.task_id || 'live', taskId: ev.task_id || 'live',
+      }), ...prev].filter(Boolean).slice(0, 80));
+    });
   }, [live]);
 
   uLE(() => {
@@ -55,13 +60,14 @@ function LogsPage() {
     }
   }, [appended.length, mode]);
 
-  const mockLogs = apiLogs || MOCK.LOGS;
-  const all = uLM(() => [...appended, ...mockLogs], [appended, mockLogs]);
+  const mockLogs = uLM(() => (MOCK.LOGS || []).map(normalizeLog).filter(Boolean), []);
+  const sourceLogs = apiLogs || mockLogs;
+  const all = uLM(() => [...appended, ...sourceLogs], [appended, sourceLogs]);
   const filtered = uLM(() => all.filter(l => {
     if (level !== 'all' && l.level !== level) return false;
     if (src !== 'all' && !l.source.startsWith(src)) return false;
     if (run !== 'all' && l.runId !== run) return false;
-    if (q && !(l.msg.toLowerCase().includes(q.toLowerCase()) || l.source.includes(q))) return false;
+    if (q && !(String(l.msg).toLowerCase().includes(q.toLowerCase()) || l.source.includes(q))) return false;
     return true;
   }), [all, level, src, run, q]);
 

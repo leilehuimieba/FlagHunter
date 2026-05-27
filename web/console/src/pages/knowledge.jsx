@@ -5,6 +5,10 @@
 
 const { useState: uK, useEffect: uKE, useMemo: uKM } = React;
 
+function relTime(iso) {
+  return iso ? fmt.since(iso) : '—';
+}
+
 function KnowledgePage({ docId, onNav }) {
   if (docId) return <KnowledgeDetail docId={docId} onNav={onNav} />;
   return <KnowledgeList onNav={onNav} />;
@@ -21,7 +25,7 @@ function KnowledgeList({ onNav }) {
     });
   }, []);
 
-  const sourceDocs = apiDocs || MOCK.KNOWLEDGE;
+  const sourceDocs = window.IS_LIVE ? (apiDocs || []) : (apiDocs || MOCK.KNOWLEDGE);
   const docs = uKM(() => sourceDocs.filter(d =>
     (!q || d.title.toLowerCase().includes(q.toLowerCase()) || d.sourcePath.includes(q))
     && (tag === 'all' || (d.tags || []).includes(tag))
@@ -29,6 +33,7 @@ function KnowledgeList({ onNav }) {
 
   const totalHits = sourceDocs.reduce((s, d) => s + (d.hitCount || 0), 0);
   const totalChunks = sourceDocs.reduce((s, d) => s + (d.chunkCount || 0), 0);
+  const topDoc = sourceDocs.slice().sort((a, b) => (b.hitCount || 0) - (a.hitCount || 0))[0];
 
   const tags = ['all', 'web', 'misc', 'reverse', 'forensics', 'meta', 'recon'];
 
@@ -50,7 +55,7 @@ function KnowledgeList({ onNav }) {
         <KSt label={t('kb.stat.docs')}      value={sourceDocs.length} sub={t('kb.stat.indexed')} />
         <KSt label={t('kb.stat.chunks')}    value={totalChunks} sub={t('kb.stat.perDoc', sourceDocs.length ? (totalChunks / sourceDocs.length).toFixed(1) : '0')} />
         <KSt label={t('kb.stat.hitsToday')} value={totalHits} sub={t('kb.stat.hitsToday.sub')} />
-        <KSt label={t('kb.stat.topDoc')}    value="doc_002" sub={t('kb.stat.topDoc.sub')} />
+        <KSt label={t('kb.stat.topDoc')}    value={topDoc?.id || '—'} sub={t('kb.stat.topDoc.sub')} />
       </div>
 
       <Panel>
@@ -63,6 +68,9 @@ function KnowledgeList({ onNav }) {
           </div>
           <span className="muted" style={{ marginLeft: 'auto', fontSize: 11 }}>{t('kb.sortBy')}</span>
         </div>
+        {docs.length === 0 ? (
+          <Empty>{t('tasks.noMatch')}</Empty>
+        ) : (
         <table className="k-table">
           <thead>
             <tr>
@@ -78,7 +86,7 @@ function KnowledgeList({ onNav }) {
           </thead>
           <tbody>
             {docs.map(d => (
-              <tr key={d.id} onClick={() => onNav(`knowledge/${d.id}`)} style={{ cursor: 'pointer' }}>
+              <tr key={`${d.id}|${d.sourcePath}`} onClick={() => onNav(`knowledge/${d.docKey || d.id}`)} style={{ cursor: 'pointer' }}>
                 <td className="mono"><span className="bright">{d.id}</span></td>
                 <td>
                   <div className="bright">{d.title}</div>
@@ -86,7 +94,7 @@ function KnowledgeList({ onNav }) {
                 </td>
                 <td>
                   <div className="tag-row">
-                    {d.tags.map(tg => <span key={tg} className="chip ghost" style={{ fontSize: 9.5, padding: '0 6px' }}>{tg}</span>)}
+                    {(d.tags || []).map(tg => <span key={tg} className="chip ghost" style={{ fontSize: 9.5, padding: '0 6px' }}>{tg}</span>)}
                   </div>
                 </td>
                 <td style={{ textAlign: 'right' }} className="mono">{d.chunkCount}</td>
@@ -95,13 +103,14 @@ function KnowledgeList({ onNav }) {
                     {d.hitCount}
                   </span>
                 </td>
-                <td className="muted">{fmt.since(d.lastHitAt)}</td>
-                <td className="muted">{fmt.since(d.updatedAt)}</td>
+                <td className="muted">{relTime(d.lastHitAt)}</td>
+                <td className="muted">{relTime(d.updatedAt)}</td>
                 <td className="dim" style={{ textAlign: 'right' }}>›</td>
               </tr>
             ))}
           </tbody>
         </table>
+        )}
       </Panel>
     </div>
   );
@@ -118,17 +127,73 @@ function KSt({ label, value, sub }) {
 }
 
 function KnowledgeDetail({ docId, onNav }) {
-  const doc = MOCK.KNOWLEDGE.find(d => d.id === docId) || MOCK.KNOWLEDGE[0];
+  const [doc, setDoc] = uK(null);
   const [tab, setTab] = uK('overview');
+
+  uKE(() => {
+    let done = false;
+    if (window.IS_LIVE) {
+      window.API.getKnowledgeDoc(docId).then(data => {
+        if (!done && data && data.docKey) setDoc(data);
+      });
+    } else {
+      setDoc(MOCK.KNOWLEDGE.find(d => d.id === docId) || MOCK.KNOWLEDGE[0]);
+    }
+    return () => { done = true; };
+  }, [docId]);
+
+  const liveFallbackDoc = {
+    id: docId || 'knowledge',
+    docKey: docId,
+    title: docId || 'knowledge',
+    sourcePath: '—',
+    type: 'markdown',
+    chunkCount: 0,
+    hitCount: 0,
+    lastHitAt: null,
+    updatedAt: null,
+    summary: '',
+    preview: '',
+    chunks: [],
+    hitHistory: [],
+    relatedRuns: [],
+    citedBy: [],
+    heatmap: Array(24).fill(0),
+    tags: [],
+  };
+  const resolvedDoc = window.IS_LIVE
+    ? (doc || liveFallbackDoc)
+    : (doc || MOCK.KNOWLEDGE.find(d => d.id === docId) || MOCK.KNOWLEDGE[0]);
+  const hitHistory = resolvedDoc.hitHistory || [];
+  const relatedRuns = resolvedDoc.relatedRuns || [];
+  const citedBy = resolvedDoc.citedBy || [];
+  const previewText = resolvedDoc.preview || resolvedDoc.content || '';
+  const heatmap = Array.isArray(resolvedDoc.heatmap) ? resolvedDoc.heatmap : [];
+  const chunkHits = hitHistory.reduce((acc, h) => {
+    const key = h.chunkId || '';
+    if (key) acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const chunks = (resolvedDoc.chunks || MOCK.CHUNKS_002).map(c => ({
+    ...c,
+    hits: chunkHits[c.id] || c.hits || 0,
+  }));
+
+  uKE(() => {
+    window.dispatchEvent(new CustomEvent('fh:route-label', {
+      detail: { label: resolvedDoc.title || resolvedDoc.id || docId || 'knowledge' }
+    }));
+  }, [resolvedDoc.title, resolvedDoc.id, docId]);
+
   return (
     <div className="page">
       <div className="page-h">
         <div>
           <div className="t row gap-12" style={{ alignItems: 'center' }}>
             <span className="dim" style={{ cursor: 'pointer', fontSize: 13 }} onClick={() => onNav('knowledge')}>{t('kb.back')}</span>
-            <span>{doc.title}</span>
+            <span>{resolvedDoc.title}</span>
           </div>
-          <div className="sub mono">{doc.id} · {doc.sourcePath}</div>
+          <div className="sub mono">{resolvedDoc.id} · {resolvedDoc.sourcePath}</div>
         </div>
         <div className="row">
           <button className="btn ghost">{t('c.reindex')}</button>
@@ -142,7 +207,7 @@ function KnowledgeDetail({ docId, onNav }) {
           <div className="tabs">
             {[
               ['overview', t('kb.tab.overview')],
-              ['chunks',   t('kb.tab.chunks', doc.chunkCount)],
+              ['chunks',   t('kb.tab.chunks', resolvedDoc.chunkCount || 0)],
               ['hits',     t('kb.tab.hits')],
               ['runs',     t('kb.tab.runs')],
             ].map(([k, l]) => (
@@ -153,20 +218,21 @@ function KnowledgeDetail({ docId, onNav }) {
             <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
                 <div className="muted" style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 6 }}>{t('c.summary')}</div>
-                <div style={{ fontSize: 12.5, color: 'var(--fg-1)', lineHeight: 1.6 }}>{doc.summary}</div>
+                <div style={{ fontSize: 12.5, color: 'var(--fg-1)', lineHeight: 1.6 }}>{resolvedDoc.summary || '—'}</div>
               </div>
               <div>
                 <div className="muted" style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 6 }}>{t('c.preview')}</div>
-                <pre className="code-block" style={{ maxHeight: 320 }}>{`# ${doc.title}\n\n${doc.summary}\n\n## When this fires\n\nThe RAG layer surfaces this doc whenever the agent encounters one of:\n- a JSON request body with quote-injectable fields\n- an unexpected response-size delta on probe payloads\n- an upstream that exposes pg_sleep timing\n\n## Working recipe\n\n1. Identify the field hosting the injection (often \`username\` or \`email\`).\n2. Detect dialect via a 5-second timing payload.\n3. Switch sqlmap technique to T with --dbms=postgresql.\n4. Avoid level>=3 unless the surface is rate-limit friendly.\n5. Verify any candidate flag against the project's flag-format spec.\n\n## Gotchas\n\n- Sequelize/Knex swallow exceptions silently — quote-close anomalies will not appear in stderr.\n- Cloudflare in front of the target will mask timing windows below ~2.5s.\n`}</pre>
+                <pre className="code-block" style={{ maxHeight: 320 }}>{previewText || '—'}</pre>
               </div>
               <div className="row gap-12" style={{ flexWrap: 'wrap' }}>
-                {doc.tags.map(tg => <span key={tg} className="chip ghost">{tg}</span>)}
+                {(resolvedDoc.tags || []).map(tg => <span key={tg} className="chip ghost">{tg}</span>)}
               </div>
             </div>
           )}
           {tab === 'chunks' && (
             <div>
-              {MOCK.CHUNKS_002.map(c => (
+              {chunks.length === 0 && <Empty>{t('tasks.noMatch')}</Empty>}
+              {chunks.map(c => (
                 <div key={c.id} className="chunk-row">
                   <div className="h">
                     <span className="mono">{c.id}</span>
@@ -182,14 +248,16 @@ function KnowledgeDetail({ docId, onNav }) {
             <table className="k-table">
               <thead><tr><th>{t('c.time')}</th><th>{t('tr.dr.run')}</th><th>chunk</th><th style={{ textAlign: 'right' }}>score</th></tr></thead>
               <tbody>
-                {[
-                  ['10:30:12', 'run_002', 'chunk_002', 0.79],
-                  ['10:30:00', 'run_002', 'chunk_003', 0.72],
-                  ['10:29:46', 'run_002', 'chunk_001', 0.81],
-                  ['09:55:18', 'run_006', 'chunk_001', 0.66],
-                  ['09:32:04', 'run_006', 'chunk_002', 0.71],
-                ].map(([ts, rn, ch, sc], i) => (
-                  <tr key={i}><td className="muted mono">{ts}</td><td className="bright mono">{rn}</td><td>{ch}</td><td style={{ textAlign: 'right' }} className={sc > 0.75 ? 'green mono' : 'mono muted'}>{sc.toFixed(2)}</td></tr>
+                {hitHistory.length === 0 && (
+                  <tr><td colSpan="4"><Empty>{t('tasks.noMatch')}</Empty></td></tr>
+                )}
+                {hitHistory.map((h, i) => (
+                  <tr key={i}>
+                    <td className="muted mono">{h.t ? fmt.hh(h.t) : '—'}</td>
+                    <td className="bright mono">{h.runId || '—'}</td>
+                    <td>{h.chunkId || '—'}</td>
+                    <td style={{ textAlign: 'right' }} className="mono muted">{h.score != null ? Number(h.score).toFixed(2) : '—'}</td>
+                  </tr>
                 ))}
               </tbody>
             </table>
@@ -198,9 +266,17 @@ function KnowledgeDetail({ docId, onNav }) {
             <table className="k-table">
               <thead><tr><th>{t('tr.dr.run')}</th><th>{t('c.task')}</th><th>{t('kb.col.runUsed')}</th><th>{t('c.status')}</th></tr></thead>
               <tbody>
-                <tr><td className="bright mono">run_002</td><td className="muted">sqli probe</td><td>strategy timing_based_blind</td><td><StatusBadge status="running" /></td></tr>
-                <tr><td className="bright mono">run_006</td><td className="muted">stored XSS</td><td>exploit · cookie exfil</td><td><StatusBadge status="success" /></td></tr>
-                <tr><td className="bright mono">run_003</td><td className="muted">JWT alg=none</td><td>recon · header probe</td><td><StatusBadge status="failed" /></td></tr>
+                {relatedRuns.length === 0 && (
+                  <tr><td colSpan="4"><Empty>{t('tasks.noMatch')}</Empty></td></tr>
+                )}
+                {relatedRuns.map((r, i) => (
+                  <tr key={i}>
+                    <td className="bright mono">{r.runId || '—'}</td>
+                    <td className="muted">{r.taskTitle || r.taskId || '—'}</td>
+                    <td>{r.usedFor || '—'}</td>
+                    <td><StatusBadge status={r.status || 'stopped'} /></td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           )}
@@ -209,21 +285,22 @@ function KnowledgeDetail({ docId, onNav }) {
         <div className="col gap-8">
           <Panel title={t('kb.metadata')}>
             <div style={{ padding: '12px 14px' }} className="kv-list">
-              <div className="kv-row"><span className="k">doc_id</span><span className="v mono">{doc.id}</span></div>
-              <div className="kv-row"><span className="k">{t('c.path')}</span><span className="v mono" style={{ fontSize: 11 }}>{doc.sourcePath}</span></div>
-              <div className="kv-row"><span className="k">{t('c.type')}</span><span className="v">{doc.type}</span></div>
-              <div className="kv-row"><span className="k">{t('c.chunks')}</span><span className="v">{doc.chunkCount}</span></div>
-              <div className="kv-row"><span className="k">{t('c.hits')}</span><span className="v green">{doc.hitCount}</span></div>
-              <div className="kv-row"><span className="k">{t('c.lastHit')}</span><span className="v">{fmt.since(doc.lastHitAt)}</span></div>
-              <div className="kv-row"><span className="k">{t('c.updated')}</span><span className="v">{fmt.since(doc.updatedAt)}</span></div>
+              <div className="kv-row"><span className="k">doc_id</span><span className="v mono">{resolvedDoc.id}</span></div>
+              <div className="kv-row"><span className="k">{t('c.path')}</span><span className="v mono" style={{ fontSize: 11 }}>{resolvedDoc.sourcePath}</span></div>
+              <div className="kv-row"><span className="k">{t('c.type')}</span><span className="v">{resolvedDoc.type}</span></div>
+              <div className="kv-row"><span className="k">{t('c.chunks')}</span><span className="v">{resolvedDoc.chunkCount}</span></div>
+              <div className="kv-row"><span className="k">{t('c.hits')}</span><span className="v green">{resolvedDoc.hitCount}</span></div>
+              <div className="kv-row"><span className="k">{t('c.lastHit')}</span><span className="v">{relTime(resolvedDoc.lastHitAt)}</span></div>
+              <div className="kv-row"><span className="k">{t('c.updated')}</span><span className="v">{relTime(resolvedDoc.updatedAt)}</span></div>
             </div>
           </Panel>
           <Panel title={t('kb.heatmap')} accent={t('c.last24h')}>
             <div style={{ padding: 14 }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(24, 1fr)', gap: 2 }}>
                 {Array.from({ length: 24 }).map((_, i) => {
-                  const v = Math.max(0, Math.min(8, Math.round(Math.sin(i / 24 * Math.PI * 2 + 1) * 3 + 3 + (i === 10 ? 5 : 0))));
-                  const op = 0.08 + v * 0.11;
+                  const v = Number(heatmap[i] || 0);
+                  const capped = Math.max(0, Math.min(8, v));
+                  const op = 0.08 + capped * 0.11;
                   return <div key={i} style={{
                     aspectRatio: '1',
                     background: `rgba(199,125,255,${op})`,
@@ -239,9 +316,14 @@ function KnowledgeDetail({ docId, onNav }) {
           </Panel>
           <Panel title={t('kb.cited')}>
             <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
-              <div className="row gap-8"><span className="magenta">◈</span><span className="bright flex1">sql_injection_probe</span><span className="dim mono">12 {t('kb.cites')}</span></div>
-              <div className="row gap-8"><span className="magenta">◈</span><span className="bright flex1">timing_based_blind</span><span className="dim mono">9 {t('kb.cites')}</span></div>
-              <div className="row gap-8"><span className="magenta">◈</span><span className="bright flex1">union_exfil</span><span className="dim mono">4 {t('kb.cites')}</span></div>
+              {citedBy.length === 0 && <Empty>{t('tasks.noMatch')}</Empty>}
+              {citedBy.map((c, i) => (
+                <div key={i} className="row gap-8">
+                  <span className="magenta">◈</span>
+                  <span className="bright flex1">{c.name || c.strategy || '—'}</span>
+                  <span className="dim mono">{c.count || 0} {t('kb.cites')}</span>
+                </div>
+              ))}
             </div>
           </Panel>
         </div>
