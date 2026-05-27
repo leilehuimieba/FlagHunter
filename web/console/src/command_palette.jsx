@@ -1,4 +1,4 @@
-/* global React, MOCK, t */
+/* global React, t */
 // ============================================================
 // CommandPalette — ⌘K global command palette
 // Triggered by Ctrl+K / ⌘K or the topbar ⌘ button.
@@ -20,14 +20,14 @@ function CommandPalette({ onClose, onNav }) {
     let cancelled = false;
 
     async function loadRecentTasks() {
-      if (window.IS_LIVE && window.API?.getTasks) {
+      if (window.API?.getTasks) {
         const data = await window.API.getTasks();
         if (!cancelled && Array.isArray(data)) {
           setRecentTasks(data.slice(0, 8));
           return;
         }
       }
-      if (!cancelled) setRecentTasks((MOCK.TASKS || []).slice(0, 8));
+      if (!cancelled) setRecentTasks([]);
     }
 
     loadRecentTasks();

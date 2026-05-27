@@ -843,14 +843,13 @@ function MemoryPage() {
       window.API.getMemory({ status: filter === 'all' ? null : filter, sort_by: sortBy }),
       window.API.getMemoryStats(),
     ]);
-    if (data && data.length > 0) {
+    if (Array.isArray(data)) {
       setEntries(data);
-      if (s) setStats(s);
-    } else {
-      const es = MOCK.MEMORY || [];
-      setEntries(es);
-      setStats(computeStats(es));
+      setStats(s || computeStats(data));
+      return;
     }
+    setEntries([]);
+    setStats(s || computeStats([]));
   }, [filter, sortBy]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -872,35 +871,40 @@ function MemoryPage() {
 
   async function handleMute(id) {
     setBusy(id);
-    const updated = await window.API.muteMemoryEntry(id);
-    if (updated) {
-      setEntries(prev => prev.map(e => e.id === id ? updated : e));
-    } else {
-      setEntries(prev => prev.map(e => e.id === id
-        ? { ...e, metadata: { ...e.metadata, manual_status: 'muted' } } : e));
+    try {
+      const updated = await window.API.muteMemoryEntry(id);
+      if (updated) {
+        await loadData();
+      }
+    } finally {
+      setBusy('');
     }
-    setBusy('');
   }
 
   async function handleActivate(id) {
     setBusy(id);
-    const updated = await window.API.activateMemoryEntry(id);
-    if (updated) {
-      setEntries(prev => prev.map(e => e.id === id ? updated : e));
-    } else {
-      setEntries(prev => prev.map(e => e.id === id
-        ? { ...e, metadata: { ...e.metadata, manual_status: 'active' } } : e));
+    try {
+      const updated = await window.API.activateMemoryEntry(id);
+      if (updated) {
+        await loadData();
+      }
+    } finally {
+      setBusy('');
     }
-    setBusy('');
   }
 
   async function handleDelete(id) {
     if (!window.confirm('Delete memory entry ' + id + '?')) return;
     setBusy(id);
-    await window.API.deleteMemoryEntry(id);
-    setEntries(prev => prev.filter(e => e.id !== id));
-    if (selected === id) setSelected(null);
-    setBusy('');
+    try {
+      const result = await window.API.deleteMemoryEntry(id);
+      if (result && result.ok) {
+        await loadData();
+        if (selected === id) setSelected(null);
+      }
+    } finally {
+      setBusy('');
+    }
   }
 
   const FILTERS = [
