@@ -16,10 +16,16 @@ ENV TOKENIZERS_PARALLELISM=false
 RUN printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d && chmod +x /usr/sbin/policy-rc.d
 
 # Update and install Kali tools
-# Note: kali-tools-* meta-packages are omitted 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Python (python3-full includes venv with ensurepip)
     python3-full \
     python3-pip \
+    # Kali meta-packages (selective for size)
+    kali-tools-web \
+    kali-tools-information-gathering \
+    kali-tools-vulnerability \
+    kali-tools-exploitation \
+    # Additional tools
     nmap \
     nikto \
     dirb \
@@ -30,13 +36,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     john \
     hashcat \
     metasploit-framework \
+    burpsuite \
     zaproxy \
     nuclei \
     ffuf \
+    # Network tools
     openvpn \
     wireguard \
     proxychains4 \
     tor \
+    # Utilities
     curl \
     wget \
     git \
