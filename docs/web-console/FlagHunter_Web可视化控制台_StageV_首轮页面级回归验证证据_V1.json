@@ -1,0 +1,146 @@
+{
+  "version": "V1",
+  "date": "2026-05-27",
+  "scope": "Stage V / Task A / first-pass page regression",
+  "baseUrl": "http://127.0.0.1:8080",
+  "rollbackPoint": "4de5e52",
+  "serviceProbe": {
+    "dashboardOk": true,
+    "tasksCount": 5,
+    "tracesCount": 5,
+    "knowledgeCount": 22,
+    "logsCount": 1,
+    "settingsOk": true
+  },
+  "pages": {
+    "dashboard": {
+      "route": "#/dashboard",
+      "ok": true,
+      "consoleErrors": 0,
+      "consoleWarnings": 0,
+      "consoleIssues": 0,
+      "notes": [
+        "isolated reload clean; no page-specific console error reproduced",
+        "kpis rendered with live values: running=0, tasksToday=5, successToday=1, toolCalls=16",
+        "flag board rendered task_260527023937_7b56 / flag{wal_recovery_works_2026}"
+      ]
+    },
+    "tasks": {
+      "route": "#/tasks",
+      "ok": true,
+      "detailTaskId": "task_260527023937_7b56",
+      "consoleErrors": 0,
+      "consoleWarnings": 1,
+      "consoleIssues": 1,
+      "notes": [
+        "list and live detail both rendered",
+        "detail shows metrics-derived summary, notes, observed sources, knowledge usage",
+        "post-fix reverify: tasks page now fetches only real live detail task_260527023937_7b56 and no longer requests /api/tasks/task_002"
+      ]
+    },
+    "traces": {
+      "route": "#/traces",
+      "ok": true,
+      "sampleRunId": "run_260527023937_5240",
+      "consoleErrors": 0,
+      "consoleWarnings": 1,
+      "consoleIssues": 1,
+      "notes": [
+        "trace list rendered with 6 visible rows in current live state",
+        "success row exposes flag and run/task linkage"
+      ]
+    },
+    "traceDetail": {
+      "route": "#/traces/run_260527023937_5240",
+      "ok": true,
+      "consoleErrors": 0,
+      "consoleWarnings": 1,
+      "consoleIssues": 0,
+      "notes": [
+        "timeline rendered with task start, plan, knowledge, tools, verifier events",
+        "flag rendered correctly: flag{wal_recovery_works_2026}",
+        "tool I/O shows not captured; metrics path rendered as loot/metrics/metrics_bb4eb7261ad3.json"
+      ]
+    },
+    "knowledge": {
+      "route": "#/knowledge",
+      "ok": true,
+      "sampleDocKey": "a25vd2xlZGdlXHJldHJvc3BlY3RpdmVfbm90ZXMubWQ",
+      "consoleErrors": 0,
+      "consoleWarnings": 1,
+      "consoleIssues": 1,
+      "notes": [
+        "list rendered from live array payload, not items wrapper",
+        "22 docs / 133 chunks rendered",
+        "top row retrospective_notes rendered with title and source path"
+      ]
+    },
+    "knowledgeDetail": {
+      "route": "#/knowledge/a25vd2xlZGdlXHJldHJvc3BlY3RpdmVfbm90ZXMubWQ",
+      "ok": true,
+      "docId": "retrospective_notes",
+      "consoleErrors": 0,
+      "consoleWarnings": 1,
+      "consoleIssues": 0,
+      "notes": [
+        "breadcrumb leaf rendered as real title: retrospective notes",
+        "summary, preview, metadata, heatmap and empty related-runs state rendered",
+        "doc path rendered as knowledge\\retrospective_notes.md"
+      ]
+    },
+    "logs": {
+      "route": "#/logs",
+      "ok": true,
+      "consoleErrors": 0,
+      "consoleWarnings": 1,
+      "consoleIssues": 1,
+      "notes": [
+        "empty state rendered as 没有匹配的日志",
+        "filters, realtime toggle and export controls rendered",
+        "live header shows 0 rows with source summary"
+      ]
+    },
+    "settings": {
+      "route": "#/settings",
+      "ok": true,
+      "consoleErrors": 0,
+      "consoleWarnings": 1,
+      "consoleIssues": 1,
+      "notes": [
+        "model settings fields rendered from live payload",
+        "save path correctly disabled when live API not connected",
+        "provider/model/api-base/api-key fields present with read-only and restart hints"
+      ]
+    }
+  },
+  "crossCuttingObservations": [
+    {
+      "id": "stagev-observe-001",
+      "type": "dev-warning",
+      "detail": "In-browser Babel transformer warning appears on independently opened pages; non-blocking for current Stage V regression."
+    },
+    {
+      "id": "stagev-observe-002",
+      "type": "a11y-issue",
+      "detail": "Browser issue panel repeatedly reports form fields missing id or name attributes; non-blocking for current live regression."
+    },
+    {
+      "id": "stagev-observe-003",
+      "type": "status-poll-noise",
+      "detail": "Some independently opened detail pages show aborted /api/status polls while tab focus changes; core page data requests still return 200 and content renders."
+    }
+  ],
+  "openIssues": [
+    {
+      "id": "stagev-page-001",
+      "module": "tasks",
+      "symptom": "tasks page issues a phantom detail fetch to /api/tasks/task_002 and receives 404 before loading a valid task detail",
+      "severity": "fixed",
+      "status": "closed"
+    }
+  ],
+  "conclusion": {
+    "taskAStatus": "completed",
+    "summary": "Dashboard / Tasks / Traces / Knowledge / Logs / Settings all open in live mode, render real data or valid empty states, and the prior Tasks phantom 404 has been fixed and browser-reverified."
+  }
+}

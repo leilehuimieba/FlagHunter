@@ -6,11 +6,13 @@
 const { useState: useStateT, useEffect: useEffectT, useRef: useRefT, useMemo: useMemoT } = React;
 
 function TasksPage({ taskId, onNav }) {
-  const [activeId, setActive] = useStateT(taskId || 'task_002');
+  const initialActiveId = taskId || (window.IS_LIVE ? '' : 'task_002');
+  const initialTasks = taskId ? [] : (window.IS_LIVE ? [] : MOCK.TASKS);
+  const [activeId, setActive] = useStateT(initialActiveId);
   const [filter, setFilter] = useStateT('all');
   const [q, setQ] = useStateT('');
   const [showModal, setShowModal] = useStateT(false);
-  const [tasks, setTasks] = useStateT(taskId ? [] : MOCK.TASKS);
+  const [tasks, setTasks] = useStateT(initialTasks);
 
   // ⌘K "新建任务" command opens this modal from anywhere
   useEffectT(() => {
@@ -274,25 +276,14 @@ function TaskDetail({ task, onNav }) {
   const msgEnd = useRefT(null);
 
   useEffectT(() => {
-    setDetailTask(prev => {
-      if (prev && prev.id === task.id) {
-        return {
-          ...task,
-          detailSource: prev.detailSource || task.detailSource,
-          plan: Array.isArray(prev.plan) && prev.plan.length ? prev.plan : (task.plan || []),
-          notes: Array.isArray(prev.notes) && prev.notes.length ? prev.notes : (task.notes || []),
-          knowledgeHits: Array.isArray(prev.knowledgeHits) && prev.knowledgeHits.length ? prev.knowledgeHits : (task.knowledgeHits || []),
-        };
-      }
-      return task;
-    });
+    setDetailTask(prev => mergeTaskDetail(prev, task));
     setAttachments(task.attachments || []);
   }, [task]);
 
   useEffectT(() => {
-    if (!window.IS_LIVE) return;
+    if (!window.API || !window.API.getTask) return;
     window.API.getTask(task.id).then(data => {
-      if (data && data.id) setDetailTask(data);
+      if (data && data.id) setDetailTask(prev => mergeTaskDetail(prev, data));
     });
   }, [task.id]);
 
@@ -315,7 +306,7 @@ function TaskDetail({ task, onNav }) {
 
   // Load attachments from server when task is selected (live mode)
   useEffectT(() => {
-    if (!window.IS_LIVE || isMockActive) return;
+    if (!window.API || !window.API.getAttachments || isMockActive) return;
     window.API.getAttachments(detailTask.id).then(data => {
       if (data && Array.isArray(data.files)) setAttachments(data.files);
     });
@@ -374,7 +365,7 @@ function TaskDetail({ task, onNav }) {
 
       if (ev.type === 'task_status') {
         const updates = ev.updates || {};
-        setDetailTask(prev => ({ ...prev, ...updates }));
+        setDetailTask(prev => ({ ...(prev || {}), ...updates }));
         if (updates.status && updates.status !== 'running' && (updates.finishedAt || updates.finalFlag || updates.stopReason)) {
           const finishId = `live_finish_${updates.status}_${updates.finishedAt || at}`;
           setMessages(prev => prev.some(m => m.id === finishId) ? prev : [...prev, {
@@ -920,6 +911,26 @@ function PlanCardLive({ plan }) {
 function resolveTaskMessages(tk) {
   if (Array.isArray(tk.messages) && tk.messages.length) return tk.messages;
   return buildSyntheticMessages(tk);
+}
+
+function preferTaskDetailField(nextValue, prevValue) {
+  if (Array.isArray(nextValue)) return nextValue.length ? nextValue : (Array.isArray(prevValue) ? prevValue : nextValue);
+  if (nextValue && typeof nextValue === 'object') return Object.keys(nextValue).length ? nextValue : (prevValue || nextValue);
+  return nextValue == null ? prevValue : nextValue;
+}
+
+function mergeTaskDetail(prev, next) {
+  if (!prev || prev.id !== next.id) return next;
+  return {
+    ...prev,
+    ...next,
+    messages: preferTaskDetailField(next.messages, prev.messages),
+    hints: preferTaskDetailField(next.hints, prev.hints),
+    detailSource: preferTaskDetailField(next.detailSource, prev.detailSource),
+    plan: preferTaskDetailField(next.plan, prev.plan),
+    notes: preferTaskDetailField(next.notes, prev.notes),
+    knowledgeHits: preferTaskDetailField(next.knowledgeHits, prev.knowledgeHits),
+  };
 }
 
 function buildSyntheticMessages(tk) {
