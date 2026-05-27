@@ -5,22 +5,46 @@
 
 const { useState: uD, useEffect: uDE } = React;
 
+const LIVE_EMPTY_DASHBOARD = {
+  kpis: {
+    running: 0,
+    queued: 0,
+    tasksToday: 0,
+    successRate: 0,
+    dailyTokens: 0,
+    estimatedCost: 0,
+    toolCalls: 0,
+  },
+  tokenSeries: [],
+  toolDistribution: [],
+  failureDistribution: [],
+  knowledgeHitTrend: [],
+  alerts: [],
+  recentTasks: [],
+  recentToolCalls: [],
+  recentNotes: [],
+  recentArtifacts: [],
+  flags: [],
+};
+
+function offlineFlags() {
+  return MOCK.TASKS.filter(tk => tk.finalFlag).map(tk => ({
+    id: tk.id,
+    flag: tk.finalFlag,
+    target: tk.target,
+    t: tk.finishedAt || tk.startedAt,
+    type: tk.detectedType,
+  }));
+}
+
 // Flags captured from all tasks
-function useFlagBoard(initialFlags) {
-  const [flags, setFlags] = uD(() =>
-    initialFlags || MOCK.TASKS.filter(tk => tk.finalFlag).map(tk => ({
-      id: tk.id,
-      flag: tk.finalFlag,
-      target: tk.target,
-      t: tk.finishedAt || tk.startedAt,
-      type: tk.detectedType,
-    }))
-  );
+function useFlagBoard(initialFlags, fallbackFlags) {
+  const [flags, setFlags] = uD(() => initialFlags || fallbackFlags || []);
   const [copiedId, setCopiedId] = uD(null);
 
   uDE(() => {
-    if (initialFlags) setFlags(initialFlags);
-  }, [JSON.stringify(initialFlags)]);
+    setFlags(initialFlags || fallbackFlags || []);
+  }, [JSON.stringify(initialFlags), JSON.stringify(fallbackFlags)]);
 
   function copyFlag(id, text) {
     navigator.clipboard?.writeText(text).catch(() => {});
@@ -34,10 +58,13 @@ function useFlagBoard(initialFlags) {
 function DashboardPage({ onNav }) {
   const d = MOCK.DASHBOARD;
   const [liveData, setLiveData] = uD(null);
-  const { flags, copyFlag, copiedId } = useFlagBoard(liveData?.flags);
+  const [dashboardLoaded, setDashboardLoaded] = uD(false);
 
   uDE(() => {
-    window.API.getDashboard().then(data => { if (data) setLiveData(data); });
+    window.API.getDashboard().then(data => {
+      if (data) setLiveData(data);
+      setDashboardLoaded(true);
+    });
   }, []);
 
   // Subscribe to SSE for real-time KPI updates — re-fetch dashboard on task events
@@ -50,16 +77,24 @@ function DashboardPage({ onNav }) {
     });
   }, []);
 
-  const kpis = liveData?.kpis || d.kpis;
-  const tokenSeries = liveData?.tokenSeries || d.tokenSeries;
-  const toolDistribution = liveData?.toolDistribution || d.toolDistribution;
-  const failureDistribution = liveData?.failureDistribution || d.failureDistribution;
-  const knowledgeHitTrend = liveData?.knowledgeHitTrend || d.knowledgeHitTrend;
-  const alerts = liveData?.alerts || d.alerts || [];
-  const recentTasks = liveData?.recentTasks || d.recentTasks || [];
-  const recentToolCalls = liveData?.recentToolCalls || d.recentToolCalls || [];
-  const recentNotes = d.recentNotes || [];
-  const recentArtifacts = d.recentArtifacts || [];
+  const dashboardData = liveData || (dashboardLoaded ? (window.IS_LIVE ? LIVE_EMPTY_DASHBOARD : d) : LIVE_EMPTY_DASHBOARD);
+  const flagFallback = !dashboardLoaded ? [] : (window.IS_LIVE ? [] : offlineFlags());
+  const { flags, copyFlag, copiedId } = useFlagBoard(dashboardData.flags, flagFallback);
+  const kpis = dashboardData.kpis || LIVE_EMPTY_DASHBOARD.kpis;
+  const tokenSeries = dashboardData.tokenSeries || [];
+  const toolDistribution = dashboardData.toolDistribution || [];
+  const failureDistribution = dashboardData.failureDistribution || [];
+  const knowledgeHitTrend = dashboardData.knowledgeHitTrend || [];
+  const alerts = dashboardData.alerts || [];
+  const recentTasks = dashboardData.recentTasks || [];
+  const recentToolCalls = dashboardData.recentToolCalls || [];
+  const recentNotes = dashboardData.recentNotes || [];
+  const recentArtifacts = dashboardData.recentArtifacts || [];
+  const notesArtifactsUnavailable = window.IS_LIVE && recentNotes.length === 0 && recentArtifacts.length === 0;
+  const liveDashboard = window.IS_LIVE || (dashboardLoaded && !!liveData);
+  const dashboardSub = liveDashboard
+    ? t('dash.liveSub', kpis.tasksToday || 0, kpis.successToday || 0, kpis.failedToday || 0, kpis.stoppedToday || 0)
+    : t('dash.sub');
   const flagsToday = flags.filter(f => {
     const diff = (Date.now() - Date.parse(f.t)) / 1000;
     return diff < 86400;
@@ -70,11 +105,11 @@ function DashboardPage({ onNav }) {
       <div className="page-h">
         <div>
           <div className="t">{t('dash.t')}</div>
-          <div className="sub">{t('dash.sub')}</div>
+          <div className="sub">{dashboardSub}</div>
         </div>
         <div className="row">
-          <button className="btn"><span className="muted">{t('c.last24h')}</span> <span className="kbd">▾</span></button>
-          <button className="btn"><span className="muted">{t('c.allRuntimes')}</span> <span className="kbd">▾</span></button>
+          <button className="btn" disabled={true} title={t('c.unavailable')}><span className="muted">{t('c.last24h')}</span> <span className="kbd">▾</span></button>
+          <button className="btn" disabled={true} title={t('c.unavailable')}><span className="muted">{t('c.allRuntimes')}</span> <span className="kbd">▾</span></button>
           <button className="btn primary" onClick={() => onNav('tasks')}>{t('c.newTask')}</button>
         </div>
       </div>
@@ -85,21 +120,21 @@ function DashboardPage({ onNav }) {
           label={t('kpi.activeRuns')}
           value={kpis.running}
           unit={t('kpi.queuedSuffix', kpis.queued)}
-          delta={<span><span className="amber">●</span> {t('kpi.inExploit')}</span>}
-          spark={<Sparkline data={[2,1,2,1,1,1,1,1]} color="var(--amber)" w={56} h={20} />}
+          delta={liveDashboard ? <span className="muted">{t('dash.liveRunning', kpis.running || 0)}</span> : <span><span className="amber">●</span> {t('kpi.inExploit')}</span>}
+          spark={liveDashboard ? null : <Sparkline data={[2,1,2,1,1,1,1,1]} color="var(--amber)" w={56} h={20} />}
         />
         <KpiCard
           label={t('kpi.tasksToday')}
           value={kpis.tasksToday}
-          delta={<span className="pos">{t('kpi.vsYesterday')}</span>}
-          spark={<Sparkline data={[8,10,11,9,13,14,12,14]} w={56} h={20} />}
+          delta={liveDashboard ? <span className="muted">{t('dash.liveTaskMix', kpis.successToday || 0, kpis.failedToday || 0, kpis.stoppedToday || 0)}</span> : <span className="pos">{t('kpi.vsYesterday')}</span>}
+          spark={liveDashboard ? null : <Sparkline data={[8,10,11,9,13,14,12,14]} w={56} h={20} />}
         />
         <KpiCard
           label={t('kpi.successRate')}
           value={`${Math.round(kpis.successRate * 100)}`}
           unit="%"
-          delta={<span className="pos">{t('kpi.successRateDelta')}</span>}
-          spark={<Sparkline data={[55,62,58,71,68,72,71,71]} w={56} h={20} />}
+          delta={liveDashboard ? <span className="muted">{t('dash.liveSuccessRate', kpis.successToday || 0, kpis.tasksToday || 0)}</span> : <span className="pos">{t('kpi.successRateDelta')}</span>}
+          spark={liveDashboard ? null : <Sparkline data={[55,62,58,71,68,72,71,71]} w={56} h={20} />}
         />
         <KpiCard
           label={t('kpi.tokensToday')}
@@ -111,14 +146,14 @@ function DashboardPage({ onNav }) {
         <KpiCard
           label={t('kpi.estCost')}
           value={`$${kpis.estimatedCost.toFixed(2)}`}
-          delta={<span className="muted">{t('kpi.costDelta')}</span>}
-          spark={<Sparkline data={[0.2,1.1,2.4,3.8,4.5,6.1,7.2,8.4]} color="var(--blue)" w={56} h={20} />}
+          delta={liveDashboard ? <span className="muted">{t('dash.liveCost')}</span> : <span className="muted">{t('kpi.costDelta')}</span>}
+          spark={liveDashboard ? null : <Sparkline data={[0.2,1.1,2.4,3.8,4.5,6.1,7.2,8.4]} color="var(--blue)" w={56} h={20} />}
         />
         <KpiCard
           label={t('kpi.toolCalls')}
           value={kpis.toolCalls}
-          delta={<span className="cyan">{t('kpi.toolMix')}</span>}
-          spark={<Sparkline data={[12,18,15,22,28,24,31,28,24]} color="var(--cyan)" w={56} h={20} />}
+          delta={liveDashboard ? <span className="muted">{t('dash.liveKnowledgeHits', kpis.knowledgeHits || 0)}</span> : <span className="cyan">{t('kpi.toolMix')}</span>}
+          spark={liveDashboard ? null : <Sparkline data={[12,18,15,22,28,24,31,28,24]} color="var(--cyan)" w={56} h={20} />}
         />
         {/* Flags captured KPI */}
         <KpiCard
@@ -130,7 +165,6 @@ function DashboardPage({ onNav }) {
           </span>}
           spark={<Sparkline data={[0,0,1,0,2,0,1,flags.length]} color="var(--accent)" w={56} h={20} />}
           accent="green"
-          onClick={() => {}}
         />
       </div>
 
@@ -221,7 +255,7 @@ function DashboardPage({ onNav }) {
         >
           <div>
             {recentTasks.length ? recentTasks.map(tk => (
-              <div key={tk.id} className="act-row" onClick={() => onNav('tasks')} style={{ cursor: 'pointer' }}>
+              <div key={tk.id} className="act-row" onClick={() => onNav(`tasks/${tk.id}`)} style={{ cursor: 'pointer' }}>
                 <span className="time">{tk.startedAt ? fmt.hh(tk.startedAt).slice(0,5) : '—'}</span>
                 <span className="ico" style={{ color: { running: 'var(--amber)', success: 'var(--accent)', failed: 'var(--red)', queued: 'var(--blue)', stopped: 'var(--fg-2)' }[tk.status] }}>●</span>
                 <span className="ttl ellipsis"><span className="dim" style={{ marginRight: 6 }}>{tk.id}</span>{tk.title}</span>
@@ -251,9 +285,12 @@ function DashboardPage({ onNav }) {
 
         <Panel
           title={t('dash.notesArtifacts')}
-          actions={<button className="btn sm ghost muted">{t('c.browse')}</button>}
+          actions={<button className="btn sm ghost muted" disabled={true} title={t('c.unavailable')}>{t('c.browse')}</button>}
         >
           <div>
+            {recentNotes.length === 0 && recentArtifacts.length === 0 && (
+              <Empty>{notesArtifactsUnavailable ? t('c.unavailable') : t('tasks.noMatch')}</Empty>
+            )}
             {recentNotes.map(n => (
               <div key={n.id} className="act-row">
                 <span className="time">{fmt.hh(n.t).slice(0,5)}</span>

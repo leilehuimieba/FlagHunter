@@ -1,4 +1,4 @@
-/* global React, MOCK, fmt, t */
+/* global React, MOCK, fmt, t, downloadJson */
 // ============================================================
 // Knowledge — list + detail
 // ============================================================
@@ -45,9 +45,9 @@ function KnowledgeList({ onNav }) {
           <div className="sub">{t('kb.sub', sourceDocs.length, totalChunks, totalHits)}</div>
         </div>
         <div className="row">
-          <button className="btn ghost">{t('c.reindex')}</button>
-          <button className="btn ghost">⬇ {t('c.export')}</button>
-          <button className="btn primary">{t('c.addDoc')}</button>
+          <button className="btn ghost" disabled={true} title={t('c.unavailable')}>{t('c.reindex')}</button>
+          <button className="btn ghost" onClick={() => downloadJson(`knowledge_${new Date().toISOString().replace(/[:.]/g, '-')}.json`, sourceDocs)}>⬇ {t('c.export')}</button>
+          <button className="btn primary" disabled={true} title={t('c.unavailable')}>{t('c.addDoc')}</button>
         </div>
       </div>
 
@@ -174,7 +174,10 @@ function KnowledgeDetail({ docId, onNav }) {
     if (key) acc[key] = (acc[key] || 0) + 1;
     return acc;
   }, {});
-  const chunks = (resolvedDoc.chunks || MOCK.CHUNKS_002).map(c => ({
+  const baseChunks = Array.isArray(resolvedDoc.chunks)
+    ? resolvedDoc.chunks
+    : (window.IS_LIVE ? [] : MOCK.CHUNKS_002);
+  const chunks = baseChunks.map(c => ({
     ...c,
     hits: chunkHits[c.id] || c.hits || 0,
   }));
@@ -196,9 +199,9 @@ function KnowledgeDetail({ docId, onNav }) {
           <div className="sub mono">{resolvedDoc.id} · {resolvedDoc.sourcePath}</div>
         </div>
         <div className="row">
-          <button className="btn ghost">{t('c.reindex')}</button>
-          <button className="btn ghost">{t('c.download')}</button>
-          <button className="btn">{t('c.openFile')}</button>
+          <button className="btn ghost" disabled={true} title={t('c.unavailable')}>{t('c.reindex')}</button>
+          <button className="btn ghost" onClick={() => downloadJson(`${String(resolvedDoc.docKey || resolvedDoc.id || 'knowledge').replace(/[^\w.-]+/g, '_')}.json`, resolvedDoc)}>{t('c.download')}</button>
+          <button className="btn" disabled={true} title={t('c.unavailable')}>{t('c.openFile')}</button>
         </div>
       </div>
 
