@@ -118,8 +118,8 @@ PentestAgent has three modes, accessible via commands in the TUI:
 | Mode | Command | Description |
 |------|---------|-------------|
 | Assist | `/assist <task>` | One single-shot instruction, with tool execution |
-| Agent | `/agent <task>` | Autonomous execution of a single task. |
-| Crew | `/crew <task>` | Multi-agent mode. Orchestrator spawns specialized workers. |
+| Agent | `/agent <task>` | Autonomous execution of a single task |
+| Crew | `/crew <task>` | Multi-agent mode. Orchestrator spawns specialized workers |
 | Interact | `/interact <task>` | Interactive mode. Chat with the agent, it will help you and guide during the pentesting procedure |
 
 ### TUI Commands
@@ -128,13 +128,14 @@ PentestAgent has three modes, accessible via commands in the TUI:
 /assist <task>    One single-shot instruction.
 /agent <task>     Run autonomous agent on task
 /crew <task>      Run multi-agent crew on task
-/interact <task> Chat with the agent in guided mode
+/interact <task>  Chat with the agent in guided mode
 /target <host>    Set target
 /tools            List available tools
 /notes            Show saved notes
 /report           Generate report from session
 /memory           Show token/memory usage
 /prompt           Show system prompt
+/conversations    Browse and restore saved conversations
 /mcp <list/add>   Visualizes or adds a new MCP server.
 /spawn [target] [--scope CIDR] [--model M] [--no-rag] [--no-mcp]
                   Manually spawn a child MCP agent from the TUI.
@@ -431,6 +432,44 @@ pentestagent mcp list           # List MCP servers
 pentestagent mcp add <name> <command> [args...]  # Add MCP server
 pentestagent mcp test <name>    # Test MCP connection
 ```
+
+## Conversation History Controls
+
+Each user message in the TUI exposes two inline action buttons: **rewind** and **fork**.
+
+### Rewind
+
+Click **rewind** on any user message to truncate the conversation back to just before that message — both in the UI and in the agent's in-memory history. Use it to retry a query from scratch without saving the discarded path.
+
+### Fork
+
+Click **>> fork** on any user message to branch the conversation from that point:
+
+1. The current full conversation is **saved** to the conversation store and a short snapshot ID is shown.
+2. The conversation is then **truncated** to just before the selected message (same as rewind).
+
+This lets you try an alternative approach from any point while keeping the original thread retrievable via `/conversations`.
+
+---
+
+## Conversation History
+
+PentestAgent automatically persists every conversation so you can review, compare, and restore past sessions.
+
+**Auto-save** triggers after each `/assist`, `/agent`, `/crew`, and `/interact` task, and before `/clear`. Up to 20 conversations are kept; older ones are pruned automatically.
+
+**Storage location:** `workspaces/<active>/memory/conversations/` when a workspace is active, or `conversations/` at the project root otherwise. Each conversation is a JSON file.
+
+**Browse & restore with `/conversations`:**
+
+The `/conversations` command opens a split-pane modal inside the TUI:
+- **Left panel** — list of saved conversations with title and date.
+- **Right panel** — metadata preview plus the first 5 messages (user messages in blue, agent responses in green, tool calls in yellow, tool results in grey). A count shows how many additional messages exist.
+
+<img width="1657" height="662" alt="imagen" src="https://github.com/user-attachments/assets/da42f083-9b7f-445e-8c59-2402ac8e5ddc" />
+
+
+Select a conversation and press **Restore** to reload it into the current session, or **Close** to dismiss the modal.
 
 ## Knowledge
 
