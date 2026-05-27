@@ -5,7 +5,7 @@
 - 适用阶段：Stage V
 - 当前结论：**Stage V 既定收口目标（Task A 页面级回归 + Task B 动作链验收）已完成，并完成一轮 fresh verify + handoff 收口**
 - 当前完成度：**100%（按 Stage V 既定最小验收条）**
-- 最新 safe rollback point：`4b99e47 · docs(web): archive stage v acceptance handoff`
+- 最新 safe rollback point：`d7d7a70 · fix(web): stabilize live connection badge state`
 
 ---
 
@@ -29,7 +29,7 @@ Stage V 执行计划固定顺序为：
 |---|---|---|---|---|
 | Task A | Dashboard / Tasks / Traces / Knowledge / Logs / Settings 页面级回归 | 已完成 | `FlagHunter_Web可视化控制台_StageV_首轮页面级回归验证证据_V1.json` | 6 大主页面均可 live 打开，真实数据或空态渲染正常 |
 | Task B | create → run → observe → hint / stop → trace replay 动作链验收 | 已完成 | `FlagHunter_Web可视化控制台_StageV_动作链验收验证证据_V1.json` | Task Detail / Trace Detail / Logs 三页已完成 hint 链路收口 |
-| Task C | 只修 P0 / P1 问题 | 已完成 | `web_server.py` + `tasks.jsx` 最小修补 | 阻断级问题已闭环；仅剩连接徽标偶发 offline 抖动 |
+| Task C | 只修 P0 / P1 问题 | 已完成 | `web_server.py` + `tasks.jsx` 最小修补 | 阻断级问题已闭环；连接徽标稳定性修补已补齐 |
 | Task D | 文档同步 | 已完成 | Stage V 计划、Task A 证据、Task B 证据、本文档 | 文档与代码当前状态已对齐 |
 
 ---
@@ -77,6 +77,11 @@ Stage V 执行计划固定顺序为：
 2. `D:\webstudy\FlagHunter\web\console\src\pages\tasks.jsx`
    - 保留 detail API 返回的 enriched payload，不再被列表轻量 task 回刷覆盖
    - `TaskDetail` 与 attachments 拉取不再依赖瞬时 `window.IS_LIVE` 探测结果
+
+3. `D:\webstudy\FlagHunter\web\console\src\api.js`
+   - 连接状态改为“probe 成功或 SSE 最近活跃即可视为 live”
+   - `api/status` 增加连续失败阈值，避免单次 timeout / abort 直接触发 `disconnected`
+   - SSE `onopen / onmessage` 会主动维持 live 状态，不再因误判 `disconnected` 主动关闭 SSE
 
 ---
 
@@ -213,9 +218,8 @@ Stage V 执行计划的最小 acceptance bar 为：
 
 ### 6.2 残余风险
 
-1. `window.IS_LIVE` 依赖 `/api/status` 轮询；在浏览器工具切页 / reload / tab focus 切换时，连接徽标仍可能偶发显示 `offline`
-2. 当前该抖动已不再阻断 `TaskDetail` / `TraceDetail` 的真实 detail 拉取，因此属于**非阻塞显示问题**，不是 Task B 数据链路阻断
-3. `tmp_web_console_stdout.log` / `tmp_web_console_stderr.log` 当前为空文件，属于可清理临时产物
+1. Logs 页行级 DOM 结构在自动化取证中仍不如页面正文稳定，这是当前更偏“自动化观测性”的尾巴，而不是功能性阻断
+2. `tmp_web_console_stdout.log` / `tmp_web_console_stderr.log` 当前为空文件，但受运行中进程占用，未在上一轮提交前物理删除
 
 ---
 
@@ -227,8 +231,8 @@ Stage V 执行计划的最小 acceptance bar 为：
 
 ### 非阻塞尾巴
 
-1. 若后续进入新阶段，可单独收口 `api/status` 轮询抖动与连接徽标稳定性
-2. 若后续继续做体验级打磨，可补 Logs 页更稳定的自动化 DOM 选择器或数据标识
+1. 若后续继续做体验级打磨，可补 Logs 页更稳定的自动化 DOM 选择器或数据标识
+2. 若相关运行进程结束，可顺手清理 0 字节 `tmp_web_console_*.log` 临时文件
 
 ---
 
@@ -262,11 +266,11 @@ Stage V 执行计划的最小 acceptance bar 为：
 
 ### 当前完成度
 
-- `100%`（按 Stage V 最小验收条）
+- `100%`（按 Stage V 最小验收条，含连接状态稳定性后续修补）
 
 ### 最新安全回滚点
 
-- `4b99e47 · docs(web): archive stage v acceptance handoff`
+- `d7d7a70 · fix(web): stabilize live connection badge state`
 
 ### 若继续推进的建议顺序
 
