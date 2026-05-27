@@ -197,6 +197,7 @@ const DICT = {
     'nt.uploading': 'uploading',
     'nt.err.noTarget': 'target is required',
     'nt.err.noTitle': 'task title is required',
+    'nt.err.createFailed': 'task creation failed · check /api/tasks and server logs',
 
     /* task detail */
     'td.run': 'run',
@@ -703,6 +704,7 @@ const DICT = {
     'nt.uploading': '上传中',
     'nt.err.noTarget': '目标不能为空',
     'nt.err.noTitle': '任务标题不能为空',
+    'nt.err.createFailed': '创建任务失败 · 请检查 /api/tasks 与服务端日志',
 
     /* task detail */
     'td.run': '运行',

@@ -284,24 +284,22 @@ function NewTaskModal({ onClose, onCreated }) {
     if (!form.title.trim())  { setErr(t('nt.err.noTitle'));  return; }
 
     // ── Phase 1: create task (JSON metadata) ──────────────────
+    setErr('');
     setPhase('creating');
     const payload = {
       ...form,
       attachments: files.map(f => ({ name: f.name, size: f.size })),
     };
     let result = null;
-    if (window.IS_LIVE) {
-      result = await window.API.createTask(payload);
+    try {
+      result = await window.API?.createTask?.(payload);
+    } catch {
+      result = null;
     }
     if (!result) {
-      // mock / offline fallback
-      result = {
-        id: 'task_' + Date.now().toString().slice(-6),
-        ...payload,
-        status: 'queued',
-        createdAt: new Date().toISOString(),
-        attachments: files.map(f => ({ name: f.name, size: f.size, path: null })),
-      };
+      setPhase('idle');
+      setErr(t('nt.err.createFailed'));
+      return;
     }
 
     // ── Phase 2: upload files (FormData) ──────────────────────
