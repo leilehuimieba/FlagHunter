@@ -23,9 +23,40 @@ const NAV = [
 
 function Sidebar({ route, onNav }) {
   const [isLive, setIsLive] = useStateS(window.IS_LIVE || false);
+  const [statusMeta, setStatusMeta] = useStateS({ runtime: '—', version: '—' });
 
   useEffectS(() => {
-    const handler = (e) => setIsLive(e.detail.type === 'connected');
+    let cancelled = false;
+
+    async function loadStatus() {
+      if (!window.API?.getStatus) return;
+      const data = await window.API.getStatus();
+      if (!cancelled && data) {
+        setStatusMeta({
+          runtime: data.runtime || '—',
+          version: data.version || '—',
+        });
+      }
+    }
+
+    loadStatus();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffectS(() => {
+    const handler = async (e) => {
+      const connected = e.detail.type === 'connected';
+      setIsLive(connected);
+      if (connected && window.API?.getStatus) {
+        const data = await window.API.getStatus();
+        if (data) {
+          setStatusMeta({
+            runtime: data.runtime || '—',
+            version: data.version || '—',
+          });
+        }
+      }
+    };
     window.addEventListener('fh:connection', handler);
     return () => window.removeEventListener('fh:connection', handler);
   }, []);
@@ -62,14 +93,14 @@ function Sidebar({ route, onNav }) {
           <span className="dot"></span>
           <div className="meta">
             <span className="lbl">{t('sidebar.runtime')}</span>
-            <span className="val">LocalRuntime</span>
+            <span className="val">{statusMeta.runtime || '—'}</span>
           </div>
           <span className={`conn-badge ${isLive ? 'live' : 'mock'}`}>
             {isLive ? t('sidebar.live') : t('sidebar.mock')}
           </span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--fg-3)', padding: '0 4px' }}>
-          <span>{t('sidebar.build')} · 5f3a2c1</span>
+          <span>{t('sidebar.build')} · {statusMeta.version || '—'}</span>
           <span style={{ color: isLive ? 'var(--accent)' : 'var(--fg-3)' }}>
             {isLive ? '●' : '○'} {isLive ? t('sidebar.healthy') : 'offline'}
           </span>
