@@ -142,6 +142,7 @@ function TraceDetail({ runId, onNav }) {
   const isActive = resolvedRun.status === 'running';
   const timeline = resolvedRun.timeline || (!window.IS_LIVE ? synthTimeline(resolvedRun) : []);
   const hasObservedToolIO = Array.isArray(resolvedRun.toolEvents) && resolvedRun.toolEvents.length > 0;
+  const graph = uM(() => buildTraceGraph(timeline, resolvedRun), [timeline, resolvedRun.id, resolvedRun.status, resolvedRun.startedAt]);
 
   uE(() => {
     window.dispatchEvent(new CustomEvent('fh:route-label', {
@@ -365,10 +366,11 @@ function TraceDetail({ runId, onNav }) {
         </div>
 
         {tab === 'timeline' && <TimelineView events={timeline} onPick={setDrawer} isActive={isActive} />}
-        {tab === 'graph' && resolvedRun.id === 'run_002' && <GraphView onPick={(g) => setDrawer({
-          id: g.id, kind: g.k.toLowerCase() + '.node', title: g.t, summary: '', t: resolvedRun.startedAt,
-        })} />}
-        {tab === 'graph' && resolvedRun.id !== 'run_002' && <Empty>{t('tr.graph.notReady', resolvedRun.id)}</Empty>}
+        {tab === 'graph' && (
+          graph.nodes.length > 0
+            ? <GraphView graph={graph} run={resolvedRun} onPick={setDrawer} />
+            : <Empty>{isActive ? 'waiting for first trace event' : 'no observed trace graph events'}</Empty>
+        )}
         {tab === 'data' && <DataTables run={resolvedRun} events={timeline} />}
       </Panel>
 
@@ -464,20 +466,79 @@ function HoverCard({ data, x, y }) {
 // ----------------------------------------------------------------
 // Graph DAG view
 // ----------------------------------------------------------------
-function GraphView({ onPick }) {
-  const g = MOCK.GRAPH_002;
+function graphNodeMeta(event, isTerminal) {
+  switch (event.type) {
+    case 'task': return { color: 'green', tag: 'TASK', label: event.title || 'task started' };
+    case 'verify': return { color: 'green', tag: 'VERIFY', label: event.title || 'flag verified' };
+    case 'tool': return { color: event.status === 'failed' ? 'red' : 'cyan', tag: 'TOOL', label: event.tool || event.title || 'tool' };
+    case 'knowledge': return { color: 'blue', tag: 'KNOWLEDGE', label: event.summary || event.title || 'knowledge' };
+    case 'note': return { color: 'amber', tag: 'NOTE', label: event.summary || event.title || 'note' };
+    case 'plan': return { color: 'magenta', tag: 'PLAN', label: event.title || 'plan' };
+    case 'err': return { color: 'red', tag: 'ERROR', label: event.summary || event.title || 'error' };
+    default:
+      return { color: isTerminal ? 'green' : 'magenta', tag: (event.type || 'system').toUpperCase(), label: event.summary || event.title || event.type || 'system' };
+  }
+}
+
+function buildTraceGraph(events, run) {
+  const ordered = (events || [])
+    .filter(e => e && e.id)
+    .slice()
+    .sort((a, b) => {
+      const ta = Date.parse(a.t || 0) || 0;
+      const tb = Date.parse(b.t || 0) || 0;
+      if (ta !== tb) return ta - tb;
+      return String(a.id).localeCompare(String(b.id));
+    });
+
+  const nodes = ordered.map((event, idx) => {
+    const meta = graphNodeMeta(event, idx === ordered.length - 1 && run.status !== 'running');
+    const col = idx % 4;
+    const row = Math.floor(idx / 4);
+    return {
+      id: `graph_${event.id}`,
+      event,
+      x: 30 + col * 190,
+      y: 46 + row * 92,
+      kind: meta.color,
+      k: meta.tag,
+      t: meta.label,
+      isRunning: event.status === 'running',
+    };
+  });
+
+  const edges = [];
+  const active = [];
+  for (let i = 0; i < nodes.length - 1; i++) {
+    const pair = [nodes[i].id, nodes[i + 1].id];
+    edges.push(pair);
+    if (nodes[i + 1].isRunning || (run.status === 'running' && i === nodes.length - 2)) {
+      active.push(pair);
+    }
+  }
+
+  return {
+    nodes,
+    edges,
+    active,
+    height: Math.max(480, 110 + Math.ceil(Math.max(nodes.length, 1) / 4) * 92),
+  };
+}
+
+function GraphView({ graph, run, onPick }) {
+  const g = graph;
   const nodeById = Object.fromEntries(g.nodes.map(n => [n.id, n]));
   const activeSet = new Set(g.active.map(([a,b]) => `${a}-${b}`));
 
   return (
-    <div className="graph-shell" style={{ height: 480 }}>
+    <div className="graph-shell" style={{ height: g.height }}>
       <div style={{ position: 'absolute', top: 10, left: 14, fontSize: 10, color: 'var(--fg-3)', letterSpacing: '0.16em', textTransform: 'uppercase' }}>
-        {t('tr.graph.title', g.nodes.length, g.edges.length)}
+        {`${run.id} · graph · ${g.nodes.length} nodes / ${g.edges.length} edges`}
       </div>
       <div style={{ position: 'absolute', top: 10, right: 14, display: 'flex', gap: 10, fontSize: 10, color: 'var(--fg-2)' }}>
         <LegendDot c="var(--accent)" t={t('tr.graph.taskVerify')} />
         <LegendDot c="var(--cyan)" t={t('tr.graph.tool')} />
-        <LegendDot c="var(--magenta)" t={t('tr.graph.stratHypo')} />
+        <LegendDot c="var(--magenta)" t="plan / system" />
         <LegendDot c="var(--blue)" t={t('tr.graph.knowledge')} />
         <LegendDot c="var(--amber)" t={t('tr.graph.note')} />
       </div>
@@ -511,11 +572,11 @@ function GraphView({ onPick }) {
           key={n.id}
           className={`gnode ${n.kind || ''}`}
           style={{ left: n.x, top: n.y, cursor: 'pointer' }}
-          onClick={() => onPick(n)}
+          onClick={() => onPick(n.event)}
         >
           <div className="gk">{n.k}</div>
           <div className="gt">{n.t}</div>
-          {n.k === 'TOOL' && n.t.includes('running') && (
+          {n.isRunning && (
             <div style={{ position: 'absolute', top: 6, right: 8, width: 6, height: 6, borderRadius: '50%', background: 'var(--amber)', boxShadow: '0 0 4px var(--amber)', animation: 'pulse 1.4s ease-in-out infinite' }}></div>
           )}
         </div>
