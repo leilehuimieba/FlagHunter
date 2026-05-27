@@ -1,0 +1,116 @@
+{
+  "version": "V1",
+  "date": "2026-05-27",
+  "scope": "Stage V / Task B / live action-chain verification",
+  "baseUrl": "http://127.0.0.1:8080",
+  "rollbackPoint": "4de5e52",
+  "samples": {
+    "failedRun": {
+      "taskId": "task_260527065152_47b5",
+      "runId": "run_260527065152_094a",
+      "summary": "pre-fix real task creation failed because RAG import path raised No module named 'numpy'"
+    },
+    "successfulRun": {
+      "taskId": "task_260527070121_b988",
+      "runId": "run_260527070121_d311",
+      "summary": "real create → run → observe path succeeded after RAG graceful-degrade fix"
+    },
+    "hintPersistenceRun": {
+      "taskId": "task_260527072428_7b73",
+      "runId": "run_260527072428_ac66",
+      "summary": "primary sample used for hint persistence, trace replay, and live logs verification"
+    }
+  },
+  "fixesApplied": [
+    {
+      "module": "pentestagent/interface/web_server.py",
+      "change": "persist task hints, replay them into task detail messages and trace timeline, and emit agent.hint log lines for Logs page"
+    },
+    {
+      "module": "web/console/src/pages/tasks.jsx",
+      "change": "preserve enriched detail payload across list refreshes and fetch task detail / attachments regardless of transient window.IS_LIVE probe state"
+    }
+  ],
+  "apiEvidence": {
+    "taskDetail": {
+      "taskId": "task_260527072428_7b73",
+      "messagesMode": "session_snapshot",
+      "messageIdsTail": ["msg_9", "hint_msg_1", "hint_msg_2"],
+      "hints": [
+        {
+          "text": "Post-restart persistence proof: hint should remain visible in detail and trace replay.",
+          "t": "2026-05-27T07:48:08.922845+00:00"
+        },
+        {
+          "text": "Stage V Task B final live log proof @ 2026-05-27T16:12+08:00",
+          "t": "2026-05-27T08:12:11.529375+00:00"
+        }
+      ],
+      "detailSource": {
+        "session": "loot\\sessions\\35f794a9a688.json",
+        "metrics": "loot/metrics/metrics_35f794a9a688.json",
+        "messages": "session_snapshot",
+        "messagesConfidence": "high"
+      }
+    },
+    "traceDetail": {
+      "runId": "run_260527072428_ac66",
+      "hintTimelineTail": [
+        {
+          "id": "task_260527072428_7b73:hint:1",
+          "kind": "task.hint",
+          "title": "hint accepted",
+          "summary": "Post-restart persistence proof: hint should remain visible in detail and trace replay."
+        },
+        {
+          "id": "task_260527072428_7b73:hint:2",
+          "kind": "task.hint",
+          "title": "hint accepted",
+          "summary": "Stage V Task B final live log proof @ 2026-05-27T16:12+08:00"
+        }
+      ]
+    }
+  },
+  "browserEvidence": {
+    "taskReload": {
+      "route": "#/tasks/task_260527072428_7b73",
+      "method": "headless Chrome via Playwright using system Chrome executable",
+      "ok": true,
+      "notes": [
+        "cold page load rendered live detail banner with observed session transcript",
+        "reload body included both persisted hints",
+        "messages tail ended with hint accepted · Post-restart persistence proof ... and hint accepted · Stage V Task B final live log proof @ 2026-05-27T16:12+08:00"
+      ]
+    },
+    "traceReload": {
+      "route": "#/traces/run_260527072428_ac66",
+      "method": "headless Chrome via Playwright using system Chrome executable",
+      "ok": true,
+      "notes": [
+        "reload body included both task.hint entries",
+        "timeline tail ended with 15:48:08 hint accepted ... and 16:12:11 hint accepted Stage V Task B final live log proof @ 2026-05-27T16:12+08:00"
+      ]
+    },
+    "logsLive": {
+      "route": "#/logs",
+      "method": "open logs page first, then POST a real hint and observe live SSE update",
+      "ok": true,
+      "notes": [
+        "page body contained source agent.hint after live hint post",
+        "page body contained Stage V Task B final live log proof @ 2026-05-27T16:12+08:00"
+      ]
+    }
+  },
+  "currentOpenIssues": [
+    {
+      "id": "stagev-taskb-001",
+      "severity": "non_blocking",
+      "status": "observed",
+      "detail": "connection badge can still flip to offline when /api/status polling aborts during browser-tool tab focus changes, but task/traces detail fetches now continue to work and no longer block Task Detail reload evidence"
+    }
+  ],
+  "conclusion": {
+    "taskBStatus": "completed",
+    "summary": "Stage V Task B now satisfies create/run/observe/hint/trace/log evidence. Task Detail and Trace Detail both retain hint history after reload, and Logs page receives agent.hint in live mode."
+  }
+}
