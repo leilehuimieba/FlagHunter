@@ -94,5 +94,6 @@ tests/test_*.py
 # Workspaces directory (user data should not be committed)
 /workspaces/
 loot/*
+/conversations
 mcp_examples/kali/mcp_servers.json
 pentestagent/mcp/mcp_servers.json
