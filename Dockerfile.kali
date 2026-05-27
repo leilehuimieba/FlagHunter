@@ -16,7 +16,7 @@ ENV TOKENIZERS_PARALLELISM=false
 RUN printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d && chmod +x /usr/sbin/policy-rc.d
 
 # Update and install Kali tools
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends --fix-missing \
     # Python (python3-full includes venv with ensurepip)
     python3-full \
     python3-pip \
