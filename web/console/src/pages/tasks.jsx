@@ -199,6 +199,30 @@ function detailBlockedReasonLabel(reason) {
   return reason || '—';
 }
 
+function detailKnowledgeLabel(mode) {
+  if (mode === 'session_snapshot') return 'snapshot-backed';
+  if (mode === 'metrics_observed') return 'metrics-observed';
+  if (mode === 'live_event') return 'live event';
+  if (mode === 'unobserved') return 'unobserved';
+  return mode || 'unknown';
+}
+
+function knowledgeResultLabel(kind) {
+  if (kind === 'matched') return 'matched';
+  if (kind === 'no_match') return 'no match';
+  if (kind === 'observed_only') return 'observed only';
+  if (kind === 'failed') return 'failed';
+  return kind || 'observed';
+}
+
+function knowledgeTone(kind) {
+  if (kind === 'matched') return 'green';
+  if (kind === 'no_match') return 'amber';
+  if (kind === 'observed_only') return 'cyan';
+  if (kind === 'failed') return 'red';
+  return 'dim';
+}
+
 function TaskDetailSourceBanner({ source }) {
   if (!source) return null;
   const mode = source.messages || 'unknown';
@@ -399,12 +423,18 @@ function TaskDetail({ task, onNav }) {
 
       if (ev.type === 'knowledge.retrieved') {
         const hitId = `live_knowledge_${ev.source || 'knowledge'}_${at}`;
+        const output = ev.output || '';
+        const lower = String(output || ev.summary || '').toLowerCase();
         const hit = {
           id: hitId,
           source: ev.source || 'knowledge',
           title: ev.summary || 'knowledge retrieved',
-          score: 1,
-          output: ev.output || '',
+          score: null,
+          output,
+          preview: ev.summary || output.split('\n')[0] || 'knowledge retrieved',
+          query: null,
+          resultKind: lower.includes('no relevant knowledge found') || lower.includes('no relevant entries were returned') ? 'no_match' : 'matched',
+          mode: 'live_event',
           t: at,
         };
         setDetailTask(prev => {
@@ -686,17 +716,70 @@ function ObsCard({ obs, fresh }) {
 }
 
 function KnowledgeCard({ hits }) {
+  const items = Array.isArray(hits) ? hits : [];
+  const sourceCounts = items.reduce((acc, hit) => {
+    const key = hit?.source || 'knowledge';
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const modeCounts = items.reduce((acc, hit) => {
+    const key = hit?.mode || 'unknown';
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const resultCounts = items.reduce((acc, hit) => {
+    const key = hit?.resultKind || 'observed';
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const queryCount = items.filter(hit => hit?.query).length;
+  const fidelity = modeCounts.session_snapshot > 0
+    ? 'snapshot-backed'
+    : modeCounts.metrics_observed > 0
+      ? 'metrics-observed'
+      : modeCounts.live_event > 0
+        ? 'live events'
+        : 'unobserved';
+  const emptyHint = modeCounts.metrics_observed > 0
+    ? 'knowledge tool usage was observed, but no snapshot-backed query / chunk detail is available'
+    : 'no observed knowledge hits';
+
   return (
     <div className="side-card">
-      <div className="h">◉ {t('side.knowledge')} <span className="dim right">{hits.length}</span></div>
-      <div className="col gap-4">
-        {hits.length === 0 && <Empty>no observed knowledge hits</Empty>}
-        {hits.map(h => (
-          <div key={h.id} style={{ fontSize: 11.5, lineHeight: 1.4, padding: '4px 0' }}>
-            <div className="row gap-6">
-              <span className="blue" style={{ fontSize: 10 }}>{h.source}</span>
-              <span className="bright ellipsis flex1">{h.title}</span>
-              <span className="dim mono" style={{ fontSize: 10 }}>{h.score.toFixed(2)}</span>
+      <div className="h">◉ {t('side.knowledge')} <span className="dim right">{items.length}</span></div>
+      <div className="kv-list" style={{ marginBottom: 8 }}>
+        <div className="kv-row"><span className="k">fidelity</span><span className="v">{fidelity}</span></div>
+        <div className="kv-row"><span className="k">queries</span><span className="v">{queryCount}</span></div>
+        <div className="kv-row"><span className="k">matched</span><span className="v green">{resultCounts.matched || 0}</span></div>
+        <div className="kv-row"><span className="k">no match</span><span className="v amber">{resultCounts.no_match || 0}</span></div>
+        {(resultCounts.observed_only || 0) > 0 && (
+          <div className="kv-row"><span className="k">observed only</span><span className="v cyan">{resultCounts.observed_only || 0}</span></div>
+        )}
+      </div>
+      {Object.keys(sourceCounts).length > 0 && (
+        <div className="row gap-6" style={{ flexWrap: 'wrap', marginBottom: 8 }}>
+          {Object.entries(sourceCounts).map(([name, count]) => (
+            <span key={name} className="chip ghost">{name} × {count}</span>
+          ))}
+        </div>
+      )}
+      <div className="col gap-6">
+        {items.length === 0 && <Empty>{emptyHint}</Empty>}
+        {items.map(h => (
+          <div key={h.id} style={{ fontSize: 11.5, lineHeight: 1.45, padding: '6px 0', borderTop: '1px solid var(--line-1)' }}>
+            <div className="row gap-6" style={{ alignItems: 'center' }}>
+              <span className="blue" style={{ fontSize: 10 }}>{h.source || 'knowledge'}</span>
+              <span className={`chip ghost ${knowledgeTone(h.resultKind)}`.trim()} style={{ fontSize: 9.5 }}>{knowledgeResultLabel(h.resultKind)}</span>
+              <span className="dim mono" style={{ fontSize: 9.5, marginLeft: 'auto' }}>
+                {h.score != null ? Number(h.score).toFixed(2) : detailKnowledgeLabel(h.mode)}
+              </span>
+            </div>
+            <div className="bright" style={{ marginTop: 4 }}>{h.title || 'knowledge retrieved'}</div>
+            {h.query && <div className="muted" style={{ marginTop: 4, fontSize: 10.5 }}>query · {h.query}</div>}
+            {h.preview && <div className="dim" style={{ marginTop: 4, fontSize: 10.5 }}>{h.preview}</div>}
+            <div className="row gap-8" style={{ marginTop: 4, fontSize: 10 }}>
+              {h.chunkId && <span className="mono muted">{h.chunkId}</span>}
+              {h.t && <span className="mono dim">{fmt.hh(h.t).slice(0, 8)}</span>}
             </div>
           </div>
         ))}
@@ -806,11 +889,13 @@ function LiveSidePanel({ task, plan, notes, knowledgeHits, observations, freshOb
           <div className="kv-row"><span className="k">messages</span><span className="v">{detailMessagesLabel(task.detailSource?.messages)}</span></div>
           <div className="kv-row"><span className="k">confidence</span><span className="v">{detailConfidenceLabel(task.detailSource?.messagesConfidence)}</span></div>
           <div className="kv-row"><span className="k">session</span><span className="v mono" style={{ fontSize: 10.5 }}>{task.detailSource?.session || '—'}</span></div>
-          <div className="kv-row"><span className="k">expected</span><span className="v mono" style={{ fontSize: 10.5 }}>{task.detailSource?.sessionExpectedId || task.detailSource?.metricsSessionId || task.detailSource?.taskSessionId || '—'}</span></div>
-          <div className="kv-row"><span className="k">metrics</span><span className="v mono" style={{ fontSize: 10.5 }}>{task.detailSource?.metrics || '—'}</span></div>
-          <div className="kv-row"><span className="k">notes</span><span className="v mono" style={{ fontSize: 10.5 }}>{(task.detailSource?.notes || []).join(', ') || '—'}</span></div>
-          {task.detailSource?.sessionBlockedReason && <div className="kv-row"><span className="k">blocked</span><span className="v red">{detailBlockedReasonLabel(task.detailSource?.sessionBlockedReason)}</span></div>}
-        </div>
+        <div className="kv-row"><span className="k">expected</span><span className="v mono" style={{ fontSize: 10.5 }}>{task.detailSource?.sessionExpectedId || task.detailSource?.metricsSessionId || task.detailSource?.taskSessionId || '—'}</span></div>
+        <div className="kv-row"><span className="k">metrics</span><span className="v mono" style={{ fontSize: 10.5 }}>{task.detailSource?.metrics || '—'}</span></div>
+        <div className="kv-row"><span className="k">notes</span><span className="v mono" style={{ fontSize: 10.5 }}>{(task.detailSource?.notes || []).join(', ') || '—'}</span></div>
+        <div className="kv-row"><span className="k">knowledge</span><span className="v">{detailKnowledgeLabel(task.detailSource?.knowledge)}</span></div>
+        <div className="kv-row"><span className="k">knowledge confidence</span><span className="v">{detailConfidenceLabel(task.detailSource?.knowledgeConfidence)}</span></div>
+        {task.detailSource?.sessionBlockedReason && <div className="kv-row"><span className="k">blocked</span><span className="v red">{detailBlockedReasonLabel(task.detailSource?.sessionBlockedReason)}</span></div>}
+      </div>
       </div>
       <ObsCard obs={observations || []} fresh={freshObservationId} />
       <PlanCardLive plan={plan} />
