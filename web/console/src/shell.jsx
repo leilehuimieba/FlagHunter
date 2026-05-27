@@ -92,16 +92,128 @@ const CRUMBS_KEYS = {
   settings:         ['brand.tag', 'nav.settings'],
 };
 
+function shortText(text, limit = 96) {
+  const raw = String(text || '').trim();
+  if (!raw) return '—';
+  const compact = raw.replace(/\s+/g, ' ');
+  return compact.length > limit ? compact.slice(0, limit - 3).trimEnd() + '...' : compact;
+}
+
+function shellLevel(level, source) {
+  if (level === 'error') return 'err';
+  if (level === 'warn' || (source || '').startsWith('verifier')) return 'warn';
+  if ((source || '').startsWith('tool')) return 'info';
+  return 'info';
+}
+
+function notifFromLog(entry) {
+  if (!entry) return null;
+  const message = entry.msg || entry.message || '';
+  return {
+    id: `log_${entry.id || `${entry.source}_${entry.t}`}`,
+    t: entry.t || new Date().toISOString(),
+    level: shellLevel(entry.level, entry.source),
+    ttl: shortText(message, 92),
+    sub: shortText([
+      entry.source || 'log',
+      entry.taskId && entry.taskId !== '—' ? entry.taskId : '',
+      entry.runId && entry.runId !== '—' ? entry.runId : '',
+    ].filter(Boolean).join(' · '), 80),
+  };
+}
+
+function notifFromEvent(ev) {
+  if (!ev) return null;
+  if (ev.type === 'ping' || ev.type === 'heartbeat') return null;
+  if (ev.type === 'log_line') {
+    return notifFromLog({
+      id: ev.id || `${ev.source || 'live'}_${ev.t || Date.now()}`,
+      t: ev.t || new Date().toISOString(),
+      level: ev.level || 'info',
+      source: ev.source || 'live',
+      msg: ev.message || ev.summary || ev.type,
+      runId: ev.run_id || '—',
+      taskId: ev.task_id || '—',
+    });
+  }
+  const title = ev.title || ev.type || 'event';
+  const summary = ev.summary || ev.message || ev.output || '';
+  return {
+    id: ev.id || `event_${ev.type || 'live'}_${ev.t || Date.now()}`,
+    t: ev.t || new Date().toISOString(),
+    level: shellLevel(ev.level, ev.source || ev.tool || ev.type),
+    ttl: shortText(title, 92),
+    sub: shortText(summary || [ev.tool, ev.task_id, ev.run_id].filter(Boolean).join(' · '), 96),
+  };
+}
+
+function tickFromLog(entry) {
+  if (!entry) return null;
+  return {
+    id: `tick_log_${entry.id || `${entry.source}_${entry.t}`}`,
+    t: entry.t || new Date().toISOString(),
+    who: entry.source || 'log',
+    what: shortText(entry.msg || entry.message || '', 110),
+    kind: entry.level === 'warn' || entry.level === 'error' ? 'warn' : 'tool',
+  };
+}
+
+function tickFromEvent(ev) {
+  if (!ev) return null;
+  if (ev.type === 'ping' || ev.type === 'heartbeat') return null;
+  if (ev.type === 'log_line') {
+    return tickFromLog({
+      id: ev.id || `${ev.source || 'live'}_${ev.t || Date.now()}`,
+      t: ev.t || new Date().toISOString(),
+      level: ev.level || 'info',
+      source: ev.source || 'live',
+      msg: ev.message || ev.summary || ev.type,
+    });
+  }
+  return {
+    id: `tick_event_${ev.id || `${ev.type || 'live'}_${ev.t || Date.now()}`}`,
+    t: ev.t || new Date().toISOString(),
+    who: ev.tool || ev.source || ev.task_id || 'live',
+    what: shortText(ev.summary || ev.title || ev.message || ev.type || 'event', 110),
+    kind: ev.type === 'task_status' || ev.level === 'warn' ? 'warn' : 'tool',
+  };
+}
+
 function Topbar({ route, leaf }) {
   const [ticks, setTicks] = useStateS([]);
+  const [notifs, setNotifs] = useStateS([]);
   const [showNotif, setShowNotif] = useStateS(false);
-  const [hasNew, setHasNew] = useStateS(true);
+  const [hasNew, setHasNew] = useStateS(false);
   const bellRef = useRefS(null);
   const [lang, setLangState] = useStateS(window.LANG);
+  const [isLive, setIsLive] = useStateS(Boolean(window.IS_LIVE));
 
   useEffectS(() => {
-    return window.LiveTicker.subscribe((t) => setTicks(t));
+    if (!window.API?.getLogs) return undefined;
+    let cancelled = false;
+    window.API.getLogs().then(data => {
+      if (cancelled || !Array.isArray(data)) return;
+      const sorted = data.slice().sort((a, b) => Date.parse(b.t || 0) - Date.parse(a.t || 0));
+      setTicks(sorted.map(tickFromLog).filter(Boolean).slice(0, 8));
+      setNotifs(sorted.map(notifFromLog).filter(Boolean).slice(0, 5));
+    });
+    return () => { cancelled = true; };
   }, []);
+
+  useEffectS(() => {
+    if (!window.API?.subscribeEvents) return undefined;
+    return window.API.subscribeEvents(ev => {
+      const tick = tickFromEvent(ev);
+      if (tick) {
+        setTicks(prev => [tick, ...prev.filter(item => item.id !== tick.id)].slice(0, 8));
+      }
+      const notif = notifFromEvent(ev);
+      if (notif) {
+        setNotifs(prev => [notif, ...prev.filter(item => item.id !== notif.id)].slice(0, 5));
+        if (!showNotif) setHasNew(true);
+      }
+    });
+  }, [showNotif]);
 
   useEffectS(() => {
     function onDoc(e) {
@@ -116,6 +228,12 @@ function Topbar({ route, leaf }) {
     const handler = () => setLangState(window.LANG);
     window.addEventListener('fh:lang', handler);
     return () => window.removeEventListener('fh:lang', handler);
+  }, []);
+
+  useEffectS(() => {
+    const handler = (e) => setIsLive(e.detail.type === 'connected');
+    window.addEventListener('fh:connection', handler);
+    return () => window.removeEventListener('fh:connection', handler);
   }, []);
 
   const crumbs = (CRUMBS_KEYS[route] || CRUMBS_KEYS.dashboard).map(k => {
@@ -141,11 +259,16 @@ function Topbar({ route, leaf }) {
         ))}
       </div>
 
-      <div className="global-search">
+      <button
+        type="button"
+        className="global-search"
+        onClick={() => window.dispatchEvent(new CustomEvent('fh:toggle-cp'))}
+        title="open command palette"
+      >
         <span style={{ color: 'var(--fg-3)' }}>⌕</span>
         <span style={{ flex: 1 }}>{t('top.search')}</span>
         <span className="kbd">⌘ K</span>
-      </div>
+      </button>
 
       <div className="ticker">
         {showTicks.map(tk => (
@@ -192,13 +315,22 @@ function Topbar({ route, leaf }) {
         {showNotif && (
           <div className="notif-panel" onClick={(e)=>e.stopPropagation()}>
             <div className="head">
-              <span>{t('top.notif')} · {MOCK.NOTIFICATIONS.length}</span>
-              <span style={{ color: 'var(--fg-3)' }}>{t('top.markRead')}</span>
+              <span>{t('top.notif')} · {notifs.length}</span>
+              <span style={{ color: 'var(--fg-3)' }}>{isLive ? t('top.notifLive') : t('top.markRead')}</span>
             </div>
             <div className="list">
-              {MOCK.NOTIFICATIONS.map(n => {
-                const cls = { success: 'green', warn: 'amber', err: 'red', info: 'blue' }[n.level] || '';
-                const sym = { success: '✓', warn: '⚠', err: '✗', info: '◇' }[n.level] || '·';
+              {notifs.length === 0 && (
+                <div className="row">
+                  <span className="ico blue">◇</span>
+                  <div className="body">
+                    <div className="ttl">{t('top.notifEmpty')}</div>
+                    <div className="sub">{isLive ? t('top.notifLive') : t('sidebar.mock')}</div>
+                  </div>
+                </div>
+              )}
+              {notifs.map(n => {
+                const cls = { success: 'green', warn: 'amber', err: 'red', info: 'blue' }[n.level] || 'blue';
+                const sym = { success: '✓', warn: '⚠', err: '✗', info: '◇' }[n.level] || '◇';
                 return (
                   <div key={n.id} className="row">
                     <span className={`ico ${cls}`}>{sym}</span>

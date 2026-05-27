@@ -504,9 +504,27 @@ function Toggle({ on, onChange, disabled = false, title = '' }) {
   );
 }
 
+function downloadJson(filename, data) {
+  try {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 Object.assign(window, {
   StatusBadge, TypeBadge, Sparkline, MiniBarChart, AreaChart, Donut, BarTrend,
-  Panel, Empty, Dots, NewTaskModal, Toggle, fileIcon,
+  Panel, Empty, Dots, NewTaskModal, Toggle, fileIcon, downloadJson,
 });
 // Direct assignment guards against Babel large-file scope issue
 window.fileIcon = fileIcon;
+window.downloadJson = downloadJson;

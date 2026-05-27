@@ -1,4 +1,4 @@
-/* global React, MOCK, fmt, t */
+/* global React, MOCK, fmt, t, downloadJson */
 // ============================================================
 // Logs — table view + terminal tail view + detail drawer
 // ============================================================
@@ -61,7 +61,7 @@ function LogsPage() {
   }, [appended.length, mode]);
 
   const mockLogs = uLM(() => (MOCK.LOGS || []).map(normalizeLog).filter(Boolean), []);
-  const sourceLogs = apiLogs || mockLogs;
+  const sourceLogs = window.IS_LIVE ? (apiLogs || []) : (apiLogs || mockLogs);
   const all = uLM(() => [...appended, ...sourceLogs], [appended, sourceLogs]);
   const filtered = uLM(() => all.filter(l => {
     if (level !== 'all' && l.level !== level) return false;
@@ -83,8 +83,19 @@ function LogsPage() {
             <span className="muted">{t('lg.liveTail')}</span>
             <span className={`toggle ${live ? 'on' : ''}`}></span>
           </span>
-          <button className="btn ghost">⬇ {t('c.export')}</button>
-          <button className="btn ghost">{t('c.clearFilters')}</button>
+          <button className="btn ghost" onClick={() => downloadJson(`logs_${new Date().toISOString().replace(/[:.]/g, '-')}.json`, filtered)}>⬇ {t('c.export')}</button>
+          <button
+            className="btn ghost"
+            onClick={() => {
+              setLevel('all');
+              setSrc('all');
+              setRun('all');
+              setQ('');
+              setPicked(null);
+            }}
+          >
+            {t('c.clearFilters')}
+          </button>
         </div>
       </div>
 
