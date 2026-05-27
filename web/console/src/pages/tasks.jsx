@@ -179,6 +179,60 @@ function TaskItem({ task, active, onClick }) {
   );
 }
 
+function detailMessagesLabel(mode) {
+  if (mode === 'session_snapshot') return 'observed session transcript';
+  if (mode === 'metrics_observed') return 'metrics-derived summary';
+  if (mode === 'synthetic_fallback') return 'synthetic fallback transcript';
+  return mode || 'unknown';
+}
+
+function detailConfidenceLabel(level) {
+  if (level === 'high') return 'high';
+  if (level === 'medium') return 'medium';
+  if (level === 'low') return 'low';
+  if (level === 'very_low') return 'very low';
+  return level || 'none';
+}
+
+function detailBlockedReasonLabel(reason) {
+  if (reason === 'expected_session_missing') return 'expected session file missing';
+  return reason || '—';
+}
+
+function TaskDetailSourceBanner({ source }) {
+  if (!source) return null;
+  const mode = source.messages || 'unknown';
+  const tone = mode === 'session_snapshot' ? 'green' : mode === 'metrics_observed' ? 'amber' : 'red';
+  const summary = mode === 'session_snapshot'
+    ? 'conversation is backed by an observed session snapshot'
+    : mode === 'metrics_observed'
+      ? 'conversation is reconstructed from metrics because no trusted session snapshot was selected'
+      : 'conversation is synthetic fallback only';
+
+  return (
+    <div className="side-card" style={{ margin: '0 0 10px 0' }}>
+      <div className="h">◎ live detail <span className={`${tone} right`} style={{ letterSpacing: 0 }}>{detailMessagesLabel(mode)}</span></div>
+      <div style={{ fontSize: 11.5, color: 'var(--fg-1)', lineHeight: 1.5, marginBottom: 10 }}>{summary}</div>
+      <div className="kv-list">
+        <div className="kv-row"><span className="k">confidence</span><span className="v">{detailConfidenceLabel(source.messagesConfidence)}</span></div>
+        <div className="kv-row"><span className="k">session match</span><span className="v">{source.sessionMatchedBy || '—'}</span></div>
+        <div className="kv-row"><span className="k">session</span><span className="v mono" style={{ fontSize: 10.5 }}>{source.session || '—'}</span></div>
+        <div className="kv-row"><span className="k">expected session</span><span className="v mono" style={{ fontSize: 10.5 }}>{source.sessionExpectedId || source.metricsSessionId || source.taskSessionId || '—'}</span></div>
+        <div className="kv-row"><span className="k">metrics</span><span className="v mono" style={{ fontSize: 10.5 }}>{source.metrics || '—'}</span></div>
+        <div className="kv-row"><span className="k">plan</span><span className="v">{source.plan || '—'}</span></div>
+        <div className="kv-row"><span className="k">notes</span><span className="v">{source.notesMode || '—'}</span></div>
+        {source.sessionBlockedReason && <div className="kv-row"><span className="k">blocked</span><span className="v red">{detailBlockedReasonLabel(source.sessionBlockedReason)}</span></div>}
+        {source.sessionMismatch && (
+          <div className="kv-row">
+            <span className="k">session mismatch</span>
+            <span className="v mono" style={{ fontSize: 10.5 }}>{source.sessionMismatch.taskSessionId} → {source.sessionMismatch.metricsSessionId}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ----------------------------------------------------------------
 // Task detail
 // ----------------------------------------------------------------
@@ -471,16 +525,7 @@ function TaskDetail({ task, onNav }) {
       <div className="task-detail-body">
         {/* convo */}
         <div className="task-convo">
-          {!isMockActive && detailTask.detailSource && (
-            <div className="side-card" style={{ margin: '0 0 10px 0' }}>
-              <div className="h">◎ live detail</div>
-              <div className="kv-list">
-                <div className="kv-row"><span className="k">messages</span><span className="v">{detailTask.detailSource.messages || '—'}</span></div>
-                <div className="kv-row"><span className="k">session</span><span className="v mono" style={{ fontSize: 10.5 }}>{detailTask.detailSource.session || '—'}</span></div>
-                <div className="kv-row"><span className="k">notes</span><span className="v">{detailTask.detailSource.notesMode || '—'}</span></div>
-              </div>
-            </div>
-          )}
+          {!isMockActive && detailTask.detailSource && <TaskDetailSourceBanner source={detailTask.detailSource} />}
           <div className="msg-list" ref={msgEnd}>
             {messages.map(m => <Message key={m.id} m={m} />)}
             {isActive && (
@@ -758,9 +803,13 @@ function LiveSidePanel({ task, plan, notes, knowledgeHits, observations, freshOb
       <div className="side-card">
         <div className="h">◎ observed sources</div>
         <div className="kv-list">
+          <div className="kv-row"><span className="k">messages</span><span className="v">{detailMessagesLabel(task.detailSource?.messages)}</span></div>
+          <div className="kv-row"><span className="k">confidence</span><span className="v">{detailConfidenceLabel(task.detailSource?.messagesConfidence)}</span></div>
           <div className="kv-row"><span className="k">session</span><span className="v mono" style={{ fontSize: 10.5 }}>{task.detailSource?.session || '—'}</span></div>
+          <div className="kv-row"><span className="k">expected</span><span className="v mono" style={{ fontSize: 10.5 }}>{task.detailSource?.sessionExpectedId || task.detailSource?.metricsSessionId || task.detailSource?.taskSessionId || '—'}</span></div>
           <div className="kv-row"><span className="k">metrics</span><span className="v mono" style={{ fontSize: 10.5 }}>{task.detailSource?.metrics || '—'}</span></div>
           <div className="kv-row"><span className="k">notes</span><span className="v mono" style={{ fontSize: 10.5 }}>{(task.detailSource?.notes || []).join(', ') || '—'}</span></div>
+          {task.detailSource?.sessionBlockedReason && <div className="kv-row"><span className="k">blocked</span><span className="v red">{detailBlockedReasonLabel(task.detailSource?.sessionBlockedReason)}</span></div>}
         </div>
       </div>
       <ObsCard obs={observations || []} fresh={freshObservationId} />
