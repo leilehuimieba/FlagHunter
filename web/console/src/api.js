@@ -7,20 +7,41 @@
   window.IS_LIVE = false;
   window.FH_NO_MOCK = window.FH_NO_MOCK || false;  // set true to disable MOCK fallback
   const _listeners = [];
+  const _liveState = {
+    probeFailures: 0,
+    lastSseAt: 0,
+  };
+  const PROBE_FAILURE_THRESHOLD = 3;
+  const SSE_FRESH_MS = 45000;
+
+  function _isSseFresh() {
+    return _liveState.lastSseAt > 0 && (Date.now() - _liveState.lastSseAt) < SSE_FRESH_MS;
+  }
+
+  function _markSseAlive() {
+    _liveState.lastSseAt = Date.now();
+    const was = window.IS_LIVE;
+    window.IS_LIVE = true;
+    if (!was) _fire('connected', { via: 'sse' });
+  }
 
   async function probe() {
     try {
-      const r = await fetch('/api/status', { signal: AbortSignal.timeout(1500) });
+      const r = await fetch('/api/status', { signal: AbortSignal.timeout(2500) });
       if (!r.ok) throw new Error('not ok');
       const data = await r.json();
+      _liveState.probeFailures = 0;
       const was = window.IS_LIVE;
       window.IS_LIVE = true;
-      if (!was) _fire('connected', data);
+      if (!was) _fire('connected', { ...data, via: 'probe' });
       return true;
     } catch {
+      _liveState.probeFailures += 1;
+      if (_liveState.probeFailures < PROBE_FAILURE_THRESHOLD) return false;
+      if (_isSseFresh()) return false;
       const was = window.IS_LIVE;
       window.IS_LIVE = false;
-      if (was) _fire('disconnected', null);
+      if (was) _fire('disconnected', { via: 'probe_failures', failures: _liveState.probeFailures });
       return false;
     }
   }
@@ -134,8 +155,12 @@
     if (_sse) return;
     if (_sseTimer) { clearTimeout(_sseTimer); _sseTimer = null; }
     _sse = new EventSource('/api/events/stream');
+    _sse.onopen = () => {
+      _markSseAlive();
+    };
     _sse.onmessage = (e) => {
       try {
+        _markSseAlive();
         _sseRetries = 0;  // reset backoff on successful message
         const ev = JSON.parse(e.data);
         _sseSubs.forEach(fn => fn(ev));
@@ -149,6 +174,11 @@
       if (_sse) { _sse.close(); _sse = null; }
       // exponential backoff: 1s → 2s → 4s → 8s → 16s → 30s max (fixes issue #3)
       if (_sseSubs.length === 0) return;
+      if (!_isSseFresh() && _liveState.probeFailures >= PROBE_FAILURE_THRESHOLD) {
+        const was = window.IS_LIVE;
+        window.IS_LIVE = false;
+        if (was) _fire('disconnected', { via: 'sse_error' });
+      }
       const delay = Math.min(1000 * Math.pow(2, _sseRetries), 30000);
       _sseRetries++;
       _sseTimer = setTimeout(() => {
@@ -160,7 +190,6 @@
 
   window.addEventListener('fh:connection', (e) => {
     if (e.detail.type === 'connected' && _sseSubs.length > 0) _openSSE();
-    if (e.detail.type === 'disconnected') { if (_sse) { _sse.close(); _sse = null; } }
   });
 
   // ── Memory API ────────────────────────────────────────────────
