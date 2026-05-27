@@ -15,66 +15,38 @@ ENV TOKENIZERS_PARALLELISM=false
 # Prevent post-install scripts from trying to start services inside the container
 RUN printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d && chmod +x /usr/sbin/policy-rc.d
 
-# TARGETARCH is injected by buildx (e.g. "amd64", "arm64")
-ARG TARGETARCH
-
 # Update and install Kali tools
-# Note: kali-tools-* meta-packages are intentionally omitted — they pull in
-# whatever is current in kali-rolling and frequently break on repo transitions.
-# Individual packages below provide stable, reproducible installs.
+# Note: kali-tools-* meta-packages are omitted 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    # Python (python3-full includes venv with ensurepip)
     python3-full \
     python3-pip \
-    # Web tools
+    nmap \
     nikto \
     dirb \
     gobuster \
     sqlmap \
     wpscan \
-    ffuf \
-    feroxbuster \
-    whatweb \
-    wafw00f \
-    # Recon / info-gathering
-    nmap \
-    theharvester \
-    recon-ng \
-    fierce \
-    dnsenum \
-    amass \
-    # Exploitation / post-exploitation
-    metasploit-framework \
-    exploitdb \
-    # Password / hash
     hydra \
     john \
     hashcat \
-    # Scanning
+    metasploit-framework \
+    zaproxy \
     nuclei \
-    # Network tools
+    ffuf \
     openvpn \
     wireguard \
     proxychains4 \
     tor \
-    # Utilities
     curl \
     wget \
     git \
     vim \
     tmux \
     jq \
+    xclip \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && rm -f /usr/sbin/policy-rc.d
-
-# Install amd64-only packages (burpsuite/zaproxy have no ARM64 Kali packages; xclip is x11-only)
-RUN if [ "$TARGETARCH" = "amd64" ]; then \
-      apt-get update \
-      && apt-get install -y --no-install-recommends burpsuite zaproxy xclip \
-      && apt-get clean \
-      && rm -rf /var/lib/apt/lists/*; \
-    fi
 
 # Create app directory
 WORKDIR /app
