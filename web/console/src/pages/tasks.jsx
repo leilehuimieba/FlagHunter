@@ -1,4 +1,4 @@
-/* global React, MOCK, fmt, t, NewTaskModal, fileIcon */
+/* global React, MOCK, fmt, t, NewTaskModal, fileIcon, downloadJson */
 // ============================================================
 // Tasks — list (left) + detail (conversation + side panel)
 // ============================================================
@@ -90,7 +90,12 @@ function TasksPage({ taskId, onNav }) {
           <div className="sub">{t('tasks.sub')}</div>
         </div>
         <div className="row">
-          <button className="btn ghost"><span className="muted">{t('c.export')}</span></button>
+          <button
+            className="btn ghost"
+            onClick={() => downloadJson(`tasks_${new Date().toISOString().replace(/[:.]/g, '-')}.json`, filtered)}
+          >
+            <span className="muted">{t('c.export')}</span>
+          </button>
           <button className="btn primary" onClick={() => setShowModal(true)}>{t('c.newTask')}</button>
         </div>
       </div>
@@ -269,11 +274,13 @@ function TaskDetail({ task, onNav }) {
   const initialMessages = isMockActive ? MOCK.MESSAGES_002 : resolveTaskMessages(detailTask);
 
   const [messages, setMessages] = useStateT(initialMessages);
-  const [hintMode, setHintMode] = useStateT(false);
+  const [hintMode, setHintMode] = useStateT(() => !isMockActive && typeof window.API?.continueTask !== 'function');
   const [draft, setDraft] = useStateT('');
   const [obsFresh, setObsFresh] = useStateT(null);
   const [attachments, setAttachments] = useStateT(detailTask.attachments || []);
   const msgEnd = useRefT(null);
+  const continueAvailable = isMockActive || typeof window.API?.continueTask === 'function';
+  const retryAvailable = isMockActive || typeof window.API?.retryTask === 'function';
 
   useEffectT(() => {
     setDetailTask(prev => mergeTaskDetail(prev, task));
@@ -286,6 +293,10 @@ function TaskDetail({ task, onNav }) {
       if (data && data.id) setDetailTask(prev => mergeTaskDetail(prev, data));
     });
   }, [task.id]);
+
+  useEffectT(() => {
+    if (!continueAvailable && !hintMode) setHintMode(true);
+  }, [continueAvailable, hintMode]);
 
   useEffectT(() => {
     setMessages(isMockActive ? MOCK.MESSAGES_002 : resolveTaskMessages(detailTask));
@@ -477,6 +488,7 @@ function TaskDetail({ task, onNav }) {
 
   const send = async () => {
     if (!draft.trim()) return;
+    if (!hintMode && !continueAvailable) return;
     const newMsg = {
       id: `m_${Date.now()}`,
       role: 'user',
@@ -536,9 +548,14 @@ function TaskDetail({ task, onNav }) {
         </div>
         <div className="actions">
           {isActive && <button className="btn danger" onClick={handleStop}>■ {t('c.stop')}</button>}
-          {isActive && <button className="btn">⟲ {t('c.retry')}</button>}
-          {detailTask.status === 'failed' && <button className="btn primary">⟲ {t('c.retry')}</button>}
-          <button className="btn ghost">⤓ {t('c.export')}</button>
+          {isActive && <button className="btn" disabled={!retryAvailable} title={!retryAvailable ? t('td.retryUnavailable') : ''}>⟲ {t('c.retry')}</button>}
+          {detailTask.status === 'failed' && <button className="btn primary" disabled={!retryAvailable} title={!retryAvailable ? t('td.retryUnavailable') : ''}>⟲ {t('c.retry')}</button>}
+          <button
+            className="btn ghost"
+            onClick={() => downloadJson(`${detailTask.id}.json`, detailTask)}
+          >
+            ⤓ {t('c.export')}
+          </button>
           <button className="btn ghost" onClick={() => detailTask.currentRunId && onNav && onNav(`traces/${detailTask.currentRunId}`)}>⧉ {t('c.trace')}</button>
         </div>
       </div>
@@ -565,26 +582,37 @@ function TaskDetail({ task, onNav }) {
 
           <div className="composer">
             <div className="tabs-mini">
-              <span className={`tab-mini ${!hintMode ? 'on' : ''}`} style={!hintMode ? { color: 'var(--accent)', background: 'rgba(107,230,117,0.08)', borderColor: 'var(--accent-dim)' } : {}} onClick={() => setHintMode(false)}>
+              <span
+                className={`tab-mini ${!hintMode ? 'on' : ''} ${!continueAvailable ? 'disabled' : ''}`}
+                style={!hintMode ? { color: 'var(--accent)', background: 'rgba(107,230,117,0.08)', borderColor: 'var(--accent-dim)' } : {}}
+                onClick={() => continueAvailable && setHintMode(false)}
+                title={!continueAvailable ? t('td.continueUnavailable') : ''}
+              >
                 {t('td.continue')}
               </span>
               <span className={`tab-mini ${hintMode ? 'on' : ''}`} onClick={() => setHintMode(true)}>
                 {t('td.injectHint')}
               </span>
               <span style={{ marginLeft: 'auto', color: 'var(--fg-3)', fontSize: 10.5, alignSelf: 'center' }}>
-                {hintMode ? t('td.hintDesc') : t('td.continueDesc')}
+                {hintMode ? t('td.hintDesc') : (continueAvailable ? t('td.continueDesc') : t('td.continueUnavailable'))}
               </span>
             </div>
             <div className="row">
               <textarea
                 className="input"
-                placeholder={hintMode ? t('td.composer.hint') : t('td.composer.continue')}
+                placeholder={hintMode ? t('td.composer.hint') : (continueAvailable ? t('td.composer.continue') : t('td.continueUnavailable'))}
                 value={draft}
                 onChange={e => setDraft(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); }}}
                 rows={2}
+                disabled={!hintMode && !continueAvailable}
               />
-              <button className={`btn ${hintMode ? '' : 'primary'}`} onClick={send}>
+              <button
+                className={`btn ${hintMode ? '' : 'primary'}`}
+                onClick={send}
+                disabled={!hintMode && !continueAvailable}
+                title={!hintMode && !continueAvailable ? t('td.continueUnavailable') : ''}
+              >
                 {hintMode ? t('td.inject') : t('td.sendBtn')} <span className="kbd">⌘↵</span>
               </button>
             </div>

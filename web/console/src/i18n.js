@@ -26,6 +26,8 @@ const DICT = {
     'top.search': 'search tasks · runs · knowledge…',
     'top.notif': 'Notifications',
     'top.markRead': 'mark all read',
+    'top.notifEmpty': 'No live notifications yet',
+    'top.notifLive': 'live events · logs',
 
     /* status */
     'status.RUNNING': 'RUNNING',
@@ -206,6 +208,8 @@ const DICT = {
     'td.who.system': 'SYSTEM',
     'td.hintAck': 'hint accepted · injected into current strategy context (run_002)',
     'td.continueAck': 'received, integrating context…',
+    'td.continueUnavailable': 'continue is not wired to the live backend yet — use inject hint for now',
+    'td.retryUnavailable': 'retry is not wired to the live backend yet',
     'td.runningTail': 'sqlmap still enumerating users table…',
     'td.runningTailCode': 'sqlmap · pid 18472 · elapsed 00:01:24 · 12 rows so far',
 
@@ -521,6 +525,8 @@ const DICT = {
     'top.search': '搜索任务 · 运行记录 · 知识库…',
     'top.notif': '通知',
     'top.markRead': '全部标为已读',
+    'top.notifEmpty': '暂无实时通知',
+    'top.notifLive': '实时事件 · 日志',
 
     /* status */
     'status.RUNNING': '运行中',
@@ -701,6 +707,8 @@ const DICT = {
     'td.who.system': '系统',
     'td.hintAck': '提示已接受 · 已注入当前策略上下文 (run_002)',
     'td.continueAck': '收到，正在整合上下文…',
+    'td.continueUnavailable': 'continue 还没有接到 live 后端，请先使用“注入提示”',
+    'td.retryUnavailable': 'retry 还没有接到 live 后端',
     'td.runningTail': 'sqlmap 仍在枚举 users 表…',
     'td.runningTailCode': 'sqlmap · pid 18472 · elapsed 00:01:24 · 已获 12 行',
 

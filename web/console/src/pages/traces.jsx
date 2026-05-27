@@ -1,4 +1,4 @@
-/* global React, MOCK, fmt, t */
+/* global React, MOCK, fmt, t, downloadJson */
 // ============================================================
 // Traces — list page + detail page (timeline / graph / data)
 // ============================================================
@@ -12,6 +12,7 @@ function TracesPage({ runId, onNav }) {
 
 function TraceList({ onNav }) {
   const [filter, setFilter] = uS('all');
+  const [q, setQ] = uS('');
   const [apiTraces, setApiTraces] = uS(null);
 
   uE(() => {
@@ -31,8 +32,15 @@ function TraceList({ onNav }) {
     });
   }, []);
 
-  const sourceTraces = apiTraces || MOCK.TRACES;
-  const runs = sourceTraces.filter(r => filter === 'all' || r.status === filter);
+  const sourceTraces = window.IS_LIVE ? (apiTraces || []) : (apiTraces || MOCK.TRACES);
+  const runs = sourceTraces.filter(r => {
+    if (filter !== 'all' && r.status !== filter) return false;
+    if (q) {
+      const haystack = `${r.id || ''} ${r.taskId || ''} ${r.target || ''} ${r.finalFlag || ''}`.toLowerCase();
+      if (!haystack.includes(q.toLowerCase())) return false;
+    }
+    return true;
+  });
   const filterKeys = ['all', 'running', 'success', 'failed', 'stopped'];
   return (
     <div className="page">
@@ -44,7 +52,7 @@ function TraceList({ onNav }) {
         <div className="row">
           <button className="btn ghost"><span className="muted">{t('c.last24h')}</span> ▾</button>
           <button className="btn ghost"><span className="muted">{t('c.allTargets')}</span> ▾</button>
-          <button className="btn">⬇ {t('c.export')}</button>
+          <button className="btn" onClick={() => downloadJson(`traces_${new Date().toISOString().replace(/[:.]/g, '-')}.json`, runs)}>⬇ {t('c.export')}</button>
         </div>
       </div>
 
@@ -53,7 +61,13 @@ function TraceList({ onNav }) {
           {filterKeys.map(f => (
             <span key={f} className={`filter-pill ${filter === f ? 'on' : ''}`} onClick={() => setFilter(f)}>{t('flt.' + f)}</span>
           ))}
-          <input className="input" placeholder={t('tr.filterPh')} style={{ marginLeft: 'auto', maxWidth: 280 }} />
+          <input
+            className="input"
+            placeholder={t('tr.filterPh')}
+            style={{ marginLeft: 'auto', maxWidth: 280 }}
+            value={q}
+            onChange={e => setQ(e.target.value)}
+          />
         </div>
         <table className="k-table">
           <thead>
@@ -140,6 +154,7 @@ function TraceDetail({ runId, onNav }) {
   const [tab, setTab] = uS('timeline');
   const [drawer, setDrawer] = uS(null);
   const isActive = resolvedRun.status === 'running';
+  const replayAvailable = !window.IS_LIVE || typeof window.API?.replayTrace === 'function';
   const timeline = resolvedRun.timeline || (!window.IS_LIVE ? synthTimeline(resolvedRun) : []);
   const hasObservedToolIO = Array.isArray(resolvedRun.toolEvents) && resolvedRun.toolEvents.length > 0;
   const graph = uM(() => buildTraceGraph(timeline, resolvedRun), [timeline, resolvedRun.id, resolvedRun.status, resolvedRun.startedAt]);
@@ -330,9 +345,9 @@ function TraceDetail({ runId, onNav }) {
           <div className="sub">{t('c.task')} <b className="bright">{resolvedRun.taskId}</b> · {t('c.target')} <b className="bright">{resolvedRun.target}</b></div>
         </div>
         <div className="row">
-          <button className="btn ghost">⬇ {t('c.json')}</button>
+          <button className="btn ghost" onClick={() => downloadJson(`${resolvedRun.id}.json`, resolvedRun)}>⬇ {t('c.json')}</button>
           <button className="btn ghost" onClick={() => onNav && onNav(`tasks/${resolvedRun.taskId}`)}>{t('c.openTask')}</button>
-          <button className="btn">⟲ {t('c.replay')}</button>
+          <button className="btn" disabled={!replayAvailable} title={!replayAvailable ? t('td.retryUnavailable') : ''}>⟲ {t('c.replay')}</button>
         </div>
       </div>
 

@@ -10,10 +10,29 @@ const { useState: uCP, useEffect: uCPE, useRef: uCPR } = React;
 function CommandPalette({ onClose, onNav }) {
   const [query, setQuery] = uCP('');
   const [sel, setSel] = uCP(0);
+  const [recentTasks, setRecentTasks] = uCP([]);
   const inputRef = uCPR(null);
 
   uCPE(() => { inputRef.current?.focus(); }, []);
   uCPE(() => { setSel(0); }, [query]);
+
+  uCPE(() => {
+    let cancelled = false;
+
+    async function loadRecentTasks() {
+      if (window.IS_LIVE && window.API?.getTasks) {
+        const data = await window.API.getTasks();
+        if (!cancelled && Array.isArray(data)) {
+          setRecentTasks(data.slice(0, 8));
+          return;
+        }
+      }
+      if (!cancelled) setRecentTasks((MOCK.TASKS || []).slice(0, 8));
+    }
+
+    loadRecentTasks();
+    return () => { cancelled = true; };
+  }, []);
 
   // ── command definitions ──────────────────────────────────────
   const navCmds = [
@@ -55,18 +74,22 @@ function CommandPalette({ onClose, onNav }) {
     },
   ];
 
-  const recentCmds = (MOCK.TASKS || []).slice(0, 3).map(tk => ({
+  const recentCmds = (recentTasks || []).slice(0, 5).map(tk => ({
     id:      'task-' + tk.id,
     icon:    { running: '●', done: '✓', success: '✓', failed: '✗', stopped: '■', queued: '○' }[tk.status] || '·',
     iconCls: { running: 'amber', done: 'green', success: 'green', failed: 'red' }[tk.status] || '',
-    label:   () => tk.title,
-    sub:     tk.target || '',
-    action:  () => { onNav('tasks'); onClose(); },
+    label:   () => tk.title || tk.id,
+    keywords: () => `${tk.id || ''} ${tk.title || ''} ${tk.target || ''}`.toLowerCase(),
+    sub:     [tk.id, tk.target].filter(Boolean).join(' · '),
+    action:  () => { onNav(`tasks/${tk.id}`); onClose(); },
   }));
 
   const allCmds = [...navCmds, ...actionCmds, ...recentCmds];
   const q = query.trim().toLowerCase();
-  const filtered = q ? allCmds.filter(c => c.label().toLowerCase().includes(q)) : allCmds;
+  const filtered = q ? allCmds.filter(c => {
+    const text = [c.label?.() || '', c.sub || '', c.keywords?.() || ''].join(' ').toLowerCase();
+    return text.includes(q);
+  }) : allCmds;
 
   function exec(cmd) { if (cmd) cmd.action(); }
 
