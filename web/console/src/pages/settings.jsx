@@ -1,4 +1,4 @@
-/* global React, MOCK, t, Toggle */
+/* global React, t, Toggle */
 // ============================================================
 // Settings — partial live write for env-backed fields
 // ============================================================
@@ -35,18 +35,80 @@ const DEFAULT_META = {
   saveMode: 'partial',
 };
 
+const SETTINGS_DEFAULTS = {
+  model: {
+    provider: 'custom',
+    apiBase: '',
+    name: '',
+    temperature: 0.2,
+    maxTokens: 8192,
+    apiKey: '',
+    streaming: true,
+  },
+  runtime: {
+    mode: 'local',
+    autoSsh: false,
+    dockerEnabled: false,
+    sshConfigured: false,
+    workdir: 'workspaces',
+    sandboxNetwork: 'host',
+  },
+  mcp: {
+    enabled: true,
+    servers: [],
+    timeoutMs: 30000,
+  },
+  knowledge: {
+    enabled: true,
+    embeddingModel: 'local',
+    chunkSize: 1000,
+    overlap: 200,
+    threshold: 0.35,
+  },
+  budget: {
+    dailyTokenLimit: 500000,
+    dailyCostLimit: 50,
+    perTaskTokenLimit: 80000,
+    alertAt: 0.8,
+  },
+  audit: {
+    persistToolIO: true,
+    persistObservations: true,
+    redactSecrets: true,
+    retentionDays: 30,
+  },
+  ctf: {
+    enabled: true,
+    maxIterations: 30,
+    autoRetry: 2,
+    hintPolicy: 'manual',
+    hypothesisDepth: 3,
+    strategyMemory: true,
+    flagFormat: 'flag\\{[^}]+\\}',
+    verifierUrl: '',
+  },
+  meta: { ...DEFAULT_META },
+};
+
 function mergeSettings(data) {
   const source = data || {};
   return {
-    model: { ...(MOCK.SETTINGS.model || {}), ...(source.model || {}) },
-    runtime: { ...(MOCK.SETTINGS.runtime || {}), ...(source.runtime || {}) },
-    mcp: { ...(MOCK.SETTINGS.mcp || {}), ...(source.mcp || {}) },
-    knowledge: { ...(MOCK.SETTINGS.knowledge || {}), ...(source.knowledge || {}) },
-    budget: { ...(MOCK.SETTINGS.budget || {}), ...(source.budget || {}) },
-    audit: { ...(MOCK.SETTINGS.audit || {}), ...(source.audit || {}) },
-    ctf: { ...(MOCK.SETTINGS.ctf || {}), ...(source.ctf || {}) },
+    model: { ...SETTINGS_DEFAULTS.model, ...(source.model || {}) },
+    runtime: { ...SETTINGS_DEFAULTS.runtime, ...(source.runtime || {}) },
+    mcp: { ...SETTINGS_DEFAULTS.mcp, ...(source.mcp || {}) },
+    knowledge: { ...SETTINGS_DEFAULTS.knowledge, ...(source.knowledge || {}) },
+    budget: { ...SETTINGS_DEFAULTS.budget, ...(source.budget || {}) },
+    audit: { ...SETTINGS_DEFAULTS.audit, ...(source.audit || {}) },
+    ctf: { ...SETTINGS_DEFAULTS.ctf, ...(source.ctf || {}) },
     meta: { ...DEFAULT_META, ...(source.meta || {}) },
   };
+}
+
+function formatLocalTime(value) {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString();
 }
 
 function isEditable(path, meta) {
@@ -92,8 +154,8 @@ function SettingsPage() {
   ];
 
   const [tab, setTab] = uSt('model');
-  const [draft, setDraft] = uSt(() => mergeSettings(MOCK.SETTINGS));
-  const [baseDraft, setBaseDraft] = uSt(() => mergeSettings(MOCK.SETTINGS));
+  const [draft, setDraft] = uSt(() => mergeSettings());
+  const [baseDraft, setBaseDraft] = uSt(() => mergeSettings());
   const [meta, setMeta] = uSt(DEFAULT_META);
   const [dirty, setDirty] = uSt(false);
   const [saved, setSaved] = uSt(false);
@@ -101,6 +163,8 @@ function SettingsPage() {
   const [error, setError] = uSt('');
   const [saveResult, setSaveResult] = uSt(null);
   const [isLive, setIsLive] = uSt(Boolean(window.IS_LIVE));
+  const [dashboardStats, setDashboardStats] = uSt(null);
+  const [knowledgeDocs, setKnowledgeDocs] = uSt(null);
 
   function patch(section, key, value) {
     const path = `${section}.${key}`;
@@ -121,6 +185,15 @@ function SettingsPage() {
     setDirty(false);
     setError('');
     return true;
+  }
+
+  async function refreshReadonlyData() {
+    const [dashboardData, knowledgeData] = await Promise.all([
+      window.API.getDashboard(),
+      window.API.getKnowledge(),
+    ]);
+    setDashboardStats(dashboardData || null);
+    setKnowledgeDocs(Array.isArray(knowledgeData) ? knowledgeData : []);
   }
 
   async function save() {
@@ -154,12 +227,16 @@ function SettingsPage() {
 
   uStE(() => {
     loadSettings();
-    const handler = (e) => setIsLive(e.detail.type === 'connected');
+    refreshReadonlyData();
+    const handler = (e) => {
+      setIsLive(e.detail.type === 'connected');
+      if (e.detail.type === 'connected') refreshReadonlyData();
+    };
     window.addEventListener('fh:connection', handler);
     return () => window.removeEventListener('fh:connection', handler);
   }, []);
 
-  const sharedProps = { draft, patch, meta };
+  const sharedProps = { draft, patch, meta, dashboardStats, knowledgeDocs };
 
   return (
     <div className="page" style={{ minHeight: 0 }}>
@@ -366,8 +443,8 @@ function RuntimeSec({ draft, patch, meta }) {
           <span className="badges"><span className="chip ghost">{t('st.readOnlyChip')}</span></span>
         </div>
         <div className="row gap-8">
-          <button className="btn" disabled={true} title={t('st.fieldReadOnly')}>{t('st.rt.testBtn')}</button>
-          <span className="green">{t('st.rt.testResult')}</span>
+          <button className="btn" disabled={true} title={t('c.unavailable')}>{t('st.rt.testBtn')}</button>
+          <span className="muted">{t('c.unavailable')}</span>
         </div>
       </div>
     </Section>
@@ -393,15 +470,22 @@ function McpSec({ draft, patch, meta }) {
           {(m.servers || []).map(s => (
             <span key={s} className="chip green"><span className="led"></span>{s}</span>
           ))}
-          <button className="btn sm ghost" disabled={true} title={t('st.fieldReadOnly')}>{t('st.mcp.addServer')}</button>
+          <button className="btn sm ghost" disabled={true} title={t('c.unavailable')}>{t('st.mcp.addServer')}</button>
         </div>
       </div>
     </Section>
   );
 }
 
-function KnSec({ draft, patch, meta }) {
+function KnSec({ draft, patch, meta, knowledgeDocs }) {
   const k = draft.knowledge || {};
+  const docs = Array.isArray(knowledgeDocs) ? knowledgeDocs : [];
+  const totalChunks = docs.reduce((sum, doc) => sum + Number(doc.chunkCount || 0), 0);
+  const latestBuild = docs.reduce((latest, doc) => {
+    if (!doc?.updatedAt) return latest;
+    if (!latest) return doc.updatedAt;
+    return new Date(doc.updatedAt) > new Date(latest) ? doc.updatedAt : latest;
+  }, null);
   return (
     <Section title={t('st.kn.t')} sub={t('st.kn.sub')}>
       <Field label={t('st.kn.enabled')} hint={supportHint('', 'knowledge.enabled', meta)} path="knowledge.enabled" meta={meta}>
@@ -425,19 +509,23 @@ function KnSec({ draft, patch, meta }) {
           <span className="badges"><span className="chip ghost">{t('st.readOnlyChip')}</span></span>
         </div>
         <div className="row gap-12" style={{ fontSize: 11.5 }}>
-          <span><span className="muted">{t('st.kn.lastBuild')}</span> <span className="bright">2026-05-26 21:14</span></span>
-          <span><span className="muted">{t('st.kn.docs')}</span> <span className="bright">12</span></span>
-          <span><span className="muted">{t('st.kn.chunks')}</span> <span className="bright">132</span></span>
-          <span><span className="muted">{t('st.kn.dim')}</span> <span className="bright">1024</span></span>
-          <button className="btn sm" style={{ marginLeft: 'auto' }} disabled={true} title={t('st.fieldReadOnly')}>{t('st.kn.rebuild')}</button>
+          <span><span className="muted">{t('st.kn.lastBuild')}</span> <span className="bright">{formatLocalTime(latestBuild)}</span></span>
+          <span><span className="muted">{t('st.kn.docs')}</span> <span className="bright">{docs.length}</span></span>
+          <span><span className="muted">{t('st.kn.chunks')}</span> <span className="bright">{totalChunks}</span></span>
+          <span><span className="muted">{t('st.kn.dim')}</span> <span className="bright">—</span></span>
+          <button className="btn sm" style={{ marginLeft: 'auto' }} disabled={true} title={t('c.unavailable')}>{t('st.kn.rebuild')}</button>
         </div>
       </div>
     </Section>
   );
 }
 
-function BudgetSec({ draft, patch, meta }) {
+function BudgetSec({ draft, patch, meta, dashboardStats }) {
   const b = draft.budget || {};
+  const usedTokens = Number(dashboardStats?.kpis?.dailyTokens || 0);
+  const tokenCap = Number(b.dailyTokenLimit || 0);
+  const usagePct = tokenCap > 0 ? Math.min(100, (usedTokens / tokenCap) * 100) : 0;
+  const estCost = Number(dashboardStats?.kpis?.estimatedCost || 0);
   return (
     <Section title={t('st.bg.t')} sub={t('st.bg.sub')}>
       <Field label={t('st.bg.dailyToken')} path="budget.dailyTokenLimit" meta={meta}>
@@ -458,12 +546,12 @@ function BudgetSec({ draft, patch, meta }) {
           <span className="badges"><span className="chip ghost">{t('st.readOnlyChip')}</span></span>
         </div>
         <div style={{ background: 'var(--bg-2)', borderRadius: 3, height: 10, overflow: 'hidden', position: 'relative' }}>
-          <div style={{ width: '36.8%', height: '100%', background: 'linear-gradient(90deg, var(--accent), var(--amber))', boxShadow: '0 0 8px var(--accent-glow)' }}></div>
+          <div style={{ width: `${usagePct}%`, height: '100%', background: 'linear-gradient(90deg, var(--accent), var(--amber))', boxShadow: '0 0 8px var(--accent-glow)' }}></div>
         </div>
         <div className="row gap-12" style={{ fontSize: 11, marginTop: 4 }}>
-          <span><span className="muted">{t('st.bg.used')}</span> <span className="bright">184,120</span></span>
-          <span><span className="muted">{t('st.bg.cap')}</span> <span className="bright">500,000</span></span>
-          <span><span className="muted">{t('st.bg.est')}</span> <span className="bright">$8.42 / $50.00</span></span>
+          <span><span className="muted">{t('st.bg.used')}</span> <span className="bright">{usedTokens.toLocaleString()}</span></span>
+          <span><span className="muted">{t('st.bg.cap')}</span> <span className="bright">{tokenCap.toLocaleString()}</span></span>
+          <span><span className="muted">{t('st.bg.est')}</span> <span className="bright">${estCost.toFixed(2)} / ${Number(b.dailyCostLimit || 0).toFixed(2)}</span></span>
         </div>
       </div>
     </Section>
