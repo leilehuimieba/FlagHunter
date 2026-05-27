@@ -769,3 +769,150 @@ Phase 1 redesign turns the current Web Console from a partly simulated interface
 - sequencing implementation to reduce rework
 
 The intended end state of phase 1 is a console where the operator can trust what they see, work comfortably in the task detail view, and understand the system’s live state without guesswork.
+
+---
+
+## 19. Design Part 5: Final Design Summary and Decision Register
+
+This section is the condensed recovery layer for future work. If conversation context is compressed later, this section should be enough to quickly restore the essential design intent and the decisions that must remain fixed during planning and implementation.
+
+### 19.1 Final design summary
+
+This redesign is not a narrow visual refresh. It is a controlled conversion of the current Web Console from a partially simulated, partially live interface into a **trustworthy operator console** built around real task execution.
+
+The redesign solves four core problem classes:
+
+1. **Task detail hierarchy is inverted**
+   - the conversation stream is currently compressed by secondary side content
+   - the operator’s primary workspace does not visibly dominate the page
+
+2. **Main workflow truth is mixed**
+   - dashboard, task list, and task detail still contain mock-driven paths
+   - the operator cannot reliably infer what is live versus reconstructed
+
+3. **Global state is not expressed consistently**
+   - connected, live, unavailable, and degraded meanings are distributed across pages and components
+   - system trust depends too much on user inference
+
+4. **Common laptop-width usage is not well supported**
+   - the current layout wastes priority on secondary content
+   - resizing alone is not enough; the console needs structural reprioritization
+
+The target end state of phase 1 is therefore:
+
+- trustworthy homepage
+- trustworthy topbar/global state model
+- real-data-driven task list and task detail
+- conversation-first default working mode
+- analysis-first optional mode
+- responsive behavior that serves both desktop and laptop use
+- a main workflow that no longer depends on mock data to function
+
+### 19.2 Locked design decisions
+
+The following decisions are already approved and should be treated as locked unless the project explicitly reopens design scope:
+
+#### Decision 1: redesign strategy
+
+Use a **main-workflow vertical-slice redesign**, not a UI-only refresh and not a data-only backend cleanup.
+
+#### Decision 2: phase 1 scope
+
+Phase 1 is limited to:
+
+- `Topbar / global state / shell`
+- `Dashboard`
+- `Tasks list + task detail`
+
+#### Decision 3: phase 1 outcome target
+
+Phase 1 must deliver a **minimum usable control console** that is trustworthy, usable, and primarily real-data-driven.
+
+#### Decision 4: task workflow priority
+
+`Tasks` is the highest-priority page in phase 1 because it is the primary work surface, not merely a navigation or reporting page.
+
+#### Decision 5: task detail layout model
+
+Task detail must support **dual modes**:
+
+- default: **conversation-first**
+- alternate: **analysis-first**
+
+#### Decision 6: responsive target
+
+Phase 1 is designed for **desktop + laptop** usage together, with laptop usability treated as a first-class requirement rather than a degraded afterthought.
+
+#### Decision 7: task detail truth source
+
+`GET /api/tasks/{taskId}` is the single primary truth source for task detail baseline rendering.
+
+#### Decision 8: interaction capability declaration
+
+Frontend must not infer support for actions such as continue / retry / hint / stop through mock logic or missing-function heuristics. Backend should declare supported capabilities explicitly.
+
+#### Decision 9: SSE role
+
+`/api/events/stream` is an **incremental update mechanism**, not the sole source of complete page truth.
+
+#### Decision 10: main workflow data policy
+
+The main workflow may render only:
+
+1. real data
+2. trustworthy empty, unavailable, or degraded states
+
+It must not use mock content to impersonate current live truth.
+
+#### Decision 11: dashboard role
+
+Dashboard is a **trustworthy overview and routing surface**, not a dense demo board and not a BI-style page that depends on visual filler.
+
+#### Decision 12: mock cleanup strategy
+
+Phase 1 does not require deleting every mock artifact from the repository. It does require removing mock dependency from the default operator path.
+
+#### Decision 13: phase 2 deferral
+
+The following remain primarily phase-2 concerns:
+
+- deep `Traces` redesign
+- broader `Knowledge / Logs / Memory / Settings` truthification
+- broader repository-wide mock retirement
+- deeper backend view-model convergence outside the main workflow slice
+
+### 19.3 Implementation constraints derived from the design
+
+The following constraints must be respected when writing the implementation plan:
+
+1. **Do not redesign layout before stabilizing truth sources**
+   - data contract and capability rules should be clear before major structural UI edits
+
+2. **Do not let fallback remain on the happy path**
+   - fallback may exist only as explicit degradation, not as normal runtime presentation
+
+3. **Do not implement dual mode as a cosmetic width toggle**
+   - it must affect visibility, interaction placement, and reading behavior
+
+4. **Do not let page-level state vocabulary drift**
+   - Dashboard, Tasks, and Topbar must share one meaning for connected, live, degraded, and unavailable
+
+5. **Do not treat Tasks redesign as one giant undifferentiated refactor**
+   - task data truthification, layout restructuring, mode behavior, and polish should still be staged internally
+
+### 19.4 Why this design is ready for planning
+
+The design is ready to enter implementation planning because the following are already resolved:
+
+- what phase 1 does
+- what phase 1 does not do
+- which page is the primary workspace
+- how task detail should behave structurally
+- which data source is authoritative
+- how SSE should be used
+- how mock retirement should be interpreted
+- which risks must be controlled during delivery
+
+### 19.5 One-sentence project intent
+
+Phase 1 turns the FlagHunter Web Console into a **real-data-centered, conversation-first, state-trustworthy minimum usable control console** for active task execution.
