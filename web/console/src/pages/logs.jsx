@@ -1,4 +1,4 @@
-/* global React, MOCK, fmt, t, downloadJson */
+/* global React, fmt, t, downloadJson */
 // ============================================================
 // Logs — table view + terminal tail view + detail drawer
 // ============================================================
@@ -60,8 +60,7 @@ function LogsPage() {
     }
   }, [appended.length, mode]);
 
-  const mockLogs = uLM(() => (MOCK.LOGS || []).map(normalizeLog).filter(Boolean), []);
-  const sourceLogs = window.IS_LIVE ? (apiLogs || []) : (apiLogs || mockLogs);
+  const sourceLogs = Array.isArray(apiLogs) ? apiLogs : [];
   const all = uLM(() => [...appended, ...sourceLogs], [appended, sourceLogs]);
   const filtered = uLM(() => all.filter(l => {
     if (level !== 'all' && l.level !== level) return false;
