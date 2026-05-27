@@ -1,0 +1,130 @@
+{
+  "version": "V1",
+  "date": "2026-05-27",
+  "scope": "post-stage-v usability smoke verification",
+  "baseUrl": "http://127.0.0.1:8080",
+  "verifiedBaseline": "33a5293",
+  "samples": {
+    "existingTaskDetail": {
+      "taskId": "task_260527072428_7b73",
+      "summary": "stable stopped task with persisted hints and snapshot-backed detail"
+    },
+    "existingTraceDetail": {
+      "runId": "run_260527072428_ac66",
+      "summary": "stable trace replay sample with task.hint history"
+    },
+    "smokeTask": {
+      "taskId": "task_260527085302_2fe6",
+      "runId": "run_260527085302_84f5",
+      "summary": "fresh usability smoke task used to verify create + hint persistence + detail accessibility"
+    },
+    "actionStopTask": {
+      "taskId": "task_260527085724_8899",
+      "runId": "run_260527085724_9a16",
+      "summary": "fresh action-contract sample used to verify create + hint + stop -> user_stop"
+    }
+  },
+  "checks": {
+    "apiReachability": {
+      "/api/status": 200,
+      "/api/dashboard/summary": 200,
+      "/api/tasks": 200,
+      "/api/traces": 200,
+      "/api/logs": 200,
+      "/api/settings": 200
+    },
+    "pageSmoke": {
+      "dashboard": {
+        "route": "#/dashboard",
+        "ok": true,
+        "markers": [
+          "指挥控制台",
+          "活跃运行",
+          "最近任务",
+          "Flag 看板"
+        ]
+      },
+      "logs": {
+        "route": "#/logs",
+        "ok": true,
+        "markers": [
+          "日志",
+          "实时追踪",
+          "来源 orchestrator",
+          "没有匹配的日志"
+        ]
+      },
+      "settings": {
+        "route": "#/settings",
+        "ok": true,
+        "markers": [
+          "设置",
+          "配置面板",
+          "模型配置",
+          "API 密钥"
+        ]
+      },
+      "existingTaskDetail": {
+        "route": "#/tasks/task_260527072428_7b73",
+        "ok": true,
+        "markers": [
+          "Stage V task-b hint live final",
+          "observed session transcript",
+          "hint accepted"
+        ]
+      },
+      "existingTraceDetail": {
+        "route": "#/traces/run_260527072428_ac66",
+        "ok": true,
+        "markers": [
+          "task stopped",
+          "recon bundle",
+          "hint accepted"
+        ]
+      },
+      "smokeTaskDetail": {
+        "route": "#/tasks/task_260527085302_2fe6",
+        "ok": true,
+        "markers": [
+          "Stage V usability smoke verify",
+          "Usability smoke hint marker @ 2026-05-27",
+          "observed session transcript"
+        ]
+      }
+    },
+    "taskActions": {
+      "create": {
+        "status": 201,
+        "taskId": "task_260527085724_8899",
+        "runId": "run_260527085724_9a16"
+      },
+      "hint": {
+        "status": 200,
+        "persisted": true,
+        "text": "Usability action stop marker @ 2026-05-27"
+      },
+      "stop": {
+        "status": 200,
+        "finalStatus": "stopped",
+        "finalStopReason": "user_stop"
+      }
+    }
+  },
+  "usableNow": [
+    "dashboard can open with live data",
+    "logs page can open in live mode and safely render empty state",
+    "settings page can open and expose current partial-live-save form surface",
+    "task detail deep link can reload and preserve observed session transcript + persisted hints",
+    "trace detail deep link can replay timeline including task.hint entries",
+    "create / hint / stop action chain is usable against the live backend"
+  ],
+  "notGuaranteed": [
+    "retry is not part of the current hard usability baseline",
+    "logs row-level DOM selectors are less stable than whole-page text assertions",
+    "planning documents are not source-of-truth for current implementation state"
+  ],
+  "conclusion": {
+    "status": "passed",
+    "summary": "The current Web Console implementation is usable on the verified baseline: core read pages open, deep-link detail routes work, and the currently exposed create / hint / stop actions complete against the live backend."
+  }
+}
