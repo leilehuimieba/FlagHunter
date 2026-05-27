@@ -19,28 +19,39 @@ RUN printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d && chmod +x /usr/sbin
 ARG TARGETARCH
 
 # Update and install Kali tools
+# Note: kali-tools-* meta-packages are intentionally omitted — they pull in
+# whatever is current in kali-rolling and frequently break on repo transitions.
+# Individual packages below provide stable, reproducible installs.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     # Python (python3-full includes venv with ensurepip)
     python3-full \
     python3-pip \
-    # Kali meta-packages (selective for size)
-    kali-tools-web \
-    kali-tools-information-gathering \
-    kali-tools-vulnerability \
-    kali-tools-exploitation \
-    # Additional tools
-    nmap \
+    # Web tools
     nikto \
     dirb \
     gobuster \
     sqlmap \
     wpscan \
+    ffuf \
+    feroxbuster \
+    whatweb \
+    wafw00f \
+    # Recon / info-gathering
+    nmap \
+    theharvester \
+    recon-ng \
+    fierce \
+    dnsenum \
+    amass \
+    # Exploitation / post-exploitation
+    metasploit-framework \
+    exploitdb \
+    # Password / hash
     hydra \
     john \
     hashcat \
-    metasploit-framework \
+    # Scanning
     nuclei \
-    ffuf \
     # Network tools
     openvpn \
     wireguard \
