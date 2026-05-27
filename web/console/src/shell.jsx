@@ -92,7 +92,7 @@ const CRUMBS_KEYS = {
   settings:         ['brand.tag', 'nav.settings'],
 };
 
-function Topbar({ route }) {
+function Topbar({ route, leaf }) {
   const [ticks, setTicks] = useStateS([]);
   const [showNotif, setShowNotif] = useStateS(false);
   const [hasNew, setHasNew] = useStateS(true);
@@ -118,9 +118,10 @@ function Topbar({ route }) {
     return () => window.removeEventListener('fh:lang', handler);
   }, []);
 
-  const crumbs = (CRUMBS_KEYS[route] || CRUMBS_KEYS.dashboard).map(k =>
-    k.startsWith('_') ? k.slice(1) : t(k)
-  );
+  const crumbs = (CRUMBS_KEYS[route] || CRUMBS_KEYS.dashboard).map(k => {
+    if (k.startsWith('_')) return leaf || k.slice(1);
+    return t(k);
+  });
   const showTicks = ticks.slice(0, 2);
 
   function toggleLang() {

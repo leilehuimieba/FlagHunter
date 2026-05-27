@@ -5,12 +5,12 @@
 
 const { useState: useStateT, useEffect: useEffectT, useRef: useRefT, useMemo: useMemoT } = React;
 
-function TasksPage({ onNav }) {
-  const [activeId, setActive] = useStateT('task_002');
+function TasksPage({ taskId, onNav }) {
+  const [activeId, setActive] = useStateT(taskId || 'task_002');
   const [filter, setFilter] = useStateT('all');
   const [q, setQ] = useStateT('');
   const [showModal, setShowModal] = useStateT(false);
-  const [tasks, setTasks] = useStateT(MOCK.TASKS);
+  const [tasks, setTasks] = useStateT(taskId ? [] : MOCK.TASKS);
 
   // ⌘K "新建任务" command opens this modal from anywhere
   useEffectT(() => {
@@ -26,6 +26,20 @@ function TasksPage({ onNav }) {
     });
   }, []);
 
+  useEffectT(() => {
+    if (taskId) setActive(taskId);
+  }, [taskId]);
+
+  useEffectT(() => {
+    if (!tasks.length) return;
+    const hasActive = tasks.some(tk => tk.id === activeId);
+    if (!hasActive) {
+      setActive(tasks[0].id);
+    } else if (taskId && taskId !== activeId) {
+      setActive(taskId);
+    }
+  }, [tasks, activeId, taskId]);
+
   // Subscribe to SSE task status updates
   useEffectT(() => {
     if (!window.API) return;
@@ -34,6 +48,8 @@ function TasksPage({ onNav }) {
         setTasks(prev => prev.map(tk =>
           tk.id === ev.task_id ? { ...tk, ...ev.updates } : tk
         ));
+      } else if (ev.type === 'task_created' && ev.task && ev.task.id) {
+        setTasks(prev => prev.some(tk => tk.id === ev.task.id) ? prev : [ev.task, ...prev]);
       }
     });
   }, []);
@@ -41,7 +57,11 @@ function TasksPage({ onNav }) {
   const filtered = useMemoT(() => {
     return tasks.filter(tk => {
       if (filter !== 'all' && tk.status !== filter) return false;
-      if (q && !(tk.title.toLowerCase().includes(q.toLowerCase()) || tk.id.includes(q))) return false;
+      if (q && !(
+        tk.title.toLowerCase().includes(q.toLowerCase())
+        || tk.id.includes(q)
+        || (tk.target || '').toLowerCase().includes(q.toLowerCase())
+      )) return false;
       return true;
     });
   }, [filter, q, tasks]);
@@ -50,7 +70,13 @@ function TasksPage({ onNav }) {
   const filterKeys = ['all', 'running', 'queued', 'success', 'failed', 'stopped'];
 
   function handleCreated(task) {
-    setTasks(prev => [task, ...prev]);
+    setTasks(prev => {
+      const existing = prev.find(tk => tk.id === task.id);
+      if (existing) {
+        return prev.map(tk => tk.id === task.id ? { ...tk, ...task } : tk);
+      }
+      return [task, ...prev];
+    });
     setActive(task.id);
   }
 
@@ -92,13 +118,27 @@ function TasksPage({ onNav }) {
           </div>
           <div className="items">
             {filtered.map(tk => (
-              <TaskItem key={tk.id} task={tk} active={tk.id === activeId} onClick={() => setActive(tk.id)} />
+              <TaskItem
+                key={tk.id}
+                task={tk}
+                active={tk.id === activeId}
+                onClick={() => {
+                  setActive(tk.id);
+                  if (onNav) onNav(`tasks/${tk.id}`);
+                }}
+              />
             ))}
             {filtered.length === 0 && <Empty>{t('tasks.noMatch')}</Empty>}
           </div>
         </Panel>
 
-        {active && <TaskDetail task={active} key={active.id} />}
+        {active ? (
+          <TaskDetail task={active} key={active.id} onNav={onNav} />
+        ) : (
+          <Panel className="task-detail">
+            <Empty>{t('tasks.noSelection')}</Empty>
+          </Panel>
+        )}
       </div>
 
       {showModal && (
@@ -142,27 +182,71 @@ function TaskItem({ task, active, onClick }) {
 // ----------------------------------------------------------------
 // Task detail
 // ----------------------------------------------------------------
-function TaskDetail({ task }) {
-  const isActive = task.status === 'running';
-  const isMockActive = task.id === 'task_002';
-  const initialMessages = isMockActive ? MOCK.MESSAGES_002 : buildSyntheticMessages(task);
+function TaskDetail({ task, onNav }) {
+  const [detailTask, setDetailTask] = useStateT(task);
+  const isMockActive = detailTask.id === 'task_002';
+  const isActive = detailTask.status === 'running';
+  const initialMessages = isMockActive ? MOCK.MESSAGES_002 : resolveTaskMessages(detailTask);
 
   const [messages, setMessages] = useStateT(initialMessages);
   const [hintMode, setHintMode] = useStateT(false);
   const [draft, setDraft] = useStateT('');
   const [obsFresh, setObsFresh] = useStateT(null);
-  const [attachments, setAttachments] = useStateT(task.attachments || []);
+  const [attachments, setAttachments] = useStateT(detailTask.attachments || []);
   const msgEnd = useRefT(null);
+
+  useEffectT(() => {
+    setDetailTask(prev => {
+      if (prev && prev.id === task.id) {
+        return {
+          ...task,
+          detailSource: prev.detailSource || task.detailSource,
+          plan: Array.isArray(prev.plan) && prev.plan.length ? prev.plan : (task.plan || []),
+          notes: Array.isArray(prev.notes) && prev.notes.length ? prev.notes : (task.notes || []),
+          knowledgeHits: Array.isArray(prev.knowledgeHits) && prev.knowledgeHits.length ? prev.knowledgeHits : (task.knowledgeHits || []),
+        };
+      }
+      return task;
+    });
+    setAttachments(task.attachments || []);
+  }, [task]);
+
+  useEffectT(() => {
+    if (!window.IS_LIVE) return;
+    window.API.getTask(task.id).then(data => {
+      if (data && data.id) setDetailTask(data);
+    });
+  }, [task.id]);
+
+  useEffectT(() => {
+    setMessages(isMockActive ? MOCK.MESSAGES_002 : resolveTaskMessages(detailTask));
+  }, [
+    detailTask.id,
+    isMockActive,
+    Array.isArray(detailTask.messages) ? detailTask.messages.length : 0,
+    detailTask.finishedAt,
+    detailTask.finalFlag,
+    detailTask.stopReason,
+  ]);
+
+  useEffectT(() => {
+    window.dispatchEvent(new CustomEvent('fh:route-label', {
+      detail: { label: detailTask.id || task.id || 'task' }
+    }));
+  }, [detailTask.id, task.id]);
 
   // Load attachments from server when task is selected (live mode)
   useEffectT(() => {
     if (!window.IS_LIVE || isMockActive) return;
-    window.API.getAttachments(task.id).then(data => {
+    window.API.getAttachments(detailTask.id).then(data => {
       if (data && Array.isArray(data.files)) setAttachments(data.files);
     });
-  }, [task.id]);
+  }, [detailTask.id, isMockActive]);
 
   const panel = isMockActive ? MOCK.TASK_002_PANEL : null;
+  const livePlan = Array.isArray(detailTask.plan) ? detailTask.plan : [];
+  const liveNotes = Array.isArray(detailTask.notes) ? detailTask.notes : [];
+  const liveKnowledgeHits = Array.isArray(detailTask.knowledgeHits) ? detailTask.knowledgeHits : [];
   const [obs, setObs] = useStateT(panel?.observations || []);
   const obsExtras = [
     'sqlmap · enumerating column password_hash',
@@ -187,6 +271,132 @@ function TaskDetail({ task }) {
   }, [isMockActive]);
 
   useEffectT(() => {
+    if (isMockActive) {
+      setObs(panel?.observations || []);
+      return;
+    }
+    setObs([]);
+    setObsFresh(null);
+  }, [detailTask.id, isMockActive]);
+
+  useEffectT(() => {
+    if (isMockActive) return;
+    function pushObs(text, at) {
+      const id = `live_obs_${at}_${Math.random().toString(36).slice(2, 6)}`;
+      const ent = { id, t: at, text };
+      setObs(o => [...o, ent].slice(-8));
+      setObsFresh(id);
+      setTimeout(() => setObsFresh(current => current === id ? null : current), 900);
+    }
+
+    const handler = (event) => {
+      const ev = event?.detail || {};
+      if (ev.task_id !== detailTask.id) return;
+      const at = ev.t || ev.timestamp || new Date().toISOString();
+
+      if (ev.type === 'task_status') {
+        const updates = ev.updates || {};
+        setDetailTask(prev => ({ ...prev, ...updates }));
+        if (updates.status && updates.status !== 'running' && (updates.finishedAt || updates.finalFlag || updates.stopReason)) {
+          const finishId = `live_finish_${updates.status}_${updates.finishedAt || at}`;
+          setMessages(prev => prev.some(m => m.id === finishId) ? prev : [...prev, {
+            id: finishId,
+            role: 'system',
+            t: updates.finishedAt || at,
+            content: updates.finalFlag
+              ? `flag verified ✓ ${updates.finalFlag}`
+              : `task ended · stop_reason=${updates.stopReason || updates.status}`,
+          }]);
+          pushObs(`status → ${updates.status}`, updates.finishedAt || at);
+        }
+        return;
+      }
+
+      if (ev.type === 'tool_call') {
+        const msgId = `live_tool_${at}_${ev.tool || 'tool'}`;
+        const title = ev.tool || 'tool';
+        setMessages(prev => prev.some(m => m.id === msgId) ? prev : [...prev, {
+          id: msgId,
+          role: 'system',
+          t: at,
+          content: `live tool call · ${title}`,
+          tools: title ? [title] : undefined,
+        }]);
+        pushObs(`${title} · ${ev.summary || 'started'}`, at);
+        return;
+      }
+
+      if (ev.type === 'tool.finished') {
+        const title = ev.tool || 'tool';
+        const msgId = `live_tool_finished_${title}_${at}`;
+        const text = ev.success === false
+          ? `tool finished · ${title} · failed`
+          : `tool finished · ${title}`;
+        setMessages(prev => prev.some(m => m.id === msgId) ? prev : [...prev, {
+          id: msgId,
+          role: 'system',
+          t: at,
+          content: text,
+          tools: title ? [title] : undefined,
+        }]);
+        pushObs(`${title} finished · ${ev.summary || (ev.success === false ? 'failed' : 'done')}`, at);
+        return;
+      }
+
+      if (ev.type === 'knowledge.retrieved') {
+        const hitId = `live_knowledge_${ev.source || 'knowledge'}_${at}`;
+        const hit = {
+          id: hitId,
+          source: ev.source || 'knowledge',
+          title: ev.summary || 'knowledge retrieved',
+          score: 1,
+          output: ev.output || '',
+          t: at,
+        };
+        setDetailTask(prev => {
+          const prevHits = Array.isArray(prev.knowledgeHits) ? prev.knowledgeHits : [];
+          if (prevHits.some(item => item.id === hitId)) return prev;
+          return { ...prev, knowledgeHits: [...prevHits, hit] };
+        });
+        pushObs(`knowledge retrieved · ${ev.summary || ev.source || 'knowledge'}`, at);
+        return;
+      }
+
+      if (ev.type === 'note.created') {
+        const noteId = `live_note_${at}`;
+        const note = {
+          id: noteId,
+          key: ev.summary || 'note created',
+          value: (ev.output || '').split('\n')[0] || 'saved',
+          t: at,
+        };
+        setDetailTask(prev => {
+          const prevNotes = Array.isArray(prev.notes) ? prev.notes : [];
+          if (prevNotes.some(item => item.id === noteId)) return prev;
+          return { ...prev, notes: [...prevNotes, note] };
+        });
+        pushObs(`note created · ${ev.summary || 'saved'}`, at);
+        return;
+      }
+
+      if (ev.type === 'hint') {
+        const hintId = `live_hint_${at}`;
+        const text = ev.text || 'hint accepted';
+        setMessages(prev => prev.some(m => m.id === hintId) ? prev : [...prev, {
+          id: hintId,
+          role: 'system',
+          t: at,
+          content: `hint accepted · ${text}`,
+        }]);
+        pushObs(`hint accepted · ${text}`, at);
+      }
+    };
+
+    window.addEventListener('fh:event', handler);
+    return () => window.removeEventListener('fh:event', handler);
+  }, [detailTask.id, isMockActive]);
+
+  useEffectT(() => {
     msgEnd.current?.scrollTo({ top: msgEnd.current.scrollHeight, behavior: 'smooth' });
   }, [messages.length]);
 
@@ -202,7 +412,7 @@ function TaskDetail({ task }) {
     setMessages(m => [...m, newMsg]);
 
     if (window.IS_LIVE && hintMode) {
-      await window.API.hintTask(task.id, draft);
+      await window.API.hintTask(detailTask.id, draft);
     }
 
     setTimeout(() => {
@@ -217,7 +427,7 @@ function TaskDetail({ task }) {
   };
 
   async function handleStop() {
-    if (window.IS_LIVE) await window.API.stopTask(task.id);
+    if (window.IS_LIVE) await window.API.stopTask(detailTask.id);
     setMessages(m => [...m, {
       id: `m_stop_${Date.now()}`,
       role: 'system',
@@ -231,36 +441,46 @@ function TaskDetail({ task }) {
       <div className="task-detail-head">
         <div className="left">
           <div className="row gap-8" style={{ marginBottom: 6 }}>
-            <StatusBadge status={task.status} size="lg" />
-            <TypeBadge type={task.detectedType} />
-            <span className="dim mono" style={{ fontSize: 11 }}>{task.id}</span>
-            {task.currentRunId && (
-              <span className="dim mono" style={{ fontSize: 11 }}>· {t('td.run')} <span className="bright">{task.currentRunId}</span></span>
+            <StatusBadge status={detailTask.status} size="lg" />
+            <TypeBadge type={detailTask.detectedType} />
+            <span className="dim mono" style={{ fontSize: 11 }}>{detailTask.id}</span>
+            {detailTask.currentRunId && (
+              <span className="dim mono" style={{ fontSize: 11 }}>· {t('td.run')} <span className="bright">{detailTask.currentRunId}</span></span>
             )}
           </div>
-          <div className="title">{task.title}</div>
+          <div className="title">{detailTask.title}</div>
           <div className="meta">
-            <span>{t('c.target')} <b>{task.target}</b></span>
-            <span>{t('c.goal')} <b>{task.goal}</b></span>
-            <span>{t('c.started')} <b>{task.startedAt ? fmt.since(task.startedAt) : '—'}</b></span>
-            <span>{t('c.tokens')} <b>{((task.tokensUsed||0)/1000).toFixed(1)}k</b></span>
-            <span>{t('c.tools')} <b>{task.toolCalls || 0}</b></span>
-            {task.finalFlag && <span>{t('c.flag')} <b className="green">{task.finalFlag}</b></span>}
-            {task.stopReason && <span>{t('c.stopReason')} <b className="red">{task.stopReason}</b></span>}
+            <span>{t('c.target')} <b>{detailTask.target}</b></span>
+            <span>{t('c.goal')} <b>{detailTask.goal || '—'}</b></span>
+            <span>{t('c.started')} <b>{detailTask.startedAt ? fmt.since(detailTask.startedAt) : '—'}</b></span>
+            <span>{t('c.tokens')} <b>{((detailTask.tokensUsed||0)/1000).toFixed(1)}k</b></span>
+            <span>{t('c.tools')} <b>{detailTask.toolCalls || 0}</b></span>
+            {detailTask.finalFlag && <span>{t('c.flag')} <b className="green">{detailTask.finalFlag}</b></span>}
+            {detailTask.stopReason && <span>{t('c.stopReason')} <b className="red">{detailTask.stopReason}</b></span>}
           </div>
         </div>
         <div className="actions">
           {isActive && <button className="btn danger" onClick={handleStop}>■ {t('c.stop')}</button>}
           {isActive && <button className="btn">⟲ {t('c.retry')}</button>}
-          {task.status === 'failed' && <button className="btn primary">⟲ {t('c.retry')}</button>}
+          {detailTask.status === 'failed' && <button className="btn primary">⟲ {t('c.retry')}</button>}
           <button className="btn ghost">⤓ {t('c.export')}</button>
-          <button className="btn ghost">⧉ {t('c.trace')}</button>
+          <button className="btn ghost" onClick={() => detailTask.currentRunId && onNav && onNav(`traces/${detailTask.currentRunId}`)}>⧉ {t('c.trace')}</button>
         </div>
       </div>
 
       <div className="task-detail-body">
         {/* convo */}
         <div className="task-convo">
+          {!isMockActive && detailTask.detailSource && (
+            <div className="side-card" style={{ margin: '0 0 10px 0' }}>
+              <div className="h">◎ live detail</div>
+              <div className="kv-list">
+                <div className="kv-row"><span className="k">messages</span><span className="v">{detailTask.detailSource.messages || '—'}</span></div>
+                <div className="kv-row"><span className="k">session</span><span className="v mono" style={{ fontSize: 10.5 }}>{detailTask.detailSource.session || '—'}</span></div>
+                <div className="kv-row"><span className="k">notes</span><span className="v">{detailTask.detailSource.notesMode || '—'}</span></div>
+              </div>
+            </div>
+          )}
           <div className="msg-list" ref={msgEnd}>
             {messages.map(m => <Message key={m.id} m={m} />)}
             {isActive && (
@@ -314,7 +534,16 @@ function TaskDetail({ task }) {
           {panel && <KnowledgeCard hits={panel.knowledgeHits} />}
           {panel && <NotesCard notes={panel.notes} />}
           {panel && <ArtifactsCard artifacts={panel.artifacts} />}
-          {!panel && <SyntheticSidePanel task={{ ...task, attachments }} />}
+          {!panel && (
+            <LiveSidePanel
+              task={{ ...detailTask, attachments }}
+              plan={livePlan}
+              notes={liveNotes}
+              knowledgeHits={liveKnowledgeHits}
+              observations={obs}
+              freshObservationId={obsFresh}
+            />
+          )}
         </div>
       </div>
     </div>
@@ -331,7 +560,7 @@ function Message({ m }) {
       <div className="avatar">{avatar}</div>
       <div className="body">
         <div className="who" style={m.isHint ? { color: 'var(--amber)' } : {}}>
-          {t(whoKey)} <span className="dim" style={{ marginLeft: 8, letterSpacing: 0 }}>{fmt.hh(m.t)}</span>
+          {t(whoKey)} <span className="dim" style={{ marginLeft: 8, letterSpacing: 0 }}>{m.t ? fmt.hh(m.t) : '—'}</span>
         </div>
         <div className="content">
           {m.content}
@@ -351,16 +580,17 @@ function Message({ m }) {
 
 // ---------- side panel cards ----------
 function PlanCard({ plan }) {
+  const doneCount = plan.filter(p => p.state === 'done').length;
   return (
     <div className="side-card">
-      <div className="h"><span className="accent">▸ {t('side.plan')}</span><span className="dim right">{plan.filter(p => p.state==='done').length}/{plan.length}</span></div>
+      <div className="h"><span className="accent">▸ {t('side.plan')}</span><span className="dim right">{doneCount}/{plan.length}</span></div>
       <div className="plan-list">
         {plan.map((p, i) => {
-          const labelKey = `plan.${p.id}`;
+          const title = p.label || p.description || `step ${i + 1}`;
           return (
-            <div key={p.id} className={`plan-step ${p.state}`}>
+            <div key={p.id || i} className={`plan-step ${p.state}`}>
               <span className="marker">{p.state === 'done' ? '✓' : i + 1}</span>
-              <span>{t(labelKey)}</span>
+              <span title={title}>{title}</span>
             </div>
           );
         })}
@@ -399,6 +629,7 @@ function ObsCard({ obs, fresh }) {
     <div className="side-card">
       <div className="h">◇ {t('side.obs')} <span className="dim right">{t('c.live')}</span></div>
       <div className="obs-feed">
+        {obs.length === 0 && <Empty>no observed live events</Empty>}
         {obs.map(o => (
           <div key={o.id} className={`obs-row ${o.id === fresh ? 'fresh' : ''}`}>
             <span className="when">{fmt.hh(o.t).slice(0, 8)}</span>{o.text}
@@ -414,6 +645,7 @@ function KnowledgeCard({ hits }) {
     <div className="side-card">
       <div className="h">◉ {t('side.knowledge')} <span className="dim right">{hits.length}</span></div>
       <div className="col gap-4">
+        {hits.length === 0 && <Empty>no observed knowledge hits</Empty>}
         {hits.map(h => (
           <div key={h.id} style={{ fontSize: 11.5, lineHeight: 1.4, padding: '4px 0' }}>
             <div className="row gap-6">
@@ -433,6 +665,7 @@ function NotesCard({ notes }) {
     <div className="side-card">
       <div className="h">✎ {t('side.notes')} <span className="dim right">{notes.length}</span></div>
       <div className="col gap-4">
+        {notes.length === 0 && <Empty>no observed notes</Empty>}
         {notes.map(n => (
           <div key={n.id} style={{ fontSize: 11.5 }}>
             <span className="muted">{n.key}</span>
@@ -516,6 +749,43 @@ function SyntheticSidePanel({ task }) {
       </div>
     </>
   );
+}
+
+function LiveSidePanel({ task, plan, notes, knowledgeHits, observations, freshObservationId }) {
+  return (
+    <>
+      <SyntheticSidePanel task={task} />
+      <div className="side-card">
+        <div className="h">◎ observed sources</div>
+        <div className="kv-list">
+          <div className="kv-row"><span className="k">session</span><span className="v mono" style={{ fontSize: 10.5 }}>{task.detailSource?.session || '—'}</span></div>
+          <div className="kv-row"><span className="k">metrics</span><span className="v mono" style={{ fontSize: 10.5 }}>{task.detailSource?.metrics || '—'}</span></div>
+          <div className="kv-row"><span className="k">notes</span><span className="v mono" style={{ fontSize: 10.5 }}>{(task.detailSource?.notes || []).join(', ') || '—'}</span></div>
+        </div>
+      </div>
+      <ObsCard obs={observations || []} fresh={freshObservationId} />
+      <PlanCardLive plan={plan} />
+      <KnowledgeCard hits={knowledgeHits} />
+      <NotesCard notes={notes} />
+    </>
+  );
+}
+
+function PlanCardLive({ plan }) {
+  if (!plan.length) {
+    return (
+      <div className="side-card">
+        <div className="h"><span className="accent">▸ {t('side.plan')}</span><span className="dim right">0</span></div>
+        <Empty>no observed plan snapshot</Empty>
+      </div>
+    );
+  }
+  return <PlanCard plan={plan} />;
+}
+
+function resolveTaskMessages(tk) {
+  if (Array.isArray(tk.messages) && tk.messages.length) return tk.messages;
+  return buildSyntheticMessages(tk);
 }
 
 function buildSyntheticMessages(tk) {

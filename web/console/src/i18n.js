@@ -162,6 +162,7 @@ const DICT = {
     'tasks.sub': '6 total · 1 running · 1 queued · 3 succeeded · 1 failed · 1 stopped',
     'tasks.filterPh': 'filter · task_id or title',
     'tasks.noMatch': 'no tasks match filter',
+    'tasks.noSelection': 'select a task to view details',
     'tasks.tk': 'tk',
     'tasks.toolsAbbr': 'tools',
 
@@ -341,7 +342,8 @@ const DICT = {
 
     /* settings */
     'st.t': 'Settings',
-    'st.sub': 'Config panel · changes are applied to the running agent and persisted to .env',
+    'st.sub': 'Config panel · Stage I is read-only and does not write changes to .env',
+    'st.readOnly': 'Stage I: read-only',
     'st.tab.model': 'Model',
     'st.tab.runtime': 'Runtime',
     'st.tab.mcp': 'MCP',
@@ -448,6 +450,9 @@ const DICT = {
     'mem.deprecated': 'Deprecated',
     'mem.audit': 'Needs Audit',
     'mem.empty': 'No entries match',
+    'mem.listView': 'List',
+    'mem.graphView': 'Graph',
+    'mem.clusters': 'Clusters',
     'mem.filterAll': 'All',
     'mem.sortRecent': 'Recent',
     'mem.sortCorr': 'Correlation',
@@ -642,6 +647,7 @@ const DICT = {
     'tasks.sub': '共 6 个 · 1 运行中 · 1 排队 · 3 成功 · 1 失败 · 1 停止',
     'tasks.filterPh': '过滤 · task_id 或标题',
     'tasks.noMatch': '没有匹配的任务',
+    'tasks.noSelection': '请选择一个任务查看详情',
     'tasks.tk': 'tk',
     'tasks.toolsAbbr': '工具',
 
@@ -821,7 +827,8 @@ const DICT = {
 
     /* settings */
     'st.t': '设置',
-    'st.sub': '配置面板 · 修改后将同步写入 .env 文件',
+    'st.sub': '配置面板 · Stage I 为只读模式，不会将修改写入 .env',
+    'st.readOnly': 'Stage I：只读',
     'st.tab.model': '模型',
     'st.tab.runtime': '运行时',
     'st.tab.mcp': 'MCP',
@@ -928,6 +935,9 @@ const DICT = {
     'mem.deprecated': '已弃用',
     'mem.audit': '待审计',
     'mem.empty': '无匹配条目',
+    'mem.listView': '列表',
+    'mem.graphView': '图谱',
+    'mem.clusters': '聚类',
     'mem.filterAll': '全部',
     'mem.sortRecent': '最近',
     'mem.sortCorr': '相关性',
