@@ -53,6 +53,19 @@ PENTESTAGENT_MODEL=gpt-5
 
 Any [LiteLLM-supported model](https://docs.litellm.ai/docs/providers) works.
 
+### Using a relay / custom API base
+
+Point PentestAgent at any OpenAI-compatible endpoint via `OPENAI_API_BASE`:
+
+```bash
+OPENAI_API_KEY=your-relay-token
+OPENAI_API_BASE=https://relay.example/v1
+PENTESTAGENT_MODEL=openai/<model-name-on-your-relay>
+```
+
+For Anthropic-compatible endpoints use `ANTHROPIC_API_BASE` instead.
+See `.env.example` for full provider notes and embedding options.
+
 ## Run
 
 ```bash
