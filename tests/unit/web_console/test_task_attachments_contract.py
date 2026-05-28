@@ -20,3 +20,15 @@ def test_task_detail_attachments_card_keeps_empty_state_and_live_upload_entry() 
     assert "type=\"file\"" in source
     assert "multiple" in source
 
+
+def test_task_detail_attachments_unavailable_reason_tracks_capability_connection_and_wiring() -> None:
+    source = _read("web/console/src/pages/tasks.jsx")
+
+    assert "const attachmentsUnavailableReason = !attachmentsSupported" in source
+    assert "? t('c.unavailable')" in source
+    assert ": !isActionLive" in source
+    assert "? t('c.notConnected')" in source
+    assert ": typeof window.API?.uploadAttachment !== 'function'" in source
+    assert "? t('c.notWired')" in source
+    assert "attachmentsUnavailableReason={attachmentsUnavailableReason}" in source
+    assert "title={!attachmentsUploadAvailable ? unavailableReason : ''}" in source

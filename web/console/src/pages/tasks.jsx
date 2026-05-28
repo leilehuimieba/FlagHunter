@@ -342,6 +342,13 @@ function TaskDetail({ task, onNav, taskViewMode }) {
   const attachmentsUploadAvailable = attachmentsSupported
     && isActionLive
     && typeof window.API?.uploadAttachment === 'function';
+  const attachmentsUnavailableReason = !attachmentsSupported
+    ? t('c.unavailable')
+    : !isActionLive
+      ? t('c.notConnected')
+      : typeof window.API?.uploadAttachment !== 'function'
+        ? t('c.notWired')
+        : '';
   const initialMessages = resolveTaskMessages(detailTask);
 
   const [messages, setMessages] = useStateT(initialMessages);
@@ -744,7 +751,7 @@ function TaskDetail({ task, onNav, taskViewMode }) {
             onUploadRequest={() => attachmentInputRef.current?.click()}
             onUploadFiles={handleAttachmentFiles}
             attachmentInputRef={attachmentInputRef}
-            attachmentsUnavailableReason={attachmentsSupported ? t('c.notWired') : t('c.unavailable')}
+            attachmentsUnavailableReason={attachmentsUnavailableReason}
           />
         </div>
       </div>
