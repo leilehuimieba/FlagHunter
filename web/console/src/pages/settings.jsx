@@ -5,6 +5,14 @@
 
 const { useState: uSt, useEffect: uStE } = React;
 
+function currentConnectionState() {
+  if (window.API?.getConnectionState) return window.API.getConnectionState();
+  return {
+    status: 'disconnected',
+    isLive: false,
+  };
+}
+
 const PROVIDERS = [
   { id: 'su8.codes',  label: 'su8.codes (中转)', base: 'https://api.su8.codes/v1' },
   { id: 'anthropic',  label: 'Anthropic',        base: '' },
@@ -162,14 +170,7 @@ function SettingsPage() {
   const [saving, setSaving] = uSt(false);
   const [error, setError] = uSt('');
   const [saveResult, setSaveResult] = uSt(null);
-  const [connection, setConnection] = uSt(() => (
-    window.API?.getConnectionState
-      ? window.API.getConnectionState()
-      : {
-          status: Boolean(window.IS_LIVE) ? 'connected' : 'disconnected',
-          isLive: Boolean(window.IS_LIVE),
-        }
-  ));
+  const [connection, setConnection] = uSt(() => currentConnectionState());
   const [dashboardStats, setDashboardStats] = uSt(null);
   const [knowledgeDocs, setKnowledgeDocs] = uSt(null);
 
@@ -238,9 +239,7 @@ function SettingsPage() {
     const handler = (e) => {
       const nextConnection = (
         e.detail?.connection
-        || (window.API?.getConnectionState
-          ? window.API.getConnectionState()
-          : { status: e.detail?.type === 'connected' ? 'connected' : 'disconnected', isLive: e.detail?.type === 'connected' })
+        || currentConnectionState()
       );
       setConnection(nextConnection);
       if (nextConnection.status === 'connected') refreshReadonlyData();

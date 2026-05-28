@@ -808,7 +808,7 @@ function EventDrawer({ event, run, onClose }) {
         {e.type === 'knowledge' && (
           <div className="section">
             <div className="h">{t('tr.dr.chunks')}</div>
-            <pre className="code-block">{window.IS_LIVE ? (e.output || e.summary || 'no observed chunk excerpt') : 'doc_002 · chunk_002 (score 0.79)\nDetect backend dialect via timing: pg_sleep, SLEEP, WAITFOR DELAY differ.\nPostgres returns the same response shape for both authenticated and\nunauthenticated probes, so size deltas are the strongest signal.'}</pre>
+            <pre className="code-block">{e.output || e.summary || 'no observed chunk excerpt'}</pre>
           </div>
         )}
 
@@ -827,34 +827,9 @@ function EventDrawer({ event, run, onClose }) {
 }
 
 function getToolInput(e) {
-  if (window.IS_LIVE) return t('tr.dr.noOutput');
-  if (e.tool === 'terminal' && e.title.includes('curl')) return '$ curl -sI http://10.10.20.45:8080/admin/login';
-  if (e.tool === 'terminal' && e.title.includes('nmap')) return '$ nmap -sV -p 8080 10.10.20.45';
-  if (e.tool === 'terminal' && e.title.includes('sqlmap')) return [
-    '$ sqlmap -u "http://10.10.20.45:8080/admin/login" \\',
-    '    --data \'{"username":"*","password":"x"}\' \\',
-    '    --headers "Content-Type: application/json" \\',
-    '    --dbms=postgresql --technique=T --level=2 --risk=2'
-  ].join('\n');
-  if (e.tool === 'http_request') return 'POST /admin/login HTTP/1.1\nHost: 10.10.20.45:8080\nContent-Type: application/json\n\n{"username":"admin\' OR 1=1 --","password":"x"}';
-  return JSON.stringify({ tool: e.tool, args: e.title }, null, 2);
+  return t('tr.dr.noOutput');
 }
 function getToolOutput(e) {
-  if (window.IS_LIVE) return t('tr.dr.noOutput');
-  if (e.tool === 'terminal' && e.title.includes('curl')) return 'HTTP/1.1 200 OK\nserver: nginx/1.25.3\ncontent-type: application/json\nx-powered-by: Express\ncontent-length: 142';
-  if (e.tool === 'terminal' && e.title.includes('nmap')) return 'PORT     STATE SERVICE VERSION\n8080/tcp open  http    nginx 1.25.3\nService Info: OS: Linux';
-  if (e.tool === 'terminal' && e.title.includes('sqlmap')) return [
-    '[INFO] testing connection to the target URL',
-    '[INFO] checking if the target is protected by a WAF/IPS',
-    '[INFO] testing if the target URL content is stable',
-    '[INFO] target URL content is stable',
-    '[INFO] heuristic (basic) test shows that POST parameter username might be injectable',
-    '[INFO] testing for SQL injection on POST parameter username',
-    '[INFO] confirmed pg_sleep response',
-    '[INFO] enumerating tables in database "appdb"',
-    '... still running ...'
-  ].join('\n');
-  if (e.tool === 'http_request') return 'HTTP/1.1 200 OK\ncontent-length: 318\n\n{"error":"login_failed","detail":"<truncated>"}';
   return t('tr.dr.noOutput');
 }
 
