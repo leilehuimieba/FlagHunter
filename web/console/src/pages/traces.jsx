@@ -21,6 +21,8 @@ function TracesPage({ runId, onNav }) {
 function TraceList({ onNav }) {
   const [filter, setFilter] = uS('all');
   const [windowFilter, setWindowFilter] = uS('24h');
+  const [targetFilter, setTargetFilter] = uS('all');
+  const [targetOptions, setTargetOptions] = uS(['all']);
   const [q, setQ] = uS('');
   const [apiTraces, setApiTraces] = uS(null);
   const [connection, setConnection] = uS(() => currentConnectionState());
@@ -37,21 +39,25 @@ function TraceList({ onNav }) {
   }, []);
 
   uE(() => {
-    window.API.getTraces({ window: windowFilter }).then(data => {
-      if (data && Array.isArray(data)) setApiTraces(data);
+    window.API.getTraces({ window: windowFilter, target: targetFilter }).then(data => {
+      setApiTraces(Array.isArray(data?.items) ? data.items : []);
+      setTargetOptions(Array.isArray(data?.filters?.targets) ? data.filters.targets : ['all']);
+      if (data?.filters?.target && data.filters.target !== targetFilter) setTargetFilter(data.filters.target);
     });
-  }, [windowFilter]);
+  }, [windowFilter, targetFilter]);
 
   uE(() => {
     if (!window.API) return;
     return window.API.subscribeEvents(ev => {
       if (ev.type === 'task_created' || ev.type === 'task_status') {
-        window.API.getTraces({ window: windowFilter }).then(data => {
-          if (data && Array.isArray(data)) setApiTraces(data);
+        window.API.getTraces({ window: windowFilter, target: targetFilter }).then(data => {
+          setApiTraces(Array.isArray(data?.items) ? data.items : []);
+          setTargetOptions(Array.isArray(data?.filters?.targets) ? data.filters.targets : ['all']);
+          if (data?.filters?.target && data.filters.target !== targetFilter) setTargetFilter(data.filters.target);
         });
       }
     });
-  }, [windowFilter]);
+  }, [windowFilter, targetFilter]);
 
   const sourceTraces = Array.isArray(apiTraces) ? apiTraces : [];
   const runs = sourceTraces.filter(r => {
@@ -76,7 +82,11 @@ function TraceList({ onNav }) {
             <option value="24h">{t('c.last24h')}</option>
             <option value="all">all time</option>
           </select>
-          <button className="btn ghost" disabled={true} title={t('c.notWired')}><span className="muted">{t('c.allTargets')}</span> ▾</button>
+          <select className="input" value={targetFilter} onChange={e => setTargetFilter(e.target.value)} style={{ width: 220 }}>
+            {targetOptions.map(target => (
+              <option key={target} value={target}>{target === 'all' ? t('c.allTargets') : target}</option>
+            ))}
+          </select>
           <button className="btn" onClick={() => downloadJson(`traces_${new Date().toISOString().replace(/[:.]/g, '-')}.json`, runs)}>⬇ {t('c.export')}</button>
         </div>
       </div>

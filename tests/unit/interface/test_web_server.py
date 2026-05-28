@@ -273,12 +273,108 @@ async def test_traces_list_supports_window_filter(web_client: TestClient):
     recent_resp = await web_client.get("/api/traces?window=24h")
     assert recent_resp.status == 200
     recent_data = await recent_resp.json()
-    assert [item["id"] for item in recent_data] == ["run_trace_recent"]
+    assert [item["id"] for item in recent_data["items"]] == ["run_trace_recent"]
 
     all_resp = await web_client.get("/api/traces?window=all")
     assert all_resp.status == 200
     all_data = await all_resp.json()
-    assert [item["id"] for item in all_data] == ["run_trace_recent", "run_trace_old"]
+    assert [item["id"] for item in all_data["items"]] == ["run_trace_recent", "run_trace_old"]
+    assert all_data["filters"] == {
+        "window": "all",
+        "target": "all",
+        "targets": ["all", "http://old.test", "http://recent.test"],
+    }
+
+
+@pytest.mark.asyncio
+async def test_traces_list_supports_target_filter(web_client: TestClient):
+    now = web_server._now_iso()
+
+    web_server._tasks["task_trace_a"] = {
+        "id": "task_trace_a",
+        "title": "trace a",
+        "target": "http://a.test",
+        "goal": "trace a",
+        "status": "success",
+        "createdAt": now,
+        "startedAt": now,
+        "finishedAt": now,
+        "tokensUsed": 10,
+        "toolCalls": 1,
+        "currentRunId": "run_trace_a",
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+    web_server._tasks["task_trace_b"] = {
+        "id": "task_trace_b",
+        "title": "trace b",
+        "target": "http://b.test",
+        "goal": "trace b",
+        "status": "failed",
+        "createdAt": now,
+        "startedAt": now,
+        "finishedAt": now,
+        "tokensUsed": 20,
+        "toolCalls": 2,
+        "currentRunId": "run_trace_b",
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    resp = await web_client.get("/api/traces?window=all&target=http://a.test")
+
+    assert resp.status == 200
+    data = await resp.json()
+    assert [item["id"] for item in data["items"]] == ["run_trace_a"]
+    assert data["filters"] == {
+        "window": "all",
+        "target": "http://a.test",
+        "targets": ["all", "http://a.test", "http://b.test"],
+    }
+
+
+@pytest.mark.asyncio
+async def test_traces_list_invalid_target_falls_back_to_all(web_client: TestClient):
+    now = web_server._now_iso()
+
+    web_server._tasks["task_trace_known"] = {
+        "id": "task_trace_known",
+        "title": "trace known",
+        "target": "http://known.test",
+        "goal": "trace known",
+        "status": "success",
+        "createdAt": now,
+        "startedAt": now,
+        "finishedAt": now,
+        "tokensUsed": 10,
+        "toolCalls": 1,
+        "currentRunId": "run_trace_known",
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    resp = await web_client.get("/api/traces?window=all&target=http://not-found.test")
+
+    assert resp.status == 200
+    data = await resp.json()
+    assert data["filters"] == {
+        "window": "all",
+        "target": "all",
+        "targets": ["all", "http://known.test"],
+    }
+    assert [item["id"] for item in data["items"]] == ["run_trace_known"]
 
 
 @pytest.mark.asyncio
