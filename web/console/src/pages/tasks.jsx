@@ -13,10 +13,35 @@ function currentConnectionState() {
   };
 }
 
+function taskSummaryLabel(tasks) {
+  const items = Array.isArray(tasks) ? tasks : [];
+  const counts = items.reduce((acc, task) => {
+    const key = String(task?.status || '').toLowerCase();
+    if (Object.prototype.hasOwnProperty.call(acc, key)) acc[key] += 1;
+    return acc;
+  }, {
+    running: 0,
+    queued: 0,
+    success: 0,
+    failed: 0,
+    stopped: 0,
+  });
+
+  return t(
+    'tasks.sub',
+    items.length,
+    counts.running,
+    counts.queued,
+    counts.success,
+    counts.failed,
+    counts.stopped,
+  );
+}
+
 function TasksPage({ taskId, onNav, taskViewMode }) {
   const initialConnection = currentConnectionState();
   const useMockSeed = initialConnection.status === 'disconnected';
-  const initialActiveId = taskId || (useMockSeed ? 'task_002' : '');
+  const initialActiveId = taskId || '';
   const initialTasks = taskId ? [] : (useMockSeed ? MOCK.TASKS : []);
   const [activeId, setActive] = useStateT(initialActiveId);
   const [filter, setFilter] = useStateT('all');
@@ -27,7 +52,7 @@ function TasksPage({ taskId, onNav, taskViewMode }) {
   function seedMockTasks() {
     if (taskId) return;
     setTasks(prev => (prev.length ? prev : MOCK.TASKS));
-    setActive(prev => (prev || 'task_002'));
+    setActive(prev => (prev || MOCK.TASKS?.[0]?.id || ''));
   }
 
   // ⌘K "新建任务" command opens this modal from anywhere
@@ -116,7 +141,7 @@ function TasksPage({ taskId, onNav, taskViewMode }) {
       <div className="page-h">
         <div>
           <div className="t">{t('tasks.t')}</div>
-          <div className="sub">{t('tasks.sub')}</div>
+          <div className="sub">{taskSummaryLabel(tasks)}</div>
         </div>
         <div className="row">
           <button
@@ -303,23 +328,43 @@ function TaskDetailSourceBanner({ source }) {
 // ----------------------------------------------------------------
 function TaskDetail({ task, onNav, taskViewMode }) {
   const [detailTask, setDetailTask] = useStateT(task);
-  const isMockActive = detailTask.id === 'task_002';
   const isActive = detailTask.status === 'running';
-  const initialMessages = isMockActive ? MOCK.MESSAGES_002 : resolveTaskMessages(detailTask);
+  const [connection, setConnection] = useStateT(() => currentConnectionState());
+  const capabilityMap = normalizeTaskCapabilities(detailTask.capabilities);
+  const hintSupported = !!capabilityMap.hint;
+  const stopSupported = !!capabilityMap.stop;
+  const continueSupported = !!capabilityMap.continue;
+  const retrySupported = !!capabilityMap.retry;
+  const attachmentsSupported = !!capabilityMap.attachments;
+  const hintAvailable = hintSupported
+    && ['connected', 'degraded'].includes(connection.status)
+    && typeof window.API?.hintTask === 'function';
+  const continueAvailable = continueSupported && typeof window.API?.continueTask === 'function';
+  const retryAvailable = retrySupported && typeof window.API?.retryTask === 'function';
+  const initialMessages = resolveTaskMessages(detailTask);
 
   const [messages, setMessages] = useStateT(initialMessages);
-  const [hintMode, setHintMode] = useStateT(() => !isMockActive && typeof window.API?.continueTask !== 'function');
+  const [hintMode, setHintMode] = useStateT(() => !continueAvailable);
   const [draft, setDraft] = useStateT('');
   const [obsFresh, setObsFresh] = useStateT(null);
   const [attachments, setAttachments] = useStateT(detailTask.attachments || []);
   const msgEnd = useRefT(null);
-  const continueAvailable = isMockActive || typeof window.API?.continueTask === 'function';
-  const retryAvailable = isMockActive || typeof window.API?.retryTask === 'function';
 
   useEffectT(() => {
     setDetailTask(prev => mergeTaskDetail(prev, task));
     setAttachments(task.attachments || []);
   }, [task]);
+
+  useEffectT(() => {
+    const handler = (e) => {
+      setConnection(
+        e.detail?.connection
+        || currentConnectionState()
+      );
+    };
+    window.addEventListener('fh:connection', handler);
+    return () => window.removeEventListener('fh:connection', handler);
+  }, []);
 
   useEffectT(() => {
     if (!window.API || !window.API.getTask) return;
@@ -333,11 +378,10 @@ function TaskDetail({ task, onNav, taskViewMode }) {
   }, [continueAvailable, hintMode]);
 
   useEffectT(() => {
-    setMessages(isMockActive ? MOCK.MESSAGES_002 : resolveTaskMessages(detailTask));
+    setMessages(resolveTaskMessages(detailTask));
   }, [
     detailTask.id,
-    isMockActive,
-    Array.isArray(detailTask.messages) ? detailTask.messages.length : 0,
+    detailTask.messages,
     detailTask.finishedAt,
     detailTask.finalFlag,
     detailTask.stopReason,
@@ -351,50 +395,23 @@ function TaskDetail({ task, onNav, taskViewMode }) {
 
   // Load attachments from server when task is selected (live mode)
   useEffectT(() => {
-    if (!window.API || !window.API.getAttachments || isMockActive) return;
+    if (!attachmentsSupported || !window.API || !window.API.getAttachments) return;
     window.API.getAttachments(detailTask.id).then(data => {
       if (data && Array.isArray(data.files)) setAttachments(data.files);
     });
-  }, [detailTask.id, isMockActive]);
+  }, [detailTask.id, attachmentsSupported]);
 
-  const panel = isMockActive ? MOCK.TASK_002_PANEL : null;
   const livePlan = Array.isArray(detailTask.plan) ? detailTask.plan : [];
   const liveNotes = Array.isArray(detailTask.notes) ? detailTask.notes : [];
   const liveKnowledgeHits = Array.isArray(detailTask.knowledgeHits) ? detailTask.knowledgeHits : [];
-  const [obs, setObs] = useStateT(panel?.observations || []);
-  const obsExtras = [
-    'sqlmap · enumerating column password_hash',
-    'sqlmap · row 13 retrieved · 4.18s',
-    'sqlmap · row 14 retrieved · 4.21s',
-    'sqlmap · CHAR-based payload heuristic match',
-    'sqlmap · fetching row 15',
-  ];
+  const [obs, setObs] = useStateT([]);
 
   useEffectT(() => {
-    if (!isMockActive) return;
-    let i = 0;
-    const id = setInterval(() => {
-      const text = obsExtras[i % obsExtras.length];
-      i++;
-      const ent = { id: `auto_${Date.now()}`, t: new Date().toISOString(), text };
-      setObs(o => [...o, ent].slice(-8));
-      setObsFresh(ent.id);
-      setTimeout(() => setObsFresh(null), 900);
-    }, 4500);
-    return () => clearInterval(id);
-  }, [isMockActive]);
-
-  useEffectT(() => {
-    if (isMockActive) {
-      setObs(panel?.observations || []);
-      return;
-    }
     setObs([]);
     setObsFresh(null);
-  }, [detailTask.id, isMockActive]);
+  }, [detailTask.id]);
 
   useEffectT(() => {
-    if (isMockActive) return;
     function pushObs(text, at) {
       const id = `live_obs_${at}_${Math.random().toString(36).slice(2, 6)}`;
       const ent = { id, t: at, text };
@@ -514,20 +531,15 @@ function TaskDetail({ task, onNav, taskViewMode }) {
 
     window.addEventListener('fh:event', handler);
     return () => window.removeEventListener('fh:event', handler);
-  }, [detailTask.id, isMockActive]);
+  }, [detailTask.id]);
 
   useEffectT(() => {
     msgEnd.current?.scrollTo({ top: msgEnd.current.scrollHeight, behavior: 'smooth' });
   }, [messages.length]);
 
   const send = async () => {
-    const connection = currentConnectionState();
-    const canSendHint = isMockActive || (
-      ['connected', 'degraded'].includes(connection.status)
-      && typeof window.API?.hintTask === 'function'
-    );
     if (!draft.trim()) return;
-    if (hintMode && !canSendHint) return;
+    if (hintMode && !hintAvailable) return;
     if (!hintMode && !continueAvailable) return;
     const newMsg = {
       id: `m_${Date.now()}`,
@@ -538,8 +550,10 @@ function TaskDetail({ task, onNav, taskViewMode }) {
     };
     setMessages(m => [...m, newMsg]);
 
-    if (!isMockActive && canSendHint && hintMode) {
+    if (hintMode) {
       await window.API.hintTask(detailTask.id, draft);
+    } else if (!hintMode && continueAvailable) {
+      await window.API.continueTask(detailTask.id, draft);
     }
 
     setTimeout(() => {
@@ -555,12 +569,12 @@ function TaskDetail({ task, onNav, taskViewMode }) {
 
   async function handleStop() {
     const connection = currentConnectionState();
-    const canStopTask = isMockActive || (
+    const canStopTask = stopSupported && (
       ['connected', 'degraded'].includes(connection.status)
       && typeof window.API?.stopTask === 'function'
     );
     if (!canStopTask) return;
-    if (!isMockActive) await window.API.stopTask(detailTask.id);
+    await window.API.stopTask(detailTask.id);
     setMessages(m => [...m, {
       id: `m_stop_${Date.now()}`,
       role: 'system',
@@ -569,22 +583,39 @@ function TaskDetail({ task, onNav, taskViewMode }) {
     }]);
   }
 
+  async function handleRetry() {
+    if (!retryAvailable) return;
+    await window.API.retryTask(detailTask.id);
+    setMessages(m => [...m, {
+      id: `m_retry_${Date.now()}`,
+      role: 'system',
+      t: new Date().toISOString(),
+      content: 'retry requested',
+    }]);
+  }
+
+  const continueUnavailableReason = continueSupported ? t('c.unavailable') : t('td.continueUnavailable');
+  const retryUnavailableReason = retrySupported ? t('c.unavailable') : t('td.retryUnavailable');
+
   return (
     <div className="task-detail">
       <div className="task-detail-head">
         <div className="left">
-          <div className="row gap-8" style={{ marginBottom: 6 }}>
+          <div className="identity-row">
             <StatusBadge status={detailTask.status} size="lg" />
             <TypeBadge type={detailTask.detectedType} />
-            <span className="dim mono" style={{ fontSize: 11 }}>{detailTask.id}</span>
+            <span className="dim mono">{detailTask.id}</span>
             {detailTask.currentRunId && (
-              <span className="dim mono" style={{ fontSize: 11 }}>· {t('td.run')} <span className="bright">{detailTask.currentRunId}</span></span>
+              <span className="dim mono">· {t('td.run')} <span className="bright">{detailTask.currentRunId}</span></span>
             )}
+            <span className="chip ghost">{taskViewMode === 'analysis' ? t('td.modeAnalysis') : t('td.modeConversation')}</span>
           </div>
           <div className="title">{detailTask.title}</div>
-          <div className="meta">
+          <div className="descriptor-row">
             <span>{t('c.target')} <b>{detailTask.target}</b></span>
             <span>{t('c.goal')} <b>{detailTask.goal || '—'}</b></span>
+          </div>
+          <div className="runtime-row">
             <span>{t('c.started')} <b>{detailTask.startedAt ? fmt.since(detailTask.startedAt) : '—'}</b></span>
             <span>{t('c.tokens')} <b>{((detailTask.tokensUsed||0)/1000).toFixed(1)}k</b></span>
             <span>{t('c.tools')} <b>{detailTask.toolCalls || 0}</b></span>
@@ -593,9 +624,16 @@ function TaskDetail({ task, onNav, taskViewMode }) {
           </div>
         </div>
         <div className="actions">
-          {isActive && <button className="btn danger" onClick={handleStop}>■ {t('c.stop')}</button>}
-          {isActive && <button className="btn" disabled={!retryAvailable} title={!retryAvailable ? t('td.retryUnavailable') : ''}>⟲ {t('c.retry')}</button>}
-          {detailTask.status === 'failed' && <button className="btn primary" disabled={!retryAvailable} title={!retryAvailable ? t('td.retryUnavailable') : ''}>⟲ {t('c.retry')}</button>}
+          {(isActive || detailTask.status === 'failed') && (
+            <button
+              className={`btn ${detailTask.status === 'failed' ? 'primary' : ''}`.trim()}
+              disabled={!retryAvailable}
+              title={!retryAvailable ? retryUnavailableReason : ''}
+              onClick={handleRetry}
+            >
+              ⟲ {t('c.retry')}
+            </button>
+          )}
           <button
             className="btn ghost"
             onClick={() => downloadJson(`${detailTask.id}.json`, detailTask)}
@@ -603,13 +641,14 @@ function TaskDetail({ task, onNav, taskViewMode }) {
             ⤓ {t('c.export')}
           </button>
           <button className="btn ghost" onClick={() => detailTask.currentRunId && onNav && onNav(`traces/${detailTask.currentRunId}`)}>⧉ {t('c.trace')}</button>
+          {isActive && stopSupported && <button className="btn danger" onClick={handleStop}>■ {t('c.stop')}</button>}
         </div>
       </div>
 
       <div className={`task-detail-body mode-${taskViewMode || 'conversation'}`}>
         {/* convo */}
         <div className="task-convo">
-          {!isMockActive && detailTask.detailSource && <TaskDetailSourceBanner source={detailTask.detailSource} />}
+          {detailTask.detailSource && <TaskDetailSourceBanner source={detailTask.detailSource} />}
           <div className="msg-list" ref={msgEnd}>
             {messages.map(m => <Message key={m.id} m={m} />)}
             {isActive && (
@@ -632,32 +671,32 @@ function TaskDetail({ task, onNav, taskViewMode }) {
                 className={`tab-mini ${!hintMode ? 'on' : ''} ${!continueAvailable ? 'disabled' : ''}`}
                 style={!hintMode ? { color: 'var(--accent)', background: 'rgba(107,230,117,0.08)', borderColor: 'var(--accent-dim)' } : {}}
                 onClick={() => continueAvailable && setHintMode(false)}
-                title={!continueAvailable ? t('td.continueUnavailable') : ''}
+                title={!continueAvailable ? continueUnavailableReason : ''}
               >
                 {t('td.continue')}
               </span>
-              <span className={`tab-mini ${hintMode ? 'on' : ''}`} onClick={() => setHintMode(true)}>
+              <span className={`tab-mini ${hintMode ? 'on' : ''} ${!hintAvailable ? 'disabled' : ''}`} onClick={() => hintAvailable && setHintMode(true)}>
                 {t('td.injectHint')}
               </span>
               <span style={{ marginLeft: 'auto', color: 'var(--fg-3)', fontSize: 10.5, alignSelf: 'center' }}>
-                {hintMode ? t('td.hintDesc') : (continueAvailable ? t('td.continueDesc') : t('td.continueUnavailable'))}
+                {hintMode ? (hintAvailable ? t('td.hintDesc') : t('c.unavailable')) : (continueAvailable ? t('td.continueDesc') : continueUnavailableReason)}
               </span>
             </div>
             <div className="row">
               <textarea
                 className="input"
-                placeholder={hintMode ? t('td.composer.hint') : (continueAvailable ? t('td.composer.continue') : t('td.continueUnavailable'))}
+                placeholder={hintMode ? t('td.composer.hint') : (continueAvailable ? t('td.composer.continue') : continueUnavailableReason)}
                 value={draft}
                 onChange={e => setDraft(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); }}}
                 rows={2}
-                disabled={!hintMode && !continueAvailable}
+                disabled={hintMode ? !hintAvailable : !continueAvailable}
               />
               <button
                 className={`btn ${hintMode ? '' : 'primary'}`}
                 onClick={send}
-                disabled={!hintMode && !continueAvailable}
-                title={!hintMode && !continueAvailable ? t('td.continueUnavailable') : ''}
+                disabled={hintMode ? !hintAvailable : !continueAvailable}
+                title={hintMode ? (!hintAvailable ? t('c.unavailable') : '') : (!continueAvailable ? continueUnavailableReason : '')}
               >
                 {hintMode ? t('td.inject') : t('td.sendBtn')} <span className="kbd">⌘↵</span>
               </button>
@@ -667,23 +706,15 @@ function TaskDetail({ task, onNav, taskViewMode }) {
 
         {/* side panel */}
         <div className="side-panel">
-          {panel && <PlanCard plan={panel.plan} />}
-          {panel && <StrategyCard panel={panel} />}
-          {panel && <ToolCard tool={panel.tool} />}
-          {panel && <ObsCard obs={obs} fresh={obsFresh} />}
-          {panel && <KnowledgeCard hits={panel.knowledgeHits} />}
-          {panel && <NotesCard notes={panel.notes} />}
-          {panel && <ArtifactsCard artifacts={panel.artifacts} />}
-          {!panel && (
-            <LiveSidePanel
-              task={{ ...detailTask, attachments }}
-              plan={livePlan}
-              notes={liveNotes}
-              knowledgeHits={liveKnowledgeHits}
-              observations={obs}
-              freshObservationId={obsFresh}
-            />
-          )}
+          <LiveSidePanel
+            task={{ ...detailTask, attachments }}
+            plan={livePlan}
+            notes={liveNotes}
+            knowledgeHits={liveKnowledgeHits}
+            observations={obs}
+            freshObservationId={obsFresh}
+            attachmentsAvailable={attachmentsSupported}
+          />
         </div>
       </div>
     </div>
@@ -888,66 +919,99 @@ function ArtifactsCard({ artifacts }) {
   );
 }
 
-function SyntheticSidePanel({ task }) {
+function TaskStatusCard({ task }) {
+  const isFlagged = task.finalFlag;
+  return (
+    <div className="side-card">
+      <div className="h">▸ {t('side.status')}</div>
+      <div className="kv-list">
+        <div className="kv-row"><span className="k">{t('c.status')}</span><span className="v"><StatusBadge status={task.status} /></span></div>
+        <div className="kv-row"><span className="k">{t('c.duration')}</span><span className="v">{task.durationMs ? (task.durationMs/1000).toFixed(1) + 's' : '—'}</span></div>
+        <div className="kv-row"><span className="k">{t('c.tokens')}</span><span className="v">{(task.tokensUsed||0).toLocaleString()}</span></div>
+        <div className="kv-row"><span className="k">{t('c.tools')}</span><span className="v">{task.toolCalls||0}</span></div>
+        {task.stopReason && <div className="kv-row"><span className="k">{t('c.stopReason')}</span><span className="v red">{task.stopReason}</span></div>}
+        {isFlagged && <div className="kv-row"><span className="k">{t('c.flag')}</span><span className="v green">{task.finalFlag}</span></div>}
+      </div>
+    </div>
+  );
+}
+
+function TaskAttachmentsCard({ attachments, attachmentsAvailable }) {
+  const items = Array.isArray(attachments) ? attachments : [];
+  if (!attachmentsAvailable && items.length === 0) {
+    return (
+      <div className="side-card">
+        <div className="h">◫ {t('side.attachments')} <span className="dim right">0</span></div>
+        <Empty>{t('c.unavailable')}</Empty>
+      </div>
+    );
+  }
+  if (items.length === 0) return null;
+  return (
+    <div className="side-card">
+      <div className="h">◫ {t('side.attachments')} <span className="dim right">{items.length}</span></div>
+      <div className="col gap-4">
+        {items.map((a, i) => (
+          <div key={i} className="row gap-8 attach-row">
+            <span style={{ fontSize: 13 }}>{window.fileIcon ? window.fileIcon(a.name) : '◫'}</span>
+            <span className="bright ellipsis flex1" style={{ fontSize: 11.5 }}>{a.name}</span>
+            <span className="dim" style={{ fontSize: 10, fontFamily: 'var(--font-mono)' }}>
+              {a.size < 1024 ? a.size + 'B'
+                : a.size < 1048576 ? (a.size / 1024).toFixed(1) + 'KB'
+                : (a.size / 1048576).toFixed(2) + 'MB'}
+            </span>
+            {a.path && (
+              <span className="dim" title={a.path} style={{ fontSize: 9 }}>✓</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TaskSummaryCard({ task }) {
   const isFlagged = task.finalFlag;
   let summaryKey;
-  if (task.status === 'success') summaryKey = 'side.summary.success';
+  if (task.status === 'running') summaryKey = 'side.summary.running';
+  else if (task.status === 'success') summaryKey = 'side.summary.success';
   else if (task.status === 'failed') summaryKey = 'side.summary.failed';
   else if (task.status === 'queued') summaryKey = 'side.summary.queued';
   else summaryKey = 'side.summary.stopped';
 
-  const attachments = task.attachments || [];
+  return (
+    <div className="side-card">
+      <div className="h">◈ {t('side.summary')}</div>
+      <div style={{ fontSize: 11.5, color: 'var(--fg-1)', lineHeight: 1.55 }}>
+        {t(summaryKey, task.stopReason || '')}
+      </div>
+      {isFlagged && <div className="green" style={{ marginTop: 8, fontSize: 11.5 }}>{task.finalFlag}</div>}
+    </div>
+  );
+}
 
+function SyntheticSidePanel({ task, attachmentsAvailable }) {
   return (
     <>
-      <div className="side-card">
-        <div className="h">▸ {t('side.status')}</div>
-        <div className="kv-list">
-          <div className="kv-row"><span className="k">{t('c.status')}</span><span className="v"><StatusBadge status={task.status} /></span></div>
-          <div className="kv-row"><span className="k">{t('c.duration')}</span><span className="v">{task.durationMs ? (task.durationMs/1000).toFixed(1) + 's' : '—'}</span></div>
-          <div className="kv-row"><span className="k">{t('c.tokens')}</span><span className="v">{(task.tokensUsed||0).toLocaleString()}</span></div>
-          <div className="kv-row"><span className="k">{t('c.tools')}</span><span className="v">{task.toolCalls||0}</span></div>
-          {task.stopReason && <div className="kv-row"><span className="k">{t('c.stopReason')}</span><span className="v red">{task.stopReason}</span></div>}
-          {isFlagged && <div className="kv-row"><span className="k">{t('c.flag')}</span><span className="v green">{task.finalFlag}</span></div>}
-        </div>
-      </div>
-
-      {attachments.length > 0 && (
-        <div className="side-card">
-          <div className="h">◫ {t('side.attachments')} <span className="dim right">{attachments.length}</span></div>
-          <div className="col gap-4">
-            {attachments.map((a, i) => (
-              <div key={i} className="row gap-8 attach-row">
-                <span style={{ fontSize: 13 }}>{window.fileIcon ? window.fileIcon(a.name) : '◫'}</span>
-                <span className="bright ellipsis flex1" style={{ fontSize: 11.5 }}>{a.name}</span>
-                <span className="dim" style={{ fontSize: 10, fontFamily: 'var(--font-mono)' }}>
-                  {a.size < 1024 ? a.size + 'B'
-                    : a.size < 1048576 ? (a.size / 1024).toFixed(1) + 'KB'
-                    : (a.size / 1048576).toFixed(2) + 'MB'}
-                </span>
-                {a.path && (
-                  <span className="dim" title={a.path} style={{ fontSize: 9 }}>✓</span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="side-card">
-        <div className="h">◈ {t('side.summary')}</div>
-        <div style={{ fontSize: 11.5, color: 'var(--fg-1)', lineHeight: 1.55 }}>
-          {t(summaryKey, task.stopReason || '')}
-        </div>
-      </div>
+      <TaskStatusCard task={task} />
+      <TaskAttachmentsCard attachments={task.attachments || []} attachmentsAvailable={attachmentsAvailable} />
+      <TaskSummaryCard task={task} />
     </>
   );
 }
 
-function LiveSidePanel({ task, plan, notes, knowledgeHits, observations, freshObservationId }) {
+function LiveSidePanel({ task, plan, notes, knowledgeHits, observations, freshObservationId, attachmentsAvailable }) {
+  const showFallbackSummary = !plan.length && !notes.length && !knowledgeHits.length && !observations.length;
   return (
     <>
-      <SyntheticSidePanel task={task} />
+      {showFallbackSummary ? (
+        <SyntheticSidePanel task={task} attachmentsAvailable={attachmentsAvailable} />
+      ) : (
+        <>
+          <TaskStatusCard task={task} />
+          <TaskAttachmentsCard attachments={task.attachments || []} attachmentsAvailable={attachmentsAvailable} />
+        </>
+      )}
       <div className="side-card">
         <div className="h">◎ observed sources</div>
         <div className="kv-list">
@@ -966,6 +1030,7 @@ function LiveSidePanel({ task, plan, notes, knowledgeHits, observations, freshOb
       <PlanCardLive plan={plan} />
       <KnowledgeCard hits={knowledgeHits} />
       <NotesCard notes={notes} />
+      {!showFallbackSummary && <TaskSummaryCard task={task} />}
     </>
   );
 }
@@ -1000,6 +1065,7 @@ function mergeTaskDetail(prev, next) {
     ...next,
     messages: preferTaskDetailField(next.messages, prev.messages),
     hints: preferTaskDetailField(next.hints, prev.hints),
+    capabilities: preferTaskDetailField(next.capabilities, prev.capabilities),
     detailSource: preferTaskDetailField(next.detailSource, prev.detailSource),
     plan: preferTaskDetailField(next.plan, prev.plan),
     notes: preferTaskDetailField(next.notes, prev.notes),
@@ -1007,13 +1073,27 @@ function mergeTaskDetail(prev, next) {
   };
 }
 
+function normalizeTaskCapabilities(capabilities) {
+  return {
+    hint: capabilities?.hint !== false,
+    stop: Boolean(capabilities?.stop),
+    continue: Boolean(capabilities?.continue),
+    retry: Boolean(capabilities?.retry),
+    attachments: capabilities?.attachments !== false,
+  };
+}
+
 function buildSyntheticMessages(tk) {
   if (tk.status === 'queued') {
     return [{ id: 'sm1', role: 'user', t: new Date().toISOString(), content: `${tk.goal || ''}\n${t('c.target')}: ${tk.target}` }];
   }
-  return [
+  const messages = [
     { id: 'sm1', role: 'user',   t: tk.startedAt || new Date().toISOString(), content: `${tk.goal || ''}\n${t('c.target')}: ${tk.target}` },
     { id: 'sm2', role: 'agent',  t: tk.startedAt || new Date().toISOString(), content: window.LANG === 'zh' ? '收到，开始 recon。' : 'Acknowledged. Starting recon.' },
+  ];
+  if (tk.status === 'running') return messages;
+  return [
+    ...messages,
     { id: 'sm3', role: 'system', t: tk.finishedAt || tk.startedAt || new Date().toISOString(),
       content: tk.finalFlag ? `flag verified ✓  ${tk.finalFlag}` :
         tk.stopReason ? `task ended · stop_reason=${tk.stopReason}` : 'task ended' },
