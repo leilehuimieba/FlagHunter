@@ -1,7 +1,29 @@
 # FlagHunter
 
+[![Status](https://img.shields.io/badge/status-active-2ea44f)](https://github.com/leilehuimieba/FlagHunter/releases/tag/v0.1.0)
+[![Version](https://img.shields.io/badge/version-v0.1.0-0969da)](https://github.com/leilehuimieba/FlagHunter/releases/tag/v0.1.0)
+[![Python](https://img.shields.io/badge/python-3.10%2B-3776AB)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-blue)](#license)
+[![Modes](https://img.shields.io/badge/runtime-local%20%7C%20docker%20%7C%20ssh-8250df)](#典型工作模式)
+[![MCP](https://img.shields.io/badge/integration-MCP-1f6feb)](#典型工作模式)
+
 > 面向 **CTF** 与 **合规渗透测试** 的 AI 代理框架  
 > 基于 PentestAgent 演进，强化 **多 API 调度、CTF 专项能力、多 Agent 协作与可观测性**
+
+---
+
+## 快速导航
+
+- [项目定位](#项目定位)
+- [当前能力概览](#当前能力概览)
+- [快速开始](#快速开始)
+- [典型工作模式](#典型工作模式)
+- [架构一览](#架构一览)
+- [主要文档](#主要文档)
+- [路线图](#路线图)
+- [Changelog](./CHANGELOG.md)
+
+> 当前 GitHub 仓库默认保持 **Private**，用于受控协作与内部演进；不会作为公开演示仓库使用。
 
 ---
 
@@ -128,6 +150,15 @@ pentestagent
 /mcp list      查看 MCP 配置
 ```
 
+### 当前推荐起步路径
+
+如果你是第一次接手这个仓库，建议按下面顺序理解：
+
+1. 先读本页 `README`
+2. 再看 `D:\webstudy\FlagHunter\AGENTS.md`
+3. 然后看 `D:\webstudy\FlagHunter\docs\D1_M1M2_用户使用手册.md`
+4. 如果要继续开发，再看 `D:\webstudy\FlagHunter\docs\superpowers\plans\`
+
 ---
 
 ## 典型工作模式
@@ -189,14 +220,17 @@ FlagHunter
 | `D:\webstudy\FlagHunter\docs\D2_部署指南_Windows_KaliVM.md` | Windows + Kali VM 部署指南 |
 | `D:\webstudy\FlagHunter\docs\D3_CTF实战攻略.md` | CTF 实战路径说明 |
 | `D:\webstudy\FlagHunter\docs\superpowers\plans\` | 当前实现计划与执行文档 |
+| `D:\webstudy\FlagHunter\CHANGELOG.md` | 版本与仓库演进记录 |
 
 ---
 
 ## Release / License / Repository Hygiene
 
 - **Release**：使用 GitHub Releases 记录阶段性可用版本
+- **Current Release**：`v0.1.0`
 - **License**：当前采用 `MIT`（兼容上游）
 - **.gitignore**：仓库已包含顶层 `.gitignore`，用于屏蔽本地环境、日志、缓存和敏感文件
+- **Website**：当前未设置公开站点链接，避免把私有仓库误当公开展示页
 
 建议协作时遵循：
 
