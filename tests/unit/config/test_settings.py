@@ -1,4 +1,4 @@
-"""Tests for pentestagent.config.settings."""
+﻿"""Tests for pentestagent.config.settings and related constants."""
 
 import os
 from pathlib import Path
@@ -6,7 +6,36 @@ from unittest.mock import patch
 
 import pytest
 
+from pentestagent.config.constants import get_openai_api_base
 from pentestagent.config.settings import Settings, get_settings, update_settings
+
+
+class TestGetOpenaiApiBase:
+    def test_returns_none_when_not_set(self):
+        clean = {k: v for k, v in os.environ.items()
+                 if k not in ("OPENAI_API_BASE", "OPENAI_BASE_URL")}
+        with patch.dict(os.environ, clean, clear=True):
+            assert get_openai_api_base() is None
+
+    def test_reads_openai_api_base(self):
+        with patch.dict(os.environ, {"OPENAI_API_BASE": "https://relay.example/v1"}, clear=True):
+            assert get_openai_api_base() == "https://relay.example/v1"
+
+    def test_reads_openai_base_url(self):
+        with patch.dict(os.environ, {"OPENAI_BASE_URL": "https://other.example/v1"}, clear=True):
+            assert get_openai_api_base() == "https://other.example/v1"
+
+    def test_strips_trailing_slash(self):
+        with patch.dict(os.environ, {"OPENAI_API_BASE": "https://relay.example/v1/"}, clear=True):
+            assert get_openai_api_base() == "https://relay.example/v1"
+
+    def test_openai_api_base_takes_precedence_over_base_url(self):
+        with patch.dict(
+            os.environ,
+            {"OPENAI_API_BASE": "https://primary.example/v1", "OPENAI_BASE_URL": "https://secondary.example"},
+            clear=True,
+        ):
+            assert get_openai_api_base() == "https://primary.example/v1"
 
 
 class TestSettingsDefaults:
@@ -46,6 +75,20 @@ class TestSettingsDefaults:
         assert isinstance(s.mcp_config_path, Path)
 
 
+class TestSettingsApiBase:
+    def test_openai_api_base_is_none_by_default(self):
+        clean = {k: v for k, v in os.environ.items()
+                 if k not in ("OPENAI_API_BASE", "OPENAI_BASE_URL")}
+        with patch.dict(os.environ, clean, clear=True):
+            s = Settings()
+            assert s.openai_api_base is None
+
+    def test_openai_api_base_from_env(self):
+        with patch.dict(os.environ, {"OPENAI_API_BASE": "https://api.example/v1"}, clear=True):
+            s = Settings()
+            assert s.openai_api_base == "https://api.example/v1"
+
+
 class TestSettingsEnvVars:
     def test_openai_api_key_from_env(self):
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-openai"}):
@@ -58,9 +101,12 @@ class TestSettingsEnvVars:
             assert s.anthropic_api_key == "sk-ant-test"
 
     def test_missing_api_keys_are_none(self):
-        clean_env = {k: v for k, v in os.environ.items()
-                     if k not in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY")}
-        with patch.dict(os.environ, clean_env, clear=True):
+        clean = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY")
+        }
+        with patch.dict(os.environ, clean, clear=True):
             s = Settings()
             assert s.openai_api_key is None
             assert s.anthropic_api_key is None

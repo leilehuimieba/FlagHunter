@@ -1,7 +1,7 @@
 # PentestAgent Kali Linux Image
 # Full penetration testing environment
 
-FROM kalilinux/kali-rolling
+FROM kalilinux/kali-last-release
 
 LABEL maintainer="Masic"
 LABEL description="PentestAgent with Kali Linux tools"
