@@ -226,6 +226,11 @@ const DICT = {
     'td.retryUnavailable': 'retry is currently unsupported by backend capabilities',
     'td.runningTail': 'sqlmap still enumerating users table…',
     'td.runningTailCode': 'sqlmap · pid 18472 · elapsed 00:01:24 · 12 rows so far',
+    'td.obs.empty': 'no observed live events yet',
+    'td.knowledge.empty': 'no observed knowledge hits yet',
+    'td.knowledge.observedOnly': 'knowledge tool usage was observed, but no snapshot-backed query or chunk detail is available yet',
+    'td.notes.empty': 'no observed notes yet',
+    'td.plan.empty': 'no observed plan snapshot yet',
 
     'side.plan': 'PLAN',
     'side.strategy': 'STRATEGY',
@@ -313,6 +318,11 @@ const DICT = {
     'tr.dr.stepId': 'step_id',
     'tr.dr.when': 'when',
     'tr.dr.noOutput': '— output preview not available —',
+    'tr.empty.timeline': 'no observed trace timeline yet',
+    'tr.empty.awaitingFirstEvent': 'waiting for first trace event',
+    'tr.empty.graph': 'no observed trace graph events yet',
+    'tr.empty.toolIo': 'no observed tool I/O snapshot for this event',
+    'tr.empty.chunkExcerpt': 'no observed chunk excerpt',
 
     /* knowledge */
     'kb.t': 'Knowledge',
@@ -740,6 +750,11 @@ const DICT = {
     'td.retryUnavailable': '后端 capability 当前不支持 retry',
     'td.runningTail': 'sqlmap 仍在枚举 users 表…',
     'td.runningTailCode': 'sqlmap · pid 18472 · elapsed 00:01:24 · 已获 12 行',
+    'td.obs.empty': '尚未观测到实时事件',
+    'td.knowledge.empty': '尚未观测到知识命中',
+    'td.knowledge.observedOnly': '已观测到 knowledge 工具使用，但暂时还没有 snapshot-backed 的 query 或 chunk 明细',
+    'td.notes.empty': '尚未观测到笔记',
+    'td.plan.empty': '尚未观测到计划快照',
 
     'side.plan': '计划',
     'side.strategy': '策略',
@@ -827,6 +842,11 @@ const DICT = {
     'tr.dr.stepId': '步骤ID',
     'tr.dr.when': '时间',
     'tr.dr.noOutput': '— 输出预览不可用 —',
+    'tr.empty.timeline': '尚未观测到追踪时间线',
+    'tr.empty.awaitingFirstEvent': '正在等待第一个追踪事件',
+    'tr.empty.graph': '尚未观测到追踪图事件',
+    'tr.empty.toolIo': '当前事件尚未观测到工具 I/O 快照',
+    'tr.empty.chunkExcerpt': '尚未观测到 chunk 摘要',
 
     /* knowledge */
     'kb.t': '知识库',

@@ -193,7 +193,7 @@ function TraceDetail({ runId, onNav }) {
     : resolveTraceTimeline(resolvedRun);
   const hasObservedToolIO = Array.isArray(resolvedRun.toolEvents) && resolvedRun.toolEvents.length > 0;
   const graph = uM(() => buildTraceGraph(timeline, resolvedRun), [timeline, resolvedRun.id, resolvedRun.status, resolvedRun.startedAt]);
-  const traceEmptyState = connection.status === 'disconnected' ? t('c.unavailable') : 'no observed trace timeline';
+  const traceEmptyState = connection.status === 'disconnected' ? t('c.unavailable') : t('tr.empty.timeline');
 
   uE(() => {
     window.dispatchEvent(new CustomEvent('fh:route-label', {
@@ -425,7 +425,7 @@ function TraceDetail({ runId, onNav }) {
         {tab === 'graph' && (
           graph.nodes.length > 0
             ? <GraphView graph={graph} run={resolvedRun} onPick={setDrawer} />
-            : <Empty>{isActive ? 'waiting for first trace event' : 'no observed trace graph events'}</Empty>
+            : <Empty>{isActive ? t('tr.empty.awaitingFirstEvent') : t('tr.empty.graph')}</Empty>
         )}
         {tab === 'data' && <DataTables run={resolvedRun} events={timeline} />}
       </Panel>
@@ -453,7 +453,7 @@ function TimelineView({ events, onPick, isActive, emptyState }) {
   const [hover, setHover] = uS(null);
 
   if (!events.length && !isActive) {
-    return <Empty>{emptyState || 'no observed trace timeline'}</Empty>;
+    return <Empty>{emptyState || t('tr.empty.timeline')}</Empty>;
   }
 
   return (
@@ -800,7 +800,7 @@ function EventDrawer({ event, run, onClose }) {
             <div className="muted" style={{ fontSize: 10, margin: '8px 0 4px' }}>{t('tr.dr.output')}</div>
             <pre className="code-block">{hasObservedOutput ? e.output : getToolOutput(e)}</pre>
             {!hasObservedInput && !hasObservedOutput && (
-              <div className="muted" style={{ fontSize: 10, marginTop: 6 }}>no observed tool I/O snapshot for this event</div>
+              <div className="muted" style={{ fontSize: 10, marginTop: 6 }}>{t('tr.empty.toolIo')}</div>
             )}
           </div>
         )}
@@ -808,7 +808,7 @@ function EventDrawer({ event, run, onClose }) {
         {e.type === 'knowledge' && (
           <div className="section">
             <div className="h">{t('tr.dr.chunks')}</div>
-            <pre className="code-block">{e.output || e.summary || 'no observed chunk excerpt'}</pre>
+            <pre className="code-block">{e.output || e.summary || t('tr.empty.chunkExcerpt')}</pre>
           </div>
         )}
 

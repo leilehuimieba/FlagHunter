@@ -758,7 +758,7 @@ function ObsCard({ obs, fresh }) {
     <div className="side-card">
       <div className="h">◇ {t('side.obs')} <span className="dim right">{t('c.live')}</span></div>
       <div className="obs-feed">
-        {obs.length === 0 && <Empty>no observed live events</Empty>}
+        {obs.length === 0 && <Empty>{t('td.obs.empty')}</Empty>}
         {obs.map(o => (
           <div key={o.id} className={`obs-row ${o.id === fresh ? 'fresh' : ''}`}>
             <span className="when">{fmt.hh(o.t).slice(0, 8)}</span>{o.text}
@@ -795,8 +795,8 @@ function KnowledgeCard({ hits }) {
         ? 'live events'
         : 'unobserved';
   const emptyHint = modeCounts.metrics_observed > 0
-    ? 'knowledge tool usage was observed, but no snapshot-backed query / chunk detail is available'
-    : 'no observed knowledge hits';
+    ? t('td.knowledge.observedOnly')
+    : t('td.knowledge.empty');
 
   return (
     <div className="side-card">
@@ -847,7 +847,7 @@ function NotesCard({ notes }) {
     <div className="side-card">
       <div className="h">✎ {t('side.notes')} <span className="dim right">{notes.length}</span></div>
       <div className="col gap-4">
-        {notes.length === 0 && <Empty>no observed notes</Empty>}
+        {notes.length === 0 && <Empty>{t('td.notes.empty')}</Empty>}
         {notes.map(n => (
           <div key={n.id} style={{ fontSize: 11.5 }}>
             <span className="muted">{n.key}</span>
@@ -998,7 +998,7 @@ function PlanCardLive({ plan }) {
     return (
       <div className="side-card">
         <div className="h"><span className="accent">▸ {t('side.plan')}</span><span className="dim right">0</span></div>
-        <Empty>no observed plan snapshot</Empty>
+        <Empty>{t('td.plan.empty')}</Empty>
       </div>
     );
   }
