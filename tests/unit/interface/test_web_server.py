@@ -155,6 +155,77 @@ async def test_dashboard_summary_never_omits_required_collections(web_client: Te
 
 
 @pytest.mark.asyncio
+async def test_dashboard_summary_supports_window_and_runtime_filters(web_client: TestClient):
+    now = web_server._now_iso()
+    old = (web_server.datetime.now(web_server.timezone.utc) - web_server.timedelta(days=2)).isoformat()
+
+    web_server._tasks["task_local_recent"] = {
+        "id": "task_local_recent",
+        "title": "local recent",
+        "target": "http://local.test",
+        "goal": "recent local",
+        "status": "success",
+        "createdAt": now,
+        "startedAt": now,
+        "finishedAt": now,
+        "tokensUsed": 10,
+        "toolCalls": 1,
+        "docker": False,
+        "currentRunId": "run_local_recent",
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+    web_server._tasks["task_docker_old"] = {
+        "id": "task_docker_old",
+        "title": "docker old",
+        "target": "http://docker.test",
+        "goal": "old docker",
+        "status": "failed",
+        "createdAt": old,
+        "startedAt": old,
+        "finishedAt": old,
+        "tokensUsed": 20,
+        "toolCalls": 2,
+        "docker": True,
+        "currentRunId": "run_docker_old",
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    recent_resp = await web_client.get("/api/dashboard/summary?window=24h&runtime=all")
+    assert recent_resp.status == 200
+    recent_data = await recent_resp.json()
+    assert recent_data["kpis"]["tasksToday"] == 1
+    assert recent_data["recentTasks"][0]["id"] == "task_local_recent"
+
+    docker_resp = await web_client.get("/api/dashboard/summary?window=all&runtime=docker")
+    assert docker_resp.status == 200
+    docker_data = await docker_resp.json()
+    assert docker_data["kpis"]["tasksToday"] == 1
+    assert docker_data["recentTasks"][0]["id"] == "task_docker_old"
+    for key in [
+        "tokenSeries",
+        "toolDistribution",
+        "failureDistribution",
+        "knowledgeHitTrend",
+        "flags",
+        "recentTasks",
+        "recentToolCalls",
+        "alerts",
+    ]:
+        assert key in docker_data
+        assert isinstance(docker_data[key], list)
+
+
+@pytest.mark.asyncio
 async def test_task_detail_includes_capabilities_and_detail_fields(web_client: TestClient):
     created = await web_client.post(
         "/api/tasks",

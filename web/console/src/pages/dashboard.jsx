@@ -82,6 +82,8 @@ function useFlagBoard(initialFlags) {
 function DashboardPage({ onNav }) {
   const [liveData, setLiveData] = uD(null);
   const [connection, setConnection] = uD(() => currentConnectionState());
+  const [windowFilter, setWindowFilter] = uD('24h');
+  const [runtimeFilter, setRuntimeFilter] = uD('all');
 
   uDE(() => {
     const handler = (e) => {
@@ -98,7 +100,7 @@ function DashboardPage({ onNav }) {
     let cancelled = false;
     if (!window.API?.getDashboard) return () => { cancelled = true; };
 
-    window.API.getDashboard().then(data => {
+    window.API.getDashboard({ window: windowFilter, runtime: runtimeFilter }).then(data => {
       const normalized = normalizeDashboardData(data);
       if (!cancelled && normalized) setLiveData(normalized);
     });
@@ -106,20 +108,20 @@ function DashboardPage({ onNav }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [windowFilter, runtimeFilter]);
 
   // Subscribe to SSE for real-time KPI updates — re-fetch dashboard on task events
   uDE(() => {
     if (!window.API?.subscribeEvents || !window.API?.getDashboard) return;
     return window.API.subscribeEvents(ev => {
       if (ev.type === 'task_status' || ev.type === 'task_created') {
-        window.API.getDashboard().then(data => {
+        window.API.getDashboard({ window: windowFilter, runtime: runtimeFilter }).then(data => {
           const normalized = normalizeDashboardData(data);
           if (normalized) setLiveData(normalized);
         });
       }
     });
-  }, []);
+  }, [windowFilter, runtimeFilter]);
 
   const hasDashboardData = !!liveData;
   const canReadLiveState = connection.status !== 'disconnected';
@@ -155,8 +157,16 @@ function DashboardPage({ onNav }) {
           <div className="sub">{dashboardSub}</div>
         </div>
         <div className="row">
-          <button className="btn" disabled={true} title={t('c.unavailable')}><span className="muted">{t('c.last24h')}</span> <span className="kbd">▾</span></button>
-          <button className="btn" disabled={true} title={t('c.unavailable')}><span className="muted">{t('c.allRuntimes')}</span> <span className="kbd">▾</span></button>
+          <select className="input" value={windowFilter} onChange={e => setWindowFilter(e.target.value)} style={{ width: 120 }}>
+            <option value="24h">{t('c.last24h')}</option>
+            <option value="all">all time</option>
+          </select>
+          <select className="input" value={runtimeFilter} onChange={e => setRuntimeFilter(e.target.value)} style={{ width: 140 }}>
+            <option value="all">{t('c.allRuntimes')}</option>
+            <option value="local">local</option>
+            <option value="docker">docker</option>
+            <option value="ssh">ssh</option>
+          </select>
           <button className="btn primary" onClick={() => onNav('tasks')}>{t('c.newTask')}</button>
         </div>
       </div>

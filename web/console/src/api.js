@@ -142,8 +142,9 @@
     return apiFetch('/api/runtime/test', { method: 'POST' });
   }
 
-  async function getDashboard() {
-    return apiFetch('/api/dashboard/summary');
+  async function getDashboard(params) {
+    const q = params ? '?' + new URLSearchParams(params) : '';
+    return apiFetch('/api/dashboard/summary' + q);
   }
 
   async function getTasks(params) {
