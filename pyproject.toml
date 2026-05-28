@@ -74,7 +74,7 @@ all = [
     "pentestagent[dev,rag]",
 ]
 localtools = [
-    "setuptools<81",
+    "setuptools<83",
     "PySocks>=1.7.1",
     "defusedxml>=0.7.0",
     "pyopenssl>=21.0.0",

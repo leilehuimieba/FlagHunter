@@ -7,7 +7,7 @@
 # - 用于支撑项目内 tools/ 目录下的本地安全工具包装与运行
 # - 当前重点覆盖 dirsearch 的 Python 运行依赖
 
-# dirsearch 仍依赖 pkg_resources；保持 setuptools < 81 以兼容
+# dirsearch 仍依赖 pkg_resources；保持 setuptools < 83 以兼容
 setuptools<81
 
 # dirsearch 直接依赖
