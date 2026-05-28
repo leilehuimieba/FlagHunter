@@ -1198,16 +1198,51 @@ textarea.input { resize: vertical; min-height: 60px; line-height: 1.5; }
   padding: 2px 6px;
   border-radius: 3px;
   font-family: var(--font-mono);
+  border: 1px solid var(--line-2);
 }
-.conn-badge.live {
+.conn-badge.connected {
   background: rgba(107, 230, 117, 0.15);
   color: var(--accent);
-  border: 1px solid var(--accent-dim);
+  border-color: var(--accent-dim);
 }
-.conn-badge.mock {
-  background: rgba(74, 82, 94, 0.3);
-  color: var(--fg-3);
+.conn-badge.degraded,
+.conn-badge.reconnecting,
+.conn-badge.connecting {
+  background: rgba(255, 181, 71, 0.12);
+  color: var(--amber);
+  border-color: rgba(255, 181, 71, 0.35);
+}
+.conn-badge.disconnected {
+  background: rgba(255, 93, 93, 0.12);
+  color: var(--red);
+  border-color: rgba(255, 93, 93, 0.32);
+}
+
+.task-view-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
   border: 1px solid var(--line-2);
+  background: var(--bg-2);
+  border-radius: var(--radius-1);
+}
+.mode-btn {
+  min-width: 108px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 3px;
+  color: var(--fg-2);
+  font-size: 10.5px;
+  transition: background 80ms, color 80ms;
+}
+.mode-btn:hover {
+  background: var(--bg-3);
+  color: var(--fg-0);
+}
+.mode-btn.active {
+  background: rgba(107, 230, 117, 0.12);
+  color: var(--accent);
 }
 
 /* ── Modal backdrop + dialog ─────────────────────────────── */
