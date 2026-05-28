@@ -673,4 +673,5 @@ if is_m6_enabled():
 6. **M0侵入量**：4个HOOK点，预计<15行
 7. **默认开启**：CPA_M6_TURBO默认true
 
-**审阅通过后，M6模块开发完成，整个PentestAgent-CPA项目6个模块全部完成！**
+**审阅通过后，M6模块开发完成，整个FlagHunter项目6个模块全部完成！**
+

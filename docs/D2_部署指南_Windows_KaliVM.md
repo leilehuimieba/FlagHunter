@@ -1,6 +1,6 @@
-# PentestAgent-CPA 部署指南（Windows + Kali VM）
+# FlagHunter 部署指南（Windows + Kali VM）
 
-> 目标：在Windows本机上搭建完整的PentestAgent-CPA运行环境  
+> 目标：在Windows本机上搭建完整的FlagHunter运行环境  
 > 包含：Windows环境准备 + Kali VM配置 + PentestAgent安装 + M1/M2模块配置  
 
 ---
@@ -10,7 +10,7 @@
 1. [架构概览](#一架构概览)
 2. [Windows本机环境准备](#二windows本机环境准备)
 3. [Kali Linux虚拟机部署](#三kali-linux虚拟机部署)
-4. [PentestAgent-CPA安装](#四pentestagent-cpa安装)
+4. [FlagHunter安装](#四pentestagent-cpa安装)
 5. [M1模块配置](#五m1模块配置)
 6. [M2模块配置](#六m2模块配置)
 7. [验证测试](#七验证测试)
@@ -25,7 +25,7 @@
 │                    Windows 10/11 物理机                        │
 │                                                              │
 │  ┌──────────────────────────┐  ┌──────────────────────────┐ │
-│  │ PentestAgent-CPA (Python) │  │ LiteLLM Proxy (可选)      │ │
+│  │ FlagHunter (Python) │  │ LiteLLM Proxy (可选)      │ │
 │  │ · M1 API接入调度          │  │ · 端口 localhost:4000     │ │
 │  │ · M2 CTF工具包            │  │ · 多渠道API调度           │ │
 │  │ · TUI交互界面             │  │                          │ │
@@ -102,8 +102,8 @@ $env:USERPROFILE\.ssh\kali_vm.pub
 
 ```powershell
 # 创建工作目录
-mkdir C:\Tools\PentestAgent-CPA
-cd C:\Tools\PentestAgent-CPA
+mkdir C:\Tools\FlagHunter
+cd C:\Tools\FlagHunter
 
 # 克隆PentestAgent原版
 # （后续你将自己的二开代码覆盖进去）
@@ -241,12 +241,12 @@ VMware菜单 → VM → Snapshot → Take Snapshot
 
 ---
 
-## 四、PentestAgent-CPA安装
+## 四、FlagHunter安装
 
 ### 4.1 安装PentestAgent原版
 
 ```powershell
-cd C:\Tools\PentestAgent-CPA
+cd C:\Tools\FlagHunter
 
 # 克隆原版（二开代码后续覆盖）
 git clone https://github.com/GH05TCREW/PentestAgent.git .
@@ -266,7 +266,7 @@ pip install -r requirements.txt
 将M1和M2的代码文件放到对应位置：
 
 ```
-PentestAgent-CPA/
+FlagHunter/
 ├── pentestagent/              # 原版代码
 │   ├── __main__.py            # ← 添加M1/M2初始化hook
 │   ├── config/
@@ -427,7 +427,7 @@ if os.getenv("CPA_M2_CTF_KIT", "true").lower() == "true":
 
 ```bash
 # ============================================
-# PentestAgent-CPA 配置文件
+# FlagHunter 配置文件
 # ============================================
 
 # ── 原版PentestAgent配置 ──
@@ -672,3 +672,4 @@ VMware → VM → Snapshot → Restore Snapshot → 选择"初始 clean 状态"
 ---
 
 **部署完成！** 接下来阅读 [D1: M1M2用户使用手册](D1_M1M2_用户使用手册.md) 学习如何使用。
+

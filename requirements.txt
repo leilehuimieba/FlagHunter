@@ -1,4 +1,4 @@
-# PentestAgent-CPA 依赖清单
+# FlagHunter 依赖清单
 # Python 3.10+
 #
 # 安装：pip install -r requirements.txt
@@ -28,3 +28,4 @@ jinja2>=3.1.0
 # 项目内本地工具集合（nmap/sqlmap/ffuf/gobuster/nuclei/dirsearch）相关依赖：
 #   pip install -r requirements-local-tools.txt
 # ─────────────────────────────────────────────────────────────────
+

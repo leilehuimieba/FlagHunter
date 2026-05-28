@@ -1,27 +1,74 @@
 # FlagHunter
 
-> **FlagHunter** — 基于 PentestAgent 的模块化增强版  
-> 专为 CTF 竞赛和合规渗透测试设计，轻量、安全、可扩展
+> 面向 **CTF** 与 **合规渗透测试** 的 AI 代理框架  
+> 基于 PentestAgent 演进，强化 **多 API 调度、CTF 专项能力、多 Agent 协作与可观测性**
 
 ---
 
-## 项目概述
+## 项目定位
 
-FlagHunter 是对开源项目 [PentestAgent](https://github.com/GH05TCREW/PentestAgent) 的模块化二开增强，补齐原版在 **API 调度** 和 **CTF 题型覆盖** 方面的短板，同时保持原版“轻量快速”的核心优势。
+FlagHunter 是一个以 **攻防实战效率** 为目标的 AI 驱动安全测试项目。它保留了 PentestAgent 原有的轻量主循环、工具系统、TUI/CLI/MCP 接口，同时围绕真实使用场景补上了几条关键能力：
 
-### 模块状态
+- **M1 多 API 调度与故障切换**：多 provider 路由、故障转移、消耗追踪
+- **M2 CTF 专项增强**：Web / Crypto / Reverse / Pwn / Misc 多题型工作流
+- **M3 报告输出**：面向交付的 HTML / Markdown 报告链路
+- **M4 审计与边界控制**：作用域校验、执行审计、风险收口
+- **M5 多 Agent 协作**：Worker 池、ShadowGraph、Swarm 路由
+- **M6 性能优化**：缓存、并发、上下文与执行效率优化
 
-| 模块 | 功能 | 状态 |
-|------|------|:----:|
-| **M0 原版核心** | Agent 循环、工具调用、TUI/CLI/MCP 接口 | ✅ |
-| **M1 API 接入调度** | 多中转站自动切换、故障转移、Token 追踪 | ✅ |
-| **M2 CTF 增强工具包** | Web/Pwn/Crypto/Reverse/Misc 全题型覆盖 | ✅ |
-| **M3 报告生成** | HTML/Markdown 专业报告（finish 工具自动触发） | 🟡 |
-| **M4 审计合规** | 作用域检查、操作审计（ToolExecutor 已集成） | 🟡 |
-| **M5 多 Agent 协作** | Crew Worker 池、Swarm 信息素路由（已部分落地） | 🟡 |
-| **M6 性能优化** | 结果缓存、并发扫描、内存优化（计划中） | ⬜ |
+> 适合两类场景：**CTF 靶场解题**，以及**有明确授权范围的安全测试自动化**。
 
-> 🟡 = 核心框架已落地，部分功能待完善
+---
+
+## 当前能力概览
+
+| 模块 | 方向 | 当前状态 |
+|------|------|----------|
+| **M0** | 原版核心能力（Agent Loop / Tool Calling / TUI / CLI / MCP） | ✅ 可用 |
+| **M1** | 多 API 接入调度、故障切换、成本追踪 | ✅ 可用 |
+| **M2** | CTF 增强工具包与专项工作流 | ✅ 可用 |
+| **M3** | 报告生成与交付整理 | 🟡 持续完善 |
+| **M4** | 审计守卫、作用域边界、执行留痕 | 🟡 持续完善 |
+| **M5** | 多 Agent 协作、并行执行、信息素路由 | 🟡 持续完善 |
+| **M6** | 性能优化、缓存、上下文压缩 | ⬜ 规划中 |
+
+---
+
+## 核心特点
+
+### 1. 不是“纯聊天代理”，而是可执行的安全工作流
+
+FlagHunter 的核心不是让模型自由发挥，而是把：
+
+- 计划生成
+- 工具调用
+- 结果验证
+- 策略切换
+- 记忆沉淀
+
+串成一个可复用、可观察、可回放的执行闭环。
+
+### 2. CTF 模式强调“确定性调度 + LLM 辅助”
+
+在 CTF 场景下，FlagHunter 不是单纯把题目扔给模型，而是通过：
+
+- `HypothesisEngine`
+- `StrategyRegistry`
+- `CapabilityRegistry`
+- `CTFVerifier`
+- `StrategyMemory`
+
+把题型分析、策略选择、能力降级与 flag 验证拆开处理，尽量减少“幻觉式乱试”。
+
+### 3. 兼顾本地开发、隔离执行和远程接入
+
+运行时支持：
+
+- **LocalRuntime**：本地调试与开发
+- **DockerRuntime**：隔离执行与沙箱化工具运行
+- **SSHRuntime**：外接 Kali / 远程环境
+
+同时可作为 **MCP Server** 暴露给外部客户端调用。
 
 ---
 
@@ -29,187 +76,158 @@ FlagHunter 是对开源项目 [PentestAgent](https://github.com/GH05TCREW/Pentes
 
 ### 环境要求
 
-- **Windows 10/11** 本机（运行 PentestAgent 主程序）
-- **Kali Linux VM**（运行渗透测试工具链）
-- **Python 3.10+**
-- **VMware Workstation Player**（免费）
+- Python **3.10+**
+- Windows / Linux / macOS（按本地运行方式配置）
+- 如需浏览器自动化：Playwright 或系统 Chromium / Edge
+- 如需隔离执行：Docker
+- 如需远程工具链：Kali VM / SSH 环境
 
-### 5 分钟启动
+### 克隆项目
 
 ```bash
-# 1. 克隆项目
 git clone https://github.com/leilehuimieba/FlagHunter.git
 cd FlagHunter
-
-# 2. 安装依赖
-python -m venv .venv
-.venv\Scripts\activate   # Windows
-pip install -r requirements.txt
-
-# 3. 配置 API Key
-cp .env.example .env
-# 编辑 .env，填入你的中转站 API Key
-
-# 4. 启动
-pentestagent
-
-# 5. 验证
-> /api        # 查看 API 状态
-> /ctf list   # 查看 CTF Playbook
 ```
 
----
+### 安装依赖
 
-## 核心架构（代码层面）
+```bash
+python -m venv .venv
+.venv\Scripts\activate      # Windows
+# source .venv/bin/activate  # Linux / macOS
+pip install -r requirements.txt
+```
 
-### Agent 主循环
+### 配置环境变量
 
-所有 Agent 共享 `BaseAgent._run_loop()`，一个状态机驱动的迭代器：
+```bash
+copy .env.example .env       # Windows
+# cp .env.example .env       # Linux / macOS
+```
+
+按需填写：
+
+- `ANTHROPIC_API_KEY`
+- `OPENAI_API_KEY`
+- `PENTESTAGENT_MODEL`
+- 以及 CPA / CTF / MCP 相关开关
+
+### 启动
+
+```bash
+pentestagent
+```
+
+常用入口：
 
 ```text
-agent_loop()
-  ├── 第1轮强制生成计划
-  ├── LLM.generate()        # Function-calling 模式
-  ├── _execute_tools()      # 并发执行
-  ├── _expand_plan()        # 发现驱动扩展（nmap/subfinder 发现新服务时）
-  ├── _replan()             # 战术重规划（步骤失败时）
-  └── plan.is_complete() → 总结 → COMPLETE
+/api           查看 API Hub 状态
+/tools         查看工具列表
+/ctf list      查看 CTF Playbook
+/ctf run ...   启动 CTF 工作流
+/mcp list      查看 MCP 配置
 ```
-
-### CTF 解题引擎
-
-CTF 模式不是 LLM 自由发挥，而是**确定性调度器 + LLM 辅助策略选择**：
-
-- **HypothesisEngine**：基于规则的假设生成与排序（Observation Floor 防幻觉）
-- **StrategyRegistry**：15+ 策略定义（XSS bot、SQLi、反序列化、SSTI 等），含前置条件与成功/失败信号
-- **CapabilityRegistry**：能力降级（sqlmap → 手动 Payload）
-- **CTFVerifier**：四级 Flag 证据（candidate → runtime → verified → rejected）
-- **StrategyMemory**：跨题持久化记忆，自动静音低成功率策略
-
-### 工具系统（25 个工具）
-
-| 类别 | 工具 | 说明 |
-|------|------|------|
-| **网络扫描** | `nmap` / `fscan` / `subfinder` / `httpx_probe` | 端口、服务、子域、存活探测 |
-| **Web 渗透** | `dirscan` / `nuclei` / `afrog` / `katana` / `dalfox` / `gau` | 目录爆破、漏洞扫描、爬虫、XSS、URL 历史 |
-| **数据提取** | `sqlmap` / `binary` / `pwn` / `msf` / `gf` | SQL 注入、二进制分析、Pwn、Metasploit、模式匹配 |
-| **信息收集** | `browser` / `web_search` / `login_flow` / `opencli_browser` / `knowledge_search` | 浏览器、搜索、登录流、知识库检索 |
-| **多 Agent** | `mcp_agent` / `shadowgraph` | 子 Agent 嵌套、知识图战略洞察 |
-| **通用** | `terminal` / `http_request` / `notes` / `finish` / `waf` | 终端、HTTP、笔记、完成、WAF 检测 |
-
-- **Self-Register**：`@register_tool` 装饰器 + `loader.py` 动态导入
-- **执行守卫**：M4 作用域检查 → Cookie 自动注入 → Stealth 模式 → Flag 扫描 → 缺失工具检测
-- **终端启发式修复**：自动补全 LLM 漏写的二进制名（如 `-sS -p 80` → `nmap -sS -p 80`）
-
-### 运行时隔离
-
-| 模式 | 命令执行 | 浏览器 | 代理 | 场景 |
-|------|----------|--------|------|------|
-| **Local** | `subprocess` | Playwright + 系统浏览器回退 | `httpx` | 本地开发 |
-| **Docker** | `container.exec_run` | `curl` + 正则 | `mitmdump` | 隔离沙箱 |
-| **SSH** | `ssh` 子进程 | `curl` + 正则 | 内嵌 Python | Kali VM |
-
-### MCP 双向集成
-
-- **Client**：连接外部 MCP Server（stdio / SSE / FIFO / WebSocket）；>128 工具时启用 RAG Optimizer
-- **Server**：暴露 22+ 工具；每个任务创建全新 Agent + Runtime 避免污染；支持 `spawn_mcp_agent` 嵌套子 Agent
 
 ---
 
-## 模块说明
+## 典型工作模式
 
-### M1：API 接入调度
+### TUI 交互
 
-多 Provider 管理，主渠道断了自动切备用，无需人工干预。
-
-```
-> /api
-╔══════════════════ API Hub 状态面板 ══════════════════╗
-║ 中转站A-Claude    🟢健康   1.2s    45    12K   $2.30 ║
-║ 中转站B-Claude    🟢健康   0.8s    32     8K   $1.80 ║
-║ 中转站A-GPT4      🟡降级   5.1s    12     3K   $0.90 ║
-║ 官方-GPT4         🔴故障   ---      0      0   $0.00 ║ ← 已自动切换
-╚════════════════════════════════════════════════════╝
+```bash
+pentestagent
+pentestagent -t 192.168.1.10
+pentestagent tui --docker
 ```
 
-| 命令 | 功能 |
-|------|------|
-| `/api` | 状态面板 |
-| `/api providers` | 列出所有 Provider |
-| `/api switch <id>` | 手动切换 |
-| `/api cost` | 消耗统计 |
-| `/api test <id>` | 测试连接 |
+### CLI / Playbook
 
-**实现细节**：`ProviderManager` 按 `task_hint` 做模型路由（planning → heavy，tool_parse → light）；`FailoverMonitor` 双循环健康探测（30s 故障检测 + 60s 恢复检测）；错误分级处理（永久故障标记 DOWN，限流本地 jitter 退避）。
+```bash
+pentestagent run -t example.com --playbook thp3_web
+```
 
-### M2：CTF 增强工具包
+### MCP Server
 
-覆盖 Web/Pwn/Crypto/Reverse/Misc 五大题型，含 Playbook 引擎和 Flag 自动提交。
-
-| 命令 | 功能 |
-|------|------|
-| `/ctf list` | 列出 Playbook |
-| `/ctf run <模板> <目标>` | 执行 Playbook |
-| `/ctf next` | 进入下一阶段 |
-| `/ctf flag <flag>` | 提交 Flag |
-| `/ctf decode <密文>` | 自动解密 |
-| `/ctf rev <二进制>` | 快速逆向 |
-
-**实现细节**：`PlaybookEngine` 半自动执行（每 Phase 暂停等确认）；`CTFTaskDispatcher` 确定性调度；`FlagSubmitter` 支持 CTFd/HTB/TryHackMe/RootMe；`StrategyMemory` 跨题学习。
+```bash
+pentestagent mcp_server --type stdio
+pentestagent mcp_server --type sse --host 0.0.0.0 --port 8080
+```
 
 ---
 
-## 架构
+## 架构一览
 
-```
+```text
 FlagHunter
-│
-├─ M0: 原版 PentestAgent 核心（侵入 < 25 行）
-│   ├── agents/base_agent.py      # 主循环 + 状态机
-│   ├── agents/pa_agent/          # 单 Agent（含 CTF Dispatcher）
-│   ├── agents/crew/              # 多 Agent（Orchestrator + WorkerPool）
-│   ├── tools/                    # Self-Register 工具系统
-│   ├── llm/                      # LLM + Memory + M1 Failover
-│   ├── mcp/                      # MCP Client & Server
-│   ├── runtime/                  # Local / Docker / SSH
-│   ├── knowledge/                # ShadowGraph + RAG
-│   └── interface/                # TUI + CLI + Notifier
-│
-└─ cpa_modules/
-    ├─ m1_api_hub/       # M1：Provider 管理 + 故障转移 + 成本追踪
-    ├─ m2_ctf_kit/       # M2：Playbook 引擎 + Pwn/Crypto/Reverse + Flag 提交
-    ├─ m3_reporter/      # M3：报告生成（finish 工具调用）
-    ├─ m4_audit_guard/   # M4：作用域检查 + 审计日志
-    ├─ m5_swarm_link/    # M5：信息素路由 + Crew 桥接
-    └─ m6_turbo/         # M6：性能优化（计划中）
+├─ pentestagent/        # 主体代码（沿用上游项目结构）
+├─ cpa_modules/         # M1~M6 模块增强层
+├─ tools/               # 工具系统与执行守卫
+├─ docs/                # 用户文档、部署文档、设计与计划
+├─ knowledge/           # RAG / ShadowGraph / 记忆资产
+├─ tests/               # 测试集
+└─ scripts/             # 启动、构建、辅助脚本
 ```
 
-每个模块独立开关，在 `.env` 中用 `CPA_MX_YYYY=true/false` 控制。
+### 保持不改的部分
+
+为了减少无意义迁移成本，项目当前**没有**重命名以下内部技术路径：
+
+- Python 包目录 `pentestagent/`
+- 运行入口命令 `pentestagent`
+- 与上游兼容的部分配置字段
+
+这意味着：**外部品牌是 FlagHunter，内部代码骨架仍与 PentestAgent 体系兼容**。
 
 ---
 
-## 文档
+## 主要文档
 
 | 文档 | 说明 |
 |------|------|
-| [用户使用手册](docs/D1_M1M2_用户使用手册.md) | M1/M2 完整使用指南 |
-| [部署指南](docs/D2_部署指南_Windows_KaliVM.md) | Windows + Kali VM 从零搭建 |
-| [CTF 实战攻略](docs/D3_CTF实战攻略.md) | 5 类题型的实战操作步骤 |
-| [AGENTS.md](AGENTS.md) | **Agent 开发指南（含代码架构详解）** |
-| [开发文档](docs/dev/) | 模块调度手册与开发计划 |
-| [分析报告存档](docs/archive/) | 选型调研与竞品分析 |
+| `D:\webstudy\FlagHunter\AGENTS.md` | 当前仓库的开发与协作约束 |
+| `D:\webstudy\FlagHunter\docs\D1_M1M2_用户使用手册.md` | 用户视角使用说明 |
+| `D:\webstudy\FlagHunter\docs\D2_部署指南_Windows_KaliVM.md` | Windows + Kali VM 部署指南 |
+| `D:\webstudy\FlagHunter\docs\D3_CTF实战攻略.md` | CTF 实战路径说明 |
+| `D:\webstudy\FlagHunter\docs\superpowers\plans\` | 当前实现计划与执行文档 |
 
 ---
 
-## 风险提示
+## Release / License / Repository Hygiene
 
-1. **Kali VM 隔离**：所有渗透测试工具在 Kali VM 中执行，Windows 本机零暴露
-2. **半自动 Playbook**：每个 Phase 等 LLM 确认，不会自动执行危险操作
-3. **API Key 安全**：Key 存在 `.env` 文件中，**不要提交到 Git**（已配置 .gitignore）
-4. **授权范围**：Pwn/Reverse 工具仅用于 CTF 授权靶场，**不要用于未授权目标**
+- **Release**：使用 GitHub Releases 记录阶段性可用版本
+- **License**：当前采用 `MIT`（兼容上游）
+- **.gitignore**：仓库已包含顶层 `.gitignore`，用于屏蔽本地环境、日志、缓存和敏感文件
+
+建议协作时遵循：
+
+1. 先提交可复现的最小改动
+2. 大功能按 spec / plan / implementation 拆分推进
+3. 不将 `.env`、本地 token、运行缓存、loot 等敏感内容提交到 Git
+
+---
+
+## 安全与授权说明
+
+FlagHunter 面向：
+
+- CTF / 靶场环境
+- 获得明确授权的安全测试环境
+
+请不要将其中的自动化能力直接用于未授权目标。
+
+---
+
+## 路线图
+
+- [x] 建立新仓库 `FlagHunter`
+- [x] 迁移主线代码与基础文档
+- [x] 接入新仓库描述、topics、release 管理
+- [ ] 继续收敛 README / 文档对外叙事
+- [ ] 逐步统一更多对外命名与交付材料
+- [ ] 为关键功能补更清晰的验证矩阵与版本说明
 
 ---
 
 ## License
 
-MIT License（继承自原版 PentestAgent）
+MIT License

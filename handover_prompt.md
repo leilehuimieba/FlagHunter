@@ -1,4 +1,4 @@
-# PentestAgent-CPA 交接提示词
+# FlagHunter 交接提示词
 
 > 生成时间：2026-05-24 | 版本：v0.4.1+
 > 用途：让新对话直接延续当前任务上下文，无需重新探索
@@ -7,7 +7,7 @@
 
 ## 一、项目定位
 
-**PentestAgent-CPA** 是一个 AI 驱动的 CTF/渗透测试智能体框架。当前处于 **CTF 专项能力提升阶段**（内部代号 Phase 6.5~7），核心目标是：让 Agent 在 CTF 实战中能用更少的循环、更少的 token 拿到 flag。
+**FlagHunter** 是一个 AI 驱动的 CTF/渗透测试智能体框架。当前处于 **CTF 专项能力提升阶段**（内部代号 Phase 6.5~7），核心目标是：让 Agent 在 CTF 实战中能用更少的循环、更少的 token 拿到 flag。
 
 - **架构**：单 Agent (PA) + Crew 多 Agent 模式
 - **LLM 层**：LiteLLM 代理，支持多 provider 切换
@@ -179,3 +179,4 @@ finish=batch mode supported
 ---
 
 > **最后更新**：2026-05-24 | 下一对话可直接从「三、当前待办清单」中选择任务继续
+

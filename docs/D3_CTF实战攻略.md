@@ -1,4 +1,4 @@
-# PentestAgent-CPA CTF实战攻略
+# FlagHunter CTF实战攻略
 
 > 目标：用M2 CTF Kit在真实CTF比赛中高效解题  
 > 覆盖5类题型：Web / Pwn / Crypto / Reverse / Misc  
@@ -562,3 +562,4 @@ tshark -r challenge.pcap -Y "http"   # 提取HTTP流量
 ---
 
 **祝你在CTF比赛中旗开得胜！**
+

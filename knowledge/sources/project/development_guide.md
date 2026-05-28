@@ -1,4 +1,4 @@
-# PentestAgent-CPA 项目开发指南
+# FlagHunter 项目开发指南
 
 ## 项目核心设计模式
 
@@ -156,3 +156,4 @@ pytest --cov=pentestagent --cov-report=html
 black pentestagent
 ruff check pentestagent
 ```
+
