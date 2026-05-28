@@ -195,6 +195,12 @@ function TraceDetail({ runId, onNav }) {
   const graph = uM(() => buildTraceGraph(timeline, resolvedRun), [timeline, resolvedRun.id, resolvedRun.status, resolvedRun.startedAt]);
   const traceEmptyState = connection.status === 'disconnected' ? t('c.unavailable') : t('tr.empty.timeline');
 
+  async function handleReplay() {
+    if (!replayAvailable) return;
+    const replayResult = await window.API.replayTrace(resolvedRun.id);
+    if (replayResult?.id && onNav) onNav(`tasks/${replayResult.id}`);
+  }
+
   uE(() => {
     window.dispatchEvent(new CustomEvent('fh:route-label', {
       detail: { label: resolvedRun.id || runId || 'trace' }
@@ -383,7 +389,7 @@ function TraceDetail({ runId, onNav }) {
         <div className="row">
           <button className="btn ghost" onClick={() => downloadJson(`${resolvedRun.id}.json`, resolvedRun)}>⬇ {t('c.json')}</button>
           <button className="btn ghost" onClick={() => onNav && onNav(`tasks/${resolvedRun.taskId}`)}>{t('c.openTask')}</button>
-          <button className="btn" disabled={!replayAvailable} title={!replayAvailable ? t('tr.replayUnavailable') : ''}>⟲ {t('c.replay')}</button>
+          <button className="btn" disabled={!replayAvailable} title={!replayAvailable ? t('tr.replayUnavailable') : ''} onClick={handleReplay}>⟲ {t('c.replay')}</button>
         </div>
       </div>
 

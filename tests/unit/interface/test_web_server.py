@@ -309,3 +309,34 @@ async def test_attachments_endpoint_returns_empty_list_when_no_files(web_client:
     assert resp.status == 200
     data = await resp.json()
     assert data == {"taskId": task["id"], "files": []}
+
+
+@pytest.mark.asyncio
+async def test_trace_replay_creates_new_task_from_existing_run(web_client: TestClient):
+    created = await web_client.post(
+        "/api/tasks",
+        json={"title": "replay-source", "target": "http://replay.test", "goal": "re-run original task"},
+    )
+    assert created.status == 201
+    original_task = await created.json()
+    original_task_id = original_task["id"]
+    original_run_id = original_task["currentRunId"]
+
+    replay_resp = await web_client.post(f"/api/traces/{original_run_id}/replay")
+
+    assert replay_resp.status == 200
+    replayed_task = await replay_resp.json()
+    assert replayed_task["id"] != original_task_id
+    assert replayed_task["currentRunId"] != original_run_id
+    assert replayed_task["title"] == original_task["title"]
+    assert replayed_task["target"] == original_task["target"]
+    assert replayed_task["goal"] == original_task["goal"]
+    assert replayed_task["status"] == "queued"
+    assert replayed_task["capabilities"] == {
+        "hint": True,
+        "stop": True,
+        "continue": False,
+        "retry": False,
+        "attachments": True,
+    }
+    assert set(web_server._tasks.keys()) == {original_task_id, replayed_task["id"]}

@@ -180,6 +180,10 @@
     return apiFetch('/api/traces/' + encodeURIComponent(runId));
   }
 
+  async function replayTrace(runId) {
+    return apiFetch('/api/traces/' + encodeURIComponent(runId) + '/replay', { method: 'POST' });
+  }
+
   async function getLogs(params) {
     const q = params ? '?' + new URLSearchParams(params) : '';
     return apiFetch('/api/logs' + q);
@@ -364,6 +368,7 @@
     hintTask,
     getTraces,
     getTrace,
+    replayTrace,
     getLogs,
     getKnowledge,
     getKnowledgeDoc,
