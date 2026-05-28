@@ -2,6 +2,17 @@
 
 const { useState: uA, useEffect: uAE } = React;
 
+const TASK_VIEW_MODE_KEY = 'fh:task-view-mode';
+
+function readTaskViewMode() {
+  try {
+    const saved = window.localStorage.getItem(TASK_VIEW_MODE_KEY);
+    return saved === 'analysis' ? 'analysis' : 'conversation';
+  } catch {
+    return 'conversation';
+  }
+}
+
 function App() {
   window.useLang();
 
@@ -15,6 +26,7 @@ function App() {
   });
 
   const [showCP, setShowCP] = uA(false);
+  const [taskViewMode, setTaskViewMode] = uA(readTaskViewMode);
 
   // Global SSE subscription — ensures the event stream is always open
   // so all pages (dashboard, traces, knowledge, etc.) receive real-time events.
@@ -65,6 +77,12 @@ function App() {
     return () => window.removeEventListener('fh:toggle-cp', handler);
   }, []);
 
+  uAE(() => {
+    try {
+      window.localStorage.setItem(TASK_VIEW_MODE_KEY, taskViewMode);
+    } catch {}
+  }, [taskViewMode]);
+
   function nav(to) {
     window.location.hash = '#/' + to;
   }
@@ -79,10 +97,21 @@ function App() {
   return (
     <div className="shell">
       <Sidebar route={route.split('/')[0]} onNav={nav} />
-      <Topbar route={crumbRoute} leaf={crumbLeaf} />
+      <Topbar
+        route={crumbRoute}
+        leaf={crumbLeaf}
+        taskViewMode={taskViewMode}
+        onTaskViewModeChange={setTaskViewMode}
+      />
       <div className="main">
         {route === 'dashboard' && <DashboardPage onNav={nav} />}
-        {route.startsWith('tasks') && <TasksPage taskId={route.split('/')[1]} onNav={nav} />}
+        {route.startsWith('tasks') && (
+          <TasksPage
+            taskId={route.split('/')[1]}
+            onNav={nav}
+            taskViewMode={taskViewMode}
+          />
+        )}
         {route.startsWith('traces') && (
           <TracesPage runId={route.split('/')[1]} onNav={nav} />
         )}
