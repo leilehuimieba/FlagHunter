@@ -339,6 +339,9 @@ function TaskDetail({ task, onNav, taskViewMode }) {
   const retryAvailable = retrySupported
     && isActionLive
     && typeof window.API?.retryTask === 'function';
+  const attachmentsUploadAvailable = attachmentsSupported
+    && isActionLive
+    && typeof window.API?.uploadAttachment === 'function';
   const initialMessages = resolveTaskMessages(detailTask);
 
   const [messages, setMessages] = useStateT(initialMessages);
@@ -346,6 +349,9 @@ function TaskDetail({ task, onNav, taskViewMode }) {
   const [draft, setDraft] = useStateT('');
   const [obsFresh, setObsFresh] = useStateT(null);
   const [attachments, setAttachments] = useStateT(detailTask.attachments || []);
+  const [attachmentsUploadBusy, setAttachmentsUploadBusy] = useStateT(false);
+  const [attachmentsUploadError, setAttachmentsUploadError] = useStateT('');
+  const attachmentInputRef = useRefT(null);
   const msgEnd = useRefT(null);
 
   useEffectT(() => {
@@ -391,12 +397,29 @@ function TaskDetail({ task, onNav, taskViewMode }) {
     }));
   }, [detailTask.id, task.id]);
 
+  async function refreshAttachments() {
+    if (!attachmentsSupported || !window.API || !window.API.getAttachments) return;
+    const attachmentsResult = await window.API.getAttachments(detailTask.id);
+    if (attachmentsResult && Array.isArray(attachmentsResult.files)) setAttachments(attachmentsResult.files);
+  }
+
+  async function handleAttachmentFiles(files) {
+    if (!attachmentsUploadAvailable || !files.length) return;
+    setAttachmentsUploadBusy(true);
+    setAttachmentsUploadError('');
+    const uploadResult = await window.API.uploadAttachment(detailTask.id, files);
+    if (!uploadResult || !Array.isArray(uploadResult.files)) {
+      setAttachmentsUploadError('upload failed');
+      setAttachmentsUploadBusy(false);
+      return;
+    }
+    await refreshAttachments();
+    setAttachmentsUploadBusy(false);
+  }
+
   // Load attachments from server when task is selected (live mode)
   useEffectT(() => {
-    if (!attachmentsSupported || !window.API || !window.API.getAttachments) return;
-    window.API.getAttachments(detailTask.id).then(data => {
-      if (data && Array.isArray(data.files)) setAttachments(data.files);
-    });
+    refreshAttachments();
   }, [detailTask.id, attachmentsSupported]);
 
   const livePlan = Array.isArray(detailTask.plan) ? detailTask.plan : [];
@@ -715,7 +738,13 @@ function TaskDetail({ task, onNav, taskViewMode }) {
             observations={obs}
             freshObservationId={obsFresh}
             attachmentsAvailable={attachmentsSupported}
-            attachmentsUnavailableReason={t('c.notWired')}
+            attachmentsUploadAvailable={attachmentsUploadAvailable}
+            attachmentsUploadBusy={attachmentsUploadBusy}
+            attachmentsUploadError={attachmentsUploadError}
+            onUploadRequest={() => attachmentInputRef.current?.click()}
+            onUploadFiles={handleAttachmentFiles}
+            attachmentInputRef={attachmentInputRef}
+            attachmentsUnavailableReason={attachmentsSupported ? t('c.notWired') : t('c.unavailable')}
           />
         </div>
       </div>
@@ -938,20 +967,44 @@ function TaskStatusCard({ task }) {
   );
 }
 
-function TaskAttachmentsCard({ attachments, attachmentsAvailable, unavailableReason }) {
+function TaskAttachmentsCard({
+  attachments,
+  attachmentsAvailable,
+  unavailableReason,
+  attachmentsUploadAvailable = false,
+  attachmentsUploadBusy = false,
+  attachmentsUploadError = '',
+  onUploadRequest,
+  onUploadFiles,
+  attachmentInputRef,
+}) {
   const items = Array.isArray(attachments) ? attachments : [];
-  if (!attachmentsAvailable && items.length === 0) {
-    return (
-      <div className="side-card">
-        <div className="h">◫ {t('side.attachments')} <span className="dim right">0</span></div>
-        <Empty>{unavailableReason || t('c.notWired')}</Empty>
-      </div>
-    );
-  }
-  if (items.length === 0) return null;
   return (
     <div className="side-card">
-      <div className="h">◫ {t('side.attachments')} <span className="dim right">{items.length}</span></div>
+      <div className="h">
+        ◫ {t('side.attachments')} <span className="dim right">{items.length}</span>
+        <button
+          className="btn sm ghost"
+          style={{ marginLeft: 'auto' }}
+          disabled={!attachmentsUploadAvailable || attachmentsUploadBusy}
+          title={!attachmentsUploadAvailable ? unavailableReason : ''}
+          onClick={() => onUploadRequest && onUploadRequest()}
+        >{attachmentsUploadBusy ? '…' : '+'}</button>
+        <input
+          ref={attachmentInputRef}
+          type="file"
+          multiple
+          style={{ display: 'none' }}
+          onChange={async e => {
+            const files = Array.from(e.target.files || []);
+            await onUploadFiles(files);
+            e.target.value = '';
+          }}
+        />
+      </div>
+      {items.length === 0 ? (
+        <Empty>{attachmentsUploadError || unavailableReason || t('tasks.noMatch')}</Empty>
+      ) : (
       <div className="col gap-4">
         {items.map((a, i) => (
           <div key={i} className="row gap-8 attach-row">
@@ -968,6 +1021,10 @@ function TaskAttachmentsCard({ attachments, attachmentsAvailable, unavailableRea
           </div>
         ))}
       </div>
+      )}
+      {attachmentsUploadError && items.length > 0 && (
+        <div className="red" style={{ marginTop: 8, fontSize: 11 }}>{attachmentsUploadError}</div>
+      )}
     </div>
   );
 }
@@ -992,26 +1049,26 @@ function TaskSummaryCard({ task }) {
   );
 }
 
-function SyntheticSidePanel({ task, attachmentsAvailable, attachmentsUnavailableReason }) {
+function SyntheticSidePanel({ task, attachmentsAvailable, attachmentsUnavailableReason, ...attachmentProps }) {
   return (
     <>
       <TaskStatusCard task={task} />
-      <TaskAttachmentsCard attachments={task.attachments || []} attachmentsAvailable={attachmentsAvailable} unavailableReason={attachmentsUnavailableReason} />
+      <TaskAttachmentsCard attachments={task.attachments || []} attachmentsAvailable={attachmentsAvailable} unavailableReason={attachmentsUnavailableReason} {...attachmentProps} />
       <TaskSummaryCard task={task} />
     </>
   );
 }
 
-function LiveSidePanel({ task, plan, notes, knowledgeHits, observations, freshObservationId, attachmentsAvailable, attachmentsUnavailableReason }) {
+function LiveSidePanel({ task, plan, notes, knowledgeHits, observations, freshObservationId, attachmentsAvailable, attachmentsUnavailableReason, ...attachmentProps }) {
   const showFallbackSummary = !plan.length && !notes.length && !knowledgeHits.length && !observations.length;
   return (
     <>
       {showFallbackSummary ? (
-        <SyntheticSidePanel task={task} attachmentsAvailable={attachmentsAvailable} attachmentsUnavailableReason={attachmentsUnavailableReason} />
+        <SyntheticSidePanel task={task} attachmentsAvailable={attachmentsAvailable} attachmentsUnavailableReason={attachmentsUnavailableReason} {...attachmentProps} />
       ) : (
         <>
           <TaskStatusCard task={task} />
-          <TaskAttachmentsCard attachments={task.attachments || []} attachmentsAvailable={attachmentsAvailable} unavailableReason={attachmentsUnavailableReason} />
+          <TaskAttachmentsCard attachments={task.attachments || []} attachmentsAvailable={attachmentsAvailable} unavailableReason={attachmentsUnavailableReason} {...attachmentProps} />
         </>
       )}
       <div className="side-card">

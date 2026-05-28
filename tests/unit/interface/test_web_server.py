@@ -555,6 +555,39 @@ async def test_attachments_endpoint_returns_empty_list_when_no_files(web_client:
 
 
 @pytest.mark.asyncio
+async def test_attachments_upload_then_list_roundtrip(web_client: TestClient):
+    created = await web_client.post(
+        "/api/tasks",
+        json={"title": "attach-demo", "target": "http://example.test", "goal": "collect file"},
+    )
+    task = await created.json()
+
+    form = FormData()
+    form.add_field(
+        "files",
+        io.BytesIO(b"hello attachment\n"),
+        filename="note.txt",
+        content_type="text/plain",
+    )
+
+    upload_resp = await web_client.post(f"/api/tasks/{task['id']}/attachments", data=form)
+
+    assert upload_resp.status == 200
+    upload_data = await upload_resp.json()
+    assert upload_data["taskId"] == task["id"]
+    assert upload_data["files"][0]["name"] == "note.txt"
+    assert upload_data["files"][0]["size"] == len(b"hello attachment\n")
+
+    list_resp = await web_client.get(f"/api/tasks/{task['id']}/attachments")
+
+    assert list_resp.status == 200
+    list_data = await list_resp.json()
+    assert list_data["taskId"] == task["id"]
+    assert list_data["files"][0]["name"] == "note.txt"
+    assert list_data["files"][0]["size"] == len(b"hello attachment\n")
+
+
+@pytest.mark.asyncio
 async def test_trace_replay_creates_new_task_from_existing_run(web_client: TestClient):
     created = await web_client.post(
         "/api/tasks",
