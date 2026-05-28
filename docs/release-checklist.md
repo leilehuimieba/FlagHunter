@@ -63,3 +63,10 @@
 如本次发版有特殊情况，请记录：
 
 - 
+
+---
+
+## Related Docs
+
+- `D:\webstudy\FlagHunter\docs\release-policy.md`
+- `D:\webstudy\FlagHunter\docs\release-playbook.md`

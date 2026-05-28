@@ -221,3 +221,12 @@
 - 内部代码骨架继续兼容 `pentestagent/`
 
 如果未来仓库策略改变，应先更新本文件，再调整发布方式。
+
+---
+
+## 10. 配套文档
+
+建议结合以下文档一起使用：
+
+- `D:\webstudy\FlagHunter\docs\release-checklist.md`
+- `D:\webstudy\FlagHunter\docs\release-playbook.md`

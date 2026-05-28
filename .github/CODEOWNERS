@@ -1,0 +1,15 @@
+# FlagHunter private collaboration baseline
+# 当前仅设置默认 owner；后续如增加协作者，可按路径细分。
+
+* @leilehuimieba
+
+# Collaboration / delivery layer
+/.github/ @leilehuimieba
+/docs/ @leilehuimieba
+/README.md @leilehuimieba
+/CHANGELOG.md @leilehuimieba
+
+# Core compatibility skeleton
+/pentestagent/ @leilehuimieba
+/cpa_modules/ @leilehuimieba
+/tests/ @leilehuimieba

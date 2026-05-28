@@ -30,6 +30,8 @@ FlagHunter 的目标不是做“只能聊天的安全助手”，而是把 **计
 - [Changelog](./CHANGELOG.md)
 - [Release Policy](./docs/release-policy.md)
 - [Release Checklist](./docs/release-checklist.md)
+- [Label Strategy](./docs/label-strategy.md)
+- [Release Playbook](./docs/release-playbook.md)
 
 ---
 
@@ -276,6 +278,7 @@ pentestagent mcp_server --type sse --host 0.0.0.0 --port 8080
 | 文档 | 说明 |
 |------|------|
 | `D:\webstudy\FlagHunter\AGENTS.md` | 当前仓库的开发与协作约束 |
+| `D:\webstudy\FlagHunter\.github\CODEOWNERS` | 私有仓库默认 owner 与关键路径 review 归属 |
 | `D:\webstudy\FlagHunter\docs\D1_M1M2_用户使用手册.md` | 用户视角使用说明 |
 | `D:\webstudy\FlagHunter\docs\D2_部署指南_Windows_KaliVM.md` | Windows + Kali VM 部署指南 |
 | `D:\webstudy\FlagHunter\docs\D3_CTF实战攻略.md` | CTF 实战路径说明 |
@@ -283,6 +286,8 @@ pentestagent mcp_server --type sse --host 0.0.0.0 --port 8080
 | `D:\webstudy\FlagHunter\CHANGELOG.md` | 版本与仓库演进记录 |
 | `D:\webstudy\FlagHunter\docs\release-policy.md` | 版本号、changelog 与 release 规则 |
 | `D:\webstudy\FlagHunter\docs\release-checklist.md` | 发版前人工检查清单 |
+| `D:\webstudy\FlagHunter\docs\label-strategy.md` | Issue / PR 标签分层与使用规则 |
+| `D:\webstudy\FlagHunter\docs\release-playbook.md` | 从检查到发版的实际操作手册 |
 
 ---
 
@@ -292,6 +297,8 @@ pentestagent mcp_server --type sse --host 0.0.0.0 --port 8080
 - **Changelog**：见 [`CHANGELOG.md`](./CHANGELOG.md)
 - **Release Policy**：见 [`docs/release-policy.md`](./docs/release-policy.md)
 - **Release Checklist**：见 [`docs/release-checklist.md`](./docs/release-checklist.md)
+- **Label Strategy**：见 [`docs/label-strategy.md`](./docs/label-strategy.md)
+- **Release Playbook**：见 [`docs/release-playbook.md`](./docs/release-playbook.md)
 - **License**：`MIT`
 - **Website**：当前未设置公开站点链接，避免把私有仓库误当公开展示页
 - **.gitignore**：已配置顶层 `.gitignore`，用于屏蔽本地环境、缓存、日志与敏感文件
