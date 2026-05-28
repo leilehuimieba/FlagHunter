@@ -5,6 +5,14 @@
 
 const { useState: uD, useEffect: uDE } = React;
 
+function currentConnectionState() {
+  if (window.API?.getConnectionState) return window.API.getConnectionState();
+  return {
+    status: window.IS_LIVE ? 'connected' : 'disconnected',
+    isLive: Boolean(window.IS_LIVE),
+  };
+}
+
 const LIVE_EMPTY_DASHBOARD = {
   kpis: {
     running: 0,
@@ -73,6 +81,18 @@ function useFlagBoard(initialFlags) {
 
 function DashboardPage({ onNav }) {
   const [liveData, setLiveData] = uD(null);
+  const [connection, setConnection] = uD(() => currentConnectionState());
+
+  uDE(() => {
+    const handler = (e) => {
+      setConnection(
+        e.detail?.connection
+        || currentConnectionState()
+      );
+    };
+    window.addEventListener('fh:connection', handler);
+    return () => window.removeEventListener('fh:connection', handler);
+  }, []);
 
   uDE(() => {
     let cancelled = false;
@@ -102,6 +122,7 @@ function DashboardPage({ onNav }) {
   }, []);
 
   const hasDashboardData = !!liveData;
+  const canReadLiveState = connection.status !== 'disconnected';
   const dashboardData = liveData || LIVE_EMPTY_DASHBOARD;
   const { flags, copyFlag, copiedId } = useFlagBoard(dashboardData.flags);
   const kpis = dashboardData.kpis || LIVE_EMPTY_DASHBOARD.kpis;
@@ -114,10 +135,10 @@ function DashboardPage({ onNav }) {
   const recentToolCalls = dashboardData.recentToolCalls || [];
   const recentNotes = dashboardData.recentNotes || [];
   const recentArtifacts = dashboardData.recentArtifacts || [];
-  const dashboardEmptyState = hasDashboardData ? t('dash.noData') : t('c.unavailable');
-  const tasksEmptyState = hasDashboardData ? t('tasks.noMatch') : t('c.unavailable');
-  const notesArtifactsEmptyState = hasDashboardData ? t('dash.noData') : t('c.unavailable');
-  const dashboardSub = hasDashboardData
+  const dashboardEmptyState = canReadLiveState ? t('dash.noData') : t('c.unavailable');
+  const tasksEmptyState = canReadLiveState ? t('tasks.noMatch') : t('c.unavailable');
+  const notesArtifactsEmptyState = canReadLiveState ? t('dash.noData') : t('c.unavailable');
+  const dashboardSub = canReadLiveState
     ? t('dash.liveSub', kpis.tasksToday || 0, kpis.successToday || 0, kpis.failedToday || 0, kpis.stoppedToday || 0)
     : t('dash.sub');
   const flagsToday = flags.filter(f => {
@@ -146,42 +167,42 @@ function DashboardPage({ onNav }) {
           label={t('kpi.activeRuns')}
           value={kpis.running}
           unit={t('kpi.queuedSuffix', kpis.queued)}
-          delta={hasDashboardData ? <span className="muted">{t('dash.liveRunning', kpis.running || 0)}</span> : kpiEmptyState}
+          delta={canReadLiveState ? <span className="muted">{t('dash.liveRunning', kpis.running || 0)}</span> : kpiEmptyState}
         />
         <KpiCard
           label={t('kpi.tasksToday')}
           value={kpis.tasksToday}
-          delta={hasDashboardData ? <span className="muted">{t('dash.liveTaskMix', kpis.successToday || 0, kpis.failedToday || 0, kpis.stoppedToday || 0)}</span> : kpiEmptyState}
+          delta={canReadLiveState ? <span className="muted">{t('dash.liveTaskMix', kpis.successToday || 0, kpis.failedToday || 0, kpis.stoppedToday || 0)}</span> : kpiEmptyState}
         />
         <KpiCard
           label={t('kpi.successRate')}
           value={`${Math.round(kpis.successRate * 100)}`}
           unit="%"
-          delta={hasDashboardData ? <span className="muted">{t('dash.liveSuccessRate', kpis.successToday || 0, kpis.tasksToday || 0)}</span> : kpiEmptyState}
+          delta={canReadLiveState ? <span className="muted">{t('dash.liveSuccessRate', kpis.successToday || 0, kpis.tasksToday || 0)}</span> : kpiEmptyState}
         />
         <KpiCard
           label={t('kpi.tokensToday')}
           value={(kpis.dailyTokens / 1000).toFixed(1)}
           unit="k"
-          delta={hasDashboardData ? <span className="muted">{t('kpi.ofCap')}</span> : kpiEmptyState}
+          delta={canReadLiveState ? <span className="muted">{t('kpi.ofCap')}</span> : kpiEmptyState}
           spark={tokenSeries.length ? <Sparkline data={tokenSeries.map(s => s.v)} w={56} h={20} /> : null}
         />
         <KpiCard
           label={t('kpi.estCost')}
           value={`$${kpis.estimatedCost.toFixed(2)}`}
-          delta={hasDashboardData ? <span className="muted">{t('dash.liveCost')}</span> : kpiEmptyState}
+          delta={canReadLiveState ? <span className="muted">{t('dash.liveCost')}</span> : kpiEmptyState}
         />
         <KpiCard
           label={t('kpi.toolCalls')}
           value={kpis.toolCalls}
-          delta={hasDashboardData ? <span className="muted">{t('dash.liveKnowledgeHits', kpis.knowledgeHits || 0)}</span> : kpiEmptyState}
+          delta={canReadLiveState ? <span className="muted">{t('dash.liveKnowledgeHits', kpis.knowledgeHits || 0)}</span> : kpiEmptyState}
         />
         {/* Flags captured KPI */}
         <KpiCard
           label={t('kpi.flagsCaptured')}
           value={flags.length}
           unit=""
-          delta={hasDashboardData ? <span className="green">
+          delta={canReadLiveState ? <span className="green">
             <span className="muted">{t('kpi.flagsToday')}: </span>{flagsToday}
           </span> : kpiEmptyState}
           accent="green"

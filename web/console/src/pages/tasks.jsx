@@ -1,4 +1,4 @@
-/* global React, MOCK, fmt, t, NewTaskModal, fileIcon, downloadJson */
+/* global React, fmt, t, NewTaskModal, fileIcon, downloadJson */
 // ============================================================
 // Tasks — list (left) + detail (conversation + side panel)
 // ============================================================
@@ -39,21 +39,13 @@ function taskSummaryLabel(tasks) {
 }
 
 function TasksPage({ taskId, onNav, taskViewMode }) {
-  const initialConnection = currentConnectionState();
-  const useMockSeed = initialConnection.status === 'disconnected';
   const initialActiveId = taskId || '';
-  const initialTasks = taskId ? [] : (useMockSeed ? MOCK.TASKS : []);
   const [activeId, setActive] = useStateT(initialActiveId);
   const [filter, setFilter] = useStateT('all');
   const [q, setQ] = useStateT('');
   const [showModal, setShowModal] = useStateT(false);
-  const [tasks, setTasks] = useStateT(initialTasks);
-
-  function seedMockTasks() {
-    if (taskId) return;
-    setTasks(prev => (prev.length ? prev : MOCK.TASKS));
-    setActive(prev => (prev || MOCK.TASKS?.[0]?.id || ''));
-  }
+  const [tasks, setTasks] = useStateT([]);
+  const [connection, setConnection] = useStateT(() => currentConnectionState());
 
   // ⌘K "新建任务" command opens this modal from anywhere
   useEffectT(() => {
@@ -62,25 +54,24 @@ function TasksPage({ taskId, onNav, taskViewMode }) {
     return () => window.removeEventListener('fh:open-new-task', handler);
   }, []);
 
-  // Load tasks from API on mount (attempt regardless of IS_LIVE)
+  useEffectT(() => {
+    const handler = (e) => {
+      setConnection(
+        e.detail?.connection
+        || currentConnectionState()
+      );
+    };
+    window.addEventListener('fh:connection', handler);
+    return () => window.removeEventListener('fh:connection', handler);
+  }, []);
+
   useEffectT(() => {
     window.API.getTasks().then(data => {
       if (data && Array.isArray(data)) {
         setTasks(data);
-        return;
       }
-      if (currentConnectionState().status === 'disconnected') seedMockTasks();
     });
   }, []);
-
-  useEffectT(() => {
-    if (taskId) return undefined;
-    const handler = (e) => {
-      if (e.detail?.connection?.status === 'disconnected') seedMockTasks();
-    };
-    window.addEventListener('fh:connection', handler);
-    return () => window.removeEventListener('fh:connection', handler);
-  }, [taskId]);
 
   useEffectT(() => {
     if (taskId) setActive(taskId);
@@ -124,6 +115,8 @@ function TasksPage({ taskId, onNav, taskViewMode }) {
 
   const active = tasks.find(tk => tk.id === activeId);
   const filterKeys = ['all', 'running', 'queued', 'success', 'failed', 'stopped'];
+  const tasksEmptyState = connection.status === 'disconnected' ? t('c.unavailable') : t('tasks.noMatch');
+  const detailEmptyState = connection.status === 'disconnected' ? t('c.unavailable') : t('tasks.noSelection');
 
   function handleCreated(task) {
     setTasks(prev => {
@@ -189,7 +182,7 @@ function TasksPage({ taskId, onNav, taskViewMode }) {
                 }}
               />
             ))}
-            {filtered.length === 0 && <Empty>{t('tasks.noMatch')}</Empty>}
+            {filtered.length === 0 && <Empty>{tasksEmptyState}</Empty>}
           </div>
         </Panel>
 
@@ -202,7 +195,7 @@ function TasksPage({ taskId, onNav, taskViewMode }) {
           />
         ) : (
           <Panel className="task-detail">
-            <Empty>{t('tasks.noSelection')}</Empty>
+            <Empty>{detailEmptyState}</Empty>
           </Panel>
         )}
       </div>
@@ -334,13 +327,12 @@ function TaskDetail({ task, onNav, taskViewMode }) {
   const hintSupported = !!capabilityMap.hint;
   const stopSupported = !!capabilityMap.stop;
   const continueSupported = !!capabilityMap.continue;
-  const retrySupported = !!capabilityMap.retry;
   const attachmentsSupported = !!capabilityMap.attachments;
+  const isActionLive = ['connected', 'degraded'].includes(connection.status);
   const hintAvailable = hintSupported
-    && ['connected', 'degraded'].includes(connection.status)
+    && isActionLive
     && typeof window.API?.hintTask === 'function';
-  const continueAvailable = continueSupported && typeof window.API?.continueTask === 'function';
-  const retryAvailable = retrySupported && typeof window.API?.retryTask === 'function';
+  const continueAvailable = continueSupported && isActionLive;
   const initialMessages = resolveTaskMessages(detailTask);
 
   const [messages, setMessages] = useStateT(initialMessages);
@@ -537,65 +529,41 @@ function TaskDetail({ task, onNav, taskViewMode }) {
     msgEnd.current?.scrollTo({ top: msgEnd.current.scrollHeight, behavior: 'smooth' });
   }, [messages.length]);
 
+  function appendSystemMessage(content) {
+    setMessages(prev => [...prev, {
+      id: `m_system_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      role: 'system',
+      t: new Date().toISOString(),
+      content,
+    }]);
+  }
+
   const send = async () => {
     if (!draft.trim()) return;
     if (hintMode && !hintAvailable) return;
     if (!hintMode && !continueAvailable) return;
-    const newMsg = {
-      id: `m_${Date.now()}`,
-      role: 'user',
-      t: new Date().toISOString(),
-      content: draft,
-      isHint: hintMode,
-    };
-    setMessages(m => [...m, newMsg]);
+    if (!hintMode) return;
 
-    if (hintMode) {
-      await window.API.hintTask(detailTask.id, draft);
-    } else if (!hintMode && continueAvailable) {
-      await window.API.continueTask(detailTask.id, draft);
+    const text = draft.trim();
+    const result = await window.API.hintTask(detailTask.id, text);
+    if (!result?.ok) {
+      appendSystemMessage('hint request failed');
+      return;
     }
-
-    setTimeout(() => {
-      setMessages(m => [...m, {
-        id: `m_${Date.now()}_ack`,
-        role: hintMode ? 'system' : 'agent',
-        t: new Date().toISOString(),
-        content: hintMode ? t('td.hintAck') : t('td.continueAck'),
-      }]);
-    }, 600);
     setDraft('');
   };
 
   async function handleStop() {
-    const connection = currentConnectionState();
     const canStopTask = stopSupported && (
       ['connected', 'degraded'].includes(connection.status)
       && typeof window.API?.stopTask === 'function'
     );
     if (!canStopTask) return;
-    await window.API.stopTask(detailTask.id);
-    setMessages(m => [...m, {
-      id: `m_stop_${Date.now()}`,
-      role: 'system',
-      t: new Date().toISOString(),
-      content: 'stop signal sent',
-    }]);
-  }
-
-  async function handleRetry() {
-    if (!retryAvailable) return;
-    await window.API.retryTask(detailTask.id);
-    setMessages(m => [...m, {
-      id: `m_retry_${Date.now()}`,
-      role: 'system',
-      t: new Date().toISOString(),
-      content: 'retry requested',
-    }]);
+    const result = await window.API.stopTask(detailTask.id);
+    if (!result?.ok) appendSystemMessage('stop request failed');
   }
 
   const continueUnavailableReason = continueSupported ? t('c.unavailable') : t('td.continueUnavailable');
-  const retryUnavailableReason = retrySupported ? t('c.unavailable') : t('td.retryUnavailable');
 
   return (
     <div className="task-detail">
@@ -624,16 +592,6 @@ function TaskDetail({ task, onNav, taskViewMode }) {
           </div>
         </div>
         <div className="actions">
-          {(isActive || detailTask.status === 'failed') && (
-            <button
-              className={`btn ${detailTask.status === 'failed' ? 'primary' : ''}`.trim()}
-              disabled={!retryAvailable}
-              title={!retryAvailable ? retryUnavailableReason : ''}
-              onClick={handleRetry}
-            >
-              ⟲ {t('c.retry')}
-            </button>
-          )}
           <button
             className="btn ghost"
             onClick={() => downloadJson(`${detailTask.id}.json`, detailTask)}
