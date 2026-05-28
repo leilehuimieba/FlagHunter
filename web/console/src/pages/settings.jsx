@@ -421,8 +421,32 @@ function ModelSec({ draft, patch, meta }) {
   );
 }
 
-function RuntimeSec({ draft, patch, meta }) {
+function RuntimeSec({ draft, patch, meta, connection }) {
   const r = draft.runtime || {};
+  const [runtimeTestState, setRuntimeTestState] = uSt(null);
+  const runtimeTestAvailable = ['connected', 'degraded'].includes(connection?.status)
+    && typeof window.API?.testRuntime === 'function';
+  const runtimeTestUnavailableReason = ['connected', 'degraded'].includes(connection?.status)
+    ? t('c.notWired')
+    : t('c.notConnected');
+
+  async function handleRuntimeTest() {
+    if (!runtimeTestAvailable) return;
+    setRuntimeTestState({ status: 'loading' });
+    const runtimeTestResult = await window.API.testRuntime();
+    if (!runtimeTestResult?.ok) {
+      setRuntimeTestState({ status: 'error', text: t('c.failed') });
+      return;
+    }
+    const runtimeInfo = runtimeTestResult.runtime || {};
+    setRuntimeTestState({
+      status: 'ok',
+      text: runtimeInfo.status_text || runtimeInfo.label || t('c.success'),
+      healthy: runtimeTestResult.healthy,
+      testedAt: runtimeTestResult.testedAt,
+    });
+  }
+
   return (
     <Section title={t('st.rt.t')} sub={t('st.rt.sub')}>
       <Field label={t('st.rt.mode')} hint={supportHint('', 'runtime.mode', meta)} path="runtime.mode" meta={meta}>
@@ -452,11 +476,29 @@ function RuntimeSec({ draft, patch, meta }) {
       <div className="set-field" style={{ gridColumn: '1 / -1' }}>
         <div className="lbl">
           <span>{t('st.rt.test')}</span>
-          <span className="badges"><span className="chip ghost">{t('st.readOnlyChip')}</span></span>
+          <span className="badges">
+            <span className={`chip ${runtimeTestAvailable ? 'green' : 'ghost'}`}>
+              {runtimeTestAvailable ? t('c.live') : t('st.readOnlyChip')}
+            </span>
+          </span>
         </div>
         <div className="row gap-8">
-          <button className="btn" disabled={true} title={t('st.actionReadOnly')}>{t('st.rt.testBtn')}</button>
-          <span className="muted">{t('st.actionReadOnly')}</span>
+          <button
+            className="btn"
+            disabled={!runtimeTestAvailable || runtimeTestState?.status === 'loading'}
+            title={!runtimeTestAvailable ? runtimeTestUnavailableReason : ''}
+            onClick={handleRuntimeTest}
+          >
+            {runtimeTestState?.status === 'loading' ? '…' : t('st.rt.testBtn')}
+          </button>
+          <span className={runtimeTestState?.status === 'error' ? 'red' : 'muted'}>
+            {!runtimeTestAvailable
+              ? runtimeTestUnavailableReason
+              : runtimeTestState?.text || t('st.rt.testHint')}
+          </span>
+          {runtimeTestState?.testedAt && (
+            <span className="muted">{formatLocalTime(runtimeTestState.testedAt)}</span>
+          )}
         </div>
       </div>
     </Section>

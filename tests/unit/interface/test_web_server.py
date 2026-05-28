@@ -7,6 +7,7 @@ from aiohttp.test_utils import TestClient, TestServer
 
 from pentestagent.interface import web_server
 import pentestagent.knowledge as knowledge_module
+import pentestagent.interface.initializer as initializer_module
 
 
 class _NoopThread:
@@ -470,3 +471,40 @@ async def test_knowledge_reindex_returns_summary_shape(
     assert data["docCount"] == 1
     assert data["chunkCount"] == 2
     assert isinstance(data["updatedAt"], str)
+
+
+@pytest.mark.asyncio
+async def test_runtime_test_returns_runtime_summary_shape(
+    web_client: TestClient, monkeypatch: pytest.MonkeyPatch
+):
+    class _FakeRuntime:
+        async def stop(self):
+            return None
+
+    async def _fake_build_runtime(*, docker=False, ssh=False, auto_ssh=True, on_progress=None):
+        return _FakeRuntime(), {
+            "requested": "auto",
+            "selected": "local",
+            "auto_selected": False,
+            "connected": True,
+            "host": None,
+            "port": None,
+            "user": None,
+            "label": "Local",
+            "status_text": "Local runtime active",
+            "fallback_reason": None,
+        }
+
+    monkeypatch.setattr(initializer_module, "build_runtime", _fake_build_runtime)
+
+    resp = await web_client.post("/api/runtime/test")
+
+    assert resp.status == 200
+    data = await resp.json()
+    assert data["ok"] is True
+    assert data["healthy"] is True
+    assert isinstance(data["testedAt"], str)
+    assert data["runtime"]["selected"] == "local"
+    assert data["runtime"]["connected"] is True
+    assert data["runtime"]["label"] == "Local"
+    assert data["runtime"]["status_text"] == "Local runtime active"

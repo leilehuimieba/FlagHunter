@@ -138,6 +138,10 @@
     });
   }
 
+  async function testRuntime() {
+    return apiFetch('/api/runtime/test', { method: 'POST' });
+  }
+
   async function getDashboard() {
     return apiFetch('/api/dashboard/summary');
   }
@@ -372,6 +376,7 @@
     getStatus,
     getSettings,
     putSettings,
+    testRuntime,
     getDashboard,
     getTasks,
     createTask,
