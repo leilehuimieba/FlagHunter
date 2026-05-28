@@ -2,6 +2,7 @@
 
 - 文档版本：V1
 - 编写日期：2026-05-27
+- 最近同步日期：2026-05-28
 - 文档角色：**当前可用性收口 / 使用边界说明**
 - 验证起点基线：`9fff682` · `fix(web): truthify dashboard knowledge settings live states`
 - 当前结论：**当前实现已达到“可实际使用且边界更诚实”的收口标准，可作为后续继续开发前的稳定可用基线**
@@ -37,13 +38,16 @@
 - create task
 - add hint
 - stop task
+- runtime test
+- knowledge reindex
+- knowledge add doc
+- knowledge open file
 
 ### 2.3 当前不纳入本轮硬门槛的内容
 
 - retry
 - continue
-- knowledge reindex / add doc / open file
-- dashboard 运行时筛选 / 时间筛选
+- dashboard 高阶筛选 / 时间范围扩展
 - 新事件 schema 扩展
 - 新图表 / 新页面 / 新控制能力
 
@@ -69,6 +73,7 @@
 1. `#/dashboard`
    - 能打开并看到 Dashboard 主体内容
    - 已验证 `活跃运行 / 最近任务 / Flag 看板` 等关键区域
+   - 顶部 `window / runtime` 已接成最小筛选器，不再是纯禁用占位
 
 2. `#/logs`
    - 能打开 live 日志页
@@ -79,17 +84,18 @@
    - 能打开设置页
    - `配置面板 / 模型配置 / API 密钥` 等核心区域可见
    - 当前 partial live save 的 UI 表面存在且可读取
+   - `runtime test` 已接成真实动作，不再是只读占位
 
 4. `#/knowledge`
    - 能打开 Knowledge 列表页
    - live 下列表可直接读取真实 doc 数据
-   - `reindex / add doc` 已降级为禁用诚实态
+   - `reindex / add doc` 已接成真实动作
    - `export` 已接成本地 JSON 导出
 
 5. `#/knowledge/not_real_doc`
    - invalid detail deep-link 可安全打开
    - 当前会显示真实空态，不再混入 `MOCK.CHUNKS_002`
-   - `open file` 已降级为禁用诚实态
+   - `open file` 已接成真实动作，当前走浏览器打开知识源文件内容链路
 
 6. `#/tasks/task_260527072428_7b73`
    - deep-link reload 可用
@@ -110,10 +116,12 @@
 本轮已额外确认：
 
 - Dashboard live 下不再静默显示 `recentNotes / recentArtifacts` mock 内容
-- Dashboard 顶部筛选按钮已改成禁用诚实态，不再表现为“可点但无动作”
+- Dashboard 顶部筛选器已接成最小 live 筛选，不再表现为“可点但无动作”
 - Dashboard 最近任务点击会直达对应 `Task Detail`
 - Settings 不再以 `MOCK.SETTINGS` 作为 live merge 基底
 - Settings 预算 / 知识库索引只读区块不再显示旧硬编码假数据
+- Settings runtime test 已接成真实动作
+- Knowledge add doc / open file 已接成真实动作
 
 ### 3.3 动作主路径：通过
 
@@ -135,6 +143,20 @@
 
 > **当前 UI 已暴露的 create / hint / stop 三个核心动作合同，在 live 后端下是可实际使用的。**
 
+### 3.4 新近接通但仍建议按“最小合同”理解的动作
+
+在 2026-05-28 当前代码基线上，以下能力已完成前后端接线：
+
+- `runtime test`
+- `knowledge reindex`
+- `knowledge add doc`
+- `knowledge open file`
+- `dashboard summary filters`
+
+但这些能力在本文档最初对应的旧 smoke 基线中尚未单独记录浏览器级 hard acceptance；因此当前应把它们理解为：
+
+> **已接通、可用、且有自动化合同验证覆盖的最小 live 能力；后续若要把它们抬升为更强保证，应补独立 smoke / verify 证据。**
+
 ---
 
 ## 4. 当前可以放心使用的边界
@@ -150,6 +172,7 @@
 5. Trace List / Trace Detail 查看
 6. Knowledge 页面查看
 7. Settings 只读统计查看（已接 live 数据或显式空值）
+8. Dashboard 顶部最小筛选读取（`24h/all`、`all/local/docker/ssh`）
 
 ### 4.2 详情与 reload
 
@@ -157,13 +180,18 @@
 2. Trace Detail deep-link 可直接打开
 3. 已停止任务 reload 后仍能看到持久化 hint
 4. Trace replay 中仍能看到 `task.hint`
+5. Knowledge detail 可通过 `open file` 打开知识源文件内容
 
 ### 4.3 动作路径
 
 1. 创建任务
 2. 注入 hint
 3. 停止任务
-4. Tasks / Traces / Logs / Knowledge 的本地 JSON 导出
+4. runtime test
+5. knowledge reindex
+6. knowledge add doc
+7. knowledge open file
+8. Tasks / Traces / Logs / Knowledge 的本地 JSON 导出
 
 ### 4.4 live 稳定性
 
@@ -190,14 +218,11 @@
    - 页面正文可验证
    - 但行级 DOM 选择器稳定性弱于整页文本断言
 
-4. Knowledge / Dashboard / Settings 中仍未开放的管理动作
-   - `reindex`
-   - `add doc`
-   - `open file`
-   - `test runtime`
+4. 仍未开放或未做更强保证的管理动作
    - `add server`
-   - `rebuild index`
-   这些当前应被理解为“未接线的禁用动作”，不是坏掉的已上线功能
+   - dashboard 更高阶时间范围 / 组合筛选
+   - 更细粒度的 Knowledge / Dashboard 管理动作
+   当前不要把它们当作“已完整收口”的强保证；其中已接线的新能力也仍建议先按最小合同理解
 
 5. 更高阶的后续增强项
    - richer event schema
@@ -217,6 +242,8 @@
 - 当前主页面的未接线能力会显式禁用或显示空态
 - 当前详情页 deep-link 可用
 - create / hint / stop 可用
+- runtime test / knowledge reindex / add doc / open file 已接通
+- Dashboard 顶部最小筛选已接通
 - Stage V 收口链路已完成
 
 ### 不建议现在依赖
