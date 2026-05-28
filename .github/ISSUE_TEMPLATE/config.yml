@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: FlagHunter AGENTS.md
+    url: https://github.com/leilehuimieba/FlagHunter/blob/main/AGENTS.md
+    about: 先查看仓库协作约束与项目上下文。
+  - name: Release Policy
+    url: https://github.com/leilehuimieba/FlagHunter/blob/main/docs/release-policy.md
+    about: 发版、changelog 与 release notes 请优先遵循这里的规则。
+  - name: README / Onboarding
+    url: https://github.com/leilehuimieba/FlagHunter/blob/main/README.md
+    about: 先查看项目定位、快速开始、文档入口与仓库策略说明。

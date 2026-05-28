@@ -29,6 +29,7 @@ FlagHunter 的目标不是做“只能聊天的安全助手”，而是把 **计
 - [版本发布](#版本发布)
 - [Changelog](./CHANGELOG.md)
 - [Release Policy](./docs/release-policy.md)
+- [Release Checklist](./docs/release-checklist.md)
 
 ---
 
@@ -281,6 +282,7 @@ pentestagent mcp_server --type sse --host 0.0.0.0 --port 8080
 | `D:\webstudy\FlagHunter\docs\superpowers\plans\` | 当前实现计划与执行文档 |
 | `D:\webstudy\FlagHunter\CHANGELOG.md` | 版本与仓库演进记录 |
 | `D:\webstudy\FlagHunter\docs\release-policy.md` | 版本号、changelog 与 release 规则 |
+| `D:\webstudy\FlagHunter\docs\release-checklist.md` | 发版前人工检查清单 |
 
 ---
 
@@ -289,6 +291,7 @@ pentestagent mcp_server --type sse --host 0.0.0.0 --port 8080
 - **Current Release**：`v0.1.0`
 - **Changelog**：见 [`CHANGELOG.md`](./CHANGELOG.md)
 - **Release Policy**：见 [`docs/release-policy.md`](./docs/release-policy.md)
+- **Release Checklist**：见 [`docs/release-checklist.md`](./docs/release-checklist.md)
 - **License**：`MIT`
 - **Website**：当前未设置公开站点链接，避免把私有仓库误当公开展示页
 - **.gitignore**：已配置顶层 `.gitignore`，用于屏蔽本地环境、缓存、日志与敏感文件
