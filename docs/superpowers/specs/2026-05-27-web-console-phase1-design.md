@@ -1,6 +1,7 @@
 # FlagHunter Web Console Phase 1 Redesign Design
 
 **Date:** 2026-05-27  
+**Last Synced:** 2026-05-29  
 **Project:** `D:\webstudy\FlagHunter`  
 **Scope:** Web Console phase 1 redesign for `Dashboard + Tasks + Topbar / global state`
 
@@ -919,7 +920,22 @@ Phase 1 turns the FlagHunter Web Console into a **real-data-centered, conversati
 
 ---
 
-## 20. Follow-on Addendum: Settings MCP add server (2026-05-28)
+## 20. Historical Addendum: Settings MCP add server (approved 2026-05-28, completed by 2026-05-29)
+
+**Status as of 2026-05-29:** completed and already part of the current Web Console availability baseline.
+
+Read this section as a **historical design addendum**, not as an open implementation gap.
+
+Current truth should be recovered from:
+
+- `D:\webstudy\FlagHunter\docs\web-console\FlagHunter_Web可视化控制台_当前可用性收口与使用边界_V1.md`
+- `D:\webstudy\FlagHunter\docs\web-console\FlagHunter_Web可视化控制台_规划文档收口映射_V1.md`
+- commit `da34d67` · `feat(web-console): wire MCP add server flow`
+- contract test `D:\webstudy\FlagHunter\tests\unit\web_console\test_mcp_add_server_contract.py`
+
+Current regression baseline covering this broader doc-sync phase:
+
+> `71 passed in 0.53s`
 
 This addendum freezes the next **post-phase-1 live wiring slice** for the Web Console Settings page.  
 It does **not** reopen the earlier phase-1 scope debate. It records the approved minimal design for the next truthful management action.
@@ -1094,15 +1110,24 @@ Do **not** keep the old permanent read-only placeholder wording for this action 
 
 ### 20.6 TDD boundary for execution
 
-The implementation plan for this slice must verify only the minimum useful behavior:
+The implementation plan for this slice was intended to verify only the minimum useful behavior:
 
 1. `GET /api/settings` exposes real MCP servers
 2. `POST /api/settings/mcp/servers` writes a new SSE server
 3. invalid payload returns `400`
 4. Settings frontend binds the add-server UI to the live API contract
 
-This slice should continue the repository’s current testing strategy:
+This slice was designed to continue the repository’s testing strategy:
 
 - backend contract tests in `pytest`
 - frontend source-level contract tests
 - no new browser E2E requirement for the first iteration
+
+### 20.7 Completion note
+
+This addendum has already been realized in the repository’s current baseline:
+
+1. `GET /api/settings` exposes real MCP servers
+2. `POST /api/settings/mcp/servers` writes a new SSE server
+3. the Settings frontend binds add-server through the live API contract
+4. the slice should no longer be tracked as “next up” in later summaries

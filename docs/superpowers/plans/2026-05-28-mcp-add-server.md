@@ -1,5 +1,14 @@
 # MCP Add Server Implementation Plan
 
+> **Status as of 2026-05-29:** this implementation plan has already been executed and should now be read as a historical execution record, not as an open work queue.
+>
+> Current truth and current availability should be recovered from:
+> - `D:\webstudy\FlagHunter\docs\web-console\FlagHunter_Web可视化控制台_当前可用性收口与使用边界_V1.md`
+> - `D:\webstudy\FlagHunter\docs\web-console\FlagHunter_Web可视化控制台_规划文档收口映射_V1.md`
+> - commit `da34d67` · `feat(web-console): wire MCP add server flow`
+> - contract test `D:\webstudy\FlagHunter\tests\unit\web_console\test_mcp_add_server_contract.py`
+> - broader regression baseline `71 passed in 0.53s`
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 把 `D:\webstudy\FlagHunter` 的 Settings MCP 区域从只读占位推进为“可读取真实 MCP server 列表，并可最小新增一个 SSE server”的 live 联通能力。
