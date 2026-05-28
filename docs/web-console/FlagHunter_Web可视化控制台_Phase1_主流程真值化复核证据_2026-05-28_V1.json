@@ -1,0 +1,59 @@
+{
+  "version": "V1",
+  "date": "2026-05-28",
+  "scope": "web console phase1 mainline recovery + truthification re-verify + responsive tasks workspace smoke",
+  "baseUrl": "http://127.0.0.1:3000",
+  "python": "D:\\webstudy\\FlagHunter\\.venv\\Scripts\\python.exe",
+  "gitBranch": "main",
+  "checks": {
+    "apiStatus": {
+      "ok": true,
+      "version": "0.2.0",
+      "runtime": "LocalRuntime",
+      "tasks": {
+        "total": 13,
+        "running": 0
+      }
+    },
+    "backendContractTests": {
+      "command": ".venv\\Scripts\\python.exe -m pytest tests\\unit\\interface\\test_web_server.py -q",
+      "result": "passed",
+      "passedCount": 12
+    },
+    "tasksRoute": {
+      "route": "#/tasks",
+      "ok": true,
+      "markers": [
+        "任务",
+        "对话优先",
+        "分析优先",
+        "Stage V usability action stop verify",
+        "METRICS-DERIVED SUMMARY",
+        "注入提示"
+      ]
+    },
+    "viewportSmoke": {
+      "1280x900": {
+        "ok": true,
+        "finding": "task list remains readable and detail conversation area is no longer crushed into the old narrow-column layout"
+      },
+      "1366x900": {
+        "ok": true,
+        "finding": "three-column composition remains usable; analysis side panel does not collapse the core detail region"
+      },
+      "1440x960": {
+        "ok": true,
+        "finding": "task list + detail + analysis panel coexist without obvious wasted width or fixed-viewport behavior"
+      }
+    },
+    "mainlineMockSemantics": {
+      "shellGlobalMockRemoved": true,
+      "indexHtmlMockCommentsClarified": true,
+      "note": "mock.js remains in repository as optional developer support only; it is no longer described as the main workflow fallback truth source"
+    }
+  },
+  "conclusion": {
+    "status": "passed",
+    "summary": "Phase 1 main workflow is already truthified on the current code line. The original complaint about the task detail conversation area being too narrow no longer reproduces as the primary blocker. The current stage is plan alignment, semantics cleanup, and fresh smoke evidence capture."
+  }
+}

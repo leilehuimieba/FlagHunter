@@ -52,6 +52,8 @@
 | `FlagHunter_Web可视化控制台_StageV_首轮页面级回归验证证据_V1.json` | evidence | 是 | 是 | 否 | Stage V Task A 页面级回归证据 |
 | `FlagHunter_Web可视化控制台_StageV_动作链验收验证证据_V1.json` | evidence | 是 | 是 | 否 | Stage V Task B 动作链证据 |
 | `FlagHunter_Web可视化控制台_当前可用性Smoke验证证据_V1.json` | evidence | 是 | 是 | 否 | post-Stage-V + truthification 当前可用性 smoke 证据 |
+| `FlagHunter_Web可视化控制台_Phase1_主流程真值化复核状态卡_2026-05-28_V1.md` | current-recovery | **是** | 否 | 中 | 2026-05-28 按当前代码真相对齐 Phase 1 主线后的恢复状态卡 |
+| `FlagHunter_Web可视化控制台_Phase1_主流程真值化复核证据_2026-05-28_V1.json` | evidence | **是** | 否 | 中 | 2026-05-28 fresh smoke + 响应式任务页复核证据 |
 | `FlagHunter_Web可视化控制台建设计划书_V1.md` | planning | 否 | 否 | 否 | 初始规划，描述建设愿景，不代表当前实现 |
 | `FlagHunter_Web可视化控制台_信息架构与API事件草案_V1.md` | planning/reference | 否 | 否 | 低频 | 参考合同文档，部分已实现，部分已偏离 |
 | `FlagHunter_Web可视化控制台_前端原型拆解与组件树规范_V1.md` | planning/reference | 否 | 否 | 低频 | 原型设计参考，不是当前代码结构真相 |
@@ -72,6 +74,7 @@
 如果需要证据，再补看：
 
 4. `D:\webstudy\FlagHunter\docs\web-console\FlagHunter_Web可视化控制台_当前可用性Smoke验证证据_V1.json`
+5. `D:\webstudy\FlagHunter\docs\web-console\FlagHunter_Web可视化控制台_Phase1_主流程真值化复核证据_2026-05-28_V1.json`
 
 ---
 
@@ -93,6 +96,15 @@
 2. `StageV_动作链验收验证证据_V1.json`
 3. `StageV_首轮页面级回归验证证据_V1.json`
 4. `StageIV_总验收归档与交接_V1.md`
+
+### 场景 D：我要恢复 Web Console Phase 1 主流程现状
+
+按顺序读：
+
+1. `Phase1_主流程真值化复核状态卡_2026-05-28_V1`
+2. `Phase1_主流程真值化复核证据_2026-05-28_V1.json`
+3. `当前可用性收口与使用边界_V1`
+4. `2026-05-27-web-console-phase1-implementation.md`
 
 ### 场景 C：我要看最初是怎么规划的
 

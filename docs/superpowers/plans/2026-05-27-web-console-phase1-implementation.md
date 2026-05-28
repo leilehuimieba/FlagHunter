@@ -10,6 +10,42 @@
 
 ---
 
+## Recovery / execution status snapshot (2026-05-28)
+
+本计划在 2026-05-28 做过一次按当前代码真相的恢复核对，结论如下：
+
+- **Task 1 ~ Task 4 的主目标已经落到当前代码主线。**
+- 当前后端契约测试通过：
+  - `D:\webstudy\FlagHunter\.venv\Scripts\python.exe -m pytest tests\unit\interface\test_web_server.py -q`
+  - 结果：`12 passed`
+- 当前浏览器 smoke 已在 `http://127.0.0.1:3000/#/tasks` 复核：
+  - `1280px`
+  - `1366px`
+  - `1440px`
+- 任务详情主工作区已不再是“对话区过窄”的旧状态，当前更准确的问题是 **Phase 1 收尾、语义清理与 fresh verify 留痕**。
+
+### Checkbox interpretation
+
+下面 Task 1 ~ Task 4 的步骤复选框已按**当前主线已完成**对齐。  
+其中少数步骤原本描述的是“实现前的失败验证”或“分片提交动作”，这些在历史执行过程中已经发生；当前勾选表示：
+
+- 该步骤对应的目标已经在现代码中实现或被当前 fresh verify 复核
+- 不要求今天再次人为制造旧失败现场
+- 不要求当前分支重新按原切片方式拆 commit
+
+### Historical note
+
+原计划中部分 `rg` / 预期输出 / 失败断言，保留为**历史执行上下文**，方便回看最初改造意图；  
+若与当前代码现状冲突，以：
+
+1. 当前代码
+2. 当前测试结果
+3. 2026-05-28 的 fresh smoke 记录
+
+为准。
+
+---
+
 ## 0. File Structure / Change Map
 
 ### Backend files
@@ -73,14 +109,16 @@
   - 允许继续存在作为开发辅助
   - 但不再作为主流程默认真相来源
 
-### Existing local modifications to preserve
+### Historical execution caution
 
-当前工作区已经有未提交改动：
+本段是**最初执行期**留下的提醒，不再代表 2026-05-28 当前工作区状态。
 
-- `D:\webstudy\FlagHunter\pentestagent\interface\main.py`
-- `D:\webstudy\FlagHunter\pentestagent\interface\web_server.py`
+- 当时需要特别避免覆盖：
+  - `D:\webstudy\FlagHunter\pentestagent\interface\main.py`
+  - `D:\webstudy\FlagHunter\pentestagent\interface\web_server.py`
+- 当前恢复核对时，主线基线已先用 `git status --short --branch` 与 fresh verify 重新确认。
 
-执行实现前先运行 `git diff -- D:\webstudy\FlagHunter\pentestagent\interface\web_server.py D:\webstudy\FlagHunter\pentestagent\interface\main.py`，避免覆盖已有本地工作。
+如果未来再次继续这条主线，先看当前工作区状态，而不是机械沿用这段旧提醒。
 
 ### Locked interface decisions for execution
 
@@ -113,7 +151,7 @@
 - Modify: `D:\webstudy\FlagHunter\pentestagent\interface\web_server.py:1849-2239`
 - Test: `D:\webstudy\FlagHunter\tests\unit\interface\test_web_server.py`
 
-- [ ] **Step 1: Write the failing backend contract tests**
+- [x] **Step 1: Write the failing backend contract tests**
 
 ```python
 from __future__ import annotations
@@ -297,7 +335,7 @@ async def test_attachments_endpoint_returns_empty_list_when_no_files(web_client:
     assert data == {"taskId": task["id"], "files": []}
 ```
 
-- [ ] **Step 2: Run tests to verify they fail on missing capabilities / defaults**
+- [x] **Step 2: Run tests to verify they fail on missing capabilities / defaults**
 
 Run:
 
@@ -312,7 +350,7 @@ FAILED test_task_detail_includes_capabilities_and_detail_fields
 E   AssertionError: assert 'capabilities' in detail
 ```
 
-- [ ] **Step 3: Implement explicit task capabilities and stable detail defaults**
+- [x] **Step 3: Implement explicit task capabilities and stable detail defaults**
 
 Add these helpers into `D:\webstudy\FlagHunter\pentestagent\interface\web_server.py` near `_serialize_task`:
 
@@ -416,7 +454,7 @@ task = {
 }
 ```
 
-- [ ] **Step 4: Re-run the targeted backend contract tests**
+- [x] **Step 4: Re-run the targeted backend contract tests**
 
 Run:
 
@@ -437,7 +475,7 @@ PASSED test_hint_endpoint_persists_hint_and_emits_supported_shape
 PASSED test_attachments_endpoint_returns_empty_list_when_no_files
 ```
 
-- [ ] **Step 5: Commit the backend contract slice**
+- [x] **Step 5: Commit the backend contract slice**
 
 ```bash
 git add D:\webstudy\FlagHunter\pentestagent\interface\web_server.py D:\webstudy\FlagHunter\tests\unit\interface\test_web_server.py
@@ -457,7 +495,7 @@ git commit -m "feat(web): add stable task detail contract for mission control"
 - Modify: `D:\webstudy\FlagHunter\web\console\src\i18n.js`
 - Test: `D:\webstudy\FlagHunter\tests\unit\interface\test_web_server.py`
 
-- [ ] **Step 1: Confirm the current responsive blocker and translation drift before editing**
+- [x] **Step 1: Confirm the current responsive blocker and translation drift before editing**
 
 Run:
 
@@ -474,7 +512,7 @@ D:\webstudy\FlagHunter\web\console\src\i18n.js:...: 'sidebar.mock'
 D:\webstudy\FlagHunter\web\console\src\pages\dashboard.jsx:...: : t('dash.sub');
 ```
 
-- [ ] **Step 2: Fix viewport so responsive CSS can actually work**
+- [x] **Step 2: Fix viewport so responsive CSS can actually work**
 
 Patch `D:\webstudy\FlagHunter\web\console\index.html`:
 
@@ -484,7 +522,7 @@ Patch `D:\webstudy\FlagHunter\web\console\index.html`:
 
 This replacement is mandatory, not optional. Do not keep any fixed-width viewport variant in phase 1.
 
-- [ ] **Step 3: Implement a single connection-state model in `api.js`**
+- [x] **Step 3: Implement a single connection-state model in `api.js`**
 
 Patch `D:\webstudy\FlagHunter\web\console\src\api.js` so it exports a structured connection snapshot:
 
@@ -575,7 +613,7 @@ window.API = {
 };
 ```
 
-- [ ] **Step 4: Lift task detail mode state into `app.jsx` and keep Topbar as the only toggle entry**
+- [x] **Step 4: Lift task detail mode state into `app.jsx` and keep Topbar as the only toggle entry**
 
 Patch `D:\webstudy\FlagHunter\web\console\src\app.jsx`:
 
@@ -609,7 +647,7 @@ Pass it into the shell and tasks page:
 )}
 ```
 
-- [ ] **Step 5: Update `shell.jsx` and `i18n.js` to use the same state vocabulary**
+- [x] **Step 5: Update `shell.jsx` and `i18n.js` to use the same state vocabulary**
 
 Patch `D:\webstudy\FlagHunter\web\console\src\shell.jsx` so `Sidebar` and `Topbar` consume `window.API.getConnectionState()` instead of the `live/mock` binary:
 
@@ -705,7 +743,7 @@ And the Chinese block:
 
 After adding the new keys, remove UI dependencies on `sidebar.live` and `sidebar.mock` from the changed files.
 
-- [ ] **Step 6: Update status styles to support `connected / degraded / reconnecting / disconnected / connecting`**
+- [x] **Step 6: Update status styles to support `connected / degraded / reconnecting / disconnected / connecting`**
 
 Patch `D:\webstudy\FlagHunter\web\console\src\styles.css`:
 
@@ -741,7 +779,7 @@ Patch `D:\webstudy\FlagHunter\web\console\src\styles.css`:
 }
 ```
 
-- [ ] **Step 7: Run backend tests and start the console for manual state verification**
+- [x] **Step 7: Run backend tests and start the console for manual state verification**
 
 Run:
 
@@ -761,7 +799,7 @@ Manual verification checklist:
 6. Confirm there is no second conversation/analysis toggle duplicated inside task detail header.
 ```
 
-- [ ] **Step 8: Commit the viewport + connection-state slice**
+- [x] **Step 8: Commit the viewport + connection-state slice**
 
 ```bash
 git add D:\webstudy\FlagHunter\web\console\index.html D:\webstudy\FlagHunter\web\console\src\api.js D:\webstudy\FlagHunter\web\console\src\app.jsx D:\webstudy\FlagHunter\web\console\src\shell.jsx D:\webstudy\FlagHunter\web\console\src\styles.css D:\webstudy\FlagHunter\web\console\src\i18n.js D:\webstudy\FlagHunter\tests\unit\interface\test_web_server.py
@@ -777,7 +815,7 @@ git commit -m "feat(web): unify viewport and connection semantics"
 - Modify: `D:\webstudy\FlagHunter\web\console\src\i18n.js`
 - Test: `D:\webstudy\FlagHunter\tests\unit\interface\test_web_server.py`
 
-- [ ] **Step 1: Confirm the dashboard still references demo fallback paths**
+- [x] **Step 1: Confirm the dashboard still references demo fallback paths**
 
 Run:
 
@@ -792,7 +830,7 @@ D:\webstudy\FlagHunter\web\console\src\pages\dashboard.jsx:...: const d = MOCK.D
 D:\webstudy\FlagHunter\web\console\src\pages\dashboard.jsx:...: offlineFlags(
 ```
 
-- [ ] **Step 2: Keep the backend contract honest for dashboard empty states**
+- [x] **Step 2: Keep the backend contract honest for dashboard empty states**
 
 Run:
 
@@ -807,7 +845,7 @@ PASSED test_dashboard_summary_uses_truthful_empty_defaults
 PASSED test_dashboard_summary_never_omits_required_collections
 ```
 
-- [ ] **Step 3: Remove mock fallback from `DashboardPage` happy path**
+- [x] **Step 3: Remove mock fallback from `DashboardPage` happy path**
 
 Patch `D:\webstudy\FlagHunter\web\console\src\pages\dashboard.jsx` so it no longer defaults to `MOCK.DASHBOARD`:
 
@@ -868,7 +906,7 @@ spark={tokenSeries.length ? <Sparkline data={tokenSeries.map(s => s.v)} w={56} h
 
 Use `<Empty>{t('c.unavailable')}</Empty>` or `<Empty>{t('tasks.noMatch')}</Empty>` instead of mock-driven visual filler in sections that have no data.
 
-- [ ] **Step 4: Keep navigation and notifications real-data-driven**
+- [x] **Step 4: Keep navigation and notifications real-data-driven**
 
 Patch `recentTasks` / `recentToolCalls` rendering so it is entirely based on API data:
 
@@ -885,7 +923,7 @@ Patch `recentTasks` / `recentToolCalls` rendering so it is entirely based on API
 
 Do not reintroduce `offlineFlags()` or `MOCK.DASHBOARD` anywhere in the file.
 
-- [ ] **Step 5: Run backend tests and manual homepage verification**
+- [x] **Step 5: Run backend tests and manual homepage verification**
 
 Run:
 
@@ -904,7 +942,7 @@ Manual verification checklist:
 5. Browser width changes below/above 1440 do not break dashboard header or primary action placement.
 ```
 
-- [ ] **Step 6: Commit the dashboard slice**
+- [x] **Step 6: Commit the dashboard slice**
 
 ```bash
 git add D:\webstudy\FlagHunter\web\console\src\pages\dashboard.jsx D:\webstudy\FlagHunter\web\console\src\i18n.js D:\webstudy\FlagHunter\tests\unit\interface\test_web_server.py
@@ -922,7 +960,7 @@ git commit -m "feat(web): truthify mission control dashboard"
 - Modify: `D:\webstudy\FlagHunter\web\console\src\shell.jsx:213-384`
 - Modify: `D:\webstudy\FlagHunter\web\console\src\i18n.js`
 
-- [ ] **Step 1: Confirm every remaining mock chain in `tasks.jsx` before refactor**
+- [x] **Step 1: Confirm every remaining mock chain in `tasks.jsx` before refactor**
 
 Run:
 
@@ -940,7 +978,7 @@ D:\webstudy\FlagHunter\web\console\src\pages\tasks.jsx:326: const panel = isMock
 
 This scan is the checklist baseline. Do not stop after removing only `initialActiveId`; the whole chain must be dealt with.
 
-- [ ] **Step 2: Run the task detail contract tests before UI refactor**
+- [x] **Step 2: Run the task detail contract tests before UI refactor**
 
 Run:
 
@@ -955,7 +993,7 @@ PASSED test_task_detail_includes_capabilities_and_detail_fields
 PASSED test_task_detail_defaults_remain_lists_and_bool_capabilities
 ```
 
-- [ ] **Step 3: Remove task-page dependence on `task_002` and backend-guess heuristics**
+- [x] **Step 3: Remove task-page dependence on `task_002` and backend-guess heuristics**
 
 Patch the top of `D:\webstudy\FlagHunter\web\console\src\pages\tasks.jsx`:
 
@@ -1015,7 +1053,7 @@ Replace the route-level render:
 />
 ```
 
-- [ ] **Step 4: Fully remove mock-only detail branches and keep synthetic fallback explicit**
+- [x] **Step 4: Fully remove mock-only detail branches and keep synthetic fallback explicit**
 
 Patch the message / attachment / observation loading logic so it no longer branches on `isMockActive`:
 
@@ -1079,7 +1117,7 @@ Keep `TaskDetailSourceBanner`, but render it based on `detailTask.detailSource`,
 {detailTask.detailSource && <TaskDetailSourceBanner source={detailTask.detailSource} />}
 ```
 
-- [ ] **Step 5: Restructure the task detail hierarchy and keep Topbar as the only mode switch**
+- [x] **Step 5: Restructure the task detail hierarchy and keep Topbar as the only mode switch**
 
 Patch the detail header so it shows grouped identity / description / runtime rows and a passive current-mode label instead of duplicated toggle buttons:
 
@@ -1150,7 +1188,7 @@ if (hintMode && !hintAvailable) return;
 if (!hintMode && !continueAvailable) return;
 ```
 
-- [ ] **Step 6: Implement responsive layout rules in `styles.css`**
+- [x] **Step 6: Implement responsive layout rules in `styles.css`**
 
 Patch `D:\webstudy\FlagHunter\web\console\src\styles.css`:
 
@@ -1269,7 +1307,7 @@ Patch `D:\webstudy\FlagHunter\web\console\src\styles.css`:
 }
 ```
 
-- [ ] **Step 7: Run backend tests and perform the primary manual workflow verification**
+- [x] **Step 7: Run backend tests and perform the primary manual workflow verification**
 
 Run:
 
@@ -1294,7 +1332,7 @@ Manual verification checklist:
 11. Re-run `rg -n "task_002|MESSAGES_002|TASK_002_PANEL|isMockActive" D:\webstudy\FlagHunter\web\console\src\pages\tasks.jsx` and confirm it returns no matches.
 ```
 
-- [ ] **Step 8: Commit the tasks workspace slice**
+- [x] **Step 8: Commit the tasks workspace slice**
 
 ```bash
 git add D:\webstudy\FlagHunter\web\console\src\pages\tasks.jsx D:\webstudy\FlagHunter\web\console\src\styles.css D:\webstudy\FlagHunter\web\console\src\app.jsx D:\webstudy\FlagHunter\web\console\src\shell.jsx D:\webstudy\FlagHunter\web\console\src\i18n.js D:\webstudy\FlagHunter\tests\unit\interface\test_web_server.py
@@ -1358,3 +1396,4 @@ Before executing Task 1, review current local diffs in:
 - `D:\webstudy\FlagHunter\pentestagent\interface\web_server.py`
 
 to avoid overwriting unrelated local changes.
+
