@@ -1,11 +1,10 @@
 // ============================================================
-// FlagHunter API layer — tries /api/* first, falls back to MOCK
-// Sets window.IS_LIVE = true/false and fires 'fh:connection' events
+// FlagHunter API layer — probes backend, manages unified
+// connection state, and exposes REST + SSE helpers
 // ============================================================
 
 (function () {
-  window.IS_LIVE = false;
-  window.FH_NO_MOCK = window.FH_NO_MOCK || false;  // set true to disable MOCK fallback
+  window.FH_NO_MOCK = window.FH_NO_MOCK || false;
   const _listeners = [];
   const _liveState = {
     probeFailures: 0,
@@ -14,15 +13,61 @@
   const PROBE_FAILURE_THRESHOLD = 3;
   const SSE_FRESH_MS = 45000;
 
+  window.FH_CONNECTION = window.FH_CONNECTION || {
+    status: 'connecting',
+    isLive: false,
+    via: 'boot',
+    probeFailures: 0,
+    lastSseAt: 0,
+  };
+  window.IS_LIVE = Boolean(window.FH_CONNECTION.isLive);
+
   function _isSseFresh() {
     return _liveState.lastSseAt > 0 && (Date.now() - _liveState.lastSseAt) < SSE_FRESH_MS;
   }
 
+  function getConnectionState() {
+    return {
+      ...window.FH_CONNECTION,
+      probeFailures: _liveState.probeFailures,
+      lastSseAt: _liveState.lastSseAt,
+    };
+  }
+
+  function _fire(type, detail) {
+    const connection = getConnectionState();
+    window.dispatchEvent(new CustomEvent('fh:connection', { detail: { type, connection, ...detail } }));
+    _listeners.forEach(fn => fn({ type, detail: { connection, ...detail } }));
+  }
+
+  function _syncConnection(partial) {
+    const previous = getConnectionState();
+    window.FH_CONNECTION = {
+      ...previous,
+      ...partial,
+      probeFailures: _liveState.probeFailures,
+      lastSseAt: _liveState.lastSseAt,
+    };
+    window.IS_LIVE = Boolean(window.FH_CONNECTION.isLive);
+
+    const next = getConnectionState();
+    if (
+      previous.status !== next.status
+      || previous.isLive !== next.isLive
+    ) {
+      _fire(next.status, { via: next.via, status: next.status });
+    }
+    return next;
+  }
+
   function _markSseAlive() {
     _liveState.lastSseAt = Date.now();
-    const was = window.IS_LIVE;
-    window.IS_LIVE = true;
-    if (!was) _fire('connected', { via: 'sse' });
+    const nextStatus = _liveState.probeFailures > 0 ? 'degraded' : 'connected';
+    _syncConnection({
+      status: nextStatus,
+      isLive: true,
+      via: 'sse',
+    });
   }
 
   async function probe() {
@@ -31,31 +76,42 @@
       if (!r.ok) throw new Error('not ok');
       const data = await r.json();
       _liveState.probeFailures = 0;
-      const was = window.IS_LIVE;
-      window.IS_LIVE = true;
-      if (!was) _fire('connected', { ...data, via: 'probe' });
-      return true;
+      _syncConnection({
+        status: 'connected',
+        isLive: true,
+        via: 'probe',
+      });
+      return data;
     } catch {
       _liveState.probeFailures += 1;
-      if (_liveState.probeFailures < PROBE_FAILURE_THRESHOLD) return false;
-      if (_isSseFresh()) return false;
-      const was = window.IS_LIVE;
-      window.IS_LIVE = false;
-      if (was) _fire('disconnected', { via: 'probe_failures', failures: _liveState.probeFailures });
+      if (_isSseFresh()) {
+        _syncConnection({
+          status: 'degraded',
+          isLive: true,
+          via: 'probe_degraded',
+        });
+        return false;
+      }
+      if (_liveState.probeFailures < PROBE_FAILURE_THRESHOLD) {
+        _syncConnection({
+          status: 'reconnecting',
+          isLive: Boolean(window.FH_CONNECTION?.isLive),
+          via: 'probe_retry',
+        });
+        return false;
+      }
+      _syncConnection({
+        status: 'disconnected',
+        isLive: false,
+        via: 'probe_failures',
+      });
       return false;
     }
   }
 
-  function _fire(type, detail) {
-    window.dispatchEvent(new CustomEvent('fh:connection', { detail: { type, ...detail } }));
-    _listeners.forEach(fn => fn({ type, detail }));
-  }
-
-  // Poll for connection every 8 seconds
   probe();
   setInterval(probe, 8000);
 
-  // Generic fetch wrapper — falls back to null on error
   async function apiFetch(path, opts) {
     try {
       const r = await fetch(path, opts);
@@ -65,8 +121,6 @@
       return null;
     }
   }
-
-  // ── API methods ───────────────────────────────────────────────
 
   async function getStatus() {
     return apiFetch('/api/status');
@@ -147,13 +201,19 @@
 
   function subscribeEvents(fn) {
     _sseSubs.push(fn);
-    _openSSE();  // always open SSE eagerly (IS_LIVE guard removed — fixes issue #1 and #2)
-    return () => { const i = _sseSubs.indexOf(fn); if (i >= 0) _sseSubs.splice(i, 1); };
+    _openSSE();
+    return () => {
+      const i = _sseSubs.indexOf(fn);
+      if (i >= 0) _sseSubs.splice(i, 1);
+    };
   }
 
   function _openSSE() {
     if (_sse) return;
-    if (_sseTimer) { clearTimeout(_sseTimer); _sseTimer = null; }
+    if (_sseTimer) {
+      clearTimeout(_sseTimer);
+      _sseTimer = null;
+    }
     _sse = new EventSource('/api/events/stream');
     _sse.onopen = () => {
       _markSseAlive();
@@ -161,26 +221,41 @@
     _sse.onmessage = (e) => {
       try {
         _markSseAlive();
-        _sseRetries = 0;  // reset backoff on successful message
+        _sseRetries = 0;
         const ev = JSON.parse(e.data);
         _sseSubs.forEach(fn => fn(ev));
-        // also feed into LiveTicker if available
         if (window.LiveTicker && ev.type === 'tool_call') {
           window.LiveTicker._push({ kind: 'tool', who: ev.tool, what: ev.summary });
         }
       } catch {}
     };
     _sse.onerror = () => {
-      if (_sse) { _sse.close(); _sse = null; }
-      // exponential backoff: 1s → 2s → 4s → 8s → 16s → 30s max (fixes issue #3)
+      if (_sse) {
+        _sse.close();
+        _sse = null;
+      }
       if (_sseSubs.length === 0) return;
-      if (!_isSseFresh() && _liveState.probeFailures >= PROBE_FAILURE_THRESHOLD) {
-        const was = window.IS_LIVE;
-        window.IS_LIVE = false;
-        if (was) _fire('disconnected', { via: 'sse_error' });
+      if (_isSseFresh()) {
+        _syncConnection({
+          status: 'reconnecting',
+          isLive: true,
+          via: 'sse_retry',
+        });
+      } else if (_liveState.probeFailures >= PROBE_FAILURE_THRESHOLD) {
+        _syncConnection({
+          status: 'disconnected',
+          isLive: false,
+          via: 'sse_error',
+        });
+      } else {
+        _syncConnection({
+          status: 'reconnecting',
+          isLive: false,
+          via: 'sse_error',
+        });
       }
       const delay = Math.min(1000 * Math.pow(2, _sseRetries), 30000);
-      _sseRetries++;
+      _sseRetries += 1;
       _sseTimer = setTimeout(() => {
         _sseTimer = null;
         _openSSE();
@@ -189,7 +264,13 @@
   }
 
   window.addEventListener('fh:connection', (e) => {
-    if (e.detail.type === 'connected' && _sseSubs.length > 0) _openSSE();
+    if (
+      e.detail?.via === 'probe'
+      && e.detail?.connection?.status === 'connected'
+      && _sseSubs.length > 0
+    ) {
+      _openSSE();
+    }
   });
 
   // ── Memory API ────────────────────────────────────────────────
@@ -198,27 +279,32 @@
       const qs = new URLSearchParams();
       if (params.status) qs.set('status', params.status);
       if (params.sort_by) qs.set('sort_by', params.sort_by);
-      if (params.limit)   qs.set('limit', params.limit);
+      if (params.limit) qs.set('limit', params.limit);
       const r = await fetch('/api/memory?' + qs.toString());
       return r.ok ? r.json() : null;
     } catch { return null; }
   }
+
   async function getMemoryStats() {
     try { const r = await fetch('/api/memory/stats'); return r.ok ? r.json() : null; }
     catch { return null; }
   }
+
   async function getMemoryEntry(id) {
     try { const r = await fetch('/api/memory/' + encodeURIComponent(id)); return r.ok ? r.json() : null; }
     catch { return null; }
   }
+
   async function muteMemoryEntry(id) {
     try { const r = await fetch('/api/memory/' + encodeURIComponent(id) + '/mute', { method: 'POST' }); return r.ok ? r.json() : null; }
     catch { return null; }
   }
+
   async function activateMemoryEntry(id) {
     try { const r = await fetch('/api/memory/' + encodeURIComponent(id) + '/activate', { method: 'POST' }); return r.ok ? r.json() : null; }
     catch { return null; }
   }
+
   async function deleteMemoryEntry(id) {
     try { const r = await fetch('/api/memory/' + encodeURIComponent(id), { method: 'DELETE' }); return r.ok ? r.json() : null; }
     catch { return null; }
@@ -238,14 +324,11 @@
   }
 
   // ── File upload ───────────────────────────────────────────────
-  // fileList: FileList or Array<File>
-  // Returns { taskId, files: [{name, size, path}] } or null on error
   async function uploadAttachment(taskId, fileList, onProgress) {
     try {
       const fd = new FormData();
       Array.from(fileList).forEach(f => fd.append('files', f));
-      // Use XMLHttpRequest so we get upload progress events
-      return await new Promise((resolve, reject) => {
+      return await new Promise((resolve) => {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', '/api/tasks/' + encodeURIComponent(taskId) + '/attachments');
         xhr.onload = () => {
@@ -268,10 +351,31 @@
   }
 
   window.API = {
-    probe, getStatus, getSettings, putSettings,
-    getDashboard, getTasks, createTask, getTask, stopTask, hintTask,
-    getTraces, getTrace, getLogs, getKnowledge, getKnowledgeDoc, subscribeEvents,
-    getMemory, getMemoryStats, getMemoryEntry, muteMemoryEntry, activateMemoryEntry, deleteMemoryEntry, getMemoryGraph,
-    getAttachments, uploadAttachment,
+    probe,
+    getConnectionState,
+    getStatus,
+    getSettings,
+    putSettings,
+    getDashboard,
+    getTasks,
+    createTask,
+    getTask,
+    stopTask,
+    hintTask,
+    getTraces,
+    getTrace,
+    getLogs,
+    getKnowledge,
+    getKnowledgeDoc,
+    subscribeEvents,
+    getMemory,
+    getMemoryStats,
+    getMemoryEntry,
+    muteMemoryEntry,
+    activateMemoryEntry,
+    deleteMemoryEntry,
+    getMemoryGraph,
+    getAttachments,
+    uploadAttachment,
   };
 })();

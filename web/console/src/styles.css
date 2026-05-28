@@ -651,6 +651,21 @@ textarea.input { resize: vertical; min-height: 60px; line-height: 1.5; }
   grid-template-columns: 1fr 320px;
   min-height: 0;
 }
+.task-detail-body.mode-conversation {
+  grid-template-columns: minmax(0, 1fr);
+}
+.task-detail-body.mode-conversation .task-convo {
+  border-right: none;
+}
+.task-detail-body.mode-conversation .side-panel {
+  display: none;
+}
+.task-detail-body.mode-analysis {
+  grid-template-columns: minmax(0, 1fr) 320px;
+}
+.task-detail-body.mode-analysis .side-panel {
+  display: flex;
+}
 .task-convo { display: flex; flex-direction: column; min-height: 0; min-width: 0; border-right: 1px solid var(--line-1); }
 .msg-list { flex: 1; overflow-y: auto; padding: 14px 18px; display: flex; flex-direction: column; gap: 14px; }
 .msg {

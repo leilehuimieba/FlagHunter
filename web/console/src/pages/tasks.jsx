@@ -5,14 +5,30 @@
 
 const { useState: useStateT, useEffect: useEffectT, useRef: useRefT, useMemo: useMemoT } = React;
 
-function TasksPage({ taskId, onNav }) {
-  const initialActiveId = taskId || (window.IS_LIVE ? '' : 'task_002');
-  const initialTasks = taskId ? [] : (window.IS_LIVE ? [] : MOCK.TASKS);
+function currentConnectionState() {
+  if (window.API?.getConnectionState) return window.API.getConnectionState();
+  return {
+    status: window.IS_LIVE ? 'connected' : 'disconnected',
+    isLive: Boolean(window.IS_LIVE),
+  };
+}
+
+function TasksPage({ taskId, onNav, taskViewMode }) {
+  const initialConnection = currentConnectionState();
+  const useMockSeed = initialConnection.status === 'disconnected';
+  const initialActiveId = taskId || (useMockSeed ? 'task_002' : '');
+  const initialTasks = taskId ? [] : (useMockSeed ? MOCK.TASKS : []);
   const [activeId, setActive] = useStateT(initialActiveId);
   const [filter, setFilter] = useStateT('all');
   const [q, setQ] = useStateT('');
   const [showModal, setShowModal] = useStateT(false);
   const [tasks, setTasks] = useStateT(initialTasks);
+
+  function seedMockTasks() {
+    if (taskId) return;
+    setTasks(prev => (prev.length ? prev : MOCK.TASKS));
+    setActive(prev => (prev || 'task_002'));
+  }
 
   // ⌘K "新建任务" command opens this modal from anywhere
   useEffectT(() => {
@@ -24,9 +40,22 @@ function TasksPage({ taskId, onNav }) {
   // Load tasks from API on mount (attempt regardless of IS_LIVE)
   useEffectT(() => {
     window.API.getTasks().then(data => {
-      if (data && Array.isArray(data)) setTasks(data);
+      if (data && Array.isArray(data)) {
+        setTasks(data);
+        return;
+      }
+      if (currentConnectionState().status === 'disconnected') seedMockTasks();
     });
   }, []);
+
+  useEffectT(() => {
+    if (taskId) return undefined;
+    const handler = (e) => {
+      if (e.detail?.connection?.status === 'disconnected') seedMockTasks();
+    };
+    window.addEventListener('fh:connection', handler);
+    return () => window.removeEventListener('fh:connection', handler);
+  }, [taskId]);
 
   useEffectT(() => {
     if (taskId) setActive(taskId);
@@ -140,7 +169,12 @@ function TasksPage({ taskId, onNav }) {
         </Panel>
 
         {active ? (
-          <TaskDetail task={active} key={active.id} onNav={onNav} />
+          <TaskDetail
+            task={active}
+            key={active.id}
+            onNav={onNav}
+            taskViewMode={taskViewMode}
+          />
         ) : (
           <Panel className="task-detail">
             <Empty>{t('tasks.noSelection')}</Empty>
@@ -267,7 +301,7 @@ function TaskDetailSourceBanner({ source }) {
 // ----------------------------------------------------------------
 // Task detail
 // ----------------------------------------------------------------
-function TaskDetail({ task, onNav }) {
+function TaskDetail({ task, onNav, taskViewMode }) {
   const [detailTask, setDetailTask] = useStateT(task);
   const isMockActive = detailTask.id === 'task_002';
   const isActive = detailTask.status === 'running';
@@ -487,7 +521,13 @@ function TaskDetail({ task, onNav }) {
   }, [messages.length]);
 
   const send = async () => {
+    const connection = currentConnectionState();
+    const canSendHint = isMockActive || (
+      ['connected', 'degraded'].includes(connection.status)
+      && typeof window.API?.hintTask === 'function'
+    );
     if (!draft.trim()) return;
+    if (hintMode && !canSendHint) return;
     if (!hintMode && !continueAvailable) return;
     const newMsg = {
       id: `m_${Date.now()}`,
@@ -498,7 +538,7 @@ function TaskDetail({ task, onNav }) {
     };
     setMessages(m => [...m, newMsg]);
 
-    if (window.IS_LIVE && hintMode) {
+    if (!isMockActive && canSendHint && hintMode) {
       await window.API.hintTask(detailTask.id, draft);
     }
 
@@ -514,7 +554,13 @@ function TaskDetail({ task, onNav }) {
   };
 
   async function handleStop() {
-    if (window.IS_LIVE) await window.API.stopTask(detailTask.id);
+    const connection = currentConnectionState();
+    const canStopTask = isMockActive || (
+      ['connected', 'degraded'].includes(connection.status)
+      && typeof window.API?.stopTask === 'function'
+    );
+    if (!canStopTask) return;
+    if (!isMockActive) await window.API.stopTask(detailTask.id);
     setMessages(m => [...m, {
       id: `m_stop_${Date.now()}`,
       role: 'system',
@@ -560,7 +606,7 @@ function TaskDetail({ task, onNav }) {
         </div>
       </div>
 
-      <div className="task-detail-body">
+      <div className={`task-detail-body mode-${taskViewMode || 'conversation'}`}>
         {/* convo */}
         <div className="task-convo">
           {!isMockActive && detailTask.detailSource && <TaskDetailSourceBanner source={detailTask.detailSource} />}

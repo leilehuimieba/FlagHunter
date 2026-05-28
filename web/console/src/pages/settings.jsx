@@ -162,7 +162,14 @@ function SettingsPage() {
   const [saving, setSaving] = uSt(false);
   const [error, setError] = uSt('');
   const [saveResult, setSaveResult] = uSt(null);
-  const [isLive, setIsLive] = uSt(Boolean(window.IS_LIVE));
+  const [connection, setConnection] = uSt(() => (
+    window.API?.getConnectionState
+      ? window.API.getConnectionState()
+      : {
+          status: Boolean(window.IS_LIVE) ? 'connected' : 'disconnected',
+          isLive: Boolean(window.IS_LIVE),
+        }
+  ));
   const [dashboardStats, setDashboardStats] = uSt(null);
   const [knowledgeDocs, setKnowledgeDocs] = uSt(null);
 
@@ -197,7 +204,7 @@ function SettingsPage() {
   }
 
   async function save() {
-    if (!isLive) {
+    if (connection?.status !== 'connected') {
       setError(t('st.saveLiveOnly'));
       return;
     }
@@ -229,8 +236,14 @@ function SettingsPage() {
     loadSettings();
     refreshReadonlyData();
     const handler = (e) => {
-      setIsLive(e.detail.type === 'connected');
-      if (e.detail.type === 'connected') refreshReadonlyData();
+      const nextConnection = (
+        e.detail?.connection
+        || (window.API?.getConnectionState
+          ? window.API.getConnectionState()
+          : { status: e.detail?.type === 'connected' ? 'connected' : 'disconnected', isLive: e.detail?.type === 'connected' })
+      );
+      setConnection(nextConnection);
+      if (nextConnection.status === 'connected') refreshReadonlyData();
     };
     window.addEventListener('fh:connection', handler);
     return () => window.removeEventListener('fh:connection', handler);
@@ -280,7 +293,7 @@ function SettingsPage() {
                 <span className="amber">{t('st.restartHint', saveResult.restartRequired.length)}</span>
               )}
               <span className="muted" style={{ marginLeft: 12, fontSize: 11 }}>
-                {isLive ? t('st.liveWritable') : t('st.saveLiveOnly')}
+                {connection?.status === 'connected' ? t('st.liveWritable') : t('st.saveLiveOnly')}
               </span>
               <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
                 <button
@@ -298,8 +311,8 @@ function SettingsPage() {
                 <button
                   className={`btn ${dirty ? 'primary' : ''}`}
                   onClick={save}
-                  disabled={!dirty || saving || !isLive}
-                  title={!isLive ? t('st.saveLiveOnly') : ''}
+                  disabled={!dirty || saving || connection?.status !== 'connected'}
+                  title={connection?.status !== 'connected' ? t('st.saveLiveOnly') : ''}
                 >
                   {saving ? '…' : t('c.save')}
                 </button>

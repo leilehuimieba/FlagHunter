@@ -22,7 +22,11 @@ const NAV = [
 ];
 
 function Sidebar({ route, onNav }) {
-  const [isLive, setIsLive] = useStateS(window.IS_LIVE || false);
+  const [connection, setConnection] = useStateS(() => (
+    window.API?.getConnectionState
+      ? window.API.getConnectionState()
+      : { status: 'connecting', isLive: false, via: 'boot' }
+  ));
   const [statusMeta, setStatusMeta] = useStateS({ runtime: '—', version: '—' });
 
   useEffectS(() => {
@@ -45,9 +49,17 @@ function Sidebar({ route, onNav }) {
 
   useEffectS(() => {
     const handler = async (e) => {
-      const connected = e.detail.type === 'connected';
-      setIsLive(connected);
-      if (connected && window.API?.getStatus) {
+      const nextConnection = (
+        e.detail?.connection
+        || (window.API?.getConnectionState
+          ? window.API.getConnectionState()
+          : {
+              status: e.detail?.type === 'connected' ? 'connected' : 'disconnected',
+              isLive: e.detail?.type === 'connected',
+            })
+      );
+      setConnection(nextConnection);
+      if (nextConnection.status === 'connected' && window.API?.getStatus) {
         const data = await window.API.getStatus();
         if (data) {
           setStatusMeta({
@@ -95,19 +107,35 @@ function Sidebar({ route, onNav }) {
             <span className="lbl">{t('sidebar.runtime')}</span>
             <span className="val">{statusMeta.runtime || '—'}</span>
           </div>
-          <span className={`conn-badge ${isLive ? 'live' : 'mock'}`}>
-            {isLive ? t('sidebar.live') : t('sidebar.mock')}
+          <span className={`conn-badge ${connectionTone(connection)}`}>
+            {connectionLabel(connection)}
           </span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--fg-3)', padding: '0 4px' }}>
           <span>{t('sidebar.build')} · {statusMeta.version || '—'}</span>
-          <span style={{ color: isLive ? 'var(--accent)' : 'var(--fg-3)' }}>
-            {isLive ? '●' : '○'} {isLive ? t('sidebar.healthy') : 'offline'}
+          <span style={{ color: connection?.status === 'connected' ? 'var(--accent)' : 'var(--fg-3)' }}>
+            {connection?.status === 'connected' ? '●' : '○'} {connectionMetaLabel(connection)}
           </span>
         </div>
       </div>
     </aside>
   );
+}
+
+function connectionLabel(connection) {
+  return t(`conn.${connection?.status || 'connecting'}`);
+}
+
+function connectionMetaLabel(connection) {
+  return connection?.status === 'connected' ? t('sidebar.healthy') : connectionLabel(connection);
+}
+
+function connectionTone(connection) {
+  const status = connection?.status || 'connecting';
+  if (['connected', 'degraded', 'reconnecting', 'connecting', 'disconnected'].includes(status)) {
+    return status;
+  }
+  return 'connecting';
 }
 
 const CRUMBS_KEYS = {
@@ -210,14 +238,18 @@ function tickFromEvent(ev) {
   };
 }
 
-function Topbar({ route, leaf }) {
+function Topbar({ route, leaf, taskViewMode, onTaskViewModeChange }) {
   const [ticks, setTicks] = useStateS([]);
   const [notifs, setNotifs] = useStateS([]);
   const [showNotif, setShowNotif] = useStateS(false);
   const [hasNew, setHasNew] = useStateS(false);
   const bellRef = useRefS(null);
   const [lang, setLangState] = useStateS(window.LANG);
-  const [isLive, setIsLive] = useStateS(Boolean(window.IS_LIVE));
+  const [connection, setConnection] = useStateS(() => (
+    window.API?.getConnectionState
+      ? window.API.getConnectionState()
+      : { status: 'connecting', isLive: false, via: 'boot' }
+  ));
 
   useEffectS(() => {
     if (!window.API?.getLogs) return undefined;
@@ -262,7 +294,12 @@ function Topbar({ route, leaf }) {
   }, []);
 
   useEffectS(() => {
-    const handler = (e) => setIsLive(e.detail.type === 'connected');
+    const handler = (e) => setConnection(
+      e.detail?.connection
+      || (window.API?.getConnectionState
+        ? window.API.getConnectionState()
+        : { status: e.detail?.type || 'connecting', isLive: e.detail?.type === 'connected' })
+    );
     window.addEventListener('fh:connection', handler);
     return () => window.removeEventListener('fh:connection', handler);
   }, []);
@@ -312,6 +349,25 @@ function Topbar({ route, leaf }) {
         ))}
       </div>
 
+      {(route === 'tasks/detail' || route === 'tasks') && (
+        <div className="task-view-toggle" aria-label="task detail view mode">
+          <button
+            type="button"
+            className={`mode-btn ${taskViewMode !== 'analysis' ? 'active' : ''}`}
+            onClick={() => onTaskViewModeChange && onTaskViewModeChange('conversation')}
+          >
+            {t('td.modeConversation')}
+          </button>
+          <button
+            type="button"
+            className={`mode-btn ${taskViewMode === 'analysis' ? 'active' : ''}`}
+            onClick={() => onTaskViewModeChange && onTaskViewModeChange('analysis')}
+          >
+            {t('td.modeAnalysis')}
+          </button>
+        </div>
+      )}
+
       <div className="top-actions" ref={bellRef}>
         <button
           className="lang-toggle"
@@ -347,7 +403,7 @@ function Topbar({ route, leaf }) {
           <div className="notif-panel" onClick={(e)=>e.stopPropagation()}>
             <div className="head">
               <span>{t('top.notif')} · {notifs.length}</span>
-              <span style={{ color: 'var(--fg-3)' }}>{isLive ? t('top.notifLive') : t('top.markRead')}</span>
+              <span style={{ color: 'var(--fg-3)' }}>{connection?.status === 'connected' ? t('top.notifLive') : connectionLabel(connection)}</span>
             </div>
             <div className="list">
               {notifs.length === 0 && (
@@ -355,7 +411,7 @@ function Topbar({ route, leaf }) {
                   <span className="ico blue">◇</span>
                   <div className="body">
                     <div className="ttl">{t('top.notifEmpty')}</div>
-                    <div className="sub">{isLive ? t('top.notifLive') : t('sidebar.mock')}</div>
+                    <div className="sub">{connection?.status === 'connected' ? t('top.notifLive') : connectionLabel(connection)}</div>
                   </div>
                 </div>
               )}
