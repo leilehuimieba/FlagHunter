@@ -336,7 +336,7 @@ function DashboardPage({ onNav }) {
 
         <Panel
           title={t('dash.notesArtifacts')}
-          actions={<button className="btn sm ghost muted" disabled={true} title={t('c.unavailable')}>{t('c.browse')}</button>}
+          actions={<button className="btn sm ghost muted" onClick={() => onNav('knowledge')}>{t('c.browse')}</button>}
         >
           <div>
             {recentNotes.length === 0 && recentArtifacts.length === 0 && (

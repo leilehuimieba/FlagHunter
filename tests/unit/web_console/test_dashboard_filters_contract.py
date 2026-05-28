@@ -27,3 +27,10 @@ def test_dashboard_page_tracks_window_and_runtime_filters_in_live_requests() -> 
     assert "window.API.getDashboard({ window: windowFilter, runtime: runtimeFilter }).then(data => {" in source
     assert "value={windowFilter}" in source
     assert "value={runtimeFilter}" in source
+
+
+def test_dashboard_notes_artifacts_browse_is_live_navigation() -> None:
+    source = _read("web/console/src/pages/dashboard.jsx")
+
+    assert "disabled={true} title={t('c.unavailable')}>{t('c.browse')}</button>" not in source
+    assert "onClick={() => onNav('knowledge')}" in source
