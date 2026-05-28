@@ -248,7 +248,7 @@ function SettingsPage() {
     return () => window.removeEventListener('fh:connection', handler);
   }, []);
 
-  const sharedProps = { draft, patch, meta, dashboardStats, knowledgeDocs };
+  const sharedProps = { draft, patch, meta, dashboardStats, knowledgeDocs, connection, refreshReadonlyData };
 
   return (
     <div className="page" style={{ minHeight: 0 }}>
@@ -489,7 +489,7 @@ function McpSec({ draft, patch, meta }) {
   );
 }
 
-function KnSec({ draft, patch, meta, knowledgeDocs }) {
+function KnSec({ draft, patch, meta, knowledgeDocs, connection, refreshReadonlyData }) {
   const k = draft.knowledge || {};
   const docs = Array.isArray(knowledgeDocs) ? knowledgeDocs : [];
   const totalChunks = docs.reduce((sum, doc) => sum + Number(doc.chunkCount || 0), 0);
@@ -498,6 +498,19 @@ function KnSec({ draft, patch, meta, knowledgeDocs }) {
     if (!latest) return doc.updatedAt;
     return new Date(doc.updatedAt) > new Date(latest) ? doc.updatedAt : latest;
   }, null);
+  const rebuildAvailable = ['connected', 'degraded'].includes(connection?.status)
+    && typeof window.API?.reindexKnowledge === 'function';
+  const rebuildUnavailableReason = ['connected', 'degraded'].includes(connection?.status)
+    ? t('c.notWired')
+    : t('c.notConnected');
+
+  async function handleRebuild() {
+    if (!rebuildAvailable) return;
+    const rebuildResult = await window.API.reindexKnowledge();
+    if (!rebuildResult?.ok) return;
+    await refreshReadonlyData();
+  }
+
   return (
     <Section title={t('st.kn.t')} sub={t('st.kn.sub')}>
       <Field label={t('st.kn.enabled')} hint={supportHint('', 'knowledge.enabled', meta)} path="knowledge.enabled" meta={meta}>
@@ -525,7 +538,7 @@ function KnSec({ draft, patch, meta, knowledgeDocs }) {
           <span><span className="muted">{t('st.kn.docs')}</span> <span className="bright">{docs.length}</span></span>
           <span><span className="muted">{t('st.kn.chunks')}</span> <span className="bright">{totalChunks}</span></span>
           <span><span className="muted">{t('st.kn.dim')}</span> <span className="bright">—</span></span>
-          <button className="btn sm" style={{ marginLeft: 'auto' }} disabled={true} title={t('st.actionReadOnly')}>{t('st.kn.rebuild')}</button>
+          <button className="btn sm" style={{ marginLeft: 'auto' }} disabled={!rebuildAvailable} title={!rebuildAvailable ? rebuildUnavailableReason : ''} onClick={handleRebuild}>{t('st.kn.rebuild')}</button>
         </div>
       </div>
     </Section>

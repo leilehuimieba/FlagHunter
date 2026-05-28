@@ -55,8 +55,21 @@ function KnowledgeList({ onNav }) {
   const totalChunks = sourceDocs.reduce((s, d) => s + (d.chunkCount || 0), 0);
   const topDoc = sourceDocs.slice().sort((a, b) => (b.hitCount || 0) - (a.hitCount || 0))[0];
   const docsEmptyState = connection.status === 'disconnected' ? t('c.unavailable') : t('tasks.noMatch');
+  const reindexAvailable = ['connected', 'degraded'].includes(connection.status)
+    && typeof window.API?.reindexKnowledge === 'function';
+  const reindexUnavailableReason = ['connected', 'degraded'].includes(connection.status)
+    ? t('c.notWired')
+    : t('c.notConnected');
 
   const tags = ['all', 'web', 'misc', 'reverse', 'forensics', 'meta', 'recon'];
+
+  async function handleReindex() {
+    if (!reindexAvailable) return;
+    const reindexResult = await window.API.reindexKnowledge();
+    if (!reindexResult?.ok) return;
+    const data = await window.API.getKnowledge();
+    if (data && Array.isArray(data)) setApiDocs(data);
+  }
 
   return (
     <div className="page">
@@ -66,7 +79,7 @@ function KnowledgeList({ onNav }) {
           <div className="sub">{t('kb.sub', sourceDocs.length, totalChunks, totalHits)}</div>
         </div>
         <div className="row">
-          <button className="btn ghost" disabled={true} title={t('c.unavailable')}>{t('c.reindex')}</button>
+          <button className="btn ghost" disabled={!reindexAvailable} title={!reindexAvailable ? reindexUnavailableReason : ''} onClick={handleReindex}>{t('c.reindex')}</button>
           <button className="btn ghost" onClick={() => downloadJson(`knowledge_${new Date().toISOString().replace(/[:.]/g, '-')}.json`, sourceDocs)}>⬇ {t('c.export')}</button>
           <button className="btn primary" disabled={true} title={t('c.unavailable')}>{t('c.addDoc')}</button>
         </div>
@@ -212,12 +225,27 @@ function KnowledgeDetail({ docId, onNav }) {
     hits: chunkHits[c.id] || c.hits || 0,
   }));
   const detailEmptyState = connection.status === 'disconnected' ? t('c.unavailable') : t('tasks.noMatch');
+  const reindexAvailable = ['connected', 'degraded'].includes(connection.status)
+    && typeof window.API?.reindexKnowledge === 'function';
+  const reindexUnavailableReason = ['connected', 'degraded'].includes(connection.status)
+    ? t('c.notWired')
+    : t('c.notConnected');
 
   uKE(() => {
     window.dispatchEvent(new CustomEvent('fh:route-label', {
       detail: { label: resolvedDoc.title || resolvedDoc.id || docId || 'knowledge' }
     }));
   }, [resolvedDoc.title, resolvedDoc.id, docId]);
+
+  async function handleReindex() {
+    if (!reindexAvailable) return;
+    const reindexResult = await window.API.reindexKnowledge();
+    if (!reindexResult?.ok) return;
+    if (window.API?.getKnowledgeDoc) {
+      const data = await window.API.getKnowledgeDoc(docId);
+      if (data && data.docKey) setDoc(data);
+    }
+  }
 
   return (
     <div className="page">
@@ -230,7 +258,7 @@ function KnowledgeDetail({ docId, onNav }) {
           <div className="sub mono">{resolvedDoc.id} · {resolvedDoc.sourcePath}</div>
         </div>
         <div className="row">
-          <button className="btn ghost" disabled={true} title={t('c.unavailable')}>{t('c.reindex')}</button>
+          <button className="btn ghost" disabled={!reindexAvailable} title={!reindexAvailable ? reindexUnavailableReason : ''} onClick={handleReindex}>{t('c.reindex')}</button>
           <button className="btn ghost" onClick={() => downloadJson(`${String(resolvedDoc.docKey || resolvedDoc.id || 'knowledge').replace(/[^\w.-]+/g, '_')}.json`, resolvedDoc)}>{t('c.download')}</button>
           <button className="btn" disabled={true} title={t('c.unavailable')}>{t('c.openFile')}</button>
         </div>

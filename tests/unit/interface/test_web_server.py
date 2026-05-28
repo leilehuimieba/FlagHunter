@@ -6,6 +6,7 @@ import pytest
 from aiohttp.test_utils import TestClient, TestServer
 
 from pentestagent.interface import web_server
+import pentestagent.knowledge as knowledge_module
 
 
 class _NoopThread:
@@ -436,3 +437,36 @@ async def test_task_continue_rejects_finished_task(web_client: TestClient):
     continue_resp = await web_client.post(f"/api/tasks/{task_id}/continue")
 
     assert continue_resp.status == 409
+
+
+@pytest.mark.asyncio
+async def test_knowledge_reindex_returns_summary_shape(
+    web_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    knowledge_dir = tmp_path / "knowledge"
+    knowledge_dir.mkdir(parents=True, exist_ok=True)
+    (knowledge_dir / "sample.md").write_text("# sample\nbody\n", encoding="utf-8")
+
+    class _FakeRAGEngine:
+        def __init__(self, knowledge_path, use_local_embeddings=True):
+            self.knowledge_path = knowledge_path
+            self.use_local_embeddings = use_local_embeddings
+            self.documents = []
+
+        def index_documents(self, force=False):
+            self.documents = [
+                type("Doc", (), {"source": str(knowledge_dir / "sample.md")})(),
+                type("Doc", (), {"source": str(knowledge_dir / "sample.md")})(),
+            ]
+
+    monkeypatch.setattr(knowledge_module, "RAGEngine", _FakeRAGEngine)
+
+    resp = await web_client.post("/api/knowledge/reindex")
+
+    assert resp.status == 200
+    data = await resp.json()
+    assert data["ok"] is True
+    assert data["reindexed"] is True
+    assert data["docCount"] == 1
+    assert data["chunkCount"] == 2
+    assert isinstance(data["updatedAt"], str)

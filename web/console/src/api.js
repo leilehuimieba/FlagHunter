@@ -201,6 +201,10 @@
     return apiFetch('/api/knowledge');
   }
 
+  async function reindexKnowledge() {
+    return apiFetch('/api/knowledge/reindex', { method: 'POST' });
+  }
+
   async function getKnowledgeDoc(docKey) {
     return apiFetch('/api/knowledge/' + encodeURIComponent(docKey));
   }
@@ -381,6 +385,7 @@
     replayTrace,
     getLogs,
     getKnowledge,
+    reindexKnowledge,
     getKnowledgeDoc,
     subscribeEvents,
     getMemory,
