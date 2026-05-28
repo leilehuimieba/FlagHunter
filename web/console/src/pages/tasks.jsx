@@ -563,7 +563,18 @@ function TaskDetail({ task, onNav, taskViewMode }) {
     if (!result?.ok) appendSystemMessage('stop request failed');
   }
 
-  const continueUnavailableReason = continueSupported ? t('c.unavailable') : t('td.continueUnavailable');
+  const continueUnavailableReason = !continueSupported
+    ? t('td.continueUnavailable')
+    : !isActionLive
+      ? t('c.notConnected')
+      : '';
+  const hintUnavailableReason = !hintSupported
+    ? t('td.hintUnavailable')
+    : !isActionLive
+      ? t('c.notConnected')
+      : typeof window.API?.hintTask !== 'function'
+        ? t('c.notWired')
+        : '';
 
   return (
     <div className="task-detail">
@@ -633,11 +644,11 @@ function TaskDetail({ task, onNav, taskViewMode }) {
               >
                 {t('td.continue')}
               </span>
-              <span className={`tab-mini ${hintMode ? 'on' : ''} ${!hintAvailable ? 'disabled' : ''}`} onClick={() => hintAvailable && setHintMode(true)}>
+              <span className={`tab-mini ${hintMode ? 'on' : ''} ${!hintAvailable ? 'disabled' : ''}`} onClick={() => hintAvailable && setHintMode(true)} title={!hintAvailable ? hintUnavailableReason : ''}>
                 {t('td.injectHint')}
               </span>
               <span style={{ marginLeft: 'auto', color: 'var(--fg-3)', fontSize: 10.5, alignSelf: 'center' }}>
-                {hintMode ? (hintAvailable ? t('td.hintDesc') : t('c.unavailable')) : (continueAvailable ? t('td.continueDesc') : continueUnavailableReason)}
+                {hintMode ? (hintAvailable ? t('td.hintDesc') : hintUnavailableReason) : (continueAvailable ? t('td.continueDesc') : continueUnavailableReason)}
               </span>
             </div>
             <div className="row">
@@ -654,7 +665,7 @@ function TaskDetail({ task, onNav, taskViewMode }) {
                 className={`btn ${hintMode ? '' : 'primary'}`}
                 onClick={send}
                 disabled={hintMode ? !hintAvailable : !continueAvailable}
-                title={hintMode ? (!hintAvailable ? t('c.unavailable') : '') : (!continueAvailable ? continueUnavailableReason : '')}
+                title={hintMode ? (!hintAvailable ? hintUnavailableReason : '') : (!continueAvailable ? continueUnavailableReason : '')}
               >
                 {hintMode ? t('td.inject') : t('td.sendBtn')} <span className="kbd">⌘↵</span>
               </button>
@@ -672,6 +683,7 @@ function TaskDetail({ task, onNav, taskViewMode }) {
             observations={obs}
             freshObservationId={obsFresh}
             attachmentsAvailable={attachmentsSupported}
+            attachmentsUnavailableReason={t('c.notWired')}
           />
         </div>
       </div>
@@ -894,13 +906,13 @@ function TaskStatusCard({ task }) {
   );
 }
 
-function TaskAttachmentsCard({ attachments, attachmentsAvailable }) {
+function TaskAttachmentsCard({ attachments, attachmentsAvailable, unavailableReason }) {
   const items = Array.isArray(attachments) ? attachments : [];
   if (!attachmentsAvailable && items.length === 0) {
     return (
       <div className="side-card">
         <div className="h">◫ {t('side.attachments')} <span className="dim right">0</span></div>
-        <Empty>{t('c.unavailable')}</Empty>
+        <Empty>{unavailableReason || t('c.notWired')}</Empty>
       </div>
     );
   }
@@ -948,26 +960,26 @@ function TaskSummaryCard({ task }) {
   );
 }
 
-function SyntheticSidePanel({ task, attachmentsAvailable }) {
+function SyntheticSidePanel({ task, attachmentsAvailable, attachmentsUnavailableReason }) {
   return (
     <>
       <TaskStatusCard task={task} />
-      <TaskAttachmentsCard attachments={task.attachments || []} attachmentsAvailable={attachmentsAvailable} />
+      <TaskAttachmentsCard attachments={task.attachments || []} attachmentsAvailable={attachmentsAvailable} unavailableReason={attachmentsUnavailableReason} />
       <TaskSummaryCard task={task} />
     </>
   );
 }
 
-function LiveSidePanel({ task, plan, notes, knowledgeHits, observations, freshObservationId, attachmentsAvailable }) {
+function LiveSidePanel({ task, plan, notes, knowledgeHits, observations, freshObservationId, attachmentsAvailable, attachmentsUnavailableReason }) {
   const showFallbackSummary = !plan.length && !notes.length && !knowledgeHits.length && !observations.length;
   return (
     <>
       {showFallbackSummary ? (
-        <SyntheticSidePanel task={task} attachmentsAvailable={attachmentsAvailable} />
+        <SyntheticSidePanel task={task} attachmentsAvailable={attachmentsAvailable} attachmentsUnavailableReason={attachmentsUnavailableReason} />
       ) : (
         <>
           <TaskStatusCard task={task} />
-          <TaskAttachmentsCard attachments={task.attachments || []} attachmentsAvailable={attachmentsAvailable} />
+          <TaskAttachmentsCard attachments={task.attachments || []} attachmentsAvailable={attachmentsAvailable} unavailableReason={attachmentsUnavailableReason} />
         </>
       )}
       <div className="side-card">

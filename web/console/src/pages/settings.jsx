@@ -455,8 +455,8 @@ function RuntimeSec({ draft, patch, meta }) {
           <span className="badges"><span className="chip ghost">{t('st.readOnlyChip')}</span></span>
         </div>
         <div className="row gap-8">
-          <button className="btn" disabled={true} title={t('c.unavailable')}>{t('st.rt.testBtn')}</button>
-          <span className="muted">{t('c.unavailable')}</span>
+          <button className="btn" disabled={true} title={t('st.actionReadOnly')}>{t('st.rt.testBtn')}</button>
+          <span className="muted">{t('st.actionReadOnly')}</span>
         </div>
       </div>
     </Section>
@@ -482,7 +482,7 @@ function McpSec({ draft, patch, meta }) {
           {(m.servers || []).map(s => (
             <span key={s} className="chip green"><span className="led"></span>{s}</span>
           ))}
-          <button className="btn sm ghost" disabled={true} title={t('c.unavailable')}>{t('st.mcp.addServer')}</button>
+          <button className="btn sm ghost" disabled={true} title={t('st.actionReadOnly')}>{t('st.mcp.addServer')}</button>
         </div>
       </div>
     </Section>
@@ -525,7 +525,7 @@ function KnSec({ draft, patch, meta, knowledgeDocs }) {
           <span><span className="muted">{t('st.kn.docs')}</span> <span className="bright">{docs.length}</span></span>
           <span><span className="muted">{t('st.kn.chunks')}</span> <span className="bright">{totalChunks}</span></span>
           <span><span className="muted">{t('st.kn.dim')}</span> <span className="bright">—</span></span>
-          <button className="btn sm" style={{ marginLeft: 'auto' }} disabled={true} title={t('c.unavailable')}>{t('st.kn.rebuild')}</button>
+          <button className="btn sm" style={{ marginLeft: 'auto' }} disabled={true} title={t('st.actionReadOnly')}>{t('st.kn.rebuild')}</button>
         </div>
       </div>
     </Section>

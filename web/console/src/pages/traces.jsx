@@ -383,7 +383,7 @@ function TraceDetail({ runId, onNav }) {
         <div className="row">
           <button className="btn ghost" onClick={() => downloadJson(`${resolvedRun.id}.json`, resolvedRun)}>⬇ {t('c.json')}</button>
           <button className="btn ghost" onClick={() => onNav && onNav(`tasks/${resolvedRun.taskId}`)}>{t('c.openTask')}</button>
-          <button className="btn" disabled={!replayAvailable} title={!replayAvailable ? t('td.retryUnavailable') : ''}>⟲ {t('c.replay')}</button>
+          <button className="btn" disabled={!replayAvailable} title={!replayAvailable ? t('tr.replayUnavailable') : ''}>⟲ {t('c.replay')}</button>
         </div>
       </div>
 
