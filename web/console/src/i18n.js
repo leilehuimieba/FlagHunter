@@ -172,7 +172,7 @@ const DICT = {
 
     /* tasks */
     'tasks.t': 'Tasks',
-    'tasks.sub': '6 total · 1 running · 1 queued · 3 succeeded · 1 failed · 1 stopped',
+    'tasks.sub': '{0} total · {1} running · {2} queued · {3} succeeded · {4} failed · {5} stopped',
     'tasks.filterPh': 'filter · task_id or title',
     'tasks.noMatch': 'no tasks match filter',
     'tasks.noSelection': 'select a task to view details',
@@ -220,10 +220,10 @@ const DICT = {
     'td.who.youHint': 'YOU · HINT',
     'td.who.agent': 'AGENT',
     'td.who.system': 'SYSTEM',
-    'td.hintAck': 'hint accepted · injected into current strategy context (run_002)',
+    'td.hintAck': 'hint accepted · injected into current strategy context',
     'td.continueAck': 'received, integrating context…',
     'td.continueUnavailable': 'continue is currently unsupported by backend capabilities — use inject hint instead',
-    'td.retryUnavailable': 'retry is not wired to the live backend yet',
+    'td.retryUnavailable': 'retry is currently unsupported by backend capabilities',
     'td.runningTail': 'sqlmap still enumerating users table…',
     'td.runningTailCode': 'sqlmap · pid 18472 · elapsed 00:01:24 · 12 rows so far',
 
@@ -240,6 +240,7 @@ const DICT = {
     'side.elapsed': 'elapsed',
     'side.status': 'STATUS',
     'side.summary': 'SUMMARY',
+    'side.summary.running': 'Task is still running. Follow the conversation stream or stop / trace the active run when needed.',
     'side.summary.success': 'Completed. Flag verified. Open the trace to view the full chain and tool calls.',
     'side.summary.failed': 'Recovery triggered the stop condition (reason: {0}). Open the trace to review the failure point.',
     'side.summary.queued': 'Not yet scheduled. Will start automatically when the runtime is idle.',
@@ -685,7 +686,7 @@ const DICT = {
 
     /* tasks */
     'tasks.t': '任务',
-    'tasks.sub': '共 6 个 · 1 运行中 · 1 排队 · 3 成功 · 1 失败 · 1 停止',
+    'tasks.sub': '共 {0} 个 · {1} 运行中 · {2} 排队 · {3} 成功 · {4} 失败 · {5} 停止',
     'tasks.filterPh': '过滤 · task_id 或标题',
     'tasks.noMatch': '没有匹配的任务',
     'tasks.noSelection': '请选择一个任务查看详情',
@@ -733,10 +734,10 @@ const DICT = {
     'td.who.youHint': '你 · 提示',
     'td.who.agent': 'AGENT',
     'td.who.system': '系统',
-    'td.hintAck': '提示已接受 · 已注入当前策略上下文 (run_002)',
+    'td.hintAck': '提示已接受 · 已注入当前策略上下文',
     'td.continueAck': '收到，正在整合上下文…',
     'td.continueUnavailable': '后端 capability 当前不支持 continue，请先使用“注入提示”',
-    'td.retryUnavailable': 'retry 还没有接到 live 后端',
+    'td.retryUnavailable': '后端 capability 当前不支持 retry',
     'td.runningTail': 'sqlmap 仍在枚举 users 表…',
     'td.runningTailCode': 'sqlmap · pid 18472 · elapsed 00:01:24 · 已获 12 行',
 
@@ -753,6 +754,7 @@ const DICT = {
     'side.elapsed': '已用时',
     'side.status': '状态',
     'side.summary': '摘要',
+    'side.summary.running': '任务仍在运行中。可继续观察对话流，或按需停止 / 打开追踪查看当前运行。',
     'side.summary.success': '完成。Flag 已验证。打开追踪查看完整链路和工具调用。',
     'side.summary.failed': '恢复控制器触发停止条件（原因：{0}）。打开追踪查看失败点。',
     'side.summary.queued': '尚未调度。运行时空闲时将自动开始。',

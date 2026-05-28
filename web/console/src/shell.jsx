@@ -141,7 +141,7 @@ function connectionTone(connection) {
 const CRUMBS_KEYS = {
   dashboard:        ['brand.tag', 'nav.dashboard'],
   tasks:            ['brand.tag', 'nav.tasks'],
-  'tasks/detail':   ['brand.tag', 'nav.tasks', '_task_002'],
+  'tasks/detail':   ['brand.tag', 'nav.tasks', '_task'],
   traces:           ['brand.tag', 'nav.traces'],
   'traces/detail':  ['brand.tag', 'nav.traces', '_run_002'],
   knowledge:        ['brand.tag', 'nav.knowledge'],
