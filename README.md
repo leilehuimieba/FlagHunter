@@ -4,75 +4,78 @@
 [![Version](https://img.shields.io/badge/version-v0.1.0-0969da)](https://github.com/leilehuimieba/FlagHunter/releases/tag/v0.1.0)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue)](#license)
-[![Modes](https://img.shields.io/badge/runtime-local%20%7C%20docker%20%7C%20ssh-8250df)](#典型工作模式)
-[![MCP](https://img.shields.io/badge/integration-MCP-1f6feb)](#典型工作模式)
+[![Runtime](https://img.shields.io/badge/runtime-local%20%7C%20docker%20%7C%20ssh-8250df)](#典型工作模式)
+[![Integration](https://img.shields.io/badge/integration-MCP-1f6feb)](#典型工作模式)
 
-> 面向 **CTF** 与 **合规渗透测试** 的 AI 代理框架  
+> **面向 CTF 与合规渗透测试的 AI 代理框架**  
 > 基于 PentestAgent 演进，强化 **多 API 调度、CTF 专项能力、多 Agent 协作与可观测性**
+
+FlagHunter 的目标不是做“只能聊天的安全助手”，而是把 **计划、工具执行、策略切换、结果验证、记忆沉淀** 收敛成一个可复用、可审计、可扩展的攻防自动化框架。
+
+> 当前 GitHub 仓库保持 **Private / Internal Collaboration**，用于受控协作与内部演进，不作为公开演示仓库使用。
 
 ---
 
 ## 快速导航
 
-- [项目定位](#项目定位)
-- [当前能力概览](#当前能力概览)
+- [为什么是 FlagHunter](#为什么是-flaghunter)
+- [核心能力](#核心能力)
+- [架构总览](#架构总览)
+- [适合谁 / 不适合谁](#适合谁--不适合谁)
 - [快速开始](#快速开始)
 - [典型工作模式](#典型工作模式)
-- [架构一览](#架构一览)
-- [主要文档](#主要文档)
-- [路线图](#路线图)
+- [项目状态与路线图](#项目状态与路线图)
+- [文档入口](#文档入口)
+- [版本发布](#版本发布)
 - [Changelog](./CHANGELOG.md)
-
-> 当前 GitHub 仓库默认保持 **Private**，用于受控协作与内部演进；不会作为公开演示仓库使用。
-
----
-
-## 项目定位
-
-FlagHunter 是一个以 **攻防实战效率** 为目标的 AI 驱动安全测试项目。它保留了 PentestAgent 原有的轻量主循环、工具系统、TUI/CLI/MCP 接口，同时围绕真实使用场景补上了几条关键能力：
-
-- **M1 多 API 调度与故障切换**：多 provider 路由、故障转移、消耗追踪
-- **M2 CTF 专项增强**：Web / Crypto / Reverse / Pwn / Misc 多题型工作流
-- **M3 报告输出**：面向交付的 HTML / Markdown 报告链路
-- **M4 审计与边界控制**：作用域校验、执行审计、风险收口
-- **M5 多 Agent 协作**：Worker 池、ShadowGraph、Swarm 路由
-- **M6 性能优化**：缓存、并发、上下文与执行效率优化
-
-> 适合两类场景：**CTF 靶场解题**，以及**有明确授权范围的安全测试自动化**。
+- [Release Policy](./docs/release-policy.md)
 
 ---
 
-## 当前能力概览
+## 为什么是 FlagHunter
 
-| 模块 | 方向 | 当前状态 |
+FlagHunter 延续了 PentestAgent 的轻量骨架，但更强调 **真实实战效率** 而不是“模型自由发挥”。
+
+它当前聚焦三个方向：
+
+1. **更稳的模型执行面**  
+   通过多 provider 路由、故障切换、成本追踪，让 Agent 在复杂任务里不容易因为单点模型故障而中断。
+
+2. **更强的 CTF / 攻防专项能力**  
+   对 Web / Crypto / Reverse / Pwn / Misc 等题型做专门工作流与能力收敛，而不是把所有问题都交给 LLM 临场猜。
+
+3. **更可运营的工程外壳**  
+   包括 MCP 接入、运行时隔离、计划文档、执行记录、版本发布、私有协作边界等，方便长期维护。
+
+---
+
+## 核心能力
+
+| 能力域 | 作用 | 当前状态 |
 |------|------|----------|
-| **M0** | 原版核心能力（Agent Loop / Tool Calling / TUI / CLI / MCP） | ✅ 可用 |
-| **M1** | 多 API 接入调度、故障切换、成本追踪 | ✅ 可用 |
-| **M2** | CTF 增强工具包与专项工作流 | ✅ 可用 |
-| **M3** | 报告生成与交付整理 | 🟡 持续完善 |
-| **M4** | 审计守卫、作用域边界、执行留痕 | 🟡 持续完善 |
-| **M5** | 多 Agent 协作、并行执行、信息素路由 | 🟡 持续完善 |
-| **M6** | 性能优化、缓存、上下文压缩 | ⬜ 规划中 |
+| **Agent Runtime** | 计划生成、工具调用、结果回流、状态机驱动循环 | ✅ |
+| **API Failover (M1)** | 多 API 调度、故障切换、成本追踪、provider 路由 | ✅ |
+| **CTF Workflow (M2)** | Web / Crypto / Reverse / Pwn / Misc 专项能力增强 | ✅ |
+| **Report & Audit (M3 / M4)** | 报告输出、作用域检查、执行留痕、风险收口 | 🟡 |
+| **Multi-Agent (M5)** | Worker 池、ShadowGraph、Swarm 路由、多 Agent 协作 | 🟡 |
+| **Performance (M6)** | 缓存、上下文压缩、并发与性能优化 | ⬜ |
 
----
+### 核心特性拆解
 
-## 核心特点
+#### 1. 工具执行优先，而非纯问答
 
-### 1. 不是“纯聊天代理”，而是可执行的安全工作流
+FlagHunter 更偏向：
 
-FlagHunter 的核心不是让模型自由发挥，而是把：
+- 先制定任务路径
+- 再调用工具观察真实结果
+- 再根据证据调整策略
+- 最后做验证与沉淀
 
-- 计划生成
-- 工具调用
-- 结果验证
-- 策略切换
-- 记忆沉淀
+这比“只靠对话推理”更适合真实攻防流程。
 
-串成一个可复用、可观察、可回放的执行闭环。
+#### 2. CTF 模式强调“确定性调度 + LLM 辅助”
 
-### 2. CTF 模式强调“确定性调度 + LLM 辅助”
-
-在 CTF 场景下，FlagHunter 不是单纯把题目扔给模型，而是通过：
+在 CTF 场景下，FlagHunter 通过：
 
 - `HypothesisEngine`
 - `StrategyRegistry`
@@ -80,17 +83,80 @@ FlagHunter 的核心不是让模型自由发挥，而是把：
 - `CTFVerifier`
 - `StrategyMemory`
 
-把题型分析、策略选择、能力降级与 flag 验证拆开处理，尽量减少“幻觉式乱试”。
+把假设生成、策略选择、能力降级和 flag 验证拆开处理，尽量减少幻觉式乱试。
 
-### 3. 兼顾本地开发、隔离执行和远程接入
+#### 3. 支持本地、隔离与远程三类执行面
 
-运行时支持：
+- **LocalRuntime**：本地调试 / 开发
+- **DockerRuntime**：隔离执行 / 沙箱化工具链
+- **SSHRuntime**：Kali VM / 远程工具环境
 
-- **LocalRuntime**：本地调试与开发
-- **DockerRuntime**：隔离执行与沙箱化工具运行
-- **SSHRuntime**：外接 Kali / 远程环境
+#### 4. 可作为 MCP Server 对外暴露
 
-同时可作为 **MCP Server** 暴露给外部客户端调用。
+不仅能自己跑，也能作为 MCP Server 被其它客户端或宿主驱动，用于更复杂的本地 agent 体系集成。
+
+---
+
+## 架构总览
+
+```mermaid
+flowchart TD
+    A[FlagHunter] --> B[pentestagent core]
+    A --> C[cpa_modules]
+    A --> D[tools]
+    A --> E[runtime]
+    A --> F[docs / plans / changelog]
+
+    B --> B1[Agent Loop]
+    B --> B2[TUI / CLI / MCP]
+    B --> B3[Memory / LLM]
+
+    C --> C1[M1 API Hub]
+    C --> C2[M2 CTF Kit]
+    C --> C3[M3 Reporter]
+    C --> C4[M4 Audit Guard]
+    C --> C5[M5 Swarm Link]
+    C --> C6[M6 Turbo]
+
+    D --> D1[Scanner / Browser / Notes / Finish]
+    E --> E1[Local]
+    E --> E2[Docker]
+    E --> E3[SSH]
+    F --> F1[README]
+    F --> F2[Release Policy]
+    F --> F3[Plans]
+```
+
+### 兼容性说明
+
+为了减少无意义迁移成本，项目当前 **没有** 重命名以下内部技术骨架：
+
+- Python 包目录 `pentestagent/`
+- 运行入口命令 `pentestagent`
+- 与上游兼容的部分配置字段
+
+也就是说：
+
+- **外部品牌**：FlagHunter
+- **内部兼容骨架**：PentestAgent 体系
+
+---
+
+## 适合谁 / 不适合谁
+
+### 适合谁
+
+- 需要把 **CTF 解题流程** 做成更稳定自动化链路的人
+- 需要 **多 provider / failover** 的本地 Agent 执行环境的人
+- 想把安全工具、浏览器、终端、MCP 接口放到同一个框架里的人
+- 需要在 **授权范围内** 做可回放、可审计安全测试自动化的人
+
+### 不适合谁
+
+- 只想要一个极简单文件脚本的人
+- 只需要聊天问答、不需要工具执行的人
+- 想把这套东西直接用于未授权目标的人
+- 不打算维护 Python / 运行时 / 文档协作流程的人
 
 ---
 
@@ -99,7 +165,7 @@ FlagHunter 的核心不是让模型自由发挥，而是把：
 ### 环境要求
 
 - Python **3.10+**
-- Windows / Linux / macOS（按本地运行方式配置）
+- Windows / Linux / macOS
 - 如需浏览器自动化：Playwright 或系统 Chromium / Edge
 - 如需隔离执行：Docker
 - 如需远程工具链：Kali VM / SSH 环境
@@ -132,7 +198,7 @@ copy .env.example .env       # Windows
 - `ANTHROPIC_API_KEY`
 - `OPENAI_API_KEY`
 - `PENTESTAGENT_MODEL`
-- 以及 CPA / CTF / MCP 相关开关
+- 与 CPA / CTF / MCP 相关开关
 
 ### 启动
 
@@ -140,7 +206,7 @@ copy .env.example .env       # Windows
 pentestagent
 ```
 
-常用入口：
+### 最常用入口
 
 ```text
 /api           查看 API Hub 状态
@@ -150,7 +216,7 @@ pentestagent
 /mcp list      查看 MCP 配置
 ```
 
-### 当前推荐起步路径
+### 推荐起步路径
 
 如果你是第一次接手这个仓库，建议按下面顺序理解：
 
@@ -186,32 +252,25 @@ pentestagent mcp_server --type sse --host 0.0.0.0 --port 8080
 
 ---
 
-## 架构一览
+## 项目状态与路线图
 
-```text
-FlagHunter
-├─ pentestagent/        # 主体代码（沿用上游项目结构）
-├─ cpa_modules/         # M1~M6 模块增强层
-├─ tools/               # 工具系统与执行守卫
-├─ docs/                # 用户文档、部署文档、设计与计划
-├─ knowledge/           # RAG / ShadowGraph / 记忆资产
-├─ tests/               # 测试集
-└─ scripts/             # 启动、构建、辅助脚本
-```
+| 方向 | 状态 | 说明 |
+|------|------|------|
+| 基础仓库与品牌迁移 | ✅ | 已完成新仓库与主线切换 |
+| README / 展示层收口 | ✅ | 已完成首轮首页化与元数据整理 |
+| CTF / API 增强能力 | 🟡 | 持续补完与验证 |
+| 报告 / 审计 / 多 Agent 深化 | 🟡 | 正在收敛工程边界 |
+| 性能优化与稳定化 | ⬜ | 作为后续阶段推进 |
 
-### 保持不改的部分
+### 下一步关注点
 
-为了减少无意义迁移成本，项目当前**没有**重命名以下内部技术路径：
-
-- Python 包目录 `pentestagent/`
-- 运行入口命令 `pentestagent`
-- 与上游兼容的部分配置字段
-
-这意味着：**外部品牌是 FlagHunter，内部代码骨架仍与 PentestAgent 体系兼容**。
+- 继续收紧文档与版本发布纪律
+- 明确关键模块的验证矩阵
+- 逐步沉淀更稳定的任务模板 / release 节奏 / 协作方式
 
 ---
 
-## 主要文档
+## 文档入口
 
 | 文档 | 说明 |
 |------|------|
@@ -221,22 +280,18 @@ FlagHunter
 | `D:\webstudy\FlagHunter\docs\D3_CTF实战攻略.md` | CTF 实战路径说明 |
 | `D:\webstudy\FlagHunter\docs\superpowers\plans\` | 当前实现计划与执行文档 |
 | `D:\webstudy\FlagHunter\CHANGELOG.md` | 版本与仓库演进记录 |
+| `D:\webstudy\FlagHunter\docs\release-policy.md` | 版本号、changelog 与 release 规则 |
 
 ---
 
-## Release / License / Repository Hygiene
+## 版本发布
 
-- **Release**：使用 GitHub Releases 记录阶段性可用版本
 - **Current Release**：`v0.1.0`
-- **License**：当前采用 `MIT`（兼容上游）
-- **.gitignore**：仓库已包含顶层 `.gitignore`，用于屏蔽本地环境、日志、缓存和敏感文件
+- **Changelog**：见 [`CHANGELOG.md`](./CHANGELOG.md)
+- **Release Policy**：见 [`docs/release-policy.md`](./docs/release-policy.md)
+- **License**：`MIT`
 - **Website**：当前未设置公开站点链接，避免把私有仓库误当公开展示页
-
-建议协作时遵循：
-
-1. 先提交可复现的最小改动
-2. 大功能按 spec / plan / implementation 拆分推进
-3. 不将 `.env`、本地 token、运行缓存、loot 等敏感内容提交到 Git
+- **.gitignore**：已配置顶层 `.gitignore`，用于屏蔽本地环境、缓存、日志与敏感文件
 
 ---
 
@@ -248,17 +303,6 @@ FlagHunter 面向：
 - 获得明确授权的安全测试环境
 
 请不要将其中的自动化能力直接用于未授权目标。
-
----
-
-## 路线图
-
-- [x] 建立新仓库 `FlagHunter`
-- [x] 迁移主线代码与基础文档
-- [x] 接入新仓库描述、topics、release 管理
-- [ ] 继续收敛 README / 文档对外叙事
-- [ ] 逐步统一更多对外命名与交付材料
-- [ ] 为关键功能补更清晰的验证矩阵与版本说明
 
 ---
 

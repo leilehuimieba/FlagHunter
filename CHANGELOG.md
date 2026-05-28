@@ -1,5 +1,7 @@
 # Changelog
 
+> Format and release discipline follow [docs/release-policy.md](./docs/release-policy.md).
+
 本文件记录 `FlagHunter` 仓库在新项目阶段的关键版本与展示层收口动作。
 
 ---
@@ -23,3 +25,4 @@
 - 外部品牌统一为 **FlagHunter**
 - 内部代码骨架仍兼容 `pentestagent/` 结构与现有运行入口
 - 当前不设置公开 Website，避免与私有仓库策略冲突
+
