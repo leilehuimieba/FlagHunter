@@ -556,3 +556,20 @@ async def test_knowledge_add_doc_upload_saves_document_and_reindexes(
     assert data["document"]["chunkCount"] == 2
     assert isinstance(data["updatedAt"], str)
     assert (sources_dir / "probe.md").exists()
+
+
+@pytest.mark.asyncio
+async def test_knowledge_open_returns_source_open_link(web_client: TestClient, tmp_path: Path):
+    knowledge_file = tmp_path / "knowledge" / "sources" / "probe.md"
+    knowledge_file.parent.mkdir(parents=True, exist_ok=True)
+    knowledge_file.write_text("# probe\nbody\n", encoding="utf-8")
+
+    doc_key = web_server._doc_key("knowledge/sources/probe.md")
+
+    resp = await web_client.get(f"/api/knowledge/{doc_key}/open")
+
+    assert resp.status == 200
+    data = await resp.json()
+    assert data["ok"] is True
+    assert data["openUrl"] == f"/api/knowledge/{doc_key}/content"
+    assert data["sourcePath"] == "knowledge/sources/probe.md"

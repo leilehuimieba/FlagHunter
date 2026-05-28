@@ -213,6 +213,10 @@
     return apiFetch('/api/knowledge/' + encodeURIComponent(docKey));
   }
 
+  async function openKnowledgeDocument(docKey) {
+    return apiFetch('/api/knowledge/' + encodeURIComponent(docKey) + '/open');
+  }
+
   // ── SSE event stream ──────────────────────────────────────────
   let _sse = null;
   const _sseSubs = [];
@@ -418,6 +422,7 @@
     getKnowledge,
     reindexKnowledge,
     getKnowledgeDoc,
+    openKnowledgeDocument,
     subscribeEvents,
     getMemory,
     getMemoryStats,

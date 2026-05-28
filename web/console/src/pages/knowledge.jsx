@@ -248,6 +248,11 @@ function KnowledgeDetail({ docId, onNav }) {
   const reindexUnavailableReason = ['connected', 'degraded'].includes(connection.status)
     ? t('c.notWired')
     : t('c.notConnected');
+  const openFileAvailable = ['connected', 'degraded'].includes(connection.status)
+    && typeof window.API?.openKnowledgeDocument === 'function';
+  const openFileUnavailableReason = ['connected', 'degraded'].includes(connection.status)
+    ? t('c.notWired')
+    : t('c.notConnected');
 
   uKE(() => {
     window.dispatchEvent(new CustomEvent('fh:route-label', {
@@ -265,6 +270,14 @@ function KnowledgeDetail({ docId, onNav }) {
     }
   }
 
+  async function handleOpenFile() {
+    if (!openFileAvailable) return;
+    const openResult = await window.API.openKnowledgeDocument(resolvedDoc.docKey);
+    if (openResult?.openUrl) {
+      window.open(openResult.openUrl, '_blank', 'noopener');
+    }
+  }
+
   return (
     <div className="page">
       <div className="page-h">
@@ -278,7 +291,7 @@ function KnowledgeDetail({ docId, onNav }) {
         <div className="row">
           <button className="btn ghost" disabled={!reindexAvailable} title={!reindexAvailable ? reindexUnavailableReason : ''} onClick={handleReindex}>{t('c.reindex')}</button>
           <button className="btn ghost" onClick={() => downloadJson(`${String(resolvedDoc.docKey || resolvedDoc.id || 'knowledge').replace(/[^\w.-]+/g, '_')}.json`, resolvedDoc)}>{t('c.download')}</button>
-          <button className="btn" disabled={true} title={t('c.unavailable')}>{t('c.openFile')}</button>
+          <button className="btn" disabled={!openFileAvailable} title={!openFileAvailable ? openFileUnavailableReason : ''} onClick={handleOpenFile}>{t('c.openFile')}</button>
         </div>
       </div>
 
