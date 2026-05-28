@@ -226,6 +226,61 @@ async def test_dashboard_summary_supports_window_and_runtime_filters(web_client:
 
 
 @pytest.mark.asyncio
+async def test_traces_list_supports_window_filter(web_client: TestClient):
+    now = web_server._now_iso()
+    old = (web_server.datetime.now(web_server.timezone.utc) - web_server.timedelta(days=2)).isoformat()
+
+    web_server._tasks["task_trace_recent"] = {
+        "id": "task_trace_recent",
+        "title": "trace recent",
+        "target": "http://recent.test",
+        "goal": "recent trace",
+        "status": "success",
+        "createdAt": now,
+        "startedAt": now,
+        "finishedAt": now,
+        "tokensUsed": 10,
+        "toolCalls": 1,
+        "currentRunId": "run_trace_recent",
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+    web_server._tasks["task_trace_old"] = {
+        "id": "task_trace_old",
+        "title": "trace old",
+        "target": "http://old.test",
+        "goal": "old trace",
+        "status": "failed",
+        "createdAt": old,
+        "startedAt": old,
+        "finishedAt": old,
+        "tokensUsed": 20,
+        "toolCalls": 2,
+        "currentRunId": "run_trace_old",
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    recent_resp = await web_client.get("/api/traces?window=24h")
+    assert recent_resp.status == 200
+    recent_data = await recent_resp.json()
+    assert [item["id"] for item in recent_data] == ["run_trace_recent"]
+
+    all_resp = await web_client.get("/api/traces?window=all")
+    assert all_resp.status == 200
+    all_data = await all_resp.json()
+    assert [item["id"] for item in all_data] == ["run_trace_recent", "run_trace_old"]
+
+
+@pytest.mark.asyncio
 async def test_task_detail_includes_capabilities_and_detail_fields(web_client: TestClient):
     created = await web_client.post(
         "/api/tasks",

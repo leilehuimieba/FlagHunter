@@ -20,6 +20,7 @@ function TracesPage({ runId, onNav }) {
 
 function TraceList({ onNav }) {
   const [filter, setFilter] = uS('all');
+  const [windowFilter, setWindowFilter] = uS('24h');
   const [q, setQ] = uS('');
   const [apiTraces, setApiTraces] = uS(null);
   const [connection, setConnection] = uS(() => currentConnectionState());
@@ -36,21 +37,21 @@ function TraceList({ onNav }) {
   }, []);
 
   uE(() => {
-    window.API.getTraces().then(data => {
+    window.API.getTraces({ window: windowFilter }).then(data => {
       if (data && Array.isArray(data)) setApiTraces(data);
     });
-  }, []);
+  }, [windowFilter]);
 
   uE(() => {
     if (!window.API) return;
     return window.API.subscribeEvents(ev => {
       if (ev.type === 'task_created' || ev.type === 'task_status') {
-        window.API.getTraces().then(data => {
+        window.API.getTraces({ window: windowFilter }).then(data => {
           if (data && Array.isArray(data)) setApiTraces(data);
         });
       }
     });
-  }, []);
+  }, [windowFilter]);
 
   const sourceTraces = Array.isArray(apiTraces) ? apiTraces : [];
   const runs = sourceTraces.filter(r => {
@@ -71,8 +72,11 @@ function TraceList({ onNav }) {
           <div className="sub">{t('tr.sub')}</div>
         </div>
         <div className="row">
-          <button className="btn ghost"><span className="muted">{t('c.last24h')}</span> ▾</button>
-          <button className="btn ghost"><span className="muted">{t('c.allTargets')}</span> ▾</button>
+          <select className="input" value={windowFilter} onChange={e => setWindowFilter(e.target.value)} style={{ width: 120 }}>
+            <option value="24h">{t('c.last24h')}</option>
+            <option value="all">all time</option>
+          </select>
+          <button className="btn ghost" disabled={true} title={t('c.notWired')}><span className="muted">{t('c.allTargets')}</span> ▾</button>
           <button className="btn" onClick={() => downloadJson(`traces_${new Date().toISOString().replace(/[:.]/g, '-')}.json`, runs)}>⬇ {t('c.export')}</button>
         </div>
       </div>
