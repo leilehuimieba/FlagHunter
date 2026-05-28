@@ -333,7 +333,9 @@ function TaskDetail({ task, onNav, taskViewMode }) {
   const hintAvailable = hintSupported
     && isActionLive
     && typeof window.API?.hintTask === 'function';
-  const continueAvailable = continueSupported && isActionLive;
+  const continueAvailable = continueSupported
+    && isActionLive
+    && typeof window.API?.continueTask === 'function';
   const retryAvailable = retrySupported
     && isActionLive
     && typeof window.API?.retryTask === 'function';
@@ -546,7 +548,17 @@ function TaskDetail({ task, onNav, taskViewMode }) {
     if (!draft.trim()) return;
     if (hintMode && !hintAvailable) return;
     if (!hintMode && !continueAvailable) return;
-    if (!hintMode) return;
+
+    if (!hintMode) {
+      const continueResult = await window.API.continueTask(detailTask.id);
+      if (!continueResult?.ok) {
+        appendSystemMessage('continue request failed');
+        return;
+      }
+      setDraft('');
+      appendSystemMessage('continue request accepted');
+      return;
+    }
 
     const text = draft.trim();
     const result = await window.API.hintTask(detailTask.id, text);
@@ -577,6 +589,8 @@ function TaskDetail({ task, onNav, taskViewMode }) {
     ? t('td.continueUnavailable')
     : !isActionLive
       ? t('c.notConnected')
+      : typeof window.API?.continueTask !== 'function'
+        ? t('c.notWired')
       : '';
   const retryUnavailableReason = !retrySupported
     ? t('td.retryUnavailable')

@@ -80,6 +80,14 @@ def test_task_capabilities_toggle_stop_by_status():
     assert web_server._task_capabilities({"status": "success"})["stop"] is False
 
 
+def test_task_capabilities_toggle_continue_by_status():
+    assert web_server._task_capabilities({"status": "queued"})["continue"] is False
+    assert web_server._task_capabilities({"status": "running"})["continue"] is True
+    assert web_server._task_capabilities({"status": "success"})["continue"] is False
+    assert web_server._task_capabilities({"status": "failed"})["continue"] is False
+    assert web_server._task_capabilities({"status": "stopped"})["continue"] is False
+
+
 def test_task_capabilities_toggle_retry_by_status():
     assert web_server._task_capabilities({"status": "queued"})["retry"] is False
     assert web_server._task_capabilities({"status": "running"})["retry"] is False
@@ -383,3 +391,48 @@ async def test_task_retry_creates_new_task_from_finished_task(web_client: TestCl
     }
     assert web_server._tasks[original_task_id]["status"] == "stopped"
     assert set(web_server._tasks.keys()) == {original_task_id, retried_task["id"]}
+
+
+@pytest.mark.asyncio
+async def test_task_continue_accepts_running_task_without_creating_new_task(web_client: TestClient):
+    created = await web_client.post(
+        "/api/tasks",
+        json={"title": "continue-source", "target": "http://continue.test", "goal": "continue original task"},
+    )
+    assert created.status == 201
+    task = await created.json()
+    task_id = task["id"]
+    run_id = task["currentRunId"]
+
+    web_server._tasks[task_id]["status"] = "running"
+    web_server._tasks[task_id]["startedAt"] = web_server._now_iso()
+
+    continue_resp = await web_client.post(f"/api/tasks/{task_id}/continue")
+
+    assert continue_resp.status == 200
+    continue_result = await continue_resp.json()
+    assert continue_result["ok"] is True
+    assert continue_result["taskId"] == task_id
+    assert continue_result["runId"] == run_id
+    assert continue_result["accepted"] is True
+    assert set(web_server._tasks.keys()) == {task_id}
+    assert web_server._tasks[task_id]["status"] == "running"
+    assert web_server._tasks[task_id]["hints"][-1]["text"] == "__continue__"
+
+
+@pytest.mark.asyncio
+async def test_task_continue_rejects_finished_task(web_client: TestClient):
+    created = await web_client.post(
+        "/api/tasks",
+        json={"title": "continue-finished", "target": "http://continue.test", "goal": "continue original task"},
+    )
+    assert created.status == 201
+    task = await created.json()
+    task_id = task["id"]
+
+    stopped = await web_client.post(f"/api/tasks/{task_id}/stop")
+    assert stopped.status == 200
+
+    continue_resp = await web_client.post(f"/api/tasks/{task_id}/continue")
+
+    assert continue_resp.status == 409
