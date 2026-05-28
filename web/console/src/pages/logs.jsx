@@ -181,6 +181,16 @@ function LogsPage() {
 }
 
 function LogDrawer({ log, onClose }) {
+  const payload = {
+    id: log.id,
+    timestamp: log.t,
+    level: log.level,
+    source: log.source,
+    taskId: log.taskId,
+    runId: log.runId,
+    message: log.msg,
+  };
+
   return (
     <div className="drawer">
       <div className="head">
@@ -196,28 +206,12 @@ function LogDrawer({ log, onClose }) {
       <div className="body">
         <div className="section">
           <div className="h">{t('lg.dr.payload')}</div>
-          <pre className="code-block">{JSON.stringify({
-            id: log.id,
-            timestamp: log.t,
-            level: log.level,
-            source: log.source,
-            taskId: log.taskId,
-            runId: log.runId,
-            message: log.msg,
-            payload: {
-              cwd: '/work/runs/' + log.runId,
-              pid: log.source.startsWith('tool.terminal') ? 18472 : null,
-            },
-          }, null, 2)}</pre>
+          <pre className="code-block">{JSON.stringify(payload, null, 2)}</pre>
         </div>
         <div className="section">
           <div className="h">{t('lg.dr.ctx')}</div>
           <div className="kv-list" style={{ fontSize: 11.5 }}>
-            <div className="kv-row"><span className="k">{t('lg.dr.prev')}</span><span className="v muted">orchestrator · plan saved</span></div>
-            <div className="kv-row"><span className="k">{t('lg.dr.prev')}</span><span className="v muted">rag · 2 hits (top 0.79)</span></div>
             <div className="kv-row"><span className="k bright">{t('lg.dr.this')}</span><span className="v bright">{log.msg}</span></div>
-            <div className="kv-row"><span className="k">{t('lg.dr.next')}</span><span className="v muted">runtime · pid=18472 alive</span></div>
-            <div className="kv-row"><span className="k">{t('lg.dr.next')}</span><span className="v muted">tool.terminal · sqlmap heuristic match</span></div>
           </div>
         </div>
       </div>
