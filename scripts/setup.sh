@@ -73,6 +73,10 @@ OPENAI_API_KEY=
 ANTHROPIC_API_KEY=
 GEMINI_API_KEY=
 
+# OpenAI-compatible relay (optional — any URL that speaks /v1/chat/completions)
+# OPENAI_API_BASE=https://your-relay.example/v1
+# PENTESTAGENT_MODEL=openai/<model-name-on-your-relay>
+
 # For web search functionality (optional)
 TAVILY_API_KEY=
 

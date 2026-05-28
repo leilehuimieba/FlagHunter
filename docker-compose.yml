@@ -7,8 +7,10 @@ services:
     container_name: pentestagent
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_API_BASE=${OPENAI_API_BASE:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - PENTESTAGENT_MODEL=${PENTESTAGENT_MODEL}
+      - PENTESTAGENT_EMBEDDINGS=${PENTESTAGENT_EMBEDDINGS:-}
       - PENTESTAGENT_DEBUG=${PENTESTAGENT_DEBUG:-false}
     volumes:
       - ./loot:/app/loot
@@ -28,8 +30,10 @@ services:
       - SYS_ADMIN
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_API_BASE=${OPENAI_API_BASE:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - PENTESTAGENT_MODEL=${PENTESTAGENT_MODEL}
+      - PENTESTAGENT_EMBEDDINGS=${PENTESTAGENT_EMBEDDINGS:-}
       - ENABLE_TOR=${ENABLE_TOR:-false}
       - INIT_METASPLOIT=${INIT_METASPLOIT:-false}
       # By default msfrpcd binds to loopback; to intentionally expose Metasploit RPC to the host
@@ -55,8 +59,10 @@ services:
       - SYS_ADMIN
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_API_BASE=${OPENAI_API_BASE:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - PENTESTAGENT_MODEL=${PENTESTAGENT_MODEL}
+      - PENTESTAGENT_EMBEDDINGS=${PENTESTAGENT_EMBEDDINGS:-}
       - ENABLE_TOR=${ENABLE_TOR:-false}
       - INIT_METASPLOIT=${INIT_METASPLOIT:-false}
       - EXPOSE_MSF_RPC=${EXPOSE_MSF_RPC:-false}
