@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import io
 from pathlib import Path
 
 import pytest
+from aiohttp import FormData
 from aiohttp.test_utils import TestClient, TestServer
 
 from pentestagent.interface import web_server
@@ -508,3 +510,49 @@ async def test_runtime_test_returns_runtime_summary_shape(
     assert data["runtime"]["connected"] is True
     assert data["runtime"]["label"] == "Local"
     assert data["runtime"]["status_text"] == "Local runtime active"
+
+
+@pytest.mark.asyncio
+async def test_knowledge_add_doc_upload_saves_document_and_reindexes(
+    web_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    knowledge_dir = tmp_path / "knowledge"
+    sources_dir = knowledge_dir / "sources"
+    sources_dir.mkdir(parents=True, exist_ok=True)
+
+    class _FakeRAGEngine:
+        def __init__(self, knowledge_path, use_local_embeddings=True):
+            self.knowledge_path = knowledge_path
+            self.use_local_embeddings = use_local_embeddings
+            self.documents = []
+
+        def index_documents(self, force=False):
+            uploaded = sources_dir / "probe.md"
+            self.documents = [
+                type("Doc", (), {"source": str(uploaded)})(),
+                type("Doc", (), {"source": str(uploaded)})(),
+            ]
+
+    monkeypatch.setattr(knowledge_module, "RAGEngine", _FakeRAGEngine)
+
+    form = FormData()
+    form.add_field(
+        "file",
+        io.BytesIO(b"# probe\nknowledge body\n"),
+        filename="probe.md",
+        content_type="text/markdown",
+    )
+
+    resp = await web_client.post("/api/knowledge/documents", data=form)
+
+    assert resp.status == 200
+    data = await resp.json()
+    assert data["ok"] is True
+    assert data["saved"] is True
+    assert data["reindexed"] is True
+    assert data["document"]["docKey"]
+    assert data["document"]["sourcePath"] == "knowledge/sources/probe.md"
+    assert data["document"]["title"] == "probe"
+    assert data["document"]["chunkCount"] == 2
+    assert isinstance(data["updatedAt"], str)
+    assert (sources_dir / "probe.md").exists()

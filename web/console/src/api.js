@@ -344,6 +344,32 @@
   }
 
   // ── File upload ───────────────────────────────────────────────
+  async function uploadKnowledgeDocument(file, onProgress) {
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      return await new Promise((resolve) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/knowledge/documents');
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try { resolve(JSON.parse(xhr.responseText)); }
+            catch { resolve(null); }
+          } else {
+            resolve(null);
+          }
+        };
+        xhr.onerror = () => resolve(null);
+        if (onProgress) {
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+          };
+        }
+        xhr.send(fd);
+      });
+    } catch { return null; }
+  }
+
   async function uploadAttachment(taskId, fileList, onProgress) {
     try {
       const fd = new FormData();
@@ -401,6 +427,7 @@
     deleteMemoryEntry,
     getMemoryGraph,
     getAttachments,
+    uploadKnowledgeDocument,
     uploadAttachment,
   };
 })();

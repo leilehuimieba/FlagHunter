@@ -27,6 +27,7 @@ function KnowledgeList({ onNav }) {
   const [tag, setTag] = uK('all');
   const [apiDocs, setApiDocs] = uK(null);
   const [connection, setConnection] = uK(() => currentConnectionState());
+  const fileInputRef = React.useRef(null);
 
   uKE(() => {
     const handler = (e) => {
@@ -60,6 +61,11 @@ function KnowledgeList({ onNav }) {
   const reindexUnavailableReason = ['connected', 'degraded'].includes(connection.status)
     ? t('c.notWired')
     : t('c.notConnected');
+  const addDocAvailable = ['connected', 'degraded'].includes(connection.status)
+    && typeof window.API?.uploadKnowledgeDocument === 'function';
+  const addDocUnavailableReason = ['connected', 'degraded'].includes(connection.status)
+    ? t('c.notWired')
+    : t('c.notConnected');
 
   const tags = ['all', 'web', 'misc', 'reverse', 'forensics', 'meta', 'recon'];
 
@@ -69,6 +75,17 @@ function KnowledgeList({ onNav }) {
     if (!reindexResult?.ok) return;
     const data = await window.API.getKnowledge();
     if (data && Array.isArray(data)) setApiDocs(data);
+  }
+
+  async function handleAddDocChange(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file || !addDocAvailable) return;
+    const uploadResult = await window.API.uploadKnowledgeDocument(file);
+    if (uploadResult?.ok) {
+      const data = await window.API.getKnowledge();
+      if (data && Array.isArray(data)) setApiDocs(data);
+    }
   }
 
   return (
@@ -81,7 +98,8 @@ function KnowledgeList({ onNav }) {
         <div className="row">
           <button className="btn ghost" disabled={!reindexAvailable} title={!reindexAvailable ? reindexUnavailableReason : ''} onClick={handleReindex}>{t('c.reindex')}</button>
           <button className="btn ghost" onClick={() => downloadJson(`knowledge_${new Date().toISOString().replace(/[:.]/g, '-')}.json`, sourceDocs)}>⬇ {t('c.export')}</button>
-          <button className="btn primary" disabled={true} title={t('c.unavailable')}>{t('c.addDoc')}</button>
+          <button className="btn primary" disabled={!addDocAvailable} title={!addDocAvailable ? addDocUnavailableReason : ''} onClick={() => addDocAvailable && fileInputRef.current?.click()}>{t('c.addDoc')}</button>
+          <input ref={fileInputRef} type="file" accept=".md,.txt,.json" style={{ display: 'none' }} onChange={handleAddDocChange} />
         </div>
       </div>
 
