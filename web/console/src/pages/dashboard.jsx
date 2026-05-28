@@ -34,8 +34,6 @@ const LIVE_EMPTY_DASHBOARD = {
   alerts: [],
   recentTasks: [],
   recentToolCalls: [],
-  recentNotes: [],
-  recentArtifacts: [],
   flags: [],
 };
 
@@ -55,8 +53,6 @@ function normalizeDashboardData(data) {
     alerts: Array.isArray(data.alerts) ? data.alerts : [],
     recentTasks: Array.isArray(data.recentTasks) ? data.recentTasks : [],
     recentToolCalls: Array.isArray(data.recentToolCalls) ? data.recentToolCalls : [],
-    recentNotes: Array.isArray(data.recentNotes) ? data.recentNotes : [],
-    recentArtifacts: Array.isArray(data.recentArtifacts) ? data.recentArtifacts : [],
     flags: Array.isArray(data.flags) ? data.flags : [],
   };
 }
@@ -135,8 +131,6 @@ function DashboardPage({ onNav }) {
   const alerts = dashboardData.alerts || [];
   const recentTasks = dashboardData.recentTasks || [];
   const recentToolCalls = dashboardData.recentToolCalls || [];
-  const recentNotes = dashboardData.recentNotes || [];
-  const recentArtifacts = dashboardData.recentArtifacts || [];
   const dashboardEmptyState = canReadLiveState ? t('dash.noData') : t('c.unavailable');
   const tasksEmptyState = canReadLiveState ? t('tasks.noMatch') : t('c.unavailable');
   const notesArtifactsEmptyState = canReadLiveState ? t('dash.noData') : t('c.unavailable');
@@ -339,23 +333,17 @@ function DashboardPage({ onNav }) {
           actions={<button className="btn sm ghost muted" onClick={() => onNav('knowledge')}>{t('c.browse')}</button>}
         >
           <div>
-            {recentNotes.length === 0 && recentArtifacts.length === 0 && (
+            {alerts.length === 0 && (
               <Empty>{notesArtifactsEmptyState}</Empty>
             )}
-            {recentNotes.map(n => (
+            {alerts.map(n => (
               <div key={n.id} className="act-row">
                 <span className="time">{fmt.hh(n.t).slice(0,5)}</span>
-                <span className="ico" style={{ color: 'var(--amber)' }}>✎</span>
-                <span className="ttl ellipsis">{n.text}</span>
-                <span className="meta dim">{n.tag}</span>
-              </div>
-            ))}
-            {recentArtifacts.map(a => (
-              <div key={a.id} className="act-row">
-                <span className="time">{fmt.hh(a.t).slice(0,5)}</span>
-                <span className="ico" style={{ color: 'var(--magenta)' }}>◫</span>
-                <span className="ttl ellipsis"><span className="bright">{a.name}</span></span>
-                <span className="meta dim">{a.kind}</span>
+                <span className="ico" style={{ color: n.level === 'warn' ? 'var(--amber)' : n.level === 'error' ? 'var(--red)' : 'var(--accent)' }}>
+                  {n.level === 'warn' ? '⚑' : n.level === 'error' ? '✗' : '◌'}
+                </span>
+                <span className="ttl ellipsis">{n.message}</span>
+                <span className="meta dim">{n.level}</span>
               </div>
             ))}
           </div>

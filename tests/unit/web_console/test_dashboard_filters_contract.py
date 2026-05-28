@@ -34,3 +34,15 @@ def test_dashboard_notes_artifacts_browse_is_live_navigation() -> None:
 
     assert "disabled={true} title={t('c.unavailable')}>{t('c.browse')}</button>" not in source
     assert "onClick={() => onNav('knowledge')}" in source
+
+
+def test_dashboard_notes_artifacts_card_no_longer_depends_on_synthetic_notes_artifacts() -> None:
+    source = _read("web/console/src/pages/dashboard.jsx")
+
+    assert "recentNotes: []" not in source
+    assert "recentArtifacts: []" not in source
+    assert "recentNotes.length === 0 && recentArtifacts.length === 0" not in source
+    assert "recentNotes.map(" not in source
+    assert "recentArtifacts.map(" not in source
+    assert "alerts.length === 0" in source
+    assert "alerts.map(" in source
