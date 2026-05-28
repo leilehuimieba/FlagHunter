@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import json
 from pathlib import Path
 
 import pytest
@@ -636,6 +637,75 @@ async def test_runtime_test_returns_runtime_summary_shape(
     assert data["runtime"]["connected"] is True
     assert data["runtime"]["label"] == "Local"
     assert data["runtime"]["status_text"] == "Local runtime active"
+
+
+@pytest.mark.asyncio
+async def test_settings_payload_includes_real_mcp_servers(web_client: TestClient, tmp_path: Path):
+    config_path = tmp_path / "mcp_servers.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "docs-mcp": {
+                        "type": "sse",
+                        "url": "http://127.0.0.1:8080/sse",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    resp = await web_client.get("/api/settings")
+
+    assert resp.status == 200
+    data = await resp.json()
+    assert data["mcp"]["servers"] == [
+        {
+            "name": "docs-mcp",
+            "type": "sse",
+            "url": "http://127.0.0.1:8080/sse",
+            "enabled": True,
+            "connected": False,
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_add_mcp_server_persists_new_sse_server(web_client: TestClient, tmp_path: Path):
+    resp = await web_client.post(
+        "/api/settings/mcp/servers",
+        json={"name": "docs-mcp", "url": "http://127.0.0.1:8080/sse"},
+    )
+
+    assert resp.status == 200
+    data = await resp.json()
+    assert data["ok"] is True
+    assert data["settings"]["mcp"]["servers"] == [
+        {
+            "name": "docs-mcp",
+            "type": "sse",
+            "url": "http://127.0.0.1:8080/sse",
+            "enabled": True,
+            "connected": False,
+        }
+    ]
+
+    raw = json.loads((tmp_path / "mcp_servers.json").read_text(encoding="utf-8"))
+    assert raw["mcpServers"]["docs-mcp"]["type"] == "sse"
+    assert raw["mcpServers"]["docs-mcp"]["url"] == "http://127.0.0.1:8080/sse"
+
+
+@pytest.mark.asyncio
+async def test_add_mcp_server_rejects_invalid_url(web_client: TestClient):
+    resp = await web_client.post(
+        "/api/settings/mcp/servers",
+        json={"name": "docs-mcp", "url": "not-a-url"},
+    )
+
+    assert resp.status == 400
+    data = await resp.json()
+    assert data["error"] == "valid sse url required"
 
 
 @pytest.mark.asyncio

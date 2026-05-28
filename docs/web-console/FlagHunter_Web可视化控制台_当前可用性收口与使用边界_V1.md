@@ -297,3 +297,54 @@
 因此当前可以把 Web Console 标记为：
 
 > **已达到“当前实现可实际使用且边界诚实”的收口标准，可作为后续继续开发前的稳定可用基线。**
+
+---
+
+## 10. 下一联通项设计冻结（2026-05-28）
+
+为避免上下文压缩后丢失当前主线设计，这里补记下一联通项的冻结结论：
+
+### 10.1 目标项
+
+- `Settings -> MCP -> add server`
+
+### 10.2 当前真相
+
+截至本文档当前同步基线，这个动作**仍未接通**，不要把它当作已可用能力：
+
+- 前端按钮仍是只读占位
+- `GET /api/settings` 的 `mcp.servers` 仍未返回真实 MCP 配置列表
+
+### 10.3 已冻结的最小设计
+
+下一轮实现只做一个最小闭环：
+
+1. `GET /api/settings` 返回真实 MCP server 列表
+2. 新增 `POST /api/settings/mcp/servers`
+3. 第一版只支持 **SSE server**
+4. 第一版字段只做：
+   - `name`
+   - `url`
+5. Settings 页使用 **inline form**
+6. add server 是**独立动作**
+   - 不并入全局 `Save changes`
+
+### 10.4 明确不在首轮范围
+
+- 不支持 `stdio`
+- 不支持 bearer
+- 不支持 edit / delete
+- 不支持连接测试
+- 不支持更完整 MCP 管理台
+
+### 10.5 下一轮验证边界
+
+下一轮按 TDD 只要求证明：
+
+1. 后端可以真实写入一个 SSE MCP server
+2. Settings 页可以读取并显示真实 MCP server 列表
+3. Settings 页 add server 不再是永久只读占位
+
+也就是说，这一轮的验收目标是：
+
+> **把 MCP add server 从“诚实禁用”推进到“最小 live 联通”，而不是一次做成完整 MCP 管理中心。**

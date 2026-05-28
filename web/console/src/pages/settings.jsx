@@ -187,12 +187,17 @@ function SettingsPage() {
     const data = await window.API.getSettings();
     if (!data) return false;
     const merged = mergeSettings(data);
+    applyMergedSettings(merged);
+    setError('');
+    return true;
+  }
+
+  function applyMergedSettings(merged) {
     setDraft(merged);
     setBaseDraft(merged);
     setMeta(merged.meta || DEFAULT_META);
     setDirty(false);
-    setError('');
-    return true;
+    setSaved(false);
   }
 
   async function refreshReadonlyData() {
@@ -219,10 +224,7 @@ function SettingsPage() {
         return;
       }
       const merged = mergeSettings(resp.settings || draft);
-      setDraft(merged);
-      setBaseDraft(merged);
-      setMeta(merged.meta || DEFAULT_META);
-      setDirty(false);
+      applyMergedSettings(merged);
       setSaved(true);
       setSaveResult(resp);
       setTimeout(() => setSaved(false), 3000);
@@ -248,7 +250,7 @@ function SettingsPage() {
     return () => window.removeEventListener('fh:connection', handler);
   }, []);
 
-  const sharedProps = { draft, patch, meta, dashboardStats, knowledgeDocs, connection, refreshReadonlyData };
+  const sharedProps = { draft, patch, meta, dashboardStats, knowledgeDocs, connection, refreshReadonlyData, applyMergedSettings };
 
   return (
     <div className="page" style={{ minHeight: 0 }}>
@@ -505,8 +507,49 @@ function RuntimeSec({ draft, patch, meta, connection }) {
   );
 }
 
-function McpSec({ draft, patch, meta }) {
+function McpSec({ draft, patch, meta, connection, applyMergedSettings }) {
   const m = draft.mcp || {};
+  const servers = Array.isArray(m.servers) ? m.servers : [];
+  const [addingServer, setAddingServer] = uSt(false);
+  const [addServerForm, setAddServerForm] = uSt({ name: '', url: '' });
+  const [addServerError, setAddServerError] = uSt('');
+  const [addServerSaving, setAddServerSaving] = uSt(false);
+  const addServerAvailable = ['connected', 'degraded'].includes(connection?.status)
+    && typeof window.API?.addMcpServer === 'function';
+  const addServerUnavailableReason = ['connected', 'degraded'].includes(connection?.status)
+    ? t('c.notWired')
+    : t('c.notConnected');
+
+  function resetAddServerForm() {
+    setAddServerForm({ name: '', url: '' });
+    setAddServerError('');
+    setAddServerSaving(false);
+    setAddingServer(false);
+  }
+
+  async function handleSaveServer() {
+    if (!addServerAvailable) return;
+    if (!addServerForm.name.trim()) {
+      setAddServerError('name required');
+      return;
+    }
+    if (!addServerForm.url.trim()) {
+      setAddServerError('valid sse url required');
+      return;
+    }
+    setAddServerSaving(true);
+    setAddServerError('');
+    const result = await window.API.addMcpServer({ name: addServerForm.name, url: addServerForm.url });
+    if (!result?.ok) {
+      setAddServerError(t('st.saveError'));
+      setAddServerSaving(false);
+      return;
+    }
+    const merged = mergeSettings(result.settings || draft);
+    applyMergedSettings(merged);
+    resetAddServerForm();
+  }
+
   return (
     <Section title={t('st.mcp.t')} sub={t('st.mcp.sub')}>
       <Field label={t('st.mcp.enabled')} hint={supportHint('', 'mcp.enabled', meta)} path="mcp.enabled" meta={meta}>
@@ -518,14 +561,56 @@ function McpSec({ draft, patch, meta }) {
       <div className="set-field" style={{ gridColumn: '1 / -1' }}>
         <div className="lbl">
           <span>{t('st.mcp.servers')}</span>
-          <span className="badges"><span className="chip ghost">{t('st.readOnlyChip')}</span></span>
+          <span className="badges"><span className={`chip ${addServerAvailable ? 'green' : 'ghost'}`}>{addServerAvailable ? t('c.live') : t('st.readOnlyChip')}</span></span>
         </div>
         <div className="row gap-6" style={{ flexWrap: 'wrap' }}>
-          {(m.servers || []).map(s => (
-            <span key={s} className="chip green"><span className="led"></span>{s}</span>
+          {servers.map(s => (
+            <span key={s.name || s.url} className="chip green"><span className="led"></span>{s.name || s.url}{s.type ? ` · ${s.type}` : ''}</span>
           ))}
-          <button className="btn sm ghost" disabled={true} title={t('st.actionReadOnly')}>{t('st.mcp.addServer')}</button>
+          <button
+            className="btn sm ghost"
+            disabled={!addServerAvailable || addServerSaving}
+            title={!addServerAvailable ? addServerUnavailableReason : ''}
+            onClick={() => {
+              if (!addServerAvailable) return;
+              setAddingServer(true);
+              setAddServerError('');
+            }}
+          >{t('st.mcp.addServer')}</button>
         </div>
+        {addingServer && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: 8, marginTop: 10 }}>
+            <input
+              className="input"
+              placeholder="docs-mcp"
+              value={addServerForm.name}
+              onChange={e => setAddServerForm(f => ({ ...f, name: e.target.value }))}
+            />
+            <input
+              className="input mono"
+              placeholder="http://127.0.0.1:8080/sse"
+              value={addServerForm.url}
+              onChange={e => setAddServerForm(f => ({ ...f, url: e.target.value }))}
+            />
+            <button className="btn sm" disabled={addServerSaving} onClick={handleSaveServer}>{addServerSaving ? '…' : t('c.save')}</button>
+            <button className="btn sm ghost" disabled={addServerSaving} onClick={resetAddServerForm}>{t('c.cancel')}</button>
+          </div>
+        )}
+        {(addingServer || addServerError) && (
+          <div className={`hint ${addServerError ? 'red' : ''}`} style={{ marginTop: 8 }}>
+            {addServerError || 'SSE only · saves independently from Settings changes'}
+          </div>
+        )}
+        {!addingServer && !addServerError && (
+          <div className="hint" style={{ marginTop: 8 }}>
+            SSE only · saves independently from Settings changes
+          </div>
+        )}
+        {!servers.length && (
+          <div className="hint" style={{ marginTop: 8 }}>
+            no configured MCP servers yet
+          </div>
+        )}
       </div>
     </Section>
   );

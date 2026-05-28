@@ -138,6 +138,14 @@
     });
   }
 
+  async function addMcpServer(payload) {
+    return apiFetch('/api/settings/mcp/servers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  }
+
   async function testRuntime() {
     return apiFetch('/api/runtime/test', { method: 'POST' });
   }
@@ -407,6 +415,7 @@
     getStatus,
     getSettings,
     putSettings,
+    addMcpServer,
     testRuntime,
     getDashboard,
     getTasks,

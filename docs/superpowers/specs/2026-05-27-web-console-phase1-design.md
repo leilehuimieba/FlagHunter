@@ -916,3 +916,193 @@ The design is ready to enter implementation planning because the following are a
 ### 19.5 One-sentence project intent
 
 Phase 1 turns the FlagHunter Web Console into a **real-data-centered, conversation-first, state-trustworthy minimum usable control console** for active task execution.
+
+---
+
+## 20. Follow-on Addendum: Settings MCP add server (2026-05-28)
+
+This addendum freezes the next **post-phase-1 live wiring slice** for the Web Console Settings page.  
+It does **not** reopen the earlier phase-1 scope debate. It records the approved minimal design for the next truthful management action.
+
+### 20.1 Goal
+
+Turn the Settings `MCP` section from a read-only placeholder into a **minimum live action surface** that can:
+
+1. read the actual configured MCP server list
+2. add a new **SSE MCP server**
+3. refresh the Settings page from the returned live payload
+
+This is explicitly a **minimum connection slice**, not a full MCP management console.
+
+### 20.2 Locked scope
+
+#### Included in this slice
+
+- `GET /api/settings` returns the real MCP configured server list
+- new `POST /api/settings/mcp/servers` endpoint
+- Settings page inline add form
+- SSE server creation with the minimum fields:
+  - `name`
+  - `url`
+- success path refreshes Settings state from the returned payload
+
+#### Excluded from this slice
+
+- `stdio` server creation
+- bearer token input
+- edit / delete
+- connect-test / health-test
+- auto reconnect
+- folding add-server into the existing global `Save changes` flow
+
+### 20.3 Product decisions
+
+#### Decision 1: first version is SSE-only
+
+The first live version supports only **SSE MCP servers** because it has the smallest useful operator surface and fits the current Web Console management use case best.
+
+#### Decision 2: add-server is an independent action
+
+Adding an MCP server is **not** part of Settings partial save.  
+Reason: it writes MCP server configuration state rather than env-backed Settings fields.
+
+#### Decision 3: UI uses an inline form, not a modal
+
+The first version should expand an inline form directly inside the Settings `MCP` section.  
+This keeps state handling small and avoids unnecessary interaction overhead.
+
+#### Decision 4: `mcp.servers` becomes an object list
+
+The Settings payload should expose MCP servers as objects, not plain strings.  
+Minimum recommended shape:
+
+```json
+{
+  "name": "docs-mcp",
+  "type": "sse",
+  "url": "http://127.0.0.1:8080/sse",
+  "enabled": true,
+  "connected": false
+}
+```
+
+This keeps the first version honest while avoiding another contract break when future actions are added.
+
+#### Decision 5: duplicate names overwrite by name
+
+The first version preserves the current `MCPManager.add_sse_server(...)` behavior:
+
+- same `name`
+- latest request wins
+
+No duplicate warning or confirmation dialog is required in this slice.
+
+### 20.4 Backend contract
+
+#### Read contract
+
+`GET /api/settings`
+
+The `mcp` portion should contain:
+
+```json
+{
+  "enabled": true,
+  "timeoutMs": 30000,
+  "servers": [
+    {
+      "name": "docs-mcp",
+      "type": "sse",
+      "url": "http://127.0.0.1:8080/sse",
+      "enabled": true,
+      "connected": false
+    }
+  ]
+}
+```
+
+#### Write contract
+
+`POST /api/settings/mcp/servers`
+
+Request body:
+
+```json
+{
+  "name": "docs-mcp",
+  "url": "http://127.0.0.1:8080/sse"
+}
+```
+
+Success response:
+
+```json
+{
+  "ok": true,
+  "settings": {}
+}
+```
+
+Where `settings` is the latest full Settings payload after the write succeeds.
+
+#### Validation rules
+
+Minimum validation only:
+
+- `name` must be non-empty after trim
+- `url` must be non-empty after trim
+- `url` must start with `http://` or `https://`
+
+#### Error rules
+
+- `400` for invalid JSON or invalid request fields
+- `500` for internal save / read failures
+
+#### Missing config file policy
+
+If `mcp_servers.json` does not yet exist, the add-server path should create it through the existing MCP manager save path. This is a normal first-write flow, not an error condition.
+
+### 20.5 Frontend interaction contract
+
+In `Settings -> MCP`:
+
+1. show the real configured server list
+2. enable `＋ 添加服务器` only when:
+   - connection is `connected` or `degraded`
+   - `window.API.addMcpServer` exists
+3. clicking `＋ 添加服务器` expands an inline form
+4. first-version fields:
+   - `name`
+   - `url`
+5. clicking save:
+   - calls `window.API.addMcpServer(...)`
+6. on success:
+   - close the inline form
+   - refresh current Settings state from `result.settings`
+7. on failure:
+   - keep typed values
+   - show an inline error
+
+#### Availability copy rules
+
+Use the same truthful capability copy policy already established elsewhere:
+
+- not connected -> `c.notConnected`
+- API not wired -> `c.notWired`
+
+Do **not** keep the old permanent read-only placeholder wording for this action once the live contract is wired.
+
+### 20.6 TDD boundary for execution
+
+The implementation plan for this slice must verify only the minimum useful behavior:
+
+1. `GET /api/settings` exposes real MCP servers
+2. `POST /api/settings/mcp/servers` writes a new SSE server
+3. invalid payload returns `400`
+4. Settings frontend binds the add-server UI to the live API contract
+
+This slice should continue the repository’s current testing strategy:
+
+- backend contract tests in `pytest`
+- frontend source-level contract tests
+- no new browser E2E requirement for the first iteration
