@@ -1,13 +1,13 @@
-# PentestAgent-CPA
+# FlagHunter
 
-> **C**ustomized **P**entest **A**gent — 基于 PentestAgent 的模块化增强版  
+> **FlagHunter** — 基于 PentestAgent 的模块化增强版  
 > 专为 CTF 竞赛和合规渗透测试设计，轻量、安全、可扩展
 
 ---
 
 ## 项目概述
 
-PentestAgent-CPA 是对开源项目 [PentestAgent](https://github.com/GH05TCREW/PentestAgent) 的模块化二开增强，补齐原版在 **API 调度**和 **CTF 题型覆盖**方面的短板，同时保持原版"轻量快速"的核心优势。
+FlagHunter 是对开源项目 [PentestAgent](https://github.com/GH05TCREW/PentestAgent) 的模块化二开增强，补齐原版在 **API 调度** 和 **CTF 题型覆盖** 方面的短板，同时保持原版“轻量快速”的核心优势。
 
 ### 模块状态
 
@@ -38,8 +38,8 @@ PentestAgent-CPA 是对开源项目 [PentestAgent](https://github.com/GH05TCREW/
 
 ```bash
 # 1. 克隆项目
-git clone https://github.com/yourname/PentestAgent-CPA.git
-cd PentestAgent-CPA
+git clone https://github.com/leilehuimieba/FlagHunter.git
+cd FlagHunter
 
 # 2. 安装依赖
 python -m venv .venv
@@ -162,7 +162,7 @@ CTF 模式不是 LLM 自由发挥，而是**确定性调度器 + LLM 辅助策�
 ## 架构
 
 ```
-PentestAgent-CPA
+FlagHunter
 │
 ├─ M0: 原版 PentestAgent 核心（侵入 < 25 行）
 │   ├── agents/base_agent.py      # 主循环 + 状态机
