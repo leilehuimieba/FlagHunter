@@ -163,6 +163,10 @@
     return apiFetch('/api/tasks/' + taskId + '/stop', { method: 'POST' });
   }
 
+  async function retryTask(taskId) {
+    return apiFetch('/api/tasks/' + encodeURIComponent(taskId) + '/retry', { method: 'POST' });
+  }
+
   async function hintTask(taskId, text) {
     return apiFetch('/api/tasks/' + taskId + '/hint', {
       method: 'POST',
@@ -365,6 +369,7 @@
     createTask,
     getTask,
     stopTask,
+    retryTask,
     hintTask,
     getTraces,
     getTrace,

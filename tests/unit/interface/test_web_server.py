@@ -80,6 +80,14 @@ def test_task_capabilities_toggle_stop_by_status():
     assert web_server._task_capabilities({"status": "success"})["stop"] is False
 
 
+def test_task_capabilities_toggle_retry_by_status():
+    assert web_server._task_capabilities({"status": "queued"})["retry"] is False
+    assert web_server._task_capabilities({"status": "running"})["retry"] is False
+    assert web_server._task_capabilities({"status": "success"})["retry"] is True
+    assert web_server._task_capabilities({"status": "failed"})["retry"] is True
+    assert web_server._task_capabilities({"status": "stopped"})["retry"] is True
+
+
 def test_serialize_task_normalizes_dirty_collections():
     task = {
         "id": "task_dirty",
@@ -340,3 +348,38 @@ async def test_trace_replay_creates_new_task_from_existing_run(web_client: TestC
         "attachments": True,
     }
     assert set(web_server._tasks.keys()) == {original_task_id, replayed_task["id"]}
+
+
+@pytest.mark.asyncio
+async def test_task_retry_creates_new_task_from_finished_task(web_client: TestClient):
+    created = await web_client.post(
+        "/api/tasks",
+        json={"title": "retry-source", "target": "http://retry.test", "goal": "retry original task"},
+    )
+    assert created.status == 201
+    original_task = await created.json()
+    original_task_id = original_task["id"]
+    original_run_id = original_task["currentRunId"]
+
+    stopped = await web_client.post(f"/api/tasks/{original_task_id}/stop")
+    assert stopped.status == 200
+
+    retry_resp = await web_client.post(f"/api/tasks/{original_task_id}/retry")
+
+    assert retry_resp.status == 200
+    retried_task = await retry_resp.json()
+    assert retried_task["id"] != original_task_id
+    assert retried_task["currentRunId"] != original_run_id
+    assert retried_task["title"] == original_task["title"]
+    assert retried_task["target"] == original_task["target"]
+    assert retried_task["goal"] == original_task["goal"]
+    assert retried_task["status"] == "queued"
+    assert retried_task["capabilities"] == {
+        "hint": True,
+        "stop": True,
+        "continue": False,
+        "retry": False,
+        "attachments": True,
+    }
+    assert web_server._tasks[original_task_id]["status"] == "stopped"
+    assert set(web_server._tasks.keys()) == {original_task_id, retried_task["id"]}

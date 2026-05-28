@@ -327,12 +327,16 @@ function TaskDetail({ task, onNav, taskViewMode }) {
   const hintSupported = !!capabilityMap.hint;
   const stopSupported = !!capabilityMap.stop;
   const continueSupported = !!capabilityMap.continue;
+  const retrySupported = !!capabilityMap.retry;
   const attachmentsSupported = !!capabilityMap.attachments;
   const isActionLive = ['connected', 'degraded'].includes(connection.status);
   const hintAvailable = hintSupported
     && isActionLive
     && typeof window.API?.hintTask === 'function';
   const continueAvailable = continueSupported && isActionLive;
+  const retryAvailable = retrySupported
+    && isActionLive
+    && typeof window.API?.retryTask === 'function';
   const initialMessages = resolveTaskMessages(detailTask);
 
   const [messages, setMessages] = useStateT(initialMessages);
@@ -563,11 +567,24 @@ function TaskDetail({ task, onNav, taskViewMode }) {
     if (!result?.ok) appendSystemMessage('stop request failed');
   }
 
+  async function handleRetry() {
+    if (!retryAvailable) return;
+    const retryResult = await window.API.retryTask(detailTask.id);
+    if (retryResult?.id && onNav) onNav(`tasks/${retryResult.id}`);
+  }
+
   const continueUnavailableReason = !continueSupported
     ? t('td.continueUnavailable')
     : !isActionLive
       ? t('c.notConnected')
       : '';
+  const retryUnavailableReason = !retrySupported
+    ? t('td.retryUnavailable')
+    : !isActionLive
+      ? t('c.notConnected')
+      : typeof window.API?.retryTask !== 'function'
+        ? t('c.notWired')
+        : '';
   const hintUnavailableReason = !hintSupported
     ? t('td.hintUnavailable')
     : !isActionLive
@@ -610,6 +627,7 @@ function TaskDetail({ task, onNav, taskViewMode }) {
             ⤓ {t('c.export')}
           </button>
           <button className="btn ghost" onClick={() => detailTask.currentRunId && onNav && onNav(`traces/${detailTask.currentRunId}`)}>⧉ {t('c.trace')}</button>
+          {!isActive && <button className="btn" onClick={handleRetry} disabled={!retryAvailable} title={!retryAvailable ? retryUnavailableReason : ''}>↻ {t('c.retry')}</button>}
           {isActive && stopSupported && <button className="btn danger" onClick={handleStop}>■ {t('c.stop')}</button>}
         </div>
       </div>
