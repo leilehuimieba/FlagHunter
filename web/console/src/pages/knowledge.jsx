@@ -1,9 +1,17 @@
-/* global React, MOCK, fmt, t, downloadJson */
+/* global React, fmt, t, downloadJson */
 // ============================================================
 // Knowledge — list + detail
 // ============================================================
 
 const { useState: uK, useEffect: uKE, useMemo: uKM } = React;
+
+function currentConnectionState() {
+  if (window.API?.getConnectionState) return window.API.getConnectionState();
+  return {
+    status: window.IS_LIVE ? 'connected' : 'disconnected',
+    isLive: Boolean(window.IS_LIVE),
+  };
+}
 
 function relTime(iso) {
   return iso ? fmt.since(iso) : '—';
@@ -18,6 +26,18 @@ function KnowledgeList({ onNav }) {
   const [q, setQ] = uK('');
   const [tag, setTag] = uK('all');
   const [apiDocs, setApiDocs] = uK(null);
+  const [connection, setConnection] = uK(() => currentConnectionState());
+
+  uKE(() => {
+    const handler = (e) => {
+      setConnection(
+        e.detail?.connection
+        || currentConnectionState()
+      );
+    };
+    window.addEventListener('fh:connection', handler);
+    return () => window.removeEventListener('fh:connection', handler);
+  }, []);
 
   uKE(() => {
     window.API.getKnowledge().then(data => {
@@ -25,7 +45,7 @@ function KnowledgeList({ onNav }) {
     });
   }, []);
 
-  const sourceDocs = window.IS_LIVE ? (apiDocs || []) : (apiDocs || MOCK.KNOWLEDGE);
+  const sourceDocs = Array.isArray(apiDocs) ? apiDocs : [];
   const docs = uKM(() => sourceDocs.filter(d =>
     (!q || d.title.toLowerCase().includes(q.toLowerCase()) || d.sourcePath.includes(q))
     && (tag === 'all' || (d.tags || []).includes(tag))
@@ -34,6 +54,7 @@ function KnowledgeList({ onNav }) {
   const totalHits = sourceDocs.reduce((s, d) => s + (d.hitCount || 0), 0);
   const totalChunks = sourceDocs.reduce((s, d) => s + (d.chunkCount || 0), 0);
   const topDoc = sourceDocs.slice().sort((a, b) => (b.hitCount || 0) - (a.hitCount || 0))[0];
+  const docsEmptyState = connection.status === 'disconnected' ? t('c.unavailable') : t('tasks.noMatch');
 
   const tags = ['all', 'web', 'misc', 'reverse', 'forensics', 'meta', 'recon'];
 
@@ -69,7 +90,7 @@ function KnowledgeList({ onNav }) {
           <span className="muted" style={{ marginLeft: 'auto', fontSize: 11 }}>{t('kb.sortBy')}</span>
         </div>
         {docs.length === 0 ? (
-          <Empty>{t('tasks.noMatch')}</Empty>
+          <Empty>{docsEmptyState}</Empty>
         ) : (
         <table className="k-table">
           <thead>
@@ -129,15 +150,26 @@ function KSt({ label, value, sub }) {
 function KnowledgeDetail({ docId, onNav }) {
   const [doc, setDoc] = uK(null);
   const [tab, setTab] = uK('overview');
+  const [connection, setConnection] = uK(() => currentConnectionState());
+
+  uKE(() => {
+    const handler = (e) => {
+      setConnection(
+        e.detail?.connection
+        || currentConnectionState()
+      );
+    };
+    window.addEventListener('fh:connection', handler);
+    return () => window.removeEventListener('fh:connection', handler);
+  }, []);
 
   uKE(() => {
     let done = false;
-    if (window.IS_LIVE) {
+    setDoc(null);
+    if (window.API?.getKnowledgeDoc) {
       window.API.getKnowledgeDoc(docId).then(data => {
         if (!done && data && data.docKey) setDoc(data);
       });
-    } else {
-      setDoc(MOCK.KNOWLEDGE.find(d => d.id === docId) || MOCK.KNOWLEDGE[0]);
     }
     return () => { done = true; };
   }, [docId]);
@@ -161,9 +193,7 @@ function KnowledgeDetail({ docId, onNav }) {
     heatmap: Array(24).fill(0),
     tags: [],
   };
-  const resolvedDoc = window.IS_LIVE
-    ? (doc || liveFallbackDoc)
-    : (doc || MOCK.KNOWLEDGE.find(d => d.id === docId) || MOCK.KNOWLEDGE[0]);
+  const resolvedDoc = doc || liveFallbackDoc;
   const hitHistory = resolvedDoc.hitHistory || [];
   const relatedRuns = resolvedDoc.relatedRuns || [];
   const citedBy = resolvedDoc.citedBy || [];
@@ -176,11 +206,12 @@ function KnowledgeDetail({ docId, onNav }) {
   }, {});
   const baseChunks = Array.isArray(resolvedDoc.chunks)
     ? resolvedDoc.chunks
-    : (window.IS_LIVE ? [] : MOCK.CHUNKS_002);
+    : [];
   const chunks = baseChunks.map(c => ({
     ...c,
     hits: chunkHits[c.id] || c.hits || 0,
   }));
+  const detailEmptyState = connection.status === 'disconnected' ? t('c.unavailable') : t('tasks.noMatch');
 
   uKE(() => {
     window.dispatchEvent(new CustomEvent('fh:route-label', {
@@ -234,7 +265,7 @@ function KnowledgeDetail({ docId, onNav }) {
           )}
           {tab === 'chunks' && (
             <div>
-              {chunks.length === 0 && <Empty>{t('tasks.noMatch')}</Empty>}
+              {chunks.length === 0 && <Empty>{detailEmptyState}</Empty>}
               {chunks.map(c => (
                 <div key={c.id} className="chunk-row">
                   <div className="h">
@@ -252,7 +283,7 @@ function KnowledgeDetail({ docId, onNav }) {
               <thead><tr><th>{t('c.time')}</th><th>{t('tr.dr.run')}</th><th>chunk</th><th style={{ textAlign: 'right' }}>score</th></tr></thead>
               <tbody>
                 {hitHistory.length === 0 && (
-                  <tr><td colSpan="4"><Empty>{t('tasks.noMatch')}</Empty></td></tr>
+                  <tr><td colSpan="4"><Empty>{detailEmptyState}</Empty></td></tr>
                 )}
                 {hitHistory.map((h, i) => (
                   <tr key={i}>
@@ -270,7 +301,7 @@ function KnowledgeDetail({ docId, onNav }) {
               <thead><tr><th>{t('tr.dr.run')}</th><th>{t('c.task')}</th><th>{t('kb.col.runUsed')}</th><th>{t('c.status')}</th></tr></thead>
               <tbody>
                 {relatedRuns.length === 0 && (
-                  <tr><td colSpan="4"><Empty>{t('tasks.noMatch')}</Empty></td></tr>
+                  <tr><td colSpan="4"><Empty>{detailEmptyState}</Empty></td></tr>
                 )}
                 {relatedRuns.map((r, i) => (
                   <tr key={i}>
@@ -319,7 +350,7 @@ function KnowledgeDetail({ docId, onNav }) {
           </Panel>
           <Panel title={t('kb.cited')}>
             <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
-              {citedBy.length === 0 && <Empty>{t('tasks.noMatch')}</Empty>}
+              {citedBy.length === 0 && <Empty>{detailEmptyState}</Empty>}
               {citedBy.map((c, i) => (
                 <div key={i} className="row gap-8">
                   <span className="magenta">◈</span>

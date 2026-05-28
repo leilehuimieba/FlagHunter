@@ -1,4 +1,4 @@
-/* global React, MOCK, fmt, t */
+/* global React, fmt, t */
 // ============================================================
 // Console Shell — sidebar + topbar + ticker + notif panel + language toggle
 // ============================================================

@@ -1,9 +1,17 @@
-/* global React, MOCK, fmt, t, downloadJson */
+/* global React, fmt, t, downloadJson */
 // ============================================================
 // Traces — list page + detail page (timeline / graph / data)
 // ============================================================
 
 const { useState: uS, useEffect: uE, useRef: uR, useMemo: uM } = React;
+
+function currentConnectionState() {
+  if (window.API?.getConnectionState) return window.API.getConnectionState();
+  return {
+    status: window.IS_LIVE ? 'connected' : 'disconnected',
+    isLive: Boolean(window.IS_LIVE),
+  };
+}
 
 function TracesPage({ runId, onNav }) {
   if (runId) return <TraceDetail runId={runId} onNav={onNav} />;
@@ -14,6 +22,18 @@ function TraceList({ onNav }) {
   const [filter, setFilter] = uS('all');
   const [q, setQ] = uS('');
   const [apiTraces, setApiTraces] = uS(null);
+  const [connection, setConnection] = uS(() => currentConnectionState());
+
+  uE(() => {
+    const handler = (e) => {
+      setConnection(
+        e.detail?.connection
+        || currentConnectionState()
+      );
+    };
+    window.addEventListener('fh:connection', handler);
+    return () => window.removeEventListener('fh:connection', handler);
+  }, []);
 
   uE(() => {
     window.API.getTraces().then(data => {
@@ -32,7 +52,7 @@ function TraceList({ onNav }) {
     });
   }, []);
 
-  const sourceTraces = window.IS_LIVE ? (apiTraces || []) : (apiTraces || MOCK.TRACES);
+  const sourceTraces = Array.isArray(apiTraces) ? apiTraces : [];
   const runs = sourceTraces.filter(r => {
     if (filter !== 'all' && r.status !== filter) return false;
     if (q) {
@@ -42,6 +62,7 @@ function TraceList({ onNav }) {
     return true;
   });
   const filterKeys = ['all', 'running', 'success', 'failed', 'stopped'];
+  const tracesEmptyState = connection.status === 'disconnected' ? t('c.unavailable') : t('tasks.noMatch');
   return (
     <div className="page">
       <div className="page-h">
@@ -69,44 +90,48 @@ function TraceList({ onNav }) {
             onChange={e => setQ(e.target.value)}
           />
         </div>
-        <table className="k-table">
-          <thead>
-            <tr>
-              <th>{t('c.runId')}</th>
-              <th>{t('c.task')}</th>
-              <th>{t('c.target')}</th>
-              <th>{t('c.status')}</th>
-              <th style={{ textAlign: 'right' }}>{t('c.started')}</th>
-              <th style={{ textAlign: 'right' }}>{t('c.duration')}</th>
-              <th style={{ textAlign: 'right' }}>{t('c.steps')}</th>
-              <th style={{ textAlign: 'right' }}>{t('c.tools')}</th>
-              <th style={{ textAlign: 'right' }}>{t('c.tokens')}</th>
-              <th>{t('c.flag')}</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {runs.map(r => (
-              <tr key={r.id} onClick={() => onNav(`traces/${r.id}`)} style={{ cursor: 'pointer' }}>
-                <td className="mono"><span className="bright">{r.id}</span></td>
-                <td className="muted mono">{r.taskId}</td>
-                <td className="muted ellipsis" style={{ maxWidth: 300 }}>{r.target}</td>
-                <td><StatusBadge status={r.status} /></td>
-                <td style={{ textAlign: 'right' }} className="muted mono">{fmt.since(r.startedAt)}</td>
-                <td style={{ textAlign: 'right' }} className="mono">{r.durationMs ? (r.durationMs/1000).toFixed(1) + 's' : '—'}</td>
-                <td style={{ textAlign: 'right' }} className="mono">{r.totalSteps}</td>
-                <td style={{ textAlign: 'right' }} className="mono">{r.totalToolCalls}</td>
-                <td style={{ textAlign: 'right' }} className="mono">{(r.totalTokens/1000).toFixed(1)}k</td>
-                <td>
-                  {r.finalFlag
-                    ? <span className="green ellipsis mono" style={{ maxWidth: 220, display: 'inline-block', fontSize: 11 }}>{r.finalFlag}</span>
-                    : <span className="dim">—</span>}
-                </td>
-                <td className="dim" style={{ textAlign: 'right' }}>›</td>
+        {runs.length === 0 ? (
+          <Empty>{tracesEmptyState}</Empty>
+        ) : (
+          <table className="k-table">
+            <thead>
+              <tr>
+                <th>{t('c.runId')}</th>
+                <th>{t('c.task')}</th>
+                <th>{t('c.target')}</th>
+                <th>{t('c.status')}</th>
+                <th style={{ textAlign: 'right' }}>{t('c.started')}</th>
+                <th style={{ textAlign: 'right' }}>{t('c.duration')}</th>
+                <th style={{ textAlign: 'right' }}>{t('c.steps')}</th>
+                <th style={{ textAlign: 'right' }}>{t('c.tools')}</th>
+                <th style={{ textAlign: 'right' }}>{t('c.tokens')}</th>
+                <th>{t('c.flag')}</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {runs.map(r => (
+                <tr key={r.id} onClick={() => onNav(`traces/${r.id}`)} style={{ cursor: 'pointer' }}>
+                  <td className="mono"><span className="bright">{r.id}</span></td>
+                  <td className="muted mono">{r.taskId}</td>
+                  <td className="muted ellipsis" style={{ maxWidth: 300 }}>{r.target}</td>
+                  <td><StatusBadge status={r.status} /></td>
+                  <td style={{ textAlign: 'right' }} className="muted mono">{fmt.since(r.startedAt)}</td>
+                  <td style={{ textAlign: 'right' }} className="mono">{r.durationMs ? (r.durationMs/1000).toFixed(1) + 's' : '—'}</td>
+                  <td style={{ textAlign: 'right' }} className="mono">{r.totalSteps}</td>
+                  <td style={{ textAlign: 'right' }} className="mono">{r.totalToolCalls}</td>
+                  <td style={{ textAlign: 'right' }} className="mono">{(r.totalTokens/1000).toFixed(1)}k</td>
+                  <td>
+                    {r.finalFlag
+                      ? <span className="green ellipsis mono" style={{ maxWidth: 220, display: 'inline-block', fontSize: 11 }}>{r.finalFlag}</span>
+                      : <span className="dim">—</span>}
+                  </td>
+                  <td className="dim" style={{ textAlign: 'right' }}>›</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </Panel>
     </div>
   );
@@ -117,16 +142,26 @@ function TraceList({ onNav }) {
 // ----------------------------------------------------------------
 function TraceDetail({ runId, onNav }) {
   const [run, setRun] = uS(null);
+  const [connection, setConnection] = uS(() => currentConnectionState());
+
+  uE(() => {
+    const handler = (e) => {
+      setConnection(
+        e.detail?.connection
+        || currentConnectionState()
+      );
+    };
+    window.addEventListener('fh:connection', handler);
+    return () => window.removeEventListener('fh:connection', handler);
+  }, []);
 
   uE(() => {
     let done = false;
-    if (window.IS_LIVE) {
+    setRun(null);
+    if (window.API?.getTrace) {
       window.API.getTrace(runId).then(data => {
         if (!done && data && data.id) setRun(data);
       });
-    } else {
-      const mockRun = MOCK.TRACES.find(r => r.id === runId) || MOCK.TRACES[0];
-      setRun(mockRun);
     }
     return () => { done = true; };
   }, [runId]);
@@ -148,16 +183,17 @@ function TraceDetail({ runId, onNav }) {
     timeline: [],
     toolEvents: [],
   };
-  const resolvedRun = window.IS_LIVE
-    ? (run || liveFallbackRun)
-    : (run || MOCK.TRACES.find(r => r.id === runId) || MOCK.TRACES[0]);
+  const resolvedRun = run || liveFallbackRun;
   const [tab, setTab] = uS('timeline');
   const [drawer, setDrawer] = uS(null);
   const isActive = resolvedRun.status === 'running';
-  const replayAvailable = !window.IS_LIVE || typeof window.API?.replayTrace === 'function';
-  const timeline = resolvedRun.timeline || (!window.IS_LIVE ? synthTimeline(resolvedRun) : []);
+  const replayAvailable = typeof window.API?.replayTrace === 'function';
+  const timeline = Array.isArray(resolvedRun.timeline) && resolvedRun.timeline.length
+    ? resolvedRun.timeline
+    : resolveTraceTimeline(resolvedRun);
   const hasObservedToolIO = Array.isArray(resolvedRun.toolEvents) && resolvedRun.toolEvents.length > 0;
   const graph = uM(() => buildTraceGraph(timeline, resolvedRun), [timeline, resolvedRun.id, resolvedRun.status, resolvedRun.startedAt]);
+  const traceEmptyState = connection.status === 'disconnected' ? t('c.unavailable') : 'no observed trace timeline';
 
   uE(() => {
     window.dispatchEvent(new CustomEvent('fh:route-label', {
@@ -352,7 +388,7 @@ function TraceDetail({ runId, onNav }) {
       </div>
 
       <Panel>
-        {window.IS_LIVE && resolvedRun.detailSource && (
+        {resolvedRun.detailSource && (
           <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--line-1)', fontSize: 11, color: 'var(--fg-2)', display: 'flex', gap: 14, flexWrap: 'wrap' }}>
             <span>session: <span className="mono">{resolvedRun.detailSource.session || '—'}</span></span>
             <span>metrics: <span className="mono">{resolvedRun.detailSource.metrics || '—'}</span></span>
@@ -361,7 +397,12 @@ function TraceDetail({ runId, onNav }) {
         )}
         <div className="trace-detail-head">
           <Kv k={t('c.started')}   v={resolvedRun.startedAt ? (fmt.hh(resolvedRun.startedAt) + ' · ' + fmt.since(resolvedRun.startedAt)) : '—'} />
-          <Kv k={t('c.duration')}  v={resolvedRun.durationMs ? (resolvedRun.durationMs/1000).toFixed(1) + 's' : t('tr.stillRunning')} />
+          <Kv
+            k={t('c.duration')}
+            v={resolvedRun.durationMs != null
+              ? (resolvedRun.durationMs/1000).toFixed(1) + 's'
+              : (resolvedRun.status === 'running' ? t('tr.stillRunning') : '—')}
+          />
           <Kv k={t('c.steps')}     v={resolvedRun.totalSteps} />
           <Kv k={t('c.toolCalls')} v={resolvedRun.totalToolCalls} />
           <Kv k={t('c.tokens')}    v={`${(resolvedRun.totalTokens || 0).toLocaleString()} · ${((resolvedRun.inputTokens || 0)/1000).toFixed(1)}k in / ${((resolvedRun.outputTokens || 0)/1000).toFixed(1)}k out`} />
@@ -380,7 +421,7 @@ function TraceDetail({ runId, onNav }) {
           </div>
         </div>
 
-        {tab === 'timeline' && <TimelineView events={timeline} onPick={setDrawer} isActive={isActive} />}
+        {tab === 'timeline' && <TimelineView events={timeline} onPick={setDrawer} isActive={isActive} emptyState={traceEmptyState} />}
         {tab === 'graph' && (
           graph.nodes.length > 0
             ? <GraphView graph={graph} run={resolvedRun} onPick={setDrawer} />
@@ -408,11 +449,11 @@ function typeLabel(type) {
   return t('tr.type.' + type);
 }
 
-function TimelineView({ events, onPick, isActive }) {
+function TimelineView({ events, onPick, isActive, emptyState }) {
   const [hover, setHover] = uS(null);
 
   if (!events.length && !isActive) {
-    return <Empty>no observed trace timeline</Empty>;
+    return <Empty>{emptyState || 'no observed trace timeline'}</Empty>;
   }
 
   return (
@@ -845,6 +886,12 @@ function synthTimeline(run) {
     tokens: 200 + Math.round(Math.random() * 400),
     tool: kind.startsWith('tool') ? (i % 2 === 0 ? 'terminal' : 'http_request') : null,
   }));
+}
+
+function resolveTraceTimeline(run) {
+  if (Array.isArray(run?.timeline) && run.timeline.length) return run.timeline;
+  if (!run?.startedAt || run?.target === '—') return [];
+  return synthTimeline(run);
 }
 
 window.TracesPage = TracesPage;
