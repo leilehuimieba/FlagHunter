@@ -170,6 +170,14 @@ function SettingsPage() {
   const [saving, setSaving] = uSt(false);
   const [error, setError] = uSt('');
   const [saveResult, setSaveResult] = uSt(null);
+  const putSettings = window.API?.putSettings;
+  const saveAvailable = connection?.status === 'connected'
+    && typeof putSettings === 'function';
+  const saveUnavailableReason = connection?.status !== 'connected'
+    ? t('st.saveLiveOnly')
+    : typeof window.API?.putSettings === 'function'
+      ? ''
+      : t('c.notWired');
   const [connection, setConnection] = uSt(() => currentConnectionState());
   const [dashboardStats, setDashboardStats] = uSt(null);
   const [knowledgeDocs, setKnowledgeDocs] = uSt(null);
@@ -210,15 +218,15 @@ function SettingsPage() {
   }
 
   async function save() {
-    if (connection?.status !== 'connected') {
-      setError(t('st.saveLiveOnly'));
+    if (!saveAvailable) {
+      setError(saveUnavailableReason || t('st.saveLiveOnly'));
       return;
     }
     setSaving(true);
     setSaved(false);
     setError('');
     try {
-      const resp = await window.API.putSettings(buildSavePayload(draft, meta));
+      const resp = await putSettings(buildSavePayload(draft, meta));
       if (!resp || !resp.ok) {
         setError(t('st.saveError'));
         return;
@@ -312,8 +320,8 @@ function SettingsPage() {
                 <button
                   className={`btn ${dirty ? 'primary' : ''}`}
                   onClick={save}
-                  disabled={!dirty || saving || connection?.status !== 'connected'}
-                  title={connection?.status !== 'connected' ? t('st.saveLiveOnly') : ''}
+                  disabled={!dirty || saving || !saveAvailable}
+                  title={!saveAvailable ? saveUnavailableReason : ''}
                 >
                   {saving ? '…' : t('c.save')}
                 </button>
