@@ -3888,3 +3888,31 @@ def test_extract_local_challenge_root_from_hint_can_use_structured_artifact_comp
     resolved = ctf_dispatcher._extract_local_challenge_root_from_hint(hint)
 
     assert resolved == challenge_dir
+
+
+def test_extract_local_challenge_root_from_hint_can_unpack_local_zip_artifact(tmp_path) -> None:
+    import zipfile
+
+    archive_dir = tmp_path / "archive_src" / "easy_login_zip_only"
+    archive_dir.mkdir(parents=True)
+    (archive_dir / "docker-compose.yml").write_text(
+        "services:\n  app:\n    image: easy_login-app\n", encoding="utf-8"
+    )
+    (archive_dir / "README.md").write_text("# easy_login\n", encoding="utf-8")
+
+    archive_path = tmp_path / "easy_login.zip"
+    with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.write(archive_dir / "docker-compose.yml", arcname="easy_login/docker-compose.yml")
+        zf.write(archive_dir / "README.md", arcname="easy_login/README.md")
+
+    hint = (
+        "zip-only local context\n\n"
+        "[local_ctf_assets]\n"
+        f"artifactPaths={archive_path}"
+    )
+
+    resolved = ctf_dispatcher._extract_local_challenge_root_from_hint(hint)
+
+    assert resolved is not None
+    assert resolved.name == "easy_login"
+    assert (resolved / "docker-compose.yml").exists()
