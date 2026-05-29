@@ -241,6 +241,45 @@ async def test_dashboard_summary_supports_window_and_runtime_filters(web_client:
 
 
 @pytest.mark.asyncio
+async def test_dashboard_summary_flags_prefer_mode_subtype_over_legacy_detected_type(
+    web_client: TestClient,
+):
+    now = web_server._now_iso()
+    web_server._tasks["task_flag_contract"] = {
+        "id": "task_flag_contract",
+        "title": "flag contract",
+        "target": "http://flag.test",
+        "goal": "capture flag",
+        "mode": "ctf",
+        "modeSubtype": "crypto",
+        "goalStyle": "flag",
+        "ctfType": "web",
+        "detectedType": "web",
+        "status": "success",
+        "createdAt": now,
+        "startedAt": now,
+        "finishedAt": now,
+        "tokensUsed": 1,
+        "toolCalls": 1,
+        "finalFlag": "flag{contract_truth}",
+        "currentRunId": "run_flag_contract",
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    resp = await web_client.get("/api/dashboard/summary?window=all&runtime=all")
+
+    assert resp.status == 200
+    data = await resp.json()
+    assert data["flags"][0]["id"] == "task_flag_contract"
+    assert data["flags"][0]["type"] == "crypto"
+
+
+@pytest.mark.asyncio
 async def test_traces_list_supports_window_filter(web_client: TestClient):
     now = web_server._now_iso()
     old = (web_server.datetime.now(web_server.timezone.utc) - web_server.timedelta(days=2)).isoformat()
@@ -476,6 +515,111 @@ async def test_post_task_resolves_auto_mode_to_ctf_contract(web_client: TestClie
     assert task["mode"] == "ctf"
     assert task["modeSubtype"] == "web"
     assert task["goalStyle"] == "flag"
+
+
+def test_run_agent_task_uses_pentest_default_goal_when_mode_is_pentest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    class _FakeRuntime:
+        async def stop(self):
+            return None
+
+    class _FakeMessage:
+        def __init__(self):
+            self.tool_calls = []
+            self.usage = {"input_tokens": 0, "output_tokens": 0}
+            self.tool_results = []
+            self.content = ""
+
+    class _FakeAgent:
+        goals: list[str] = []
+
+        def __init__(self, **kwargs):
+            self.conversation_history = []
+            self.permission_enforcer = types.SimpleNamespace(mode=types.SimpleNamespace(value=99))
+            self._session_id = "mode_goal_session"
+
+        async def agent_loop(self, goal):
+            self.__class__.goals.append(goal)
+            yield _FakeMessage()
+
+        def save_session(self):
+            return self._session_id
+
+    fake_pa_agent = types.ModuleType("pentestagent.agents.pa_agent")
+    fake_pa_agent.PentestAgentAgent = _FakeAgent
+    fake_settings = types.ModuleType("pentestagent.config.settings")
+    fake_settings.get_settings = lambda: types.SimpleNamespace(model="test-model")
+    fake_initializer = types.ModuleType("pentestagent.interface.initializer")
+    fake_initializer.activate_workspace_for_target = lambda target: "workspace"
+
+    async def _fake_build_runtime(**kwargs):
+        return _FakeRuntime(), {"selected": "local", "connected": True}
+
+    fake_initializer.build_runtime = _fake_build_runtime
+    fake_llm = types.ModuleType("pentestagent.llm")
+    fake_llm.LLM = lambda model, rag_engine=None: object()
+    fake_tools = types.ModuleType("pentestagent.tools")
+    fake_tools.get_all_tools = lambda: []
+
+    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent", fake_pa_agent)
+    monkeypatch.setitem(sys.modules, "pentestagent.config.settings", fake_settings)
+    monkeypatch.setitem(sys.modules, "pentestagent.interface.initializer", fake_initializer)
+    monkeypatch.setitem(sys.modules, "pentestagent.llm", fake_llm)
+    monkeypatch.setitem(sys.modules, "pentestagent.tools", fake_tools)
+    monkeypatch.setattr(web_server, "emit_log", lambda *args, **kwargs: None)
+    monkeypatch.setattr(web_server, "_persist_tasks", lambda project_root: None)
+    monkeypatch.setattr(web_server._bus, "emit", lambda event: None)
+
+    web_server._tasks["task_mode_goal"] = {
+        "id": "task_mode_goal",
+        "title": "mode goal",
+        "target": "http://pentest.test",
+        "goal": "",
+        "ctfType": "web",
+        "mode": "pentest",
+        "modeSubtype": "unknown",
+        "goalStyle": "evidence",
+        "maxIter": 1,
+        "docker": False,
+        "flagFormat": r"flag\{[^}]+\}",
+        "status": "queued",
+        "createdAt": web_server._now_iso(),
+        "startedAt": None,
+        "finishedAt": None,
+        "tokensUsed": 0,
+        "toolCalls": 0,
+        "finalFlag": None,
+        "stopReason": None,
+        "currentRunId": "run_mode_goal",
+        "sparkSeed": [1, 1, 1, 1],
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    web_server._run_agent_task(
+        "task_mode_goal",
+        {
+            "target": "http://pentest.test",
+            "goal": "",
+            "ctfType": "web",
+            "mode": "pentest",
+            "modeSubtype": "unknown",
+            "goalStyle": "evidence",
+            "maxIter": 1,
+            "docker": False,
+            "flagFormat": r"flag\{[^}]+\}",
+        },
+        tmp_path,
+    )
+
+    assert _FakeAgent.goals
+    assert "capture the flag" not in _FakeAgent.goals[0].lower()
+    assert "ctf web challenge" not in _FakeAgent.goals[0].lower()
 
 
 def test_task_detail_payload_re_normalizes_dirty_derived_collections(

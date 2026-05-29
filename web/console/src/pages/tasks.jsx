@@ -232,7 +232,6 @@ function TaskItem({ task, active, onClick }) {
         <StatusBadge status={tk.status} />
         <ModeBadge mode={tk.mode} />
         <SubtypeBadge value={tk.modeSubtype} />
-        <TypeBadge type={tk.detectedType} />
         <span className="id">{tk.id}</span>
       </div>
       <div className="title">{tk.title}</div>
@@ -664,7 +663,6 @@ function TaskDetail({ task, onNav, taskViewMode }) {
             <StatusBadge status={detailTask.status} size="lg" />
             <ModeBadge mode={detailTask.mode} />
             <SubtypeBadge value={detailTask.modeSubtype} />
-            <TypeBadge type={detailTask.detectedType} />
             <span className="dim mono">{detailTask.id}</span>
             {detailTask.currentRunId && (
               <span className="dim mono">· {t('td.run')} <span className="bright">{detailTask.currentRunId}</span></span>
