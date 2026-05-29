@@ -21,6 +21,11 @@ function normalizeLog(entry) {
 }
 
 function LogsPage() {
+  const [connection] = uL(() => (
+    window.API?.getConnectionState
+      ? window.API.getConnectionState()
+      : { status: window.IS_LIVE ? 'connected' : 'disconnected', isLive: Boolean(window.IS_LIVE) }
+  ));
   const [mode, setMode]   = uL('table');
   const [level, setLevel] = uL('all');
   const [src, setSrc]     = uL('all');
@@ -31,18 +36,31 @@ function LogsPage() {
   const [appended, setAppended] = uL([]);
   const [apiLogs, setApiLogs] = uL(null);
   const termRef = uLR(null);
+  const getLogs = window.API?.getLogs;
+  const subscribeEvents = window.API?.subscribeEvents;
+  const logsAvailable = ['connected', 'degraded'].includes(connection.status)
+    && typeof getLogs === 'function';
+  const logsUnavailableReason = connection?.status !== 'connected' && connection?.status !== 'degraded'
+    ? t('c.notConnected')
+    : typeof getLogs === 'function'
+      ? ''
+      : t('c.notWired');
 
   // Fetch logs from API on mount
   uLE(() => {
-    window.API.getLogs().then(data => {
+    if (!logsAvailable || typeof getLogs !== 'function') {
+      setApiLogs([]);
+      return;
+    }
+    getLogs().then(data => {
       if (data && Array.isArray(data)) setApiLogs(data.map(normalizeLog).filter(Boolean));
     });
-  }, []);
+  }, [getLogs, logsAvailable]);
 
   // Subscribe to SSE for real-time log lines (live tail)
   uLE(() => {
-    if (!live) return;
-    return window.API.subscribeEvents(ev => {
+    if (!live || !logsAvailable || typeof subscribeEvents !== 'function') return;
+    return subscribeEvents(ev => {
       if (ev.type !== 'log_line') return;
       setAppended(prev => [normalizeLog({
         id: `live_${ev.t || Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -52,7 +70,7 @@ function LogsPage() {
         runId: ev.task_id || 'live', taskId: ev.task_id || 'live',
       }), ...prev].filter(Boolean).slice(0, 80));
     });
-  }, [live]);
+  }, [live, logsAvailable, subscribeEvents]);
 
   uLE(() => {
     if (mode === 'terminal' && termRef.current) {
@@ -151,7 +169,7 @@ function LogsPage() {
                     <td className="msg">{l.msg}</td>
                   </tr>
                 ))}
-                {filtered.length === 0 && <tr><td colSpan="5"><Empty>{t('lg.noMatch')}</Empty></td></tr>}
+                {filtered.length === 0 && <tr><td colSpan="5"><Empty>{logsAvailable ? t('lg.noMatch') : (logsUnavailableReason || t('c.unavailable'))}</Empty></td></tr>}
               </tbody>
             </table>
           </div>
