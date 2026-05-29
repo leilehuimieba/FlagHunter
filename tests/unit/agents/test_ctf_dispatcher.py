@@ -22,6 +22,7 @@ from pentestagent.agents.pa_agent.strategy_memory import (
 )
 from pentestagent.tools.notes import set_notes_file
 import pentestagent.tools.notes as notes_module
+import pentestagent.agents.pa_agent.ctf_dispatcher as ctf_dispatcher
 
 
 def test_collector_public_host_prefers_host_docker_internal_for_local_targets(monkeypatch):
@@ -3805,3 +3806,47 @@ async def test_p3_jwt_manipulation_strategy_escalates_seed_token_to_runtime_flag
         obs.kind == "jwt_probe_response" and obs.source == "jwt_manipulation"
         for obs in dispatcher.state.observations
     )
+
+
+def test_extract_local_ctf_assets_from_hint_parses_structured_block() -> None:
+    assets = ctf_dispatcher._extract_local_ctf_assets_from_hint(
+        "focus on local artifacts\n\n[local_ctf_assets]\nchallengePath=D:\\webstudy\\CTF\\2026\\CTF比赛题\\easy_login\nartifactPaths=D:\\webstudy\\CTF\\2026\\CTF比赛题\\easy_login\\docker-compose.yml; D:\\webstudy\\CTF\\2026\\CTF比赛题\\easy_login\\README.md"
+    )
+
+    assert assets["challengePath"] == r"D:\webstudy\CTF\2026\CTF比赛题\easy_login"
+    assert assets["artifactPaths"] == [
+        r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+        r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\README.md",
+    ]
+
+
+def test_extract_local_challenge_root_from_hint_prefers_structured_challenge_path(tmp_path) -> None:
+    challenge_dir = tmp_path / "easy_login"
+    challenge_dir.mkdir()
+    (challenge_dir / "docker-compose.yml").write_text("services:\n  app:\n    image: easy_login-app\n", encoding="utf-8")
+
+    hint = (
+        "ignore stale note D:\\decoy\\fake\\path\\readme.txt\n\n"
+        f"[local_ctf_assets]\nchallengePath={challenge_dir}"
+    )
+
+    resolved = ctf_dispatcher._extract_local_challenge_root_from_hint(hint)
+
+    assert resolved == challenge_dir
+
+
+def test_extract_local_challenge_root_from_hint_can_use_structured_artifact_compose_file(tmp_path) -> None:
+    challenge_dir = tmp_path / "easy_login_artifact_only"
+    challenge_dir.mkdir()
+    compose_file = challenge_dir / "docker-compose.yml"
+    compose_file.write_text("services:\n  app:\n    image: easy_login-app\n", encoding="utf-8")
+
+    hint = (
+        "artifact-only local context\n\n"
+        "[local_ctf_assets]\n"
+        f"artifactPaths={compose_file}; {challenge_dir / 'README.md'}"
+    )
+
+    resolved = ctf_dispatcher._extract_local_challenge_root_from_hint(hint)
+
+    assert resolved == challenge_dir
