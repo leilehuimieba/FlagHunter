@@ -268,3 +268,96 @@ async def test_run_task_async_background_ctf_path_uses_explicit_challenge_contex
         ],
     }
 
+
+
+@pytest.mark.asyncio
+async def test_run_task_persists_ctf_dispatcher_truth_fields_for_followup_inspection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_make_agent(target, scope):
+        return _ForbiddenMcpAgent()
+
+    def fake_resolve_mode_contract(payload, *, source_task=None):
+        return {"mode": "ctf", "modeSubtype": "web", "goalStyle": "flag"}
+
+    class _FakeDispatcher:
+        def __init__(self, runtime, progress_callback=None, verification_callback=None):
+            pass
+
+        async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None):
+            return SimpleNamespace(
+                flag="flag{mcp_truth_ok}",
+                reason="verified",
+                chain_used=["xss", "admin_bot"],
+                missing_tools=["sqlmap"],
+                notes=["reused admin sid", "collector hit /admin"],
+            )
+
+    fake_dispatcher_module = types.ModuleType("pentestagent.agents.pa_agent.ctf_dispatcher")
+    fake_dispatcher_module.CTFTaskDispatcher = _FakeDispatcher
+    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent.ctf_dispatcher", fake_dispatcher_module)
+    monkeypatch.setattr(mcp_tools, "_make_agent", fake_make_agent)
+    monkeypatch.setattr(mcp_tools, "resolve_mode_contract", fake_resolve_mode_contract, raising=False)
+
+    await mcp_tools.run_task(
+        {
+            "task": "solve from MCP truth fields",
+            "target": "http://challenge.test",
+            "mode": "ctf",
+            "ctfType": "web",
+        }
+    )
+
+    entry = next(iter(mcp_tools._tasks.values()))
+    assert getattr(entry, "finalFlag", None) == "flag{mcp_truth_ok}"
+    assert getattr(entry, "ctfChainUsed", None) == ["xss", "admin_bot"]
+    assert getattr(entry, "ctfMissingTools", None) == ["sqlmap"]
+    assert getattr(entry, "ctfNotes", None) == ["reused admin sid", "collector hit /admin"]
+
+
+@pytest.mark.asyncio
+async def test_mcp_task_inspection_and_result_expose_ctf_truth_fields() -> None:
+    entry = mcp_tools.TaskEntry(
+        id="ctf12345",
+        task="solve challenge",
+        status="done",
+        created_at="2026-05-29T00:00:00",
+        finished_at="2026-05-29T00:01:00",
+        agent=SimpleNamespace(runtime=None, tools=[]),
+        target="http://challenge.test",
+        scope=[],
+        result="flag{inspection_truth}",
+        mode="ctf",
+        modeSubtype="web",
+        goalStyle="flag",
+        challengePath=r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+        artifactPaths=[r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"],
+    )
+    entry.finalFlag = "flag{inspection_truth}"
+    entry.ctfChainUsed = ["xss", "admin_bot"]
+    entry.ctfMissingTools = ["sqlmap"]
+    entry.ctfNotes = ["reused admin sid", "collector hit /admin"]
+    mcp_tools._tasks[entry.id] = entry
+
+    list_output = await mcp_tools.list_tasks({"limit": 20})
+    status_output = await mcp_tools.get_task_status({"task_id": entry.id})
+    result_output = await mcp_tools.get_task_result({"task_id": entry.id})
+
+    assert "mode=ctf/web" in list_output
+    assert "chain=xss,admin_bot" in list_output
+
+    assert "mode:       ctf" in status_output
+    assert "mode_subtype: web" in status_output
+    assert "goal_style: flag" in status_output
+    assert "final_flag: flag{inspection_truth}" in status_output
+    assert "ctf_chain_used: xss, admin_bot" in status_output
+    assert "ctf_missing_tools: sqlmap" in status_output
+    assert "ctf_notes: reused admin sid | collector hit /admin" in status_output
+
+    assert "mode:        ctf" in result_output
+    assert "mode_subtype: web" in result_output
+    assert "goal_style:  flag" in result_output
+    assert "final_flag:  flag{inspection_truth}" in result_output
+    assert "\n[ctf_chain_used]\n  xss\n  admin_bot" in result_output
+    assert "\n[ctf_missing_tools]\n  sqlmap" in result_output
+    assert "\n[ctf_notes]\n  reused admin sid\n  collector hit /admin" in result_output
