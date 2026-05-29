@@ -1,4 +1,4 @@
-/* global React, t */
+/* global React, t, ModeBadge, SubtypeBadge */
 // ============================================================
 // CommandPalette — ⌘K global command palette
 // Triggered by Ctrl+K / ⌘K or the topbar ⌘ button.
@@ -7,21 +7,44 @@
 
 const { useState: uCP, useEffect: uCPE, useRef: uCPR } = React;
 
+function currentConnectionState() {
+  if (window.API?.getConnectionState) return window.API.getConnectionState();
+  return {
+    status: window.IS_LIVE ? 'connected' : 'disconnected',
+    isLive: Boolean(window.IS_LIVE),
+  };
+}
+
 function CommandPalette({ onClose, onNav }) {
   const [query, setQuery] = uCP('');
   const [sel, setSel] = uCP(0);
   const [recentTasks, setRecentTasks] = uCP([]);
+  const [connection, setConnection] = uCP(() => currentConnectionState());
   const inputRef = uCPR(null);
+  const getTasks = window.API?.getTasks;
+  const tasksAvailable = ['connected', 'degraded'].includes(connection.status)
+    && typeof getTasks === 'function';
 
   uCPE(() => { inputRef.current?.focus(); }, []);
   uCPE(() => { setSel(0); }, [query]);
 
   uCPE(() => {
+    const handler = (e) => {
+      setConnection(
+        e.detail?.connection
+        || currentConnectionState()
+      );
+    };
+    window.addEventListener('fh:connection', handler);
+    return () => window.removeEventListener('fh:connection', handler);
+  }, []);
+
+  uCPE(() => {
     let cancelled = false;
 
     async function loadRecentTasks() {
-      if (window.API?.getTasks) {
-        const data = await window.API.getTasks();
+      if (tasksAvailable && typeof getTasks === 'function') {
+        const data = await getTasks();
         if (!cancelled && Array.isArray(data)) {
           setRecentTasks(data.slice(0, 8));
           return;
@@ -32,7 +55,7 @@ function CommandPalette({ onClose, onNav }) {
 
     loadRecentTasks();
     return () => { cancelled = true; };
-  }, []);
+  }, [getTasks, tasksAvailable]);
 
   // ── command definitions ──────────────────────────────────────
   const navCmds = [
@@ -78,6 +101,7 @@ function CommandPalette({ onClose, onNav }) {
     id:      'task-' + tk.id,
     icon:    { running: '●', done: '✓', success: '✓', failed: '✗', stopped: '■', queued: '○' }[tk.status] || '·',
     iconCls: { running: 'amber', done: 'green', success: 'green', failed: 'red' }[tk.status] || '',
+    task: tk,
     label:   () => tk.title || tk.id,
     keywords: () => `${tk.id || ''} ${tk.title || ''} ${tk.target || ''}`.toLowerCase(),
     sub:     [tk.id, tk.target].filter(Boolean).join(' · '),
@@ -111,6 +135,12 @@ function CommandPalette({ onClose, onNav }) {
       >
         <span className={'cp-item-icon' + (cmd.iconCls ? ' ' + cmd.iconCls : '')}>{cmd.icon}</span>
         <span className="cp-item-label">{cmd.label()}</span>
+        {cmd.task && (
+          <span style={{ display: 'inline-flex', gap: 6, marginLeft: 8, alignItems: 'center' }}>
+            <ModeBadge mode={cmd.task.mode} />
+            <SubtypeBadge value={cmd.task.modeSubtype} />
+          </span>
+        )}
         {cmd.sub && <span className="cp-item-sub">{cmd.sub}</span>}
       </div>
     );

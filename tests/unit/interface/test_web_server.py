@@ -497,6 +497,19 @@ async def test_post_task_returns_normalized_contract_fields(web_client: TestClie
 
 
 @pytest.mark.asyncio
+async def test_post_task_persists_mode_aware_default_goal_when_goal_omitted(web_client: TestClient):
+    created = await web_client.post(
+        "/api/tasks",
+        json={"title": "goal-default", "target": "http://goal.test"},
+    )
+
+    assert created.status == 201
+    task = await created.json()
+
+    assert task["goal"] == "Assess target http://goal.test and produce concrete security evidence"
+
+
+@pytest.mark.asyncio
 async def test_post_task_resolves_auto_mode_to_ctf_contract(web_client: TestClient):
     created = await web_client.post(
         "/api/tasks",
@@ -515,6 +528,25 @@ async def test_post_task_resolves_auto_mode_to_ctf_contract(web_client: TestClie
     assert task["mode"] == "ctf"
     assert task["modeSubtype"] == "web"
     assert task["goalStyle"] == "flag"
+
+
+@pytest.mark.asyncio
+async def test_post_task_persists_ctf_default_goal_after_mode_resolution(web_client: TestClient):
+    created = await web_client.post(
+        "/api/tasks",
+        json={
+            "title": "ctf-default-goal",
+            "target": "http://challenge.test",
+            "mode": "auto",
+            "ctfType": "web",
+        },
+    )
+
+    assert created.status == 201
+    task = await created.json()
+
+    assert task["mode"] == "ctf"
+    assert task["goal"] == "CTF web challenge — capture the flag"
 
 
 def test_run_agent_task_uses_pentest_default_goal_when_mode_is_pentest(
