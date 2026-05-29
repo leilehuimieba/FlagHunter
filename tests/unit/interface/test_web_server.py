@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import io
 import json
+import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -498,6 +500,278 @@ def test_task_detail_payload_re_normalizes_dirty_derived_collections(
     assert detail["notes"] == [{"value": "note"}]
     assert detail["knowledgeHits"] == [{"title": "hit"}]
     assert detail["attachments"] == [{"name": "stored-artifact"}]
+
+
+def test_task_detail_payload_prefers_task_session_id_over_metrics_session_id(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    task = {
+        "id": "task_session_preferred",
+        "title": "preferred session",
+        "target": "http://preferred.test",
+        "goal": "prefer task session",
+        "status": "stopped",
+        "createdAt": web_server._now_iso(),
+        "startedAt": web_server._now_iso(),
+        "finishedAt": web_server._now_iso(),
+        "tokensUsed": 12,
+        "toolCalls": 1,
+        "finalFlag": None,
+        "stopReason": "done",
+        "currentRunId": "run_preferred",
+        "sessionId": "task_session",
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+    seen: dict[str, str | None] = {"sessionId": None}
+
+    monkeypatch.setattr(
+        web_server,
+        "_pick_metrics_for_task",
+        lambda project_root, item: {"session_id": "metrics_session", "turns": []},
+    )
+
+    def fake_pick_session_snapshot(project_root: Path, item: dict[str, object]):
+        seen["sessionId"] = str(item.get("sessionId") or "")
+        if item.get("sessionId") == "task_session":
+            return (
+                {"conversation": [{"role": "user", "content": "snapshot"}]},
+                project_root / "loot" / "sessions" / "task_session.json",
+                {
+                    "matchedBy": "explicit_session_id",
+                    "confidence": "high",
+                    "expectedSessionId": "task_session",
+                    "blockedReason": None,
+                    "candidateScore": None,
+                },
+            )
+        return (
+            None,
+            None,
+            {
+                "matchedBy": "none",
+                "confidence": "none",
+                "expectedSessionId": str(item.get("sessionId") or "") or None,
+                "blockedReason": None,
+                "candidateScore": None,
+            },
+        )
+
+    monkeypatch.setattr(web_server, "_pick_session_snapshot", fake_pick_session_snapshot)
+    monkeypatch.setattr(
+        web_server,
+        "_build_messages_from_snapshot",
+        lambda item, snapshot: [{"id": "msg_1", "role": "user", "t": web_server._now_iso(), "content": "from snapshot"}]
+        if snapshot
+        else [],
+    )
+    monkeypatch.setattr(
+        web_server,
+        "_build_messages_from_metrics",
+        lambda item, metrics: [{"id": "metric_1", "role": "system", "t": web_server._now_iso(), "content": "from metrics"}],
+    )
+
+    detail = web_server._task_detail_payload(tmp_path, task)
+
+    assert seen["sessionId"] == "task_session"
+    assert detail["detailSource"]["sessionMatchedBy"] == "explicit_session_id"
+    assert detail["detailSource"]["messages"] == "session_snapshot"
+    assert detail["messages"][0]["content"] == "from snapshot"
+
+
+def test_pick_session_snapshot_falls_back_to_heuristic_when_explicit_session_missing(tmp_path: Path):
+    sessions_dir = tmp_path / "loot" / "sessions"
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+    heuristic_path = sessions_dir / "heuristic_candidate.json"
+    heuristic_path.write_text(
+        json.dumps(
+            {
+                "session_id": "heuristic_candidate",
+                "target": "http://heuristic.test",
+                "updated_at": "2026-05-29T10:00:05+00:00",
+                "conversation": [{"role": "user", "content": "hello"}],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    snapshot, snapshot_path, meta = web_server._pick_session_snapshot(
+        tmp_path,
+        {
+            "id": "task_missing_session",
+            "target": "http://heuristic.test",
+            "sessionId": "missing_session",
+            "startedAt": "2026-05-29T10:00:00+00:00",
+            "createdAt": "2026-05-29T10:00:00+00:00",
+        },
+    )
+
+    assert snapshot is not None
+    assert snapshot_path == heuristic_path
+    assert meta["matchedBy"] == "heuristic_target_time"
+    assert meta["blockedReason"] == "expected_session_missing"
+
+
+def test_pick_metrics_for_task_prefers_exact_run_id_over_better_scored_candidate(tmp_path: Path):
+    metrics_dir = tmp_path / "loot" / "metrics"
+    metrics_dir.mkdir(parents=True, exist_ok=True)
+
+    wrong_but_closer = {
+        "session_id": "metrics_wrong",
+        "run_id": "run_other",
+        "task_id": "task_other",
+        "started_at": "2026-05-29T10:00:00+00:00",
+        "total_tool_calls": 1,
+        "total_wall_time_ms": 1000,
+        "turns": [],
+    }
+    exact_but_farther = {
+        "session_id": "metrics_exact",
+        "run_id": "run_exact",
+        "task_id": "task_exact",
+        "started_at": "2026-05-29T10:10:00+00:00",
+        "total_tool_calls": 5,
+        "total_wall_time_ms": 9000,
+        "turns": [],
+    }
+
+    (metrics_dir / "metrics_wrong.json").write_text(json.dumps(wrong_but_closer), encoding="utf-8")
+    (metrics_dir / "metrics_exact.json").write_text(json.dumps(exact_but_farther), encoding="utf-8")
+
+    metrics = web_server._pick_metrics_for_task(
+        tmp_path,
+        {
+            "id": "task_exact",
+            "currentRunId": "run_exact",
+            "target": "http://metrics.test",
+            "createdAt": "2026-05-29T10:00:00+00:00",
+            "startedAt": "2026-05-29T10:00:00+00:00",
+            "finishedAt": "2026-05-29T10:00:01+00:00",
+            "toolCalls": 1,
+        },
+    )
+
+    assert metrics is not None
+    assert metrics["session_id"] == "metrics_exact"
+
+
+def test_run_agent_task_persists_session_more_than_once_when_tool_results_are_observed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    class _FakeRuntime:
+        async def stop(self):
+            return None
+
+    class _FakeMessage:
+        def __init__(self):
+            self.tool_calls = [types.SimpleNamespace(name="terminal", arguments={"cmd": "id"})]
+            self.usage = {"input_tokens": 1, "output_tokens": 1}
+            self.tool_results = [
+                types.SimpleNamespace(
+                    tool_name="terminal",
+                    result="uid=1000",
+                    error=None,
+                    success=True,
+                    duration_ms=5.0,
+                )
+            ]
+            self.content = ""
+
+    class _FakeAgent:
+        instances: list["_FakeAgent"] = []
+
+        def __init__(self, **kwargs):
+            self.__class__.instances.append(self)
+            self.target = kwargs.get("target", "")
+            self.max_iterations = kwargs.get("max_iterations", 1)
+            self.conversation_history = []
+            self.permission_enforcer = types.SimpleNamespace(mode=types.SimpleNamespace(value=99))
+            self._session_id = "live_session"
+            self.save_calls = 0
+
+        async def agent_loop(self, goal):
+            yield _FakeMessage()
+
+        def save_session(self):
+            self.save_calls += 1
+            return self._session_id
+
+    fake_pa_agent = types.ModuleType("pentestagent.agents.pa_agent")
+    fake_pa_agent.PentestAgentAgent = _FakeAgent
+    fake_settings = types.ModuleType("pentestagent.config.settings")
+    fake_settings.get_settings = lambda: types.SimpleNamespace(model="test-model")
+    fake_initializer = types.ModuleType("pentestagent.interface.initializer")
+    fake_initializer.activate_workspace_for_target = lambda target: "workspace"
+
+    async def _fake_build_runtime(**kwargs):
+        return _FakeRuntime(), {"selected": "local", "connected": True}
+
+    fake_initializer.build_runtime = _fake_build_runtime
+    fake_llm = types.ModuleType("pentestagent.llm")
+    fake_llm.LLM = lambda model, rag_engine=None: object()
+    fake_tools = types.ModuleType("pentestagent.tools")
+    fake_tools.get_all_tools = lambda: []
+
+    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent", fake_pa_agent)
+    monkeypatch.setitem(sys.modules, "pentestagent.config.settings", fake_settings)
+    monkeypatch.setitem(sys.modules, "pentestagent.interface.initializer", fake_initializer)
+    monkeypatch.setitem(sys.modules, "pentestagent.llm", fake_llm)
+    monkeypatch.setitem(sys.modules, "pentestagent.tools", fake_tools)
+    monkeypatch.setattr(web_server, "emit_log", lambda *args, **kwargs: None)
+    monkeypatch.setattr(web_server, "_persist_tasks", lambda project_root: None)
+    monkeypatch.setattr(web_server._bus, "emit", lambda event: None)
+
+    task_id = "task_runtime_session"
+    web_server._tasks[task_id] = {
+        "id": task_id,
+        "title": "runtime session",
+        "target": "http://runtime.test",
+        "goal": "persist session during run",
+        "ctfType": "web",
+        "detectedType": "web",
+        "mode": "agent",
+        "maxIter": 1,
+        "docker": False,
+        "flagFormat": r"flag\{[^}]+\}",
+        "status": "queued",
+        "createdAt": web_server._now_iso(),
+        "startedAt": None,
+        "finishedAt": None,
+        "tokensUsed": 0,
+        "toolCalls": 0,
+        "finalFlag": None,
+        "stopReason": None,
+        "currentRunId": "run_runtime_session",
+        "sparkSeed": [1, 1, 1, 1],
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    web_server._run_agent_task(
+        task_id,
+        {
+            "target": "http://runtime.test",
+            "goal": "persist session during run",
+            "ctfType": "web",
+            "mode": "agent",
+            "maxIter": 1,
+            "docker": False,
+            "flagFormat": r"flag\{[^}]+\}",
+        },
+        tmp_path,
+    )
+
+    assert _FakeAgent.instances
+    assert _FakeAgent.instances[0].save_calls >= 2
 
 
 @pytest.mark.asyncio
