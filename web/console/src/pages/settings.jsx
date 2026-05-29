@@ -170,6 +170,7 @@ function SettingsPage() {
   const [saving, setSaving] = uSt(false);
   const [error, setError] = uSt('');
   const [saveResult, setSaveResult] = uSt(null);
+  const [connection, setConnection] = uSt(() => currentConnectionState());
   const putSettings = window.API?.putSettings;
   const saveAvailable = connection?.status === 'connected'
     && typeof putSettings === 'function';
@@ -178,9 +179,18 @@ function SettingsPage() {
     : typeof window.API?.putSettings === 'function'
       ? ''
       : t('c.notWired');
-  const [connection, setConnection] = uSt(() => currentConnectionState());
   const [dashboardStats, setDashboardStats] = uSt(null);
   const [knowledgeDocs, setKnowledgeDocs] = uSt(null);
+  const getDashboard = window.API?.getDashboard;
+  const getKnowledge = window.API?.getKnowledge;
+  const readonlyRefreshAvailable = ['connected', 'degraded'].includes(connection?.status)
+    && typeof getDashboard === 'function'
+    && typeof getKnowledge === 'function';
+  const readonlyRefreshUnavailableReason = !['connected', 'degraded'].includes(connection?.status)
+    ? t('c.notConnected')
+    : typeof getDashboard === 'function' && typeof getKnowledge === 'function'
+      ? ''
+      : t('c.notWired');
 
   function patch(section, key, value) {
     const path = `${section}.${key}`;
@@ -209,12 +219,19 @@ function SettingsPage() {
   }
 
   async function refreshReadonlyData() {
+    if (!readonlyRefreshAvailable || typeof getDashboard !== 'function' || typeof getKnowledge !== 'function') {
+      setDashboardStats(null);
+      setKnowledgeDocs([]);
+      return false;
+    }
+
     const [dashboardData, knowledgeData] = await Promise.all([
-      window.API.getDashboard(),
-      window.API.getKnowledge(),
+      getDashboard(),
+      getKnowledge(),
     ]);
     setDashboardStats(dashboardData || null);
     setKnowledgeDocs(Array.isArray(knowledgeData) ? knowledgeData : []);
+    return true;
   }
 
   async function save() {
@@ -252,7 +269,7 @@ function SettingsPage() {
         || currentConnectionState()
       );
       setConnection(nextConnection);
-      if (nextConnection.status === 'connected') refreshReadonlyData();
+      if (nextConnection.status === 'connected' || nextConnection.status === 'degraded') refreshReadonlyData();
     };
     window.addEventListener('fh:connection', handler);
     return () => window.removeEventListener('fh:connection', handler);
