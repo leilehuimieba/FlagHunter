@@ -167,6 +167,9 @@ async def test_dashboard_summary_supports_window_and_runtime_filters(web_client:
         "title": "local recent",
         "target": "http://local.test",
         "goal": "recent local",
+        "mode": "pentest",
+        "modeSubtype": "unknown",
+        "goalStyle": "evidence",
         "status": "success",
         "createdAt": now,
         "startedAt": now,
@@ -187,6 +190,9 @@ async def test_dashboard_summary_supports_window_and_runtime_filters(web_client:
         "title": "docker old",
         "target": "http://docker.test",
         "goal": "old docker",
+        "mode": "ctf",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
         "status": "failed",
         "createdAt": old,
         "startedAt": old,
@@ -208,12 +214,18 @@ async def test_dashboard_summary_supports_window_and_runtime_filters(web_client:
     recent_data = await recent_resp.json()
     assert recent_data["kpis"]["tasksToday"] == 1
     assert recent_data["recentTasks"][0]["id"] == "task_local_recent"
+    assert recent_data["recentTasks"][0]["mode"] == "pentest"
+    assert recent_data["recentTasks"][0]["modeSubtype"] == "unknown"
+    assert recent_data["recentTasks"][0]["goalStyle"] == "evidence"
 
     docker_resp = await web_client.get("/api/dashboard/summary?window=all&runtime=docker")
     assert docker_resp.status == 200
     docker_data = await docker_resp.json()
     assert docker_data["kpis"]["tasksToday"] == 1
     assert docker_data["recentTasks"][0]["id"] == "task_docker_old"
+    assert docker_data["recentTasks"][0]["mode"] == "ctf"
+    assert docker_data["recentTasks"][0]["modeSubtype"] == "web"
+    assert docker_data["recentTasks"][0]["goalStyle"] == "flag"
     for key in [
         "tokenSeries",
         "toolDistribution",
@@ -238,6 +250,9 @@ async def test_traces_list_supports_window_filter(web_client: TestClient):
         "title": "trace recent",
         "target": "http://recent.test",
         "goal": "recent trace",
+        "mode": "ctf",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
         "status": "success",
         "createdAt": now,
         "startedAt": now,
@@ -257,6 +272,9 @@ async def test_traces_list_supports_window_filter(web_client: TestClient):
         "title": "trace old",
         "target": "http://old.test",
         "goal": "old trace",
+        "mode": "pentest",
+        "modeSubtype": "unknown",
+        "goalStyle": "evidence",
         "status": "failed",
         "createdAt": old,
         "startedAt": old,
@@ -276,11 +294,17 @@ async def test_traces_list_supports_window_filter(web_client: TestClient):
     assert recent_resp.status == 200
     recent_data = await recent_resp.json()
     assert [item["id"] for item in recent_data["items"]] == ["run_trace_recent"]
+    assert recent_data["items"][0]["mode"] == "ctf"
+    assert recent_data["items"][0]["modeSubtype"] == "web"
+    assert recent_data["items"][0]["goalStyle"] == "flag"
 
     all_resp = await web_client.get("/api/traces?window=all")
     assert all_resp.status == 200
     all_data = await all_resp.json()
     assert [item["id"] for item in all_data["items"]] == ["run_trace_recent", "run_trace_old"]
+    assert all_data["items"][1]["mode"] == "pentest"
+    assert all_data["items"][1]["modeSubtype"] == "unknown"
+    assert all_data["items"][1]["goalStyle"] == "evidence"
     assert all_data["filters"] == {
         "window": "all",
         "target": "all",

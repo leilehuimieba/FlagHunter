@@ -1,4 +1,4 @@
-/* global React, fmt, t, downloadJson */
+/* global React, fmt, t, downloadJson, ModeBadge, SubtypeBadge */
 // ============================================================
 // Traces — list page + detail page (timeline / graph / data)
 // ============================================================
@@ -142,7 +142,13 @@ function TraceList({ onNav }) {
               {runs.map(r => (
                 <tr key={r.id} onClick={() => onNav(`traces/${r.id}`)} style={{ cursor: 'pointer' }}>
                   <td className="mono"><span className="bright">{r.id}</span></td>
-                  <td className="muted mono">{r.taskId}</td>
+                  <td>
+                    <div className="muted mono">{r.taskId}</div>
+                    <div className="row gap-8" style={{ marginTop: 4, flexWrap: 'wrap' }}>
+                      <ModeBadge mode={r.mode} />
+                      <SubtypeBadge value={r.modeSubtype} />
+                    </div>
+                  </td>
                   <td className="muted ellipsis" style={{ maxWidth: 300 }}>{r.target}</td>
                   <td><StatusBadge status={r.status} /></td>
                   <td style={{ textAlign: 'right' }} className="muted mono">{fmt.since(r.startedAt)}</td>
@@ -422,6 +428,8 @@ function TraceDetail({ runId, onNav }) {
           <div className="t row gap-12" style={{ alignItems: 'center' }}>
             <span className="dim" style={{ cursor: 'pointer', fontSize: 13 }} onClick={() => onNav('traces')}>{t('tr.back')}</span>
             <span>{resolvedRun.id}</span>
+            <ModeBadge mode={resolvedRun.mode} />
+            <SubtypeBadge value={resolvedRun.modeSubtype} />
             <StatusBadge status={resolvedRun.status} />
           </div>
           <div className="sub">{t('c.task')} <b className="bright">{resolvedRun.taskId}</b> · {t('c.target')} <b className="bright">{resolvedRun.target}</b></div>

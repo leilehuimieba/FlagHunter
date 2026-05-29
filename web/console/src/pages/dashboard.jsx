@@ -1,4 +1,4 @@
-/* global React, fmt, t */
+/* global React, fmt, t, ModeBadge, SubtypeBadge */
 // ============================================================
 // Dashboard — KPIs x7 + 4 charts + recent activity + flag board
 // ============================================================
@@ -315,7 +315,12 @@ function DashboardPage({ onNav }) {
               <div key={tk.id} className="act-row" onClick={() => onNav(`tasks/${tk.id}`)} style={{ cursor: 'pointer' }}>
                 <span className="time">{tk.startedAt ? fmt.hh(tk.startedAt).slice(0,5) : '—'}</span>
                 <span className="ico" style={{ color: { running: 'var(--amber)', success: 'var(--accent)', failed: 'var(--red)', queued: 'var(--blue)', stopped: 'var(--fg-2)' }[tk.status] }}>●</span>
-                <span className="ttl ellipsis"><span className="dim" style={{ marginRight: 6 }}>{tk.id}</span>{tk.title}</span>
+                <span className="ttl ellipsis">
+                  <span className="dim" style={{ marginRight: 6 }}>{tk.id}</span>
+                  {tk.title}
+                </span>
+                <ModeBadge mode={tk.mode} />
+                <SubtypeBadge value={tk.modeSubtype} />
                 <span className="meta"><StatusBadge status={tk.status} /></span>
               </div>
             )) : <Empty>{tasksEmptyState}</Empty>}
