@@ -3846,6 +3846,82 @@ async def test_p3_jwt_manipulation_strategy_escalates_seed_token_to_runtime_flag
     )
 
 
+def test_extract_local_challenge_root_from_context_prefers_explicit_challenge_path(tmp_path) -> None:
+    challenge_dir = tmp_path / "easy_login_context"
+    challenge_dir.mkdir()
+    (challenge_dir / "docker-compose.yml").write_text(
+        "services:\n  app:\n    image: easy_login-app\n", encoding="utf-8"
+    )
+
+    resolved = ctf_dispatcher._extract_local_challenge_root(
+        "ignore stale note D:\\decoy\\fake\\path\\readme.txt",
+        {"challengePath": str(challenge_dir), "artifactPaths": []},
+    )
+
+    assert resolved == challenge_dir
+
+
+def test_extract_local_challenge_root_from_context_can_unpack_zip_artifact(tmp_path) -> None:
+    import zipfile
+
+    archive_dir = tmp_path / "archive_src" / "easy_login_context_zip"
+    archive_dir.mkdir(parents=True)
+    (archive_dir / "docker-compose.yml").write_text(
+        "services:\n  app:\n    image: easy_login-app\n", encoding="utf-8"
+    )
+
+    archive_path = tmp_path / "easy_login_context.zip"
+    with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.write(archive_dir / "docker-compose.yml", arcname="easy_login/docker-compose.yml")
+
+    resolved = ctf_dispatcher._extract_local_challenge_root(
+        "",
+        {"challengePath": None, "artifactPaths": [str(archive_path)]},
+    )
+
+    assert resolved is not None
+    assert resolved.name == "easy_login"
+    assert (resolved / "docker-compose.yml").exists()
+
+
+def test_extract_local_challenge_root_from_context_prefers_explicit_challenge_path(tmp_path) -> None:
+    challenge_dir = tmp_path / "easy_login_context"
+    challenge_dir.mkdir()
+    (challenge_dir / "docker-compose.yml").write_text(
+        "services:\n  app:\n    image: easy_login-app\n", encoding="utf-8"
+    )
+
+    resolved = ctf_dispatcher._extract_local_challenge_root(
+        "ignore stale note D:\\decoy\\fake\\path\\readme.txt",
+        {"challengePath": str(challenge_dir), "artifactPaths": []},
+    )
+
+    assert resolved == challenge_dir
+
+
+def test_extract_local_challenge_root_from_context_can_unpack_zip_artifact(tmp_path) -> None:
+    import zipfile
+
+    archive_dir = tmp_path / "archive_src" / "easy_login_context_zip"
+    archive_dir.mkdir(parents=True)
+    (archive_dir / "docker-compose.yml").write_text(
+        "services:\n  app:\n    image: easy_login-app\n", encoding="utf-8"
+    )
+
+    archive_path = tmp_path / "easy_login_context.zip"
+    with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.write(archive_dir / "docker-compose.yml", arcname="easy_login/docker-compose.yml")
+
+    resolved = ctf_dispatcher._extract_local_challenge_root(
+        "",
+        {"challengePath": None, "artifactPaths": [str(archive_path)]},
+    )
+
+    assert resolved is not None
+    assert resolved.name == "easy_login"
+    assert (resolved / "docker-compose.yml").exists()
+
+
 def test_extract_local_ctf_assets_from_hint_parses_structured_block() -> None:
     assets = ctf_dispatcher._extract_local_ctf_assets_from_hint(
         "focus on local artifacts\n\n[local_ctf_assets]\nchallengePath=D:\\webstudy\\CTF\\2026\\CTF比赛题\\easy_login\nartifactPaths=D:\\webstudy\\CTF\\2026\\CTF比赛题\\easy_login\\docker-compose.yml; D:\\webstudy\\CTF\\2026\\CTF比赛题\\easy_login\\README.md"

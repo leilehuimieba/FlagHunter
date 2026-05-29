@@ -122,7 +122,7 @@ async def test_eval_local_asset_directory_only_success(monkeypatch, easy_login_d
         target="http://127.0.0.1:3000",
         goal="solve easy_login",
         type="web",
-        hint=f"[local_ctf_assets]\nchallengePath={easy_login_dir}",
+        challenge_context={"challengePath": str(easy_login_dir), "artifactPaths": []},
     )
 
     assert result.success is True
@@ -149,7 +149,7 @@ async def test_eval_local_asset_zip_only_success(monkeypatch, tmp_path: Path, ea
         target="http://127.0.0.1:3000",
         goal="solve easy_login",
         type="web",
-        hint=f"[local_ctf_assets]\nartifactPaths={archive_path}",
+        challenge_context={"challengePath": None, "artifactPaths": [str(archive_path)]},
     )
 
     assert result.success is True

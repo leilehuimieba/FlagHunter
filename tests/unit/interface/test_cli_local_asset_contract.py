@@ -72,11 +72,12 @@ async def test_run_cli_routes_ctf_mode_into_dispatcher_with_local_asset_hint(mon
             captured["runtime"] = runtime
             captured["progress_callback"] = progress_callback
 
-        async def run(self, target, goal, type=None, hint=None, submit_profile=None):
+        async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None):
             captured["target"] = target
             captured["goal"] = goal
             captured["type"] = type
             captured["hint"] = hint
+            captured["challenge_context"] = challenge_context
             return SimpleNamespace(flag="flag{cli_ctf_ok}", reason="ok", chain_used=["xss"], missing_tools=[], notes=[])
 
     class _ForbiddenAgent:
@@ -102,6 +103,13 @@ async def test_run_cli_routes_ctf_mode_into_dispatcher_with_local_asset_hint(mon
 
     assert captured["target"] == "http://127.0.0.1:3000"
     assert captured["type"] == "web"
+    assert captured["challenge_context"] == {
+        "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+        "artifactPaths": [
+            r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+            r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\README.md",
+        ],
+    }
     assert "[local_ctf_assets]" in captured["hint"]
     assert r"D:\webstudy\CTF\2026\CTF比赛题\easy_login" in captured["hint"]
     assert r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml" in captured["hint"]

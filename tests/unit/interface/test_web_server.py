@@ -743,7 +743,7 @@ def test_run_agent_task_routes_ctf_mode_to_ctf_dispatcher(
             self.runtime = runtime
             self.progress_callback = progress_callback
 
-        async def run(self, target, goal, type=None, hint=None, submit_profile=None):
+        async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None):
             self.__class__.calls.append(
                 {
                     "target": target,
@@ -751,6 +751,7 @@ def test_run_agent_task_routes_ctf_mode_to_ctf_dispatcher(
                     "type": type,
                     "hint": hint,
                     "submit_profile": submit_profile,
+                    "challenge_context": challenge_context,
                 }
             )
             return types.SimpleNamespace(
@@ -1191,7 +1192,7 @@ def test_run_agent_task_passes_latest_user_hint_to_ctf_dispatcher(
             self.runtime = runtime
             self.progress_callback = progress_callback
 
-        async def run(self, target, goal, type=None, hint=None, submit_profile=None):
+        async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None):
             self.__class__.calls.append(
                 {
                     "target": target,
@@ -1199,6 +1200,7 @@ def test_run_agent_task_passes_latest_user_hint_to_ctf_dispatcher(
                     "type": type,
                     "hint": hint,
                     "submit_profile": submit_profile,
+                    "challenge_context": challenge_context,
                 }
             )
             return types.SimpleNamespace(
@@ -1307,7 +1309,7 @@ def test_run_agent_task_bridges_ctf_local_asset_contract_into_dispatcher_hint(
             self.runtime = runtime
             self.progress_callback = progress_callback
 
-        async def run(self, target, goal, type=None, hint=None, submit_profile=None):
+        async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None):
             self.__class__.calls.append(
                 {
                     "target": target,
@@ -1315,6 +1317,7 @@ def test_run_agent_task_bridges_ctf_local_asset_contract_into_dispatcher_hint(
                     "type": type,
                     "hint": hint,
                     "submit_profile": submit_profile,
+                    "challenge_context": challenge_context,
                 }
             )
             return types.SimpleNamespace(
@@ -1415,7 +1418,15 @@ def test_run_agent_task_bridges_ctf_local_asset_contract_into_dispatcher_hint(
     )
 
     assert _FakeDispatcher.calls
-    hint = str(_FakeDispatcher.calls[0]["hint"] or "")
+    call = _FakeDispatcher.calls[0]
+    assert call["challenge_context"] == {
+        "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+        "artifactPaths": [
+            r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+            r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\src\server.ts",
+        ],
+    }
+    hint = str(call["hint"] or "")
     assert "focus on local artifacts" in hint
     assert r"D:\webstudy\CTF\2026\CTF比赛题\easy_login" in hint
     assert r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml" in hint
