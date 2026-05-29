@@ -729,6 +729,105 @@ def test_run_agent_task_uses_pentest_default_goal_when_mode_is_pentest(
     assert "ctf web challenge" not in _FakeAgent.goals[0].lower()
 
 
+def test_run_agent_task_attaches_run_id_and_project_root_to_agent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    class _FakeRuntime:
+        async def stop(self):
+            return None
+
+    class _FakeAgent:
+        instances: list["_FakeAgent"] = []
+
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+            self.run_id = None
+            self.project_root = None
+            _FakeAgent.instances.append(self)
+
+        async def agent_loop(self, goal):
+            if False:
+                yield None
+            return
+
+    fake_pa_agent = types.ModuleType("pentestagent.agents.pa_agent")
+    fake_pa_agent.PentestAgentAgent = _FakeAgent
+    fake_settings = types.ModuleType("pentestagent.config.settings")
+    fake_settings.get_settings = lambda: types.SimpleNamespace(model="test-model")
+    fake_initializer = types.ModuleType("pentestagent.interface.initializer")
+    fake_initializer.activate_workspace_for_target = lambda target: "workspace"
+
+    async def _fake_build_runtime(**kwargs):
+        return _FakeRuntime(), {"selected": "local", "connected": True}
+
+    fake_initializer.build_runtime = _fake_build_runtime
+    fake_llm = types.ModuleType("pentestagent.llm")
+    fake_llm.LLM = lambda model, rag_engine=None: object()
+    fake_tools = types.ModuleType("pentestagent.tools")
+    fake_tools.get_all_tools = lambda: []
+    fake_knowledge = types.ModuleType("pentestagent.knowledge")
+    fake_knowledge.RAGEngine = lambda *args, **kwargs: None
+
+    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent", fake_pa_agent)
+    monkeypatch.setitem(sys.modules, "pentestagent.config.settings", fake_settings)
+    monkeypatch.setitem(sys.modules, "pentestagent.interface.initializer", fake_initializer)
+    monkeypatch.setitem(sys.modules, "pentestagent.llm", fake_llm)
+    monkeypatch.setitem(sys.modules, "pentestagent.tools", fake_tools)
+    monkeypatch.setitem(sys.modules, "pentestagent.knowledge", fake_knowledge)
+    monkeypatch.setattr(web_server, "_persist_tasks", lambda project_root: None)
+    monkeypatch.setattr(web_server._bus, "emit", lambda event: None)
+    monkeypatch.setattr(web_server, "emit_log", lambda *args, **kwargs: None)
+
+    web_server._tasks["task_agent_context_attach"] = {
+        "id": "task_agent_context_attach",
+        "title": "attach run context",
+        "target": "http://runtime.test",
+        "goal": "collect evidence",
+        "ctfType": None,
+        "mode": "pentest",
+        "modeSubtype": "web",
+        "goalStyle": "evidence",
+        "maxIter": 1,
+        "docker": False,
+        "flagFormat": r"flag\{[^}]+\}",
+        "status": "queued",
+        "createdAt": web_server._now_iso(),
+        "startedAt": None,
+        "finishedAt": None,
+        "tokensUsed": 0,
+        "toolCalls": 0,
+        "finalFlag": None,
+        "stopReason": None,
+        "currentRunId": "run_agent_context_attach",
+        "sparkSeed": [1, 1, 1, 1],
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    web_server._run_agent_task(
+        "task_agent_context_attach",
+        {
+            "target": "http://runtime.test",
+            "goal": "collect evidence",
+            "mode": "pentest",
+            "modeSubtype": "web",
+            "goalStyle": "evidence",
+            "maxIter": 1,
+            "docker": False,
+            "flagFormat": r"flag\{[^}]+\}",
+        },
+        tmp_path,
+    )
+
+    assert _FakeAgent.instances
+    assert _FakeAgent.instances[0].run_id == "run_agent_context_attach"
+    assert _FakeAgent.instances[0].project_root == tmp_path
+
+
 def test_run_agent_task_routes_ctf_mode_to_ctf_dispatcher(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
