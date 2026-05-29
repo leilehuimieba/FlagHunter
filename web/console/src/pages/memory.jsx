@@ -829,6 +829,11 @@ function ClusterRenderer({ canvasRef, drawFn }) {
 function MemoryPage() {
   window.useLang();
 
+  const [connection, setConnection] = useState(() => (
+    window.API?.getConnectionState
+      ? window.API.getConnectionState()
+      : { status: window.IS_LIVE ? 'connected' : 'disconnected', isLive: Boolean(window.IS_LIVE) }
+  ));
   const [entries, setEntries]   = useState([]);
   const [stats, setStats]       = useState({ total: 0, active: 0, muted: 0, deprecated: 0, audit_candidates: 0 });
   const [filter, setFilter]     = useState('all');
@@ -837,11 +842,36 @@ function MemoryPage() {
   const [selected, setSelected] = useState(null);
   const [busy, setBusy]         = useState('');
   const [viewMode, setViewMode] = useState('list');  // 'list' | 'graph'
+  const apiGetMemory = window.API?.getMemory;
+  const apiGetMemoryStats = window.API?.getMemoryStats;
+  const apiMuteMemoryEntry = window.API?.muteMemoryEntry;
+  const apiActivateMemoryEntry = window.API?.activateMemoryEntry;
+  const apiDeleteMemoryEntry = window.API?.deleteMemoryEntry;
+  const readAvailable = ['connected', 'degraded'].includes(connection.status)
+    && typeof apiGetMemory === 'function'
+    && typeof apiGetMemoryStats === 'function';
+
+  useEffect(() => {
+    const handler = () => {
+      setConnection(
+        window.API?.getConnectionState
+          ? window.API.getConnectionState()
+          : { status: window.IS_LIVE ? 'connected' : 'disconnected', isLive: Boolean(window.IS_LIVE) }
+      );
+    };
+    window.addEventListener('fh:connection', handler);
+    return () => window.removeEventListener('fh:connection', handler);
+  }, []);
 
   const loadData = useCallback(async () => {
+    if (!readAvailable) {
+      setEntries([]);
+      setStats(computeStats([]));
+      return;
+    }
     const [data, s] = await Promise.all([
-      window.API.getMemory({ status: filter === 'all' ? null : filter, sort_by: sortBy }),
-      window.API.getMemoryStats(),
+      apiGetMemory({ status: filter === 'all' ? null : filter, sort_by: sortBy }),
+      apiGetMemoryStats(),
     ]);
     if (Array.isArray(data)) {
       setEntries(data);
@@ -850,7 +880,7 @@ function MemoryPage() {
     }
     setEntries([]);
     setStats(s || computeStats([]));
-  }, [filter, sortBy]);
+  }, [apiGetMemory, apiGetMemoryStats, filter, readAvailable, sortBy]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -870,9 +900,10 @@ function MemoryPage() {
   const selectedEntry = filtered.find(e => e.id === selected) || null;
 
   async function handleMute(id) {
+    if (typeof apiMuteMemoryEntry !== 'function') return;
     setBusy(id);
     try {
-      const updated = await window.API.muteMemoryEntry(id);
+      const updated = await apiMuteMemoryEntry(id);
       if (updated) {
         await loadData();
       }
@@ -882,9 +913,10 @@ function MemoryPage() {
   }
 
   async function handleActivate(id) {
+    if (typeof apiActivateMemoryEntry !== 'function') return;
     setBusy(id);
     try {
-      const updated = await window.API.activateMemoryEntry(id);
+      const updated = await apiActivateMemoryEntry(id);
       if (updated) {
         await loadData();
       }
@@ -894,10 +926,11 @@ function MemoryPage() {
   }
 
   async function handleDelete(id) {
+    if (typeof apiDeleteMemoryEntry !== 'function') return;
     if (!window.confirm('Delete memory entry ' + id + '?')) return;
     setBusy(id);
     try {
-      const result = await window.API.deleteMemoryEntry(id);
+      const result = await apiDeleteMemoryEntry(id);
       if (result && result.ok) {
         await loadData();
         if (selected === id) setSelected(null);
@@ -978,7 +1011,7 @@ function MemoryPage() {
           /* List */
           <div className="mem-list">
             {filtered.length === 0 ? (
-              <div className="mem-empty">{t('mem.empty')}</div>
+              <div className="mem-empty">{readAvailable ? t('mem.empty') : t('c.unavailable')}</div>
             ) : filtered.map(entry => (
               <EntryRow
                 key={entry.id}
