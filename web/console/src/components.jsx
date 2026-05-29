@@ -268,6 +268,8 @@ function NewTaskModal({ onClose, onCreated }) {
     title: '',
     target: '',
     goal: '',
+    challengePath: '',
+    artifactPathsText: '',
     ctfType: 'web',
     mode: 'auto',
     maxIter: 30,
@@ -303,8 +305,15 @@ function NewTaskModal({ onClose, onCreated }) {
     // ── Phase 1: create task (JSON metadata) ──────────────────
     setErr('');
     setPhase('creating');
+    const challengePath = form.challengePath.trim() || null;
+    const artifactPaths = form.artifactPathsText
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(Boolean);
     const payload = {
       ...form,
+      challengePath,
+      artifactPaths,
       attachments: files.map(f => ({ name: f.name, size: f.size })),
     };
     let result = null;
@@ -388,6 +397,20 @@ function NewTaskModal({ onClose, onCreated }) {
               <label>{t('nt.goal')}</label>
               <input className="input" placeholder={t('nt.goalPh')}
                 value={form.goal} onChange={e => patch('goal', e.target.value)} />
+            </div>
+
+            {/* Challenge path */}
+            <div className="mf full">
+              <label>{t('nt.challengePath')}</label>
+              <input className="input mono" placeholder={t('nt.challengePathPh')}
+                value={form.challengePath} onChange={e => patch('challengePath', e.target.value)} />
+            </div>
+
+            {/* Artifact paths */}
+            <div className="mf full">
+              <label>{t('nt.artifactPaths')}</label>
+              <textarea className="input mono" placeholder={t('nt.artifactPathsPh')}
+                value={form.artifactPathsText} onChange={e => patch('artifactPathsText', e.target.value)} rows={3} />
             </div>
 
             {/* CTF Type */}

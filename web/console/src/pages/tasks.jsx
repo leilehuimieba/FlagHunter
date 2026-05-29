@@ -756,6 +756,7 @@ function TaskDetail({ task, onNav, taskViewMode }) {
 
         {/* side panel */}
         <div className="side-panel">
+          <LocalAssetCard task={detailTask} />
           <LiveSidePanel
             task={{ ...detailTask, attachments }}
             plan={livePlan}
@@ -993,6 +994,40 @@ function TaskStatusCard({ task }) {
   );
 }
 
+function LocalAssetCard({ task }) {
+  const challengePath = String(task?.challengePath || '').trim();
+  const artifactPaths = Array.isArray(task?.artifactPaths) ? task.artifactPaths.filter(Boolean) : [];
+  if (!challengePath && artifactPaths.length === 0) return null;
+
+  return (
+    <div className="side-card">
+      <div className="h">⌘ {t('td.challengeAssets')}</div>
+      <div className="kv-list">
+        {challengePath && (
+          <div className="kv-row" style={{ alignItems: 'flex-start' }}>
+            <span className="k">{t('td.challengePath')}</span>
+            <span className="v">
+              <div className="code-block" style={{ marginTop: 0 }}>{challengePath}</div>
+            </span>
+          </div>
+        )}
+        {artifactPaths.length > 0 && (
+          <div className="kv-row" style={{ alignItems: 'flex-start' }}>
+            <span className="k">{t('td.artifactPaths')}</span>
+            <span className="v" style={{ display: 'block', width: '100%' }}>
+              <div className="col gap-4">
+                {artifactPaths.map((path, index) => (
+                  <div key={`${path}_${index}`} className="code-block" style={{ marginTop: 0 }}>{path}</div>
+                ))}
+              </div>
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TaskAttachmentsCard({
   attachments,
   attachmentsAvailable,
@@ -1079,6 +1114,7 @@ function SyntheticSidePanel({ task, attachmentsAvailable, attachmentsUnavailable
   return (
     <>
       <TaskStatusCard task={task} />
+      <LocalAssetCard task={task} />
       <TaskAttachmentsCard attachments={task.attachments || []} attachmentsAvailable={attachmentsAvailable} unavailableReason={attachmentsUnavailableReason} {...attachmentProps} />
       <TaskSummaryCard task={task} />
     </>
