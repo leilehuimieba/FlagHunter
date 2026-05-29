@@ -32,6 +32,8 @@ def test_run_task_schema_accepts_mode_and_ctf_type() -> None:
 
     assert "mode" in schema["properties"]
     assert "ctfType" in schema["properties"]
+    assert "challengePath" in schema["properties"]
+    assert "artifactPaths" in schema["properties"]
 
 
 def test_run_task_async_schema_accepts_mode_and_ctf_type() -> None:
@@ -39,6 +41,8 @@ def test_run_task_async_schema_accepts_mode_and_ctf_type() -> None:
 
     assert "mode" in schema["properties"]
     assert "ctfType" in schema["properties"]
+    assert "challengePath" in schema["properties"]
+    assert "artifactPaths" in schema["properties"]
 
 
 @pytest.mark.asyncio
@@ -65,6 +69,11 @@ async def test_run_task_async_resolves_mode_contract_before_task_creation(
             "target": "http://challenge.test",
             "mode": "auto",
             "ctfType": "web",
+            "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+            "artifactPaths": [
+                r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+                r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\src\server.ts",
+            ],
         }
     )
 
@@ -73,6 +82,11 @@ async def test_run_task_async_resolves_mode_contract_before_task_creation(
         "target": "http://challenge.test",
         "mode": "auto",
         "ctfType": "web",
+        "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+        "artifactPaths": [
+            r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+            r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\src\server.ts",
+        ],
     }
     assert seen["source_task"] is None
 
@@ -97,6 +111,11 @@ async def test_run_task_async_persists_and_reports_mode_contract(
             "target": "http://challenge.test",
             "mode": "auto",
             "ctfType": "web",
+            "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+            "artifactPaths": [
+                r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+                r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\src\server.ts",
+            ],
         }
     )
 
@@ -105,6 +124,13 @@ async def test_run_task_async_persists_and_reports_mode_contract(
     assert getattr(entry, "mode", None) == "ctf"
     assert getattr(entry, "modeSubtype", None) == "web"
     assert getattr(entry, "goalStyle", None) == "flag"
+    assert getattr(entry, "challengePath", None) == r"D:\webstudy\CTF\2026\CTF比赛题\easy_login"
+    assert getattr(entry, "artifactPaths", None) == [
+        r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+        r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\src\server.ts",
+    ]
     assert "mode: ctf" in result
     assert "mode_subtype: web" in result
     assert "goal_style: flag" in result
+    assert r"challenge_path: D:\webstudy\CTF\2026\CTF比赛题\easy_login" in result
+    assert r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml" in result
