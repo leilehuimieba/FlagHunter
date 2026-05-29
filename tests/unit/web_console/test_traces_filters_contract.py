@@ -14,8 +14,8 @@ def test_traces_page_tracks_window_filter_in_live_requests() -> None:
     source = _read("web/console/src/pages/traces.jsx")
 
     assert "const [windowFilter, setWindowFilter] = uS('24h');" in source
-    assert "window.API.getTraces({ window: windowFilter, target: targetFilter }).then(data => {" in source
-    assert "window.API.getTraces({ window: windowFilter, target: targetFilter }).then(data => {" in source
+    assert "const getTraces = window.API?.getTraces;" in source
+    assert "getTraces({ window: windowFilter, target: targetFilter }).then(data => {" in source
     assert "value={windowFilter}" in source
 
 
@@ -24,7 +24,7 @@ def test_traces_page_tracks_target_filter_in_live_requests() -> None:
 
     assert "const [targetFilter, setTargetFilter] = uS('all');" in source
     assert "const [targetOptions, setTargetOptions] = uS(['all']);" in source
-    assert "window.API.getTraces({ window: windowFilter, target: targetFilter }).then(data => {" in source
+    assert "getTraces({ window: windowFilter, target: targetFilter }).then(data => {" in source
     assert "setApiTraces(Array.isArray(data?.items) ? data.items : []);" in source
     assert "setTargetOptions(Array.isArray(data?.filters?.targets) ? data.filters.targets : ['all']);" in source
     assert "value={targetFilter}" in source

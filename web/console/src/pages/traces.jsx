@@ -26,6 +26,15 @@ function TraceList({ onNav }) {
   const [q, setQ] = uS('');
   const [apiTraces, setApiTraces] = uS(null);
   const [connection, setConnection] = uS(() => currentConnectionState());
+  const getTraces = window.API?.getTraces;
+  const subscribeEvents = window.API?.subscribeEvents;
+  const tracesAvailable = ['connected', 'degraded'].includes(connection.status)
+    && typeof getTraces === 'function';
+  const tracesUnavailableReason = connection?.status !== 'connected' && connection?.status !== 'degraded'
+    ? t('c.notConnected')
+    : typeof getTraces === 'function'
+      ? ''
+      : t('c.notWired');
 
   uE(() => {
     const handler = (e) => {
@@ -39,25 +48,31 @@ function TraceList({ onNav }) {
   }, []);
 
   uE(() => {
-    window.API.getTraces({ window: windowFilter, target: targetFilter }).then(data => {
+    if (!tracesAvailable || typeof getTraces !== 'function') {
+      setApiTraces(null);
+      setTargetOptions(['all']);
+      return;
+    }
+
+    getTraces({ window: windowFilter, target: targetFilter }).then(data => {
       setApiTraces(Array.isArray(data?.items) ? data.items : []);
       setTargetOptions(Array.isArray(data?.filters?.targets) ? data.filters.targets : ['all']);
       if (data?.filters?.target && data.filters.target !== targetFilter) setTargetFilter(data.filters.target);
     });
-  }, [windowFilter, targetFilter]);
+  }, [getTraces, targetFilter, tracesAvailable, windowFilter]);
 
   uE(() => {
-    if (!window.API) return;
-    return window.API.subscribeEvents(ev => {
+    if (!tracesAvailable || typeof subscribeEvents !== 'function' || typeof getTraces !== 'function') return;
+    return subscribeEvents(ev => {
       if (ev.type === 'task_created' || ev.type === 'task_status') {
-        window.API.getTraces({ window: windowFilter, target: targetFilter }).then(data => {
+        getTraces({ window: windowFilter, target: targetFilter }).then(data => {
           setApiTraces(Array.isArray(data?.items) ? data.items : []);
           setTargetOptions(Array.isArray(data?.filters?.targets) ? data.filters.targets : ['all']);
           if (data?.filters?.target && data.filters.target !== targetFilter) setTargetFilter(data.filters.target);
         });
       }
     });
-  }, [windowFilter, targetFilter]);
+  }, [getTraces, subscribeEvents, targetFilter, tracesAvailable, windowFilter]);
 
   const sourceTraces = Array.isArray(apiTraces) ? apiTraces : [];
   const runs = sourceTraces.filter(r => {
@@ -69,7 +84,7 @@ function TraceList({ onNav }) {
     return true;
   });
   const filterKeys = ['all', 'running', 'success', 'failed', 'stopped'];
-  const tracesEmptyState = connection.status === 'disconnected' ? t('c.unavailable') : t('tasks.noMatch');
+  const tracesEmptyState = tracesAvailable ? t('tasks.noMatch') : (tracesUnavailableReason || t('c.unavailable'));
   return (
     <div className="page">
       <div className="page-h">
@@ -157,6 +172,14 @@ function TraceList({ onNav }) {
 function TraceDetail({ runId, onNav }) {
   const [run, setRun] = uS(null);
   const [connection, setConnection] = uS(() => currentConnectionState());
+  const getTrace = window.API?.getTrace;
+  const traceDetailAvailable = ['connected', 'degraded'].includes(connection.status)
+    && typeof getTrace === 'function';
+  const traceDetailUnavailableReason = connection?.status !== 'connected' && connection?.status !== 'degraded'
+    ? t('c.notConnected')
+    : typeof getTrace === 'function'
+      ? ''
+      : t('c.notWired');
 
   uE(() => {
     const handler = (e) => {
@@ -172,13 +195,16 @@ function TraceDetail({ runId, onNav }) {
   uE(() => {
     let done = false;
     setRun(null);
-    if (window.API?.getTrace) {
-      window.API.getTrace(runId).then(data => {
-        if (!done && data && data.id) setRun(data);
-      });
+    if (!traceDetailAvailable || typeof getTrace !== 'function') {
+      return () => { done = true; };
     }
+
+    getTrace(runId).then(data => {
+      if (!done && data && data.id) setRun(data);
+    });
+
     return () => { done = true; };
-  }, [runId]);
+  }, [getTrace, runId, traceDetailAvailable]);
 
   const liveFallbackRun = {
     id: runId || 'trace',
@@ -207,7 +233,7 @@ function TraceDetail({ runId, onNav }) {
     : resolveTraceTimeline(resolvedRun);
   const hasObservedToolIO = Array.isArray(resolvedRun.toolEvents) && resolvedRun.toolEvents.length > 0;
   const graph = uM(() => buildTraceGraph(timeline, resolvedRun), [timeline, resolvedRun.id, resolvedRun.status, resolvedRun.startedAt]);
-  const traceEmptyState = connection.status === 'disconnected' ? t('c.unavailable') : t('tr.empty.timeline');
+  const traceEmptyState = traceDetailAvailable ? t('tr.empty.timeline') : (traceDetailUnavailableReason || t('c.unavailable'));
 
   async function handleReplay() {
     if (!replayAvailable) return;
