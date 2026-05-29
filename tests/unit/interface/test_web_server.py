@@ -113,6 +113,9 @@ def test_serialize_task_normalizes_dirty_collections():
         "notes": [{"value": "note"}, 1],
         "knowledgeHits": [{"title": "hit"}, "noise"],
         "attachments": [{"name": "file.txt"}, object()],
+        "ctfChainUsed": ["recon", "", None, 1],
+        "ctfMissingTools": "bad",
+        "ctfNotes": ["keep", "", None],
     }
 
     serialized = web_server._serialize_task(task)
@@ -123,6 +126,9 @@ def test_serialize_task_normalizes_dirty_collections():
     assert serialized["notes"] == [{"value": "note"}]
     assert serialized["knowledgeHits"] == [{"title": "hit"}]
     assert serialized["attachments"] == [{"name": "file.txt"}]
+    assert serialized["ctfChainUsed"] == ["recon", "1"]
+    assert serialized["ctfMissingTools"] == []
+    assert serialized["ctfNotes"] == ["keep"]
     assert serialized["capabilities"]["stop"] is False
 
 
@@ -462,6 +468,9 @@ async def test_task_detail_includes_capabilities_and_detail_fields(web_client: T
     assert "notes" in detail
     assert "knowledgeHits" in detail
     assert "attachments" in detail
+    assert "ctfChainUsed" in detail
+    assert "ctfMissingTools" in detail
+    assert "ctfNotes" in detail
     assert "capabilities" in detail
     assert detail["capabilities"] == {
         "hint": True,
@@ -1024,6 +1033,9 @@ def test_run_agent_task_emits_ctf_dispatcher_lifecycle_summary_logs(
         level == "info" and source == "ctf.dispatcher" and message == "chains: recon, auth_form_sqli"
         for level, source, message in captured_logs
     )
+    assert web_server._tasks["task_ctf_summary"]["ctfChainUsed"] == ["recon", "auth_form_sqli"]
+    assert web_server._tasks["task_ctf_summary"]["ctfMissingTools"] == []
+    assert web_server._tasks["task_ctf_summary"]["ctfNotes"] == []
 
 
 def test_run_agent_task_emits_ctf_dispatcher_missing_tools_log_on_stop(
@@ -1132,6 +1144,59 @@ def test_run_agent_task_emits_ctf_dispatcher_missing_tools_log_on_stop(
     )
     assert web_server._tasks["task_ctf_missing_tools"]["status"] == "stopped"
     assert web_server._tasks["task_ctf_missing_tools"]["stopReason"] == "missing tools"
+    assert web_server._tasks["task_ctf_missing_tools"]["ctfChainUsed"] == ["recon"]
+    assert web_server._tasks["task_ctf_missing_tools"]["ctfMissingTools"] == ["browser", "sqlmap"]
+    assert web_server._tasks["task_ctf_missing_tools"]["ctfNotes"] == []
+
+
+def test_build_trace_payload_includes_ctf_dispatcher_truth_fields(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    now = web_server._now_iso()
+    task = {
+        "id": "task_trace_ctf_truth",
+        "title": "trace ctf truth",
+        "target": "http://trace.test",
+        "goal": "trace truth",
+        "mode": "ctf",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
+        "status": "stopped",
+        "createdAt": now,
+        "startedAt": now,
+        "finishedAt": now,
+        "tokensUsed": 3,
+        "toolCalls": 1,
+        "finalFlag": None,
+        "stopReason": "missing tools",
+        "currentRunId": "run_trace_ctf_truth",
+        "ctfChainUsed": ["recon", "auth_form_sqli"],
+        "ctfMissingTools": ["browser"],
+        "ctfNotes": ["phase1 done"],
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    monkeypatch.setattr(web_server, "_pick_metrics_for_task", lambda project_root, item: None)
+    monkeypatch.setattr(
+        web_server,
+        "_pick_session_snapshot",
+        lambda project_root, item: (
+            None,
+            None,
+            {"matchedBy": "none", "confidence": "none", "expectedSessionId": None, "blockedReason": None, "candidateScore": None},
+        ),
+    )
+
+    payload = web_server._build_trace_payload(tmp_path, task, include_timeline=False)
+
+    assert payload["ctfChainUsed"] == ["recon", "auth_form_sqli"]
+    assert payload["ctfMissingTools"] == ["browser"]
+    assert payload["ctfNotes"] == ["phase1 done"]
 
 
 def test_task_detail_payload_re_normalizes_dirty_derived_collections(
