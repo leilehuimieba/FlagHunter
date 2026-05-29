@@ -273,7 +273,7 @@ const TYPE_COLORS = {
   pwn: '#ba68c8', misc: '#90a4ae', forensics: '#a1887f',
 };
 
-function MemoryGraphView({ filter, onSelect, selected }) {
+function MemoryGraphView({ filter, onSelect, selected, graphAvailable, graphUnavailableReason, getMemoryGraph }) {
   const canvasRef = React.useRef(null);
   const [graphData, setGraphData] = React.useState({ nodes: [], edges: [] });
   const [tooltip, setTooltip] = React.useState(null);
@@ -319,7 +319,11 @@ function MemoryGraphView({ filter, onSelect, selected }) {
 
   // ── Data loading ────────────────────────────────────────────
   React.useEffect(() => {
-    window.API.getMemoryGraph({ status: filter === 'all' ? null : filter }).then(data => {
+    if (!graphAvailable || typeof getMemoryGraph !== 'function') {
+      setGraphData({ nodes: [], edges: [] });
+      return;
+    }
+    getMemoryGraph({ status: filter === 'all' ? null : filter }).then(data => {
       if (data && data.nodes) {
         setGraphData({ nodes: data.nodes, edges: data.edges || [] });
         // Reset to cluster view on new data
@@ -327,7 +331,7 @@ function MemoryGraphView({ filter, onSelect, selected }) {
         setClusterType(null);
       }
     });
-  }, [filter]);
+  }, [filter, getMemoryGraph, graphAvailable]);
 
   // ── Force simulation (detail mode only) ─────────────────────
   React.useEffect(() => {
@@ -691,6 +695,10 @@ function MemoryGraphView({ filter, onSelect, selected }) {
   }
 
   // ── Empty check ──────────────────────────────────────────────
+  if (!graphAvailable) {
+    return <div className="mem-empty">{graphUnavailableReason || t('c.unavailable')}</div>;
+  }
+
   if (graphData.nodes.length === 0) {
     return <div className="mem-empty">{t('mem.empty')}</div>;
   }
@@ -844,12 +852,20 @@ function MemoryPage() {
   const [viewMode, setViewMode] = useState('list');  // 'list' | 'graph'
   const apiGetMemory = window.API?.getMemory;
   const apiGetMemoryStats = window.API?.getMemoryStats;
+  const apiGetMemoryGraph = window.API?.getMemoryGraph;
   const apiMuteMemoryEntry = window.API?.muteMemoryEntry;
   const apiActivateMemoryEntry = window.API?.activateMemoryEntry;
   const apiDeleteMemoryEntry = window.API?.deleteMemoryEntry;
   const readAvailable = ['connected', 'degraded'].includes(connection.status)
     && typeof apiGetMemory === 'function'
     && typeof apiGetMemoryStats === 'function';
+  const graphAvailable = ['connected', 'degraded'].includes(connection.status)
+    && typeof apiGetMemoryGraph === 'function';
+  const graphUnavailableReason = connection?.status !== 'connected' && connection?.status !== 'degraded'
+    ? t('c.notConnected')
+    : typeof apiGetMemoryGraph === 'function'
+      ? ''
+      : t('c.notWired');
 
   useEffect(() => {
     const handler = () => {
@@ -1006,7 +1022,14 @@ function MemoryPage() {
       {/* ── Content ───────────────────────────────────────────── */}
       <div className="mem-content">
         {viewMode === 'graph' ? (
-          <MemoryGraphView filter={filter} onSelect={setSelected} selected={selected} />
+          <MemoryGraphView
+            filter={filter}
+            onSelect={setSelected}
+            selected={selected}
+            graphAvailable={graphAvailable}
+            graphUnavailableReason={graphUnavailableReason}
+            getMemoryGraph={apiGetMemoryGraph}
+          />
         ) : (
           /* List */
           <div className="mem-list">
