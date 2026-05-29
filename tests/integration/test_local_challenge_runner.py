@@ -1,0 +1,55 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from tests.integration.local_challenge_catalog import get_local_challenge_sample
+from tests.integration.local_challenge_runner import run_active_local_challenge_sample
+
+
+pytestmark = pytest.mark.integration
+
+
+@pytest.mark.asyncio
+async def test_local_challenge_runner_solves_easy_login_directory_variant(monkeypatch):
+    sample = get_local_challenge_sample("easy_login")
+
+    result = await run_active_local_challenge_sample(
+        sample,
+        variant="directory",
+        monkeypatch=monkeypatch,
+    )
+
+    assert result.success is True
+    assert result.flag == "flag{dummy_flag_for_testing}"
+
+
+@pytest.mark.asyncio
+async def test_local_challenge_runner_solves_easy_login_zip_variant(monkeypatch, tmp_path: Path):
+    sample = get_local_challenge_sample("easy_login")
+
+    result = await run_active_local_challenge_sample(
+        sample,
+        variant="zip",
+        monkeypatch=monkeypatch,
+        tmp_dir=tmp_path,
+    )
+
+    assert result.success is True
+    assert result.flag == "flag{dummy_flag_for_testing}"
+
+
+@pytest.mark.asyncio
+async def test_local_challenge_runner_keeps_no_asset_easy_login_honest(monkeypatch):
+    sample = get_local_challenge_sample("easy_login")
+
+    result = await run_active_local_challenge_sample(
+        sample,
+        variant="none",
+        monkeypatch=monkeypatch,
+    )
+
+    assert result.success is False
+    assert result.flag is None
+    assert result.reason
