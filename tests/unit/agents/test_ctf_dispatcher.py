@@ -3992,3 +3992,122 @@ def test_extract_local_challenge_root_from_hint_can_unpack_local_zip_artifact(tm
     assert resolved is not None
     assert resolved.name == "easy_login"
     assert (resolved / "docker-compose.yml").exists()
+
+
+class _DirectFlagPageRuntime:
+    def __init__(self):
+        self.environment = SimpleNamespace(available_tools=[])
+
+    async def browser_action(self, action: str, **kwargs):
+        if action == "navigate":
+            return {"url": "http://ctf.local/", "title": "flag-home"}
+        if action == "get_content":
+            return {
+                "content": "welcome flag{ledger_verified_ok}",
+                "html": "<html><body>flag{ledger_verified_ok}</body></html>",
+            }
+        if action == "get_forms":
+            return {"forms": []}
+        return {"error": f"unexpected action: {action}"}
+
+    async def proxy_action(self, action: str, **kwargs):
+        return {"status_code": 404, "body": ""}
+
+    async def execute_command(self, command: str, timeout: int = 180):
+        return SimpleNamespace(exit_code=0, stdout="", stderr="")
+
+
+@pytest.mark.asyncio
+async def test_dispatcher_writes_session_ledger_events_for_verified_flag(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from pentestagent.harness.session_ledger import SessionLedger
+
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_ledger_verified.json")
+    notes_module._notes.clear()
+
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DirectFlagPageRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+
+    result = await dispatcher.run(
+        target="http://ctf.local/",
+        goal="拿到flag",
+        type="web",
+        hint="",
+        run_id="run-ledger-verified",
+        ledger_root=tmp_path / "ledgers",
+    )
+
+    events = SessionLedger(tmp_path / "ledgers").read_events("run-ledger-verified")
+
+    assert result.success is True
+    assert result.flag == "flag{ledger_verified_ok}"
+    assert [event["event_type"] for event in events] == [
+        "dispatcher_started",
+        "verification_decision",
+        "task_finished",
+    ]
+    assert events[1]["payload"]["decision"] == "verified"
+    assert events[2]["payload"]["success"] is True
+    assert events[2]["payload"]["flag"] == "flag{ledger_verified_ok}"
+
+
+@pytest.mark.asyncio
+async def test_dispatcher_writes_missing_tools_event_to_session_ledger(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from pentestagent.harness.session_ledger import SessionLedger
+
+    set_notes_file(tmp_path / "notes_ledger_missing.json")
+    notes_module._notes.clear()
+
+    async def fake_phase_recon(self, target):
+        return {
+            "html": "",
+            "content": "",
+            "forms": [],
+            "endpoints": [],
+            "recon_missing_tools": ["browser", "http_request"],
+        }
+
+    monkeypatch.setattr(
+        CTFTaskDispatcher,
+        "_phase_recon",
+        fake_phase_recon,
+    )
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+
+    dispatcher = CTFTaskDispatcher(runtime=_DirectFlagPageRuntime(), progress_callback=None)
+
+    result = await dispatcher.run(
+        target="http://ctf.local/",
+        goal="拿到flag",
+        type="web",
+        hint="",
+        run_id="run-ledger-missing",
+        ledger_root=tmp_path / "ledgers",
+    )
+
+    events = SessionLedger(tmp_path / "ledgers").read_events("run-ledger-missing")
+
+    assert result.success is False
+    assert result.missing_tools == ["browser", "http_request"]
+    assert [event["event_type"] for event in events] == [
+        "dispatcher_started",
+        "missing_tools_recorded",
+        "task_finished",
+    ]
+    assert events[1]["payload"]["missing_tools"] == ["browser", "http_request"]
+    assert events[2]["payload"]["success"] is False
