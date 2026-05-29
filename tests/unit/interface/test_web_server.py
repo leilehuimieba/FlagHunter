@@ -1635,6 +1635,82 @@ def test_task_detail_payload_prefers_task_session_id_over_metrics_session_id(
     assert detail["messages"][0]["content"] == "from snapshot"
 
 
+def test_task_detail_payload_exposes_harness_session_context_when_run_artifacts_exist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    from pentestagent.agents.pa_agent.ctf_state import CTFState
+    from pentestagent.harness.artifact_registry import ArtifactRegistry
+    from pentestagent.harness.checkpoint_store import CheckpointStore
+    from pentestagent.harness.session_ledger import SessionLedger
+
+    task = {
+        "id": "task_harness_context",
+        "title": "harness context",
+        "target": "http://ctf.local",
+        "goal": "read harness context",
+        "status": "completed",
+        "createdAt": web_server._now_iso(),
+        "startedAt": web_server._now_iso(),
+        "finishedAt": web_server._now_iso(),
+        "tokensUsed": 12,
+        "toolCalls": 1,
+        "finalFlag": "flag{ctx_ok}",
+        "stopReason": "flag_verified",
+        "currentRunId": "run-harness-context",
+        "sessionId": None,
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    monkeypatch.setattr(web_server, "_pick_metrics_for_task", lambda project_root, item: None)
+    monkeypatch.setattr(
+        web_server,
+        "_pick_session_snapshot",
+        lambda project_root, item: (None, None, {"matchedBy": "none", "confidence": "none", "expectedSessionId": None, "blockedReason": None, "candidateScore": None}),
+    )
+
+    run_id = "run-harness-context"
+    SessionLedger(tmp_path / "loot" / "session_ledgers").append_event(
+        run_id,
+        "task_finished",
+        {"success": True, "flag": "flag{ctx_ok}"},
+    )
+    ArtifactRegistry(tmp_path / "loot" / "artifact_registry").register_artifact(
+        run_id=run_id,
+        kind="artifact",
+        title="ctf_backup_candidate",
+        location="http://ctf.local/www.zip",
+        producer="notes",
+        metadata={"category": "artifact"},
+    )
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    state.stop_reason = "flag_verified"
+    state.add_flag(
+        "flag{ctx_ok}",
+        level="verified",
+        evidence_source="http-response",
+        confidence=1.0,
+    )
+    CheckpointStore(tmp_path / "loot" / "checkpoints").save_checkpoint(
+        run_id=run_id,
+        label="task_finished",
+        state_snapshot=state.to_snapshot(),
+        metadata={"success": True},
+    )
+
+    detail = web_server._task_detail_payload(tmp_path, task)
+
+    assert detail["detailSource"]["sessionContext"] == "harness"
+    assert detail["sessionContext"]["runId"] == run_id
+    assert detail["sessionContext"]["recentEvents"][0]["type"] == "task_finished"
+    assert detail["sessionContext"]["artifacts"][0]["title"] == "ctf_backup_candidate"
+    assert detail["sessionContext"]["latestCheckpoint"]["stopReason"] == "flag_verified"
+
+
 def test_pick_session_snapshot_falls_back_to_heuristic_when_explicit_session_missing(tmp_path: Path):
     sessions_dir = tmp_path / "loot" / "sessions"
     sessions_dir.mkdir(parents=True, exist_ok=True)
