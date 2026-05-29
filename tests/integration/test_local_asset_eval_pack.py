@@ -8,13 +8,16 @@ Covers:
 
 from __future__ import annotations
 
-import zipfile
 from pathlib import Path
 
 import pytest
 
 from pentestagent.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
 from tests.integration.easy_login_acceptance import extract_flag
+from tests.integration.local_challenge_catalog import (
+    build_challenge_context,
+    get_local_challenge_sample,
+)
 
 
 pytestmark = pytest.mark.integration
@@ -103,7 +106,7 @@ class _EasyLoginLocalAssetRuntime:
 
 @pytest.fixture
 def easy_login_dir() -> Path:
-    path = Path(r"D:\webstudy\CTF\2026\CTF比赛题\easy_login")
+    path = get_local_challenge_sample("easy_login").challenge_path
     if not path.exists():
         pytest.skip("easy_login directory not available")
     return path
@@ -115,14 +118,15 @@ async def test_eval_local_asset_directory_only_success(monkeypatch, easy_login_d
         "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
+    sample = get_local_challenge_sample("easy_login")
     runtime = _EasyLoginLocalAssetRuntime(enable_local_pivot=True)
     dispatcher = CTFTaskDispatcher(runtime=runtime, progress_callback=None)
 
     result = await dispatcher.run(
-        target="http://127.0.0.1:3000",
-        goal="solve easy_login",
+        target=sample.target,
+        goal=sample.minimal_prompt,
         type="web",
-        challenge_context={"challengePath": str(easy_login_dir), "artifactPaths": []},
+        challenge_context=build_challenge_context(sample, variant="directory"),
     )
 
     assert result.success is True
@@ -136,20 +140,15 @@ async def test_eval_local_asset_zip_only_success(monkeypatch, tmp_path: Path, ea
         "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
-    archive_path = tmp_path / "easy_login_eval.zip"
-    with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as zf:
-        for file_path in easy_login_dir.rglob("*"):
-            if file_path.is_file():
-                zf.write(file_path, arcname=str(Path("easy_login") / file_path.relative_to(easy_login_dir)))
-
+    sample = get_local_challenge_sample("easy_login")
     runtime = _EasyLoginLocalAssetRuntime(enable_local_pivot=True)
     dispatcher = CTFTaskDispatcher(runtime=runtime, progress_callback=None)
 
     result = await dispatcher.run(
-        target="http://127.0.0.1:3000",
-        goal="solve easy_login",
+        target=sample.target,
+        goal=sample.minimal_prompt,
         type="web",
-        challenge_context={"challengePath": None, "artifactPaths": [str(archive_path)]},
+        challenge_context=build_challenge_context(sample, variant="zip", tmp_dir=tmp_path),
     )
 
     assert result.success is True
@@ -162,12 +161,13 @@ async def test_eval_no_local_asset_is_honest_not_false_verified(monkeypatch):
         "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
+    sample = get_local_challenge_sample("easy_login")
     runtime = _EasyLoginLocalAssetRuntime(enable_local_pivot=False)
     dispatcher = CTFTaskDispatcher(runtime=runtime, progress_callback=None)
 
     result = await dispatcher.run(
-        target="http://127.0.0.1:3000",
-        goal="solve easy_login",
+        target=sample.target,
+        goal=sample.minimal_prompt,
         type="web",
         hint="",
     )
