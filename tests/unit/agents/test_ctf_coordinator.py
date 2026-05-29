@@ -101,5 +101,43 @@ async def test_coordinator_execute_calls_dispatcher_run_without_redelegation():
 
     assert result is sentinel
     assert captured["_delegate_to_coordinator"] is False
-    assert captured["target"] == "127.0.0.1:3000"
+    assert captured["target"] == "http://127.0.0.1:3000"
     assert captured["goal"] == "goal"
+
+
+@pytest.mark.asyncio
+async def test_coordinator_normalizes_public_run_inputs_before_dispatch():
+    coordinator = CTFCoordinator()
+    sentinel = SolveResult(success=False, reason="normalized")
+    captured: dict[str, object] = {}
+
+    class _Dispatcher:
+        async def run(self, **kwargs):
+            captured.update(kwargs)
+            return sentinel
+
+    result = await coordinator.execute(
+        _Dispatcher(),
+        target="127.0.0.1:3000/",
+        goal="   ",
+        type="",
+        hint="  local hint  ",
+        submit_profile=None,
+        challenge_context={
+            "challengePath": "   ",
+            "artifactPaths": [" C:/tmp/app.zip ", "", "C:/tmp/app.zip"],
+        },
+        run_id="run-normalize",
+        ledger_root=None,
+        checkpoint_root=None,
+    )
+
+    assert result is sentinel
+    assert captured["target"] == "http://127.0.0.1:3000"
+    assert captured["goal"] == "拿到flag"
+    assert captured["type"] == "auto"
+    assert captured["hint"] == "local hint"
+    assert captured["challenge_context"] == {
+        "challengePath": None,
+        "artifactPaths": ["C:/tmp/app.zip"],
+    }
