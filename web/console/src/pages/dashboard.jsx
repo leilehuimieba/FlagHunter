@@ -80,6 +80,15 @@ function DashboardPage({ onNav }) {
   const [connection, setConnection] = uD(() => currentConnectionState());
   const [windowFilter, setWindowFilter] = uD('24h');
   const [runtimeFilter, setRuntimeFilter] = uD('all');
+  const getDashboard = window.API?.getDashboard;
+  const subscribeEvents = window.API?.subscribeEvents;
+  const dashboardAvailable = ['connected', 'degraded'].includes(connection.status)
+    && typeof getDashboard === 'function';
+  const dashboardUnavailableReason = connection?.status !== 'connected' && connection?.status !== 'degraded'
+    ? t('c.notConnected')
+    : typeof getDashboard === 'function'
+      ? ''
+      : t('c.notWired');
 
   uDE(() => {
     const handler = (e) => {
@@ -94,9 +103,12 @@ function DashboardPage({ onNav }) {
 
   uDE(() => {
     let cancelled = false;
-    if (!window.API?.getDashboard) return () => { cancelled = true; };
+    if (!dashboardAvailable || typeof getDashboard !== 'function') {
+      setLiveData(null);
+      return () => { cancelled = true; };
+    }
 
-    window.API.getDashboard({ window: windowFilter, runtime: runtimeFilter }).then(data => {
+    getDashboard({ window: windowFilter, runtime: runtimeFilter }).then(data => {
       const normalized = normalizeDashboardData(data);
       if (!cancelled && normalized) setLiveData(normalized);
     });
@@ -104,20 +116,20 @@ function DashboardPage({ onNav }) {
     return () => {
       cancelled = true;
     };
-  }, [windowFilter, runtimeFilter]);
+  }, [dashboardAvailable, getDashboard, windowFilter, runtimeFilter]);
 
   // Subscribe to SSE for real-time KPI updates — re-fetch dashboard on task events
   uDE(() => {
-    if (!window.API?.subscribeEvents || !window.API?.getDashboard) return;
-    return window.API.subscribeEvents(ev => {
+    if (!dashboardAvailable || typeof subscribeEvents !== 'function' || typeof getDashboard !== 'function') return;
+    return subscribeEvents(ev => {
       if (ev.type === 'task_status' || ev.type === 'task_created') {
-        window.API.getDashboard({ window: windowFilter, runtime: runtimeFilter }).then(data => {
+        getDashboard({ window: windowFilter, runtime: runtimeFilter }).then(data => {
           const normalized = normalizeDashboardData(data);
           if (normalized) setLiveData(normalized);
         });
       }
     });
-  }, [windowFilter, runtimeFilter]);
+  }, [dashboardAvailable, getDashboard, subscribeEvents, windowFilter, runtimeFilter]);
 
   const hasDashboardData = !!liveData;
   const canReadLiveState = connection.status !== 'disconnected';
@@ -131,9 +143,9 @@ function DashboardPage({ onNav }) {
   const alerts = dashboardData.alerts || [];
   const recentTasks = dashboardData.recentTasks || [];
   const recentToolCalls = dashboardData.recentToolCalls || [];
-  const dashboardEmptyState = canReadLiveState ? t('dash.noData') : t('c.unavailable');
-  const tasksEmptyState = canReadLiveState ? t('tasks.noMatch') : t('c.unavailable');
-  const notesArtifactsEmptyState = canReadLiveState ? t('dash.noData') : t('c.unavailable');
+  const dashboardEmptyState = dashboardAvailable ? t('dash.noData') : dashboardUnavailableReason || t('c.unavailable');
+  const tasksEmptyState = dashboardAvailable ? t('tasks.noMatch') : dashboardUnavailableReason || t('c.unavailable');
+  const notesArtifactsEmptyState = dashboardAvailable ? t('dash.noData') : dashboardUnavailableReason || t('c.unavailable');
   const dashboardSub = canReadLiveState
     ? t('dash.liveSub', kpis.tasksToday || 0, kpis.successToday || 0, kpis.failedToday || 0, kpis.stoppedToday || 0)
     : t('dash.sub');

@@ -23,8 +23,10 @@ def test_dashboard_page_tracks_window_and_runtime_filters_in_live_requests() -> 
 
     assert "const [windowFilter, setWindowFilter] = uD('24h');" in source
     assert "const [runtimeFilter, setRuntimeFilter] = uD('all');" in source
-    assert "window.API.getDashboard({ window: windowFilter, runtime: runtimeFilter }).then(data => {" in source
-    assert "window.API.getDashboard({ window: windowFilter, runtime: runtimeFilter }).then(data => {" in source
+    assert "const getDashboard = window.API?.getDashboard;" in source
+    assert "const dashboardAvailable = ['connected', 'degraded'].includes(connection.status)" in source
+    assert "getDashboard({ window: windowFilter, runtime: runtimeFilter }).then(data => {" in source
+    assert "dashboardUnavailableReason" in source
     assert "value={windowFilter}" in source
     assert "value={runtimeFilter}" in source
 
