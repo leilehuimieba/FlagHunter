@@ -128,6 +128,80 @@ class _VisitUrlExhaustedRuntime:
         return SimpleNamespace(exit_code=0, stdout="", stderr="")
 
 
+class _LocalChallengeLogPivotRuntime:
+    def __init__(self, expected_password: str):
+        self.environment = SimpleNamespace(available_tools=["terminal", "http_request"])
+        self.expected_password = expected_password
+        self.commands: list[str] = []
+        self.requests: list[tuple[str, str, dict[str, object]]] = []
+
+    async def browser_action(self, action: str, **kwargs):
+        if action == "navigate":
+            return {"url": "http://127.0.0.1:3000/", "title": "easy_login"}
+        if action == "get_content":
+            return {
+                "content": "easy_login /login /admin",
+                "html": """
+                <html><body>
+                  <form action="http://127.0.0.1:3000/login" method="post">
+                    <input name="username" />
+                    <input name="password" type="password" />
+                  </form>
+                  <a href="/admin">admin</a>
+                </body></html>
+                """,
+            }
+        if action == "get_forms":
+            return {
+                "forms": [
+                    {
+                        "action": "http://127.0.0.1:3000/login",
+                        "method": "post",
+                        "inputs": [
+                            {"name": "username", "type": "text"},
+                            {"name": "password", "type": "password"},
+                        ],
+                    }
+                ]
+            }
+        return {"error": f"unexpected action: {action}"}
+
+    async def proxy_action(self, action: str, **kwargs):
+        self.requests.append((action, str(kwargs.get("url") or ""), dict(kwargs)))
+        url = str(kwargs.get("url") or "")
+        method = str(kwargs.get("method") or "").upper()
+
+        if action == "get" and url == "http://127.0.0.1:3000/":
+            return {"status_code": 200, "body": "<html>login</html>", "final_url": url}
+
+        if action == "request" and method == "POST" and url == "http://127.0.0.1:3000/login":
+            data = kwargs.get("data") or {}
+            if data.get("username") == "admin" and data.get("password") == self.expected_password:
+                return {
+                    "status_code": 200,
+                    "body": '{"ok":true,"sid":"sid-admin"}',
+                    "headers": {"set-cookie": "sid=sid-admin; Path=/"},
+                    "final_url": "http://127.0.0.1:3000/",
+                }
+            return {"status_code": 401, "body": '{"error":"invalid credentials"}'}
+
+        if action == "request" and method == "GET" and url == "http://127.0.0.1:3000/admin":
+            cookie = str((kwargs.get("headers") or {}).get("Cookie") or "")
+            if "sid=sid-admin" in cookie:
+                return {"status_code": 200, "body": "flag{local_compose_log_pivot_ok}"}
+            return {"status_code": 403, "body": '{"error":"admin only"}'}
+
+        return {"status_code": 404, "body": ""}
+
+    async def execute_command(self, command: str, timeout: int = 180):
+        self.commands.append(command)
+        return SimpleNamespace(
+            exit_code=0,
+            stdout=f"[init] Admin password set to: {self.expected_password}\n",
+            stderr="",
+        )
+
+
 class _DispatcherSQLiRuntime:
     def __init__(self):
         self.environment = SimpleNamespace(available_tools=[])
@@ -1086,6 +1160,113 @@ async def test_visit_url_exhaustion_is_not_replayed_across_web_and_xss_chains(mo
     assert collector.stopped == 1
     assert collector.wait_calls == 4
     assert len([request for request in runtime.requests if request[0] == "request"]) == 4
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
+async def test_xss_chain_can_pivot_to_local_compose_logs_for_admin_login(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    challenge_dir = tmp_path / "easy_login"
+    challenge_dir.mkdir()
+    (challenge_dir / "docker-compose.yml").write_text("services:\n  app:\n    image: easy_login-app\n", encoding="utf-8")
+    set_notes_file(tmp_path / "notes_local_compose_log_pivot.json")
+    notes_module._notes.clear()
+
+    runtime = _LocalChallengeLogPivotRuntime(expected_password="super-secret-admin-pass")
+    dispatcher = CTFTaskDispatcher(
+        runtime=runtime,
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(target="http://127.0.0.1:3000", goal="拿到flag", detected_type="web")
+
+    outcome = await dispatcher._execute_xss_chain(
+        "http://127.0.0.1:3000",
+        {
+            "url": "http://127.0.0.1:3000/",
+            "endpoints": ["/admin"],
+            "forms": [
+                {
+                    "action": "http://127.0.0.1:3000/login",
+                    "method": "post",
+                    "inputs": [
+                        {"name": "username", "type": "text"},
+                        {"name": "password", "type": "password"},
+                    ],
+                }
+            ],
+        },
+        str(challenge_dir),
+    )
+
+    assert outcome.flag == "flag{local_compose_log_pivot_ok}"
+    assert outcome.progress is True
+    assert "local challenge log pivot" in (outcome.reason or "").lower()
+    assert any("docker compose" in command.lower() for command in runtime.commands)
+    assert any(str(challenge_dir) in command for command in runtime.commands)
+    assert any(
+        request[0] == "request"
+        and request[1] == "http://127.0.0.1:3000/login"
+        and request[2].get("data") == {"username": "admin", "password": "super-secret-admin-pass"}
+        for request in runtime.requests
+    )
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
+async def test_local_compose_log_pivot_prefers_discovered_login_endpoint_over_root_form_action(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    challenge_dir = tmp_path / "easy_login_js_form"
+    challenge_dir.mkdir()
+    (challenge_dir / "docker-compose.yml").write_text("services:\n  app:\n    image: easy_login-app\n", encoding="utf-8")
+    set_notes_file(tmp_path / "notes_local_compose_js_form_pivot.json")
+    notes_module._notes.clear()
+
+    runtime = _LocalChallengeLogPivotRuntime(expected_password="js-form-admin-pass")
+    dispatcher = CTFTaskDispatcher(
+        runtime=runtime,
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(target="http://127.0.0.1:3000", goal="拿到flag", detected_type="web")
+
+    outcome = await dispatcher._attempt_local_challenge_log_pivot(
+        target="http://127.0.0.1:3000",
+        page_features={
+            "url": "http://127.0.0.1:3000/",
+            "endpoints": ["/login", "/admin", "/visit"],
+            "forms": [
+                {
+                    "action": "http://localhost:3000/",
+                    "method": "get",
+                    "inputs": [
+                        {"name": "username", "type": "text"},
+                        {"name": "password", "type": "password"},
+                    ],
+                }
+            ],
+        },
+        hint=str(challenge_dir),
+    )
+
+    assert outcome.flag == "flag{local_compose_log_pivot_ok}"
+    assert any(
+        request[0] == "request"
+        and request[1] == "http://127.0.0.1:3000/login"
+        for request in runtime.requests
+    )
     notes_module._notes.clear()
     notes_module._custom_notes_file = None
     notes_module._loaded_notes_file = None
