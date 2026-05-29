@@ -8,6 +8,7 @@ import pentestagent.tools.notes as notes_module
 from pentestagent.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
 from pentestagent.agents.pa_agent.ctf_state import CTFState
 from pentestagent.harness.checkpoint_store import CheckpointStore
+from pentestagent.harness.session_ledger import SessionLedger
 from pentestagent.tools.notes import set_notes_file
 
 
@@ -58,10 +59,12 @@ async def test_dispatcher_writes_start_and_finish_checkpoints(
         type="web",
         hint="",
         run_id="run-checkpoint-dispatcher",
+        ledger_root=tmp_path / "ledgers",
         checkpoint_root=tmp_path / "checkpoints",
     )
 
     store = CheckpointStore(tmp_path / "checkpoints")
+    events = SessionLedger(tmp_path / "ledgers").read_events("run-checkpoint-dispatcher")
     checkpoints = store.list_checkpoints("run-checkpoint-dispatcher")
     latest = store.latest_checkpoint("run-checkpoint-dispatcher")
 
@@ -71,9 +74,20 @@ async def test_dispatcher_writes_start_and_finish_checkpoints(
         "dispatcher_started",
         "task_finished",
     ]
+    assert [event["event_type"] for event in events] == [
+        "dispatcher_started",
+        "checkpoint_written",
+        "verification_decision",
+        "artifact_registered",
+        "task_finished",
+        "checkpoint_written",
+    ]
     assert latest is not None
     assert latest["metadata"]["success"] is True
     assert latest["metadata"]["flag"] == "flag{checkpoint_verified_ok}"
+    assert events[1]["payload"]["label"] == "dispatcher_started"
+    assert events[3]["payload"]["title"] == "ctf_flag"
+    assert events[5]["payload"]["label"] == "task_finished"
     restored = CTFState.from_snapshot(latest["state"])
     assert restored.target == "http://ctf.local"
     assert restored.verified_flags[0].value == "flag{checkpoint_verified_ok}"
