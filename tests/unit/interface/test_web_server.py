@@ -421,6 +421,9 @@ async def test_post_task_returns_normalized_contract_fields(web_client: TestClie
 
     assert task["messages"] == []
     assert task["attachments"] == []
+    assert task["mode"] == "pentest"
+    assert task["modeSubtype"] == "unknown"
+    assert task["goalStyle"] == "evidence"
     assert task["capabilities"] == {
         "hint": True,
         "stop": True,
@@ -428,6 +431,27 @@ async def test_post_task_returns_normalized_contract_fields(web_client: TestClie
         "retry": False,
         "attachments": True,
     }
+
+
+@pytest.mark.asyncio
+async def test_post_task_resolves_auto_mode_to_ctf_contract(web_client: TestClient):
+    created = await web_client.post(
+        "/api/tasks",
+        json={
+            "title": "ctf-auto",
+            "target": "http://challenge.test",
+            "goal": "analyze challenge",
+            "mode": "auto",
+            "ctfType": "web",
+        },
+    )
+
+    assert created.status == 201
+    task = await created.json()
+
+    assert task["mode"] == "ctf"
+    assert task["modeSubtype"] == "web"
+    assert task["goalStyle"] == "flag"
 
 
 def test_task_detail_payload_re_normalizes_dirty_derived_collections(
@@ -871,6 +895,9 @@ async def test_trace_replay_creates_new_task_from_existing_run(web_client: TestC
     original_task = await created.json()
     original_task_id = original_task["id"]
     original_run_id = original_task["currentRunId"]
+    web_server._tasks[original_task_id]["mode"] = "ctf"
+    web_server._tasks[original_task_id]["modeSubtype"] = "web"
+    web_server._tasks[original_task_id]["goalStyle"] = "flag"
 
     replay_resp = await web_client.post(f"/api/traces/{original_run_id}/replay")
 
@@ -881,6 +908,9 @@ async def test_trace_replay_creates_new_task_from_existing_run(web_client: TestC
     assert replayed_task["title"] == original_task["title"]
     assert replayed_task["target"] == original_task["target"]
     assert replayed_task["goal"] == original_task["goal"]
+    assert replayed_task["mode"] == "ctf"
+    assert replayed_task["modeSubtype"] == "web"
+    assert replayed_task["goalStyle"] == "flag"
     assert replayed_task["status"] == "queued"
     assert replayed_task["capabilities"] == {
         "hint": True,
@@ -902,6 +932,9 @@ async def test_task_retry_creates_new_task_from_finished_task(web_client: TestCl
     original_task = await created.json()
     original_task_id = original_task["id"]
     original_run_id = original_task["currentRunId"]
+    web_server._tasks[original_task_id]["mode"] = "ctf"
+    web_server._tasks[original_task_id]["modeSubtype"] = "web"
+    web_server._tasks[original_task_id]["goalStyle"] = "flag"
 
     stopped = await web_client.post(f"/api/tasks/{original_task_id}/stop")
     assert stopped.status == 200
@@ -915,6 +948,9 @@ async def test_task_retry_creates_new_task_from_finished_task(web_client: TestCl
     assert retried_task["title"] == original_task["title"]
     assert retried_task["target"] == original_task["target"]
     assert retried_task["goal"] == original_task["goal"]
+    assert retried_task["mode"] == "ctf"
+    assert retried_task["modeSubtype"] == "web"
+    assert retried_task["goalStyle"] == "flag"
     assert retried_task["status"] == "queued"
     assert retried_task["capabilities"] == {
         "hint": True,
@@ -938,6 +974,9 @@ async def test_task_continue_accepts_running_task_without_creating_new_task(web_
     task_id = task["id"]
     run_id = task["currentRunId"]
 
+    web_server._tasks[task_id]["mode"] = "ctf"
+    web_server._tasks[task_id]["modeSubtype"] = "web"
+    web_server._tasks[task_id]["goalStyle"] = "flag"
     web_server._tasks[task_id]["status"] = "running"
     web_server._tasks[task_id]["startedAt"] = web_server._now_iso()
 
@@ -951,6 +990,9 @@ async def test_task_continue_accepts_running_task_without_creating_new_task(web_
     assert continue_result["accepted"] is True
     assert set(web_server._tasks.keys()) == {task_id}
     assert web_server._tasks[task_id]["status"] == "running"
+    assert web_server._tasks[task_id]["mode"] == "ctf"
+    assert web_server._tasks[task_id]["modeSubtype"] == "web"
+    assert web_server._tasks[task_id]["goalStyle"] == "flag"
     assert web_server._tasks[task_id]["hints"][-1]["text"] == "__continue__"
 
 
