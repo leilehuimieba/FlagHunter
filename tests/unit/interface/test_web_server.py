@@ -497,6 +497,44 @@ async def test_post_task_returns_normalized_contract_fields(web_client: TestClie
 
 
 @pytest.mark.asyncio
+async def test_post_task_pentest_contract_omits_ctf_legacy_fields(web_client: TestClient):
+    created = await web_client.post(
+        "/api/tasks",
+        json={"title": "pentest-shape", "target": "http://pentest.test", "goal": "verify pentest shape"},
+    )
+
+    assert created.status == 201
+    task = await created.json()
+
+    assert task["mode"] == "pentest"
+    assert task["modeSubtype"] == "unknown"
+    assert "ctfType" not in task
+    assert "detectedType" not in task
+
+
+@pytest.mark.asyncio
+async def test_post_task_ctf_contract_preserves_ctf_type_without_legacy_field(web_client: TestClient):
+    created = await web_client.post(
+        "/api/tasks",
+        json={
+            "title": "ctf-shape",
+            "target": "http://challenge.test",
+            "mode": "ctf",
+            "ctfType": "web",
+            "goal": "capture the flag",
+        },
+    )
+
+    assert created.status == 201
+    task = await created.json()
+
+    assert task["mode"] == "ctf"
+    assert task["modeSubtype"] == "web"
+    assert task["ctfType"] == "web"
+    assert "detectedType" not in task
+
+
+@pytest.mark.asyncio
 async def test_post_task_persists_mode_aware_default_goal_when_goal_omitted(web_client: TestClient):
     created = await web_client.post(
         "/api/tasks",
@@ -770,6 +808,330 @@ def test_run_agent_task_routes_ctf_mode_to_ctf_dispatcher(
     assert "capture the flag" in str(_FakeDispatcher.calls[0]["goal"]).lower()
     assert web_server._tasks["task_ctf_route"]["status"] == "success"
     assert web_server._tasks["task_ctf_route"]["finalFlag"] == "flag{dispatcher_route}"
+
+
+def test_run_agent_task_routes_ctf_progress_messages_into_logs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    class _FakeRuntime:
+        async def stop(self):
+            return None
+
+    class _FakeDispatcher:
+        def __init__(self, runtime, progress_callback=None, **kwargs):
+            self.runtime = runtime
+            self.progress_callback = progress_callback
+
+        async def run(self, target, goal, type=None, hint=None, submit_profile=None):
+            if self.progress_callback is not None:
+                self.progress_callback("dispatcher phase 1")
+            return types.SimpleNamespace(
+                success=True,
+                flag="flag{dispatcher_progress}",
+                reason="dispatcher solved",
+                notes=[],
+                chain_used=["recon"],
+                missing_tools=[],
+            )
+
+    fake_pa_agent = types.ModuleType("pentestagent.agents.pa_agent")
+    fake_pa_agent.PentestAgentAgent = lambda **kwargs: (_ for _ in ()).throw(
+        AssertionError("PentestAgentAgent should not be constructed for ctf mode")
+    )
+    fake_dispatcher_module = types.ModuleType("pentestagent.agents.pa_agent.ctf_dispatcher")
+    fake_dispatcher_module.CTFTaskDispatcher = _FakeDispatcher
+    fake_settings = types.ModuleType("pentestagent.config.settings")
+    fake_settings.get_settings = lambda: types.SimpleNamespace(model="test-model")
+    fake_initializer = types.ModuleType("pentestagent.interface.initializer")
+    fake_initializer.activate_workspace_for_target = lambda target: "workspace"
+
+    async def _fake_build_runtime(**kwargs):
+        return _FakeRuntime(), {"selected": "local", "connected": True}
+
+    fake_initializer.build_runtime = _fake_build_runtime
+    fake_llm = types.ModuleType("pentestagent.llm")
+    fake_llm.LLM = lambda model, rag_engine=None: object()
+    fake_tools = types.ModuleType("pentestagent.tools")
+    fake_tools.get_all_tools = lambda: []
+
+    captured_logs: list[tuple[str, str, str]] = []
+
+    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent", fake_pa_agent)
+    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent.ctf_dispatcher", fake_dispatcher_module)
+    monkeypatch.setitem(sys.modules, "pentestagent.config.settings", fake_settings)
+    monkeypatch.setitem(sys.modules, "pentestagent.interface.initializer", fake_initializer)
+    monkeypatch.setitem(sys.modules, "pentestagent.llm", fake_llm)
+    monkeypatch.setitem(sys.modules, "pentestagent.tools", fake_tools)
+    monkeypatch.setattr(web_server, "emit_log", lambda level, source, message: captured_logs.append((level, source, message)))
+    monkeypatch.setattr(web_server, "_persist_tasks", lambda project_root: None)
+    monkeypatch.setattr(web_server._bus, "emit", lambda event: None)
+
+    web_server._tasks["task_ctf_progress"] = {
+        "id": "task_ctf_progress",
+        "title": "ctf progress",
+        "target": "http://challenge.test",
+        "goal": "",
+        "ctfType": "web",
+        "mode": "ctf",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
+        "maxIter": 1,
+        "docker": False,
+        "flagFormat": r"flag\{[^}]+\}",
+        "status": "queued",
+        "createdAt": web_server._now_iso(),
+        "startedAt": None,
+        "finishedAt": None,
+        "tokensUsed": 0,
+        "toolCalls": 0,
+        "finalFlag": None,
+        "stopReason": None,
+        "currentRunId": "run_ctf_progress",
+        "sparkSeed": [1, 1, 1, 1],
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    web_server._run_agent_task(
+        "task_ctf_progress",
+        {
+            "target": "http://challenge.test",
+            "goal": "",
+            "ctfType": "web",
+            "mode": "ctf",
+            "modeSubtype": "web",
+            "goalStyle": "flag",
+            "maxIter": 1,
+            "docker": False,
+            "flagFormat": r"flag\{[^}]+\}",
+        },
+        tmp_path,
+    )
+
+    assert any(level == "info" and source == "ctf.dispatcher" and message == "dispatcher phase 1" for level, source, message in captured_logs)
+    assert web_server._tasks["task_ctf_progress"]["finalFlag"] == "flag{dispatcher_progress}"
+
+
+def test_run_agent_task_emits_ctf_dispatcher_lifecycle_summary_logs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    class _FakeRuntime:
+        async def stop(self):
+            return None
+
+    class _FakeDispatcher:
+        def __init__(self, runtime, progress_callback=None, **kwargs):
+            self.runtime = runtime
+            self.progress_callback = progress_callback
+
+        async def run(self, target, goal, type=None, hint=None, submit_profile=None):
+            return types.SimpleNamespace(
+                success=True,
+                flag="flag{dispatcher_summary}",
+                reason="dispatcher solved",
+                notes=[],
+                chain_used=["recon", "auth_form_sqli"],
+                missing_tools=[],
+            )
+
+    fake_pa_agent = types.ModuleType("pentestagent.agents.pa_agent")
+    fake_pa_agent.PentestAgentAgent = lambda **kwargs: (_ for _ in ()).throw(
+        AssertionError("PentestAgentAgent should not be constructed for ctf mode")
+    )
+    fake_dispatcher_module = types.ModuleType("pentestagent.agents.pa_agent.ctf_dispatcher")
+    fake_dispatcher_module.CTFTaskDispatcher = _FakeDispatcher
+    fake_settings = types.ModuleType("pentestagent.config.settings")
+    fake_settings.get_settings = lambda: types.SimpleNamespace(model="test-model")
+    fake_initializer = types.ModuleType("pentestagent.interface.initializer")
+    fake_initializer.activate_workspace_for_target = lambda target: "workspace"
+
+    async def _fake_build_runtime(**kwargs):
+        return _FakeRuntime(), {"selected": "local", "connected": True}
+
+    fake_initializer.build_runtime = _fake_build_runtime
+    fake_llm = types.ModuleType("pentestagent.llm")
+    fake_llm.LLM = lambda model, rag_engine=None: object()
+    fake_tools = types.ModuleType("pentestagent.tools")
+    fake_tools.get_all_tools = lambda: []
+
+    captured_logs: list[tuple[str, str, str]] = []
+
+    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent", fake_pa_agent)
+    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent.ctf_dispatcher", fake_dispatcher_module)
+    monkeypatch.setitem(sys.modules, "pentestagent.config.settings", fake_settings)
+    monkeypatch.setitem(sys.modules, "pentestagent.interface.initializer", fake_initializer)
+    monkeypatch.setitem(sys.modules, "pentestagent.llm", fake_llm)
+    monkeypatch.setitem(sys.modules, "pentestagent.tools", fake_tools)
+    monkeypatch.setattr(web_server, "emit_log", lambda level, source, message: captured_logs.append((level, source, message)))
+    monkeypatch.setattr(web_server, "_persist_tasks", lambda project_root: None)
+    monkeypatch.setattr(web_server._bus, "emit", lambda event: None)
+
+    web_server._tasks["task_ctf_summary"] = {
+        "id": "task_ctf_summary",
+        "title": "ctf summary",
+        "target": "http://challenge.test",
+        "goal": "",
+        "ctfType": "web",
+        "mode": "ctf",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
+        "maxIter": 1,
+        "docker": False,
+        "flagFormat": r"flag\{[^}]+\}",
+        "status": "queued",
+        "createdAt": web_server._now_iso(),
+        "startedAt": None,
+        "finishedAt": None,
+        "tokensUsed": 0,
+        "toolCalls": 0,
+        "finalFlag": None,
+        "stopReason": None,
+        "currentRunId": "run_ctf_summary",
+        "sparkSeed": [1, 1, 1, 1],
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    web_server._run_agent_task(
+        "task_ctf_summary",
+        {
+            "target": "http://challenge.test",
+            "goal": "",
+            "ctfType": "web",
+            "mode": "ctf",
+            "modeSubtype": "web",
+            "goalStyle": "flag",
+            "maxIter": 1,
+            "docker": False,
+            "flagFormat": r"flag\{[^}]+\}",
+        },
+        tmp_path,
+    )
+
+    assert any(
+        level == "info" and source == "ctf.dispatcher" and "started" in message and "subtype: web" in message
+        for level, source, message in captured_logs
+    )
+    assert any(
+        level == "info" and source == "ctf.dispatcher" and message == "chains: recon, auth_form_sqli"
+        for level, source, message in captured_logs
+    )
+
+
+def test_run_agent_task_emits_ctf_dispatcher_missing_tools_log_on_stop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    class _FakeRuntime:
+        async def stop(self):
+            return None
+
+    class _FakeDispatcher:
+        def __init__(self, runtime, progress_callback=None, **kwargs):
+            self.runtime = runtime
+            self.progress_callback = progress_callback
+
+        async def run(self, target, goal, type=None, hint=None, submit_profile=None):
+            return types.SimpleNamespace(
+                success=False,
+                flag=None,
+                reason="missing tools",
+                notes=[],
+                chain_used=["recon"],
+                missing_tools=["browser", "sqlmap"],
+            )
+
+    fake_pa_agent = types.ModuleType("pentestagent.agents.pa_agent")
+    fake_pa_agent.PentestAgentAgent = lambda **kwargs: (_ for _ in ()).throw(
+        AssertionError("PentestAgentAgent should not be constructed for ctf mode")
+    )
+    fake_dispatcher_module = types.ModuleType("pentestagent.agents.pa_agent.ctf_dispatcher")
+    fake_dispatcher_module.CTFTaskDispatcher = _FakeDispatcher
+    fake_settings = types.ModuleType("pentestagent.config.settings")
+    fake_settings.get_settings = lambda: types.SimpleNamespace(model="test-model")
+    fake_initializer = types.ModuleType("pentestagent.interface.initializer")
+    fake_initializer.activate_workspace_for_target = lambda target: "workspace"
+
+    async def _fake_build_runtime(**kwargs):
+        return _FakeRuntime(), {"selected": "local", "connected": True}
+
+    fake_initializer.build_runtime = _fake_build_runtime
+    fake_llm = types.ModuleType("pentestagent.llm")
+    fake_llm.LLM = lambda model, rag_engine=None: object()
+    fake_tools = types.ModuleType("pentestagent.tools")
+    fake_tools.get_all_tools = lambda: []
+
+    captured_logs: list[tuple[str, str, str]] = []
+
+    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent", fake_pa_agent)
+    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent.ctf_dispatcher", fake_dispatcher_module)
+    monkeypatch.setitem(sys.modules, "pentestagent.config.settings", fake_settings)
+    monkeypatch.setitem(sys.modules, "pentestagent.interface.initializer", fake_initializer)
+    monkeypatch.setitem(sys.modules, "pentestagent.llm", fake_llm)
+    monkeypatch.setitem(sys.modules, "pentestagent.tools", fake_tools)
+    monkeypatch.setattr(web_server, "emit_log", lambda level, source, message: captured_logs.append((level, source, message)))
+    monkeypatch.setattr(web_server, "_persist_tasks", lambda project_root: None)
+    monkeypatch.setattr(web_server._bus, "emit", lambda event: None)
+
+    web_server._tasks["task_ctf_missing_tools"] = {
+        "id": "task_ctf_missing_tools",
+        "title": "ctf missing tools",
+        "target": "http://challenge.test",
+        "goal": "",
+        "ctfType": "web",
+        "mode": "ctf",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
+        "maxIter": 1,
+        "docker": False,
+        "flagFormat": r"flag\{[^}]+\}",
+        "status": "queued",
+        "createdAt": web_server._now_iso(),
+        "startedAt": None,
+        "finishedAt": None,
+        "tokensUsed": 0,
+        "toolCalls": 0,
+        "finalFlag": None,
+        "stopReason": None,
+        "currentRunId": "run_ctf_missing_tools",
+        "sparkSeed": [1, 1, 1, 1],
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    web_server._run_agent_task(
+        "task_ctf_missing_tools",
+        {
+            "target": "http://challenge.test",
+            "goal": "",
+            "ctfType": "web",
+            "mode": "ctf",
+            "modeSubtype": "web",
+            "goalStyle": "flag",
+            "maxIter": 1,
+            "docker": False,
+            "flagFormat": r"flag\{[^}]+\}",
+        },
+        tmp_path,
+    )
+
+    assert any(
+        level == "warn" and source == "ctf.dispatcher" and message == "missing tools: browser, sqlmap"
+        for level, source, message in captured_logs
+    )
+    assert web_server._tasks["task_ctf_missing_tools"]["status"] == "stopped"
+    assert web_server._tasks["task_ctf_missing_tools"]["stopReason"] == "missing tools"
 
 
 def test_task_detail_payload_re_normalizes_dirty_derived_collections(
@@ -1269,6 +1631,8 @@ async def test_task_retry_creates_new_task_from_finished_task(web_client: TestCl
     assert retried_task["mode"] == "ctf"
     assert retried_task["modeSubtype"] == "web"
     assert retried_task["goalStyle"] == "flag"
+    assert retried_task["ctfType"] == "web"
+    assert "detectedType" not in retried_task
     assert retried_task["status"] == "queued"
     assert retried_task["capabilities"] == {
         "hint": True,
@@ -1279,6 +1643,27 @@ async def test_task_retry_creates_new_task_from_finished_task(web_client: TestCl
     }
     assert web_server._tasks[original_task_id]["status"] == "stopped"
     assert set(web_server._tasks.keys()) == {original_task_id, retried_task["id"]}
+
+
+@pytest.mark.asyncio
+async def test_task_retry_from_pentest_does_not_backfill_ctf_fields(web_client: TestClient):
+    created = await web_client.post(
+        "/api/tasks",
+        json={"title": "retry-pentest", "target": "http://retry-pentest.test", "goal": "retry pentest"},
+    )
+    assert created.status == 201
+    original_task = await created.json()
+    original_task_id = original_task["id"]
+    web_server._tasks[original_task_id]["status"] = "failed"
+
+    retry_resp = await web_client.post(f"/api/tasks/{original_task_id}/retry")
+
+    assert retry_resp.status == 200
+    retried_task = await retry_resp.json()
+    assert retried_task["mode"] == "pentest"
+    assert retried_task["modeSubtype"] == "unknown"
+    assert "ctfType" not in retried_task
+    assert "detectedType" not in retried_task
 
 
 @pytest.mark.asyncio
