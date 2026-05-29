@@ -46,6 +46,15 @@ function TasksPage({ taskId, onNav, taskViewMode }) {
   const [showModal, setShowModal] = useStateT(false);
   const [tasks, setTasks] = useStateT([]);
   const [connection, setConnection] = useStateT(() => currentConnectionState());
+  const getTasks = window.API?.getTasks;
+  const subscribeEvents = window.API?.subscribeEvents;
+  const tasksAvailable = ['connected', 'degraded'].includes(connection.status)
+    && typeof getTasks === 'function';
+  const tasksUnavailableReason = connection?.status !== 'connected' && connection?.status !== 'degraded'
+    ? t('c.notConnected')
+    : typeof getTasks === 'function'
+      ? ''
+      : t('c.notWired');
 
   // ⌘K "新建任务" command opens this modal from anywhere
   useEffectT(() => {
@@ -66,12 +75,17 @@ function TasksPage({ taskId, onNav, taskViewMode }) {
   }, []);
 
   useEffectT(() => {
-    window.API.getTasks().then(data => {
+    if (!tasksAvailable || typeof getTasks !== 'function') {
+      setTasks([]);
+      return;
+    }
+
+    getTasks().then(data => {
       if (data && Array.isArray(data)) {
         setTasks(data);
       }
     });
-  }, []);
+  }, [getTasks, tasksAvailable]);
 
   useEffectT(() => {
     if (taskId) setActive(taskId);
@@ -89,8 +103,8 @@ function TasksPage({ taskId, onNav, taskViewMode }) {
 
   // Subscribe to SSE task status updates
   useEffectT(() => {
-    if (!window.API) return;
-    return window.API.subscribeEvents(ev => {
+    if (!tasksAvailable || typeof subscribeEvents !== 'function') return;
+    return subscribeEvents(ev => {
       if (ev.type === 'task_status') {
         setTasks(prev => prev.map(tk =>
           tk.id === ev.task_id ? { ...tk, ...ev.updates } : tk
@@ -99,7 +113,7 @@ function TasksPage({ taskId, onNav, taskViewMode }) {
         setTasks(prev => prev.some(tk => tk.id === ev.task.id) ? prev : [ev.task, ...prev]);
       }
     });
-  }, []);
+  }, [subscribeEvents, tasksAvailable]);
 
   const filtered = useMemoT(() => {
     return tasks.filter(tk => {
@@ -115,8 +129,8 @@ function TasksPage({ taskId, onNav, taskViewMode }) {
 
   const active = tasks.find(tk => tk.id === activeId);
   const filterKeys = ['all', 'running', 'queued', 'success', 'failed', 'stopped'];
-  const tasksEmptyState = connection.status === 'disconnected' ? t('c.unavailable') : t('tasks.noMatch');
-  const detailEmptyState = connection.status === 'disconnected' ? t('c.unavailable') : t('tasks.noSelection');
+  const tasksEmptyState = tasksAvailable ? t('tasks.noMatch') : (tasksUnavailableReason || t('c.unavailable'));
+  const detailEmptyState = tasksAvailable ? t('tasks.noSelection') : (tasksUnavailableReason || t('c.unavailable'));
 
   function handleCreated(task) {
     setTasks(prev => {
@@ -323,6 +337,9 @@ function TaskDetail({ task, onNav, taskViewMode }) {
   const [detailTask, setDetailTask] = useStateT(task);
   const isActive = detailTask.status === 'running';
   const [connection, setConnection] = useStateT(() => currentConnectionState());
+  const getTask = window.API?.getTask;
+  const taskDetailAvailable = ['connected', 'degraded'].includes(connection.status)
+    && typeof getTask === 'function';
   const capabilityMap = normalizeTaskCapabilities(detailTask.capabilities);
   const hintSupported = !!capabilityMap.hint;
   const stopSupported = !!capabilityMap.stop;
@@ -378,11 +395,11 @@ function TaskDetail({ task, onNav, taskViewMode }) {
   }, []);
 
   useEffectT(() => {
-    if (!window.API || !window.API.getTask) return;
-    window.API.getTask(task.id).then(data => {
+    if (!taskDetailAvailable || typeof getTask !== 'function') return;
+    getTask(task.id).then(data => {
       if (data && data.id) setDetailTask(prev => mergeTaskDetail(prev, data));
     });
-  }, [task.id]);
+  }, [getTask, task.id, taskDetailAvailable]);
 
   useEffectT(() => {
     if (!continueAvailable && !hintMode) setHintMode(true);
