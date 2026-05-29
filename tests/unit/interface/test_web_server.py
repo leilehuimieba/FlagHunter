@@ -654,6 +654,124 @@ def test_run_agent_task_uses_pentest_default_goal_when_mode_is_pentest(
     assert "ctf web challenge" not in _FakeAgent.goals[0].lower()
 
 
+def test_run_agent_task_routes_ctf_mode_to_ctf_dispatcher(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    class _FakeRuntime:
+        async def stop(self):
+            return None
+
+    class _FakeDispatcher:
+        calls: list[dict[str, object]] = []
+
+        def __init__(self, runtime, progress_callback=None, **kwargs):
+            self.runtime = runtime
+            self.progress_callback = progress_callback
+
+        async def run(self, target, goal, type=None, hint=None, submit_profile=None):
+            self.__class__.calls.append(
+                {
+                    "target": target,
+                    "goal": goal,
+                    "type": type,
+                    "hint": hint,
+                    "submit_profile": submit_profile,
+                }
+            )
+            return types.SimpleNamespace(
+                success=True,
+                flag="flag{dispatcher_route}",
+                reason="dispatcher solved",
+                notes=[],
+                chain_used=["recon"],
+                missing_tools=[],
+            )
+
+    class _ForbiddenAgent:
+        def __init__(self, **kwargs):
+            raise AssertionError("PentestAgentAgent should not be constructed for ctf mode")
+
+    fake_pa_agent = types.ModuleType("pentestagent.agents.pa_agent")
+    fake_pa_agent.PentestAgentAgent = _ForbiddenAgent
+    fake_dispatcher_module = types.ModuleType("pentestagent.agents.pa_agent.ctf_dispatcher")
+    fake_dispatcher_module.CTFTaskDispatcher = _FakeDispatcher
+    fake_settings = types.ModuleType("pentestagent.config.settings")
+    fake_settings.get_settings = lambda: types.SimpleNamespace(model="test-model")
+    fake_initializer = types.ModuleType("pentestagent.interface.initializer")
+    fake_initializer.activate_workspace_for_target = lambda target: "workspace"
+
+    async def _fake_build_runtime(**kwargs):
+        return _FakeRuntime(), {"selected": "local", "connected": True}
+
+    fake_initializer.build_runtime = _fake_build_runtime
+    fake_llm = types.ModuleType("pentestagent.llm")
+    fake_llm.LLM = lambda model, rag_engine=None: object()
+    fake_tools = types.ModuleType("pentestagent.tools")
+    fake_tools.get_all_tools = lambda: []
+
+    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent", fake_pa_agent)
+    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent.ctf_dispatcher", fake_dispatcher_module)
+    monkeypatch.setitem(sys.modules, "pentestagent.config.settings", fake_settings)
+    monkeypatch.setitem(sys.modules, "pentestagent.interface.initializer", fake_initializer)
+    monkeypatch.setitem(sys.modules, "pentestagent.llm", fake_llm)
+    monkeypatch.setitem(sys.modules, "pentestagent.tools", fake_tools)
+    monkeypatch.setattr(web_server, "emit_log", lambda *args, **kwargs: None)
+    monkeypatch.setattr(web_server, "_persist_tasks", lambda project_root: None)
+    monkeypatch.setattr(web_server._bus, "emit", lambda event: None)
+
+    web_server._tasks["task_ctf_route"] = {
+        "id": "task_ctf_route",
+        "title": "ctf route",
+        "target": "http://challenge.test",
+        "goal": "",
+        "ctfType": "web",
+        "mode": "ctf",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
+        "maxIter": 1,
+        "docker": False,
+        "flagFormat": r"flag\{[^}]+\}",
+        "status": "queued",
+        "createdAt": web_server._now_iso(),
+        "startedAt": None,
+        "finishedAt": None,
+        "tokensUsed": 0,
+        "toolCalls": 0,
+        "finalFlag": None,
+        "stopReason": None,
+        "currentRunId": "run_ctf_route",
+        "sparkSeed": [1, 1, 1, 1],
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    web_server._run_agent_task(
+        "task_ctf_route",
+        {
+            "target": "http://challenge.test",
+            "goal": "",
+            "ctfType": "web",
+            "mode": "ctf",
+            "modeSubtype": "web",
+            "goalStyle": "flag",
+            "maxIter": 1,
+            "docker": False,
+            "flagFormat": r"flag\{[^}]+\}",
+        },
+        tmp_path,
+    )
+
+    assert _FakeDispatcher.calls
+    assert _FakeDispatcher.calls[0]["type"] == "web"
+    assert "capture the flag" in str(_FakeDispatcher.calls[0]["goal"]).lower()
+    assert web_server._tasks["task_ctf_route"]["status"] == "success"
+    assert web_server._tasks["task_ctf_route"]["finalFlag"] == "flag{dispatcher_route}"
+
+
 def test_task_detail_payload_re_normalizes_dirty_derived_collections(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
