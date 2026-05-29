@@ -71,6 +71,45 @@ async def test_verifier_marks_runtime_flag_pending_without_confirmation():
 
 
 @pytest.mark.asyncio
+async def test_verifier_auto_verifies_strong_runtime_flag_for_local_challenge_without_submit_channel():
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    state.local_challenge_auto_verify = True
+    verifier = CTFVerifier(runtime=None)
+
+    result = await verifier.verify_flag(
+        state,
+        flag="flag{local_runtime_verified}",
+        evidence_source="http-response",
+        rationale="admin route returned runtime flag from local sandbox challenge",
+    )
+
+    assert result.decision == "verified"
+    assert [record.value for record in state.verified_flags] == ["flag{local_runtime_verified}"]
+    assert state.runtime_flags == []
+    assert result.metadata["verification_path"] == "local_challenge_runtime"
+    assert result.metadata["platform_verified"] is False
+    assert result.metadata["operator_confirmed"] is False
+
+
+@pytest.mark.asyncio
+async def test_verifier_keeps_weak_runtime_pending_even_for_local_challenge_context():
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    state.local_challenge_auto_verify = True
+    verifier = CTFVerifier(runtime=None)
+
+    result = await verifier.verify_flag(
+        state,
+        flag="flag{local_weak_pending}",
+        evidence_source="browser-rendered-page",
+        rationale="flag-like text only appeared on the landing page",
+    )
+
+    assert result.decision == "runtime"
+    assert [record.value for record in state.runtime_flags] == ["flag{local_weak_pending}"]
+    assert state.verified_flags == []
+
+
+@pytest.mark.asyncio
 async def test_verifier_treats_response_body_flag_as_runtime_not_verified():
     state = CTFState(target="http://ctf.local", goal="拿到flag")
     verifier = CTFVerifier(runtime=None)

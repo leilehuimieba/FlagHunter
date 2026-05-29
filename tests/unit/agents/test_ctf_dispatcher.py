@@ -1692,6 +1692,44 @@ async def test_ctf_dispatcher_runtime_flag_requires_verification_without_callbac
 
 
 @pytest.mark.asyncio
+async def test_ctf_dispatcher_auto_verifies_runtime_flag_for_local_challenge_hint(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    challenge_dir = tmp_path / "easy_login_local_verify"
+    challenge_dir.mkdir()
+    (challenge_dir / "docker-compose.yml").write_text(
+        "services:\n  app:\n    image: easy_login-app\n", encoding="utf-8"
+    )
+    set_notes_file(tmp_path / "notes_runtime_local_verified.json")
+    notes_module._notes.clear()
+
+    runtime = _DispatcherSQLiRuntime()
+    dispatcher = CTFTaskDispatcher(runtime=runtime, progress_callback=None)
+
+    result = await dispatcher.run(
+        target="http://ctf.local/",
+        goal="拿到flag",
+        type="sqli",
+        hint=f"[local_ctf_assets]\nchallengePath={challenge_dir}",
+    )
+
+    assert result.success is True
+    assert result.flag == "flag{dispatcher_sqli_ok}"
+    assert dispatcher.state is not None
+    assert dispatcher.state.local_challenge_auto_verify is True
+    assert [record.value for record in dispatcher.state.verified_flags] == [
+        "flag{dispatcher_sqli_ok}"
+    ]
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
 async def test_ctf_dispatcher_auto_submit_rejection_triggers_wrong_flag_recovery(
     monkeypatch, tmp_path
 ):
