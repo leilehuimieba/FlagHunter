@@ -24,6 +24,17 @@ from pentestagent.tools.notes import set_notes_file
 import pentestagent.tools.notes as notes_module
 
 
+def test_collector_public_host_prefers_host_docker_internal_for_local_targets(monkeypatch):
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher._guess_local_ip",
+        lambda: "100.2.198.163",
+    )
+    from pentestagent.agents.pa_agent.ctf_dispatcher import _collector_public_host_for_target
+
+    assert _collector_public_host_for_target("http://127.0.0.1:3000") == "host.docker.internal"
+    assert _collector_public_host_for_target("http://localhost:3000") == "host.docker.internal"
+
+
 class _DispatcherRuntime:
     def __init__(self):
         self.environment = SimpleNamespace(available_tools=[])
@@ -89,7 +100,7 @@ class _DispatcherRuntime:
         import re
         import urllib.parse
 
-        match = re.search(r"http://127\.0\.0\.1:7777", self.saved_payload)
+        match = re.search(r"http://(?:127\.0\.0\.1|host\.docker\.internal):7777", self.saved_payload)
         assert match, self.saved_payload
         reader, writer = await asyncio.open_connection("127.0.0.1", 7777)
         writer.write(
