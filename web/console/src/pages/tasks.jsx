@@ -1,4 +1,4 @@
-/* global React, fmt, t, NewTaskModal, fileIcon, downloadJson */
+/* global React, fmt, t, NewTaskModal, ModeBadge, SubtypeBadge, fileIcon, downloadJson */
 // ============================================================
 // Tasks — list (left) + detail (conversation + side panel)
 // ============================================================
@@ -230,6 +230,8 @@ function TaskItem({ task, active, onClick }) {
     <div className={`task-item ${active ? 'active' : ''}`} onClick={onClick}>
       <div className="top">
         <StatusBadge status={tk.status} />
+        <ModeBadge mode={tk.mode} />
+        <SubtypeBadge value={tk.modeSubtype} />
         <TypeBadge type={tk.detectedType} />
         <span className="id">{tk.id}</span>
       </div>
@@ -660,6 +662,8 @@ function TaskDetail({ task, onNav, taskViewMode }) {
         <div className="left">
           <div className="identity-row">
             <StatusBadge status={detailTask.status} size="lg" />
+            <ModeBadge mode={detailTask.mode} />
+            <SubtypeBadge value={detailTask.modeSubtype} />
             <TypeBadge type={detailTask.detectedType} />
             <span className="dim mono">{detailTask.id}</span>
             {detailTask.currentRunId && (

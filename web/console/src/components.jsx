@@ -37,6 +37,23 @@ function TypeBadge({ type }) {
   return <span className={`chip ${map[type] || ''}`}>{type.toUpperCase()}</span>;
 }
 
+function ModeBadge({ mode }) {
+  const normalized = String(mode || '').toLowerCase();
+  if (!normalized) return null;
+  const map = {
+    ctf: 'magenta',
+    pentest: 'cyan',
+  };
+  if (!map[normalized]) return null;
+  return <span className={`chip ${map[normalized]}`}>{normalized.toUpperCase()}</span>;
+}
+
+function SubtypeBadge({ value }) {
+  const normalized = String(value || '').toLowerCase();
+  if (!normalized || normalized === 'unknown') return null;
+  return <span className="chip ghost">{normalized.toUpperCase()}</span>;
+}
+
 // ---------- Sparkline ----------
 function Sparkline({ data, w = 80, h = 22, color = 'var(--accent)', fill = true }) {
   if (!data || !data.length) return <svg width={w} height={h} />;
@@ -252,7 +269,7 @@ function NewTaskModal({ onClose, onCreated }) {
     target: '',
     goal: '',
     ctfType: 'web',
-    mode: 'agent',
+    mode: 'auto',
     maxIter: 30,
     docker: false,
     flagFormat: 'flag\\{[^}]+\\}',
@@ -322,7 +339,8 @@ function NewTaskModal({ onClose, onCreated }) {
   }
 
   const CTF_TYPES = ['web', 'crypto', 'reverse', 'pwn', 'misc', 'forensics'];
-  const MODES = ['assist', 'agent', 'crew'];
+  const MODES = ['auto', 'pentest', 'ctf'];
+  const ctfTypeEnabled = form.mode === 'ctf' || form.mode === 'auto';
   const loading = phase === 'creating' || phase === 'uploading';
 
   // close on Escape
@@ -379,10 +397,12 @@ function NewTaskModal({ onClose, onCreated }) {
                 {CTF_TYPES.map(tp => (
                   <span key={tp}
                     className={`type-pill ${form.ctfType === tp ? 'on' : ''}`}
-                    onClick={() => patch('ctfType', tp)}
+                    onClick={() => ctfTypeEnabled && patch('ctfType', tp)}
+                    style={ctfTypeEnabled ? {} : { opacity: 0.5, cursor: 'not-allowed' }}
                   >{tp.toUpperCase()}</span>
                 ))}
               </div>
+              {!ctfTypeEnabled && <div className="dim" style={{ marginTop: 6, fontSize: 11 }}>{t('nt.ctfTypeHint')}</div>}
             </div>
 
             {/* Mode */}
@@ -520,7 +540,7 @@ function downloadJson(filename, data) {
 }
 
 Object.assign(window, {
-  StatusBadge, TypeBadge, Sparkline, MiniBarChart, AreaChart, Donut, BarTrend,
+  StatusBadge, TypeBadge, ModeBadge, SubtypeBadge, Sparkline, MiniBarChart, AreaChart, Donut, BarTrend,
   Panel, Empty, Dots, NewTaskModal, Toggle, fileIcon, downloadJson,
 });
 // Direct assignment guards against Babel large-file scope issue
