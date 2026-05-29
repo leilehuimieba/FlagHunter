@@ -1,0 +1,30 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
+def _read(rel_path: str) -> str:
+    return (REPO_ROOT / rel_path).read_text(encoding="utf-8")
+
+
+def test_knowledge_page_no_longer_bare_calls_get_knowledge_list() -> None:
+    source = _read("web/console/src/pages/knowledge.jsx")
+
+    assert "window.API.getKnowledge().then(data => {" not in source
+
+
+def test_knowledge_page_no_longer_bare_calls_get_knowledge_detail() -> None:
+    source = _read("web/console/src/pages/knowledge.jsx")
+
+    assert "window.API.getKnowledgeDoc(docId).then(data => {" not in source
+
+
+def test_knowledge_page_introduces_live_availability_guard() -> None:
+    source = _read("web/console/src/pages/knowledge.jsx")
+
+    assert "knowledgeAvailable" in source
+    assert "knowledgeUnavailableReason" in source
+    assert "t('c.unavailable')" in source

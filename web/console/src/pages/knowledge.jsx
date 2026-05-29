@@ -28,6 +28,14 @@ function KnowledgeList({ onNav }) {
   const [apiDocs, setApiDocs] = uK(null);
   const [connection, setConnection] = uK(() => currentConnectionState());
   const fileInputRef = React.useRef(null);
+  const getKnowledge = window.API?.getKnowledge;
+  const knowledgeAvailable = ['connected', 'degraded'].includes(connection.status)
+    && typeof getKnowledge === 'function';
+  const knowledgeUnavailableReason = connection?.status !== 'connected' && connection?.status !== 'degraded'
+    ? t('c.notConnected')
+    : typeof getKnowledge === 'function'
+      ? ''
+      : t('c.notWired');
 
   uKE(() => {
     const handler = (e) => {
@@ -41,10 +49,15 @@ function KnowledgeList({ onNav }) {
   }, []);
 
   uKE(() => {
-    window.API.getKnowledge().then(data => {
+    if (!knowledgeAvailable || typeof getKnowledge !== 'function') {
+      setApiDocs(null);
+      return;
+    }
+
+    getKnowledge().then(data => {
       if (data && Array.isArray(data)) setApiDocs(data);
     });
-  }, []);
+  }, [getKnowledge, knowledgeAvailable]);
 
   const sourceDocs = Array.isArray(apiDocs) ? apiDocs : [];
   const docs = uKM(() => sourceDocs.filter(d =>
@@ -55,7 +68,7 @@ function KnowledgeList({ onNav }) {
   const totalHits = sourceDocs.reduce((s, d) => s + (d.hitCount || 0), 0);
   const totalChunks = sourceDocs.reduce((s, d) => s + (d.chunkCount || 0), 0);
   const topDoc = sourceDocs.slice().sort((a, b) => (b.hitCount || 0) - (a.hitCount || 0))[0];
-  const docsEmptyState = connection.status === 'disconnected' ? t('c.unavailable') : t('tasks.noMatch');
+  const docsEmptyState = knowledgeAvailable ? t('tasks.noMatch') : (knowledgeUnavailableReason || t('c.unavailable'));
   const reindexAvailable = ['connected', 'degraded'].includes(connection.status)
     && typeof window.API?.reindexKnowledge === 'function';
   const reindexUnavailableReason = ['connected', 'degraded'].includes(connection.status)
@@ -73,7 +86,8 @@ function KnowledgeList({ onNav }) {
     if (!reindexAvailable) return;
     const reindexResult = await window.API.reindexKnowledge();
     if (!reindexResult?.ok) return;
-    const data = await window.API.getKnowledge();
+    if (typeof getKnowledge !== 'function') return;
+    const data = await getKnowledge();
     if (data && Array.isArray(data)) setApiDocs(data);
   }
 
@@ -83,7 +97,8 @@ function KnowledgeList({ onNav }) {
     if (!file || !addDocAvailable) return;
     const uploadResult = await window.API.uploadKnowledgeDocument(file);
     if (uploadResult?.ok) {
-      const data = await window.API.getKnowledge();
+      if (typeof getKnowledge !== 'function') return;
+      const data = await getKnowledge();
       if (data && Array.isArray(data)) setApiDocs(data);
     }
   }
@@ -182,6 +197,14 @@ function KnowledgeDetail({ docId, onNav }) {
   const [doc, setDoc] = uK(null);
   const [tab, setTab] = uK('overview');
   const [connection, setConnection] = uK(() => currentConnectionState());
+  const getKnowledgeDoc = window.API?.getKnowledgeDoc;
+  const knowledgeAvailable = ['connected', 'degraded'].includes(connection.status)
+    && typeof getKnowledgeDoc === 'function';
+  const knowledgeUnavailableReason = connection?.status !== 'connected' && connection?.status !== 'degraded'
+    ? t('c.notConnected')
+    : typeof getKnowledgeDoc === 'function'
+      ? ''
+      : t('c.notWired');
 
   uKE(() => {
     const handler = (e) => {
@@ -197,13 +220,16 @@ function KnowledgeDetail({ docId, onNav }) {
   uKE(() => {
     let done = false;
     setDoc(null);
-    if (window.API?.getKnowledgeDoc) {
-      window.API.getKnowledgeDoc(docId).then(data => {
-        if (!done && data && data.docKey) setDoc(data);
-      });
+    if (!knowledgeAvailable || typeof getKnowledgeDoc !== 'function') {
+      return () => { done = true; };
     }
+
+    getKnowledgeDoc(docId).then(data => {
+      if (!done && data && data.docKey) setDoc(data);
+    });
+
     return () => { done = true; };
-  }, [docId]);
+  }, [docId, getKnowledgeDoc, knowledgeAvailable]);
 
   const liveFallbackDoc = {
     id: docId || 'knowledge',
@@ -242,7 +268,7 @@ function KnowledgeDetail({ docId, onNav }) {
     ...c,
     hits: chunkHits[c.id] || c.hits || 0,
   }));
-  const detailEmptyState = connection.status === 'disconnected' ? t('c.unavailable') : t('tasks.noMatch');
+  const detailEmptyState = knowledgeAvailable ? t('tasks.noMatch') : (knowledgeUnavailableReason || t('c.unavailable'));
   const reindexAvailable = ['connected', 'degraded'].includes(connection.status)
     && typeof window.API?.reindexKnowledge === 'function';
   const reindexUnavailableReason = ['connected', 'degraded'].includes(connection.status)
@@ -264,10 +290,9 @@ function KnowledgeDetail({ docId, onNav }) {
     if (!reindexAvailable) return;
     const reindexResult = await window.API.reindexKnowledge();
     if (!reindexResult?.ok) return;
-    if (window.API?.getKnowledgeDoc) {
-      const data = await window.API.getKnowledgeDoc(docId);
-      if (data && data.docKey) setDoc(data);
-    }
+    if (typeof getKnowledgeDoc !== 'function') return;
+    const data = await getKnowledgeDoc(docId);
+    if (data && data.docKey) setDoc(data);
   }
 
   async function handleOpenFile() {
