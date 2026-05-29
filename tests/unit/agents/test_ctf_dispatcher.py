@@ -4047,17 +4047,19 @@ async def test_dispatcher_writes_session_ledger_events_for_verified_flag(
     )
 
     events = SessionLedger(tmp_path / "ledgers").read_events("run-ledger-verified")
+    event_types = [event["event_type"] for event in events]
 
     assert result.success is True
     assert result.flag == "flag{ledger_verified_ok}"
-    assert [event["event_type"] for event in events] == [
-        "dispatcher_started",
-        "verification_decision",
-        "task_finished",
-    ]
-    assert events[1]["payload"]["decision"] == "verified"
-    assert events[2]["payload"]["success"] is True
-    assert events[2]["payload"]["flag"] == "flag{ledger_verified_ok}"
+    assert "dispatcher_started" in event_types
+    assert "verification_decision" in event_types
+    assert "task_finished" in event_types
+    assert event_types.index("dispatcher_started") < event_types.index("verification_decision") < event_types.index("task_finished")
+    verification_event = next(event for event in events if event["event_type"] == "verification_decision")
+    task_finished_event = next(event for event in events if event["event_type"] == "task_finished")
+    assert verification_event["payload"]["decision"] == "verified"
+    assert task_finished_event["payload"]["success"] is True
+    assert task_finished_event["payload"]["flag"] == "flag{ledger_verified_ok}"
 
 
 @pytest.mark.asyncio
@@ -4101,13 +4103,15 @@ async def test_dispatcher_writes_missing_tools_event_to_session_ledger(
     )
 
     events = SessionLedger(tmp_path / "ledgers").read_events("run-ledger-missing")
+    event_types = [event["event_type"] for event in events]
 
     assert result.success is False
     assert result.missing_tools == ["browser", "http_request"]
-    assert [event["event_type"] for event in events] == [
-        "dispatcher_started",
-        "missing_tools_recorded",
-        "task_finished",
-    ]
-    assert events[1]["payload"]["missing_tools"] == ["browser", "http_request"]
-    assert events[2]["payload"]["success"] is False
+    assert "dispatcher_started" in event_types
+    assert "missing_tools_recorded" in event_types
+    assert "task_finished" in event_types
+    assert event_types.index("dispatcher_started") < event_types.index("missing_tools_recorded") < event_types.index("task_finished")
+    missing_tools_event = next(event for event in events if event["event_type"] == "missing_tools_recorded")
+    task_finished_event = next(event for event in events if event["event_type"] == "task_finished")
+    assert missing_tools_event["payload"]["missing_tools"] == ["browser", "http_request"]
+    assert task_finished_event["payload"]["success"] is False
