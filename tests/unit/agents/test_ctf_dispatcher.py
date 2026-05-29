@@ -112,6 +112,22 @@ class _DispatcherRuntime:
         await writer.wait_closed()
 
 
+class _VisitUrlExhaustedRuntime:
+    def __init__(self):
+        self.environment = SimpleNamespace(available_tools=[])
+        self.requests: list[tuple[str, str, dict[str, object]]] = []
+
+    async def proxy_action(self, action: str, **kwargs):
+        self.requests.append((action, str(kwargs.get("url") or ""), dict(kwargs)))
+        return {"status_code": 200, "body": "visit triggered"}
+
+    async def browser_action(self, action: str, **kwargs):
+        return {"error": f"unexpected action: {action}"}
+
+    async def execute_command(self, command: str, timeout: int = 180):
+        return SimpleNamespace(exit_code=0, stdout="", stderr="")
+
+
 class _DispatcherSQLiRuntime:
     def __init__(self):
         self.environment = SimpleNamespace(available_tools=[])
@@ -888,6 +904,188 @@ async def test_ctf_dispatcher_solves_stored_xss(monkeypatch, tmp_path):
         record.value == "flag{dispatcher_ok}"
         for record in dispatcher.state.verified_flags
     )
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
+async def test_visit_url_modes_exhausted_without_sid_or_flag_is_not_progress(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_visit_url_exhausted.json")
+    notes_module._notes.clear()
+
+    hits = iter(
+        [
+            "/c?err=TypeError%3A%20Failed%20to%20fetch",
+            "/c?cookie=",
+            "/c?iframeErr=TypeError%3A%20Cannot%20read%20properties%20of%20null%20%28reading%20%27body%27%29",
+            None,
+        ]
+    )
+
+    class _FakeCollectorServer:
+        instances: list["_FakeCollectorServer"] = []
+
+        def __init__(self, target_base: str, host: str = "0.0.0.0", port: int = 7777):
+            self.target_base = target_base
+            self.host = host
+            self.port = port
+            self.started = 0
+            self.stopped = 0
+            self.wait_calls = 0
+            _FakeCollectorServer.instances.append(self)
+
+        @property
+        def base_url(self) -> str:
+            return "http://host.docker.internal:7777"
+
+        def exploit_url(self, mode: str) -> str:
+            return f"{self.base_url}/exploit.html?mode={mode}"
+
+        async def start(self) -> None:
+            self.started += 1
+
+        async def stop(self) -> None:
+            self.stopped += 1
+
+        async def wait_for_hit(self, timeout: float = 6.0) -> str | None:
+            self.wait_calls += 1
+            return next(hits)
+
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher._CollectorServer",
+        _FakeCollectorServer,
+    )
+
+    runtime = _VisitUrlExhaustedRuntime()
+    dispatcher = CTFTaskDispatcher(
+        runtime=runtime,
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+
+    outcome = await dispatcher._attempt_visit_url_chain("http://127.0.0.1:3000")
+
+    assert outcome.flag is None
+    assert outcome.progress is False
+    assert outcome.reason == "visit-url modes exhausted"
+    assert len(_FakeCollectorServer.instances) == 1
+    collector = _FakeCollectorServer.instances[0]
+    assert collector.started == 1
+    assert collector.stopped == 1
+    assert collector.wait_calls == 4
+    assert [
+        request[1]
+        for request in runtime.requests
+        if request[0] == "request"
+    ] == ["http://127.0.0.1:3000/visit"] * 4
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
+async def test_visit_url_exhaustion_is_not_replayed_across_web_and_xss_chains(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_visit_url_dedupe.json")
+    notes_module._notes.clear()
+
+    hits = iter(
+        [
+            "/c?err=TypeError%3A%20Failed%20to%20fetch",
+            "/c?cookie=",
+            "/c?openErr=SecurityError%3A%20Blocked",
+            "/c?iframeErr=TypeError%3A%20Cannot%20read%20properties%20of%20null%20%28reading%20%27body%27%29",
+        ]
+    )
+
+    class _FakeCollectorServer:
+        instances: list["_FakeCollectorServer"] = []
+
+        def __init__(self, target_base: str, host: str = "0.0.0.0", port: int = 7777):
+            self.target_base = target_base
+            self.host = host
+            self.port = port
+            self.started = 0
+            self.stopped = 0
+            self.wait_calls = 0
+            _FakeCollectorServer.instances.append(self)
+
+        @property
+        def base_url(self) -> str:
+            return "http://host.docker.internal:7777"
+
+        def exploit_url(self, mode: str) -> str:
+            return f"{self.base_url}/exploit.html?mode={mode}"
+
+        async def start(self) -> None:
+            self.started += 1
+
+        async def stop(self) -> None:
+            self.stopped += 1
+
+        async def wait_for_hit(self, timeout: float = 6.0) -> str | None:
+            self.wait_calls += 1
+            return next(hits)
+
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher._CollectorServer",
+        _FakeCollectorServer,
+    )
+
+    runtime = _VisitUrlExhaustedRuntime()
+    dispatcher = CTFTaskDispatcher(runtime=runtime, progress_callback=None, verification_callback=lambda flag: "yes")
+    dispatcher.state = CTFState(target="http://127.0.0.1:3000", goal="拿到flag", detected_type="web")
+
+    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+
+    async def _fake_execute_web_chain(target: str, page_features: dict[str, object], hint: str) -> _ChainOutcome:
+        return _ChainOutcome(progress=False, reason="web exhausted")
+
+    dispatcher._execute_web_chain = _fake_execute_web_chain  # type: ignore[method-assign]
+
+    page_features = {
+        "endpoints": ["/visit", "/admin"],
+        "forms": [
+            {
+                "action": "http://127.0.0.1:3000/login",
+                "method": "post",
+                "inputs": [
+                    {"name": "username", "type": "text"},
+                    {"name": "password", "type": "password"},
+                ],
+            }
+        ],
+    }
+
+    web_outcome = await dispatcher._execute_chain(
+        chain_name="web",
+        target="http://127.0.0.1:3000",
+        page_features=page_features,
+        hint="",
+    )
+    xss_outcome = await dispatcher._execute_chain(
+        chain_name="xss",
+        target="http://127.0.0.1:3000",
+        page_features=page_features,
+        hint="",
+    )
+
+    assert web_outcome.progress is False
+    assert xss_outcome.progress is False
+    assert len(_FakeCollectorServer.instances) == 1
+    collector = _FakeCollectorServer.instances[0]
+    assert collector.started == 1
+    assert collector.stopped == 1
+    assert collector.wait_calls == 4
+    assert len([request for request in runtime.requests if request[0] == "request"]) == 4
     notes_module._notes.clear()
     notes_module._custom_notes_file = None
     notes_module._loaded_notes_file = None
