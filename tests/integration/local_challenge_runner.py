@@ -182,6 +182,33 @@ class _EasyLoginRuntimeOnlyFallbackRuntime:
         return _EvalCommandResult(1, stderr=f"unexpected command: {command}")
 
 
+class _SourceOnlyHonestyRuntime:
+    def __init__(self):
+        self.environment = type("Env", (), {"available_tools": []})()
+        self.requests: list[tuple[str, str, dict]] = []
+        self.commands: list[str] = []
+
+    async def browser_action(self, action: str, **kwargs):
+        if action == "navigate":
+            return {"url": "http://127.0.0.1:3000/", "title": "candidate sample"}
+        if action == "get_content":
+            return {
+                "content": "candidate sample runtime unavailable",
+                "html": "<html><body><h1>candidate sample runtime unavailable</h1></body></html>",
+            }
+        if action == "get_forms":
+            return {"forms": []}
+        return {"error": f"unexpected browser action: {action}"}
+
+    async def proxy_action(self, action: str, **kwargs):
+        self.requests.append((action, kwargs.get("url", ""), dict(kwargs)))
+        return {"status_code": 404, "body": ""}
+
+    async def execute_command(self, command: str, timeout: int = 300):
+        self.commands.append(command)
+        return _EvalCommandResult(1, stderr=f"unexpected command: {command}")
+
+
 async def run_active_local_challenge_sample(
     sample: LocalChallengeSample,
     *,
@@ -199,14 +226,16 @@ async def run_active_local_challenge_sample(
         "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
-    if sample.key != "easy_login":
-        raise NotImplementedError(f"active runner not implemented for sample: {sample.key}")
-
     enable_local_pivot = normalized_variant in {"directory", "zip"}
-    if normalized_variant == "runtime_only":
-        runtime = _EasyLoginRuntimeOnlyFallbackRuntime()
+    if sample.key == "easy_login":
+        if normalized_variant == "runtime_only":
+            runtime = _EasyLoginRuntimeOnlyFallbackRuntime()
+        else:
+            runtime = _EasyLoginLocalAssetRuntime(enable_local_pivot=enable_local_pivot)
+    elif sample.key == "backup_node_app":
+        runtime = _SourceOnlyHonestyRuntime()
     else:
-        runtime = _EasyLoginLocalAssetRuntime(enable_local_pivot=enable_local_pivot)
+        raise NotImplementedError(f"active runner not implemented for sample: {sample.key}")
     dispatcher = CTFTaskDispatcher(runtime=runtime, progress_callback=None)
 
     run_kwargs = {

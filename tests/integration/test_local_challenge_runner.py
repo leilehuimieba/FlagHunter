@@ -80,3 +80,34 @@ async def test_local_challenge_runner_rejects_unsupported_variant(monkeypatch):
             variant="directory",
             monkeypatch=monkeypatch,
         )
+
+
+@pytest.mark.asyncio
+async def test_local_challenge_runner_keeps_backup_node_app_zip_variant_honest(monkeypatch, tmp_path: Path):
+    sample = get_local_challenge_sample("backup_node_app")
+
+    result = await run_active_local_challenge_sample(
+        sample,
+        variant="zip",
+        monkeypatch=monkeypatch,
+        tmp_dir=tmp_path,
+    )
+
+    assert result.success is False
+    assert result.flag is None
+    assert result.reason
+
+
+@pytest.mark.asyncio
+async def test_local_challenge_runner_keeps_backup_node_app_no_asset_variant_honest(monkeypatch):
+    sample = get_local_challenge_sample("backup_node_app")
+
+    result = await run_active_local_challenge_sample(
+        sample,
+        variant="none",
+        monkeypatch=monkeypatch,
+    )
+
+    assert result.success is False
+    assert result.flag is None
+    assert result.reason
