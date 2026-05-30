@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import types
+import pentestagent.config.settings as settings_module
 
 from types import SimpleNamespace
 
@@ -165,6 +166,35 @@ async def test_run_task_async_persists_and_reports_mode_contract(
     assert "resume_from_checkpoint: checkpoint-prev-1" in result
     assert r"challenge_path: D:\webstudy\CTF\2026\CTF比赛题\easy_login" in result
     assert r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml" in result
+
+
+@pytest.mark.asyncio
+async def test_get_server_status_exposes_model_readiness_reason(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / ".env").write_text(
+        "\n".join(
+            [
+                "PENTESTAGENT_MODEL=openai/gpt-5.4",
+                "FH_PROVIDER=custom",
+                "LITELLM_API_BASE=",
+                "OPENAI_API_KEY=",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(settings_module, "_settings", None)
+
+    result = await mcp_tools.get_server_status({})
+
+    assert "ready:      True" in result
+    assert "model_ready: False" in result
+    assert "model_readiness_reason: custom_provider_unconfigured" in result
 
 
 class _ForbiddenMcpAgent:

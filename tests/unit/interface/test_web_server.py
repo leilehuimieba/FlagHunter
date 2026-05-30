@@ -11,6 +11,7 @@ from aiohttp import FormData
 from aiohttp.test_utils import TestClient, TestServer
 
 from pentestagent.interface import web_server
+import pentestagent.config.settings as settings_module
 import pentestagent.knowledge as knowledge_module
 import pentestagent.interface.initializer as initializer_module
 
@@ -2610,6 +2611,42 @@ async def test_settings_payload_includes_real_mcp_servers(web_client: TestClient
             "connected": False,
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_settings_payload_exposes_unconfigured_custom_model_readiness(
+    web_client: TestClient,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    (tmp_path / ".env").write_text(
+        "\n".join(
+            [
+                "PENTESTAGENT_MODEL=openai/gpt-5.4",
+                "FH_PROVIDER=custom",
+                "LITELLM_API_BASE=",
+                "OPENAI_API_KEY=",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(settings_module, "_settings", None)
+
+    resp = await web_client.get("/api/settings")
+
+    assert resp.status == 200
+    data = await resp.json()
+    assert data["model"]["provider"] == "custom"
+    assert data["model"]["name"] == "openai/gpt-5.4"
+    assert data["model"]["readiness"] == {
+        "ready": False,
+        "reason": "custom_provider_unconfigured",
+        "provider": "custom",
+        "model": "openai/gpt-5.4",
+    }
 
 
 @pytest.mark.asyncio
