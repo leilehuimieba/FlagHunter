@@ -84,3 +84,27 @@
 - `backup_node_app`：主 honesty 样本
 
 后续再扩第三个样本时，应优先补齐**不同于这两类**的能力面，而不是重复同一种成功路径。
+
+---
+
+## 6. 样本接入前的 runtime preflight
+
+在把一个新题接成 active runtime 样本前，建议先做最小 deployment-truth 预检。  
+当前仓库已经补了一条最小 guard：
+
+- `tests/integration/local_challenge_preflight.py`
+
+它当前优先检查的一类问题是：
+
+- **源码里存在种子文件，但 `docker-compose` 的命名卷会把运行态路径覆盖掉**
+
+这类题如果不先识别，容易出现：
+
+- 源码审计看起来有线索
+- 真正起容器后，这些线索并不存在
+- 最终把“不可复跑题”误接进 runtime eval
+
+因此当前原则是：
+
+1. preflight 有高置信 warning → 保持 candidate，不直接进 active runtime catalog
+2. preflight 干净，且人工链路能复跑 → 才考虑升格成 active 样本
