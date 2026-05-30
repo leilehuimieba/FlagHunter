@@ -132,9 +132,15 @@ async def test_run_task_async_persists_and_reports_mode_contract(
         r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
         r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\src\server.ts",
     ]
+    assert getattr(entry, "runId", None)
+    assert getattr(entry, "ledgerPath", None) == f"loot/session_ledgers/{entry.runId}.jsonl"
+    assert getattr(entry, "checkpointPath", None) == f"loot/checkpoints/{entry.runId}.jsonl"
     assert "mode: ctf" in result
     assert "mode_subtype: web" in result
     assert "goal_style: flag" in result
+    assert f"run_id: {entry.runId}" in result
+    assert f"ledger_path: loot/session_ledgers/{entry.runId}.jsonl" in result
+    assert f"checkpoint_path: loot/checkpoints/{entry.runId}.jsonl" in result
     assert r"challenge_path: D:\webstudy\CTF\2026\CTF比赛题\easy_login" in result
     assert r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml" in result
 
@@ -164,7 +170,7 @@ async def test_run_task_routes_ctf_mode_into_dispatcher_with_explicit_challenge_
         def __init__(self, runtime, progress_callback=None, verification_callback=None):
             captured["runtime"] = runtime
 
-        async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None):
+        async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None, run_id=None, ledger_root=None, checkpoint_root=None):
             captured["target"] = target
             captured["goal"] = goal
             captured["type"] = type
@@ -221,12 +227,13 @@ async def test_run_task_async_background_ctf_path_uses_explicit_challenge_contex
         def __init__(self, runtime, progress_callback=None, verification_callback=None):
             captured["runtime"] = runtime
 
-        async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None):
+        async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None, run_id=None, ledger_root=None, checkpoint_root=None):
             captured["target"] = target
             captured["goal"] = goal
             captured["type"] = type
             captured["hint"] = hint
             captured["challenge_context"] = challenge_context
+            captured["run_id"] = run_id
             return SimpleNamespace(flag="flag{mcp_async_ctf_ok}", reason="ok", chain_used=["xss"], missing_tools=[], notes=[])
 
     def fake_create_task(coro):
@@ -261,6 +268,7 @@ async def test_run_task_async_background_ctf_path_uses_explicit_challenge_contex
     assert captured["target"] == "http://challenge.test"
     assert captured["goal"] == "solve easy_login from MCP async"
     assert captured["type"] == "web"
+    assert str(captured["run_id"]).startswith("mcp-ctf-")
     assert captured["challenge_context"] == {
         "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
         "artifactPaths": [
@@ -284,7 +292,7 @@ async def test_run_task_persists_ctf_dispatcher_truth_fields_for_followup_inspec
         def __init__(self, runtime, progress_callback=None, verification_callback=None):
             pass
 
-        async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None):
+        async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None, run_id=None, ledger_root=None, checkpoint_root=None):
             return SimpleNamespace(
                 flag="flag{mcp_truth_ok}",
                 reason="verified",
@@ -333,6 +341,9 @@ async def test_mcp_task_inspection_and_result_expose_ctf_truth_fields() -> None:
         challengePath=r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
         artifactPaths=[r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"],
     )
+    entry.runId = "mcp-ctf-12345"
+    entry.ledgerPath = "loot/session_ledgers/mcp-ctf-12345.jsonl"
+    entry.checkpointPath = "loot/checkpoints/mcp-ctf-12345.jsonl"
     entry.finalFlag = "flag{inspection_truth}"
     entry.ctfChainUsed = ["xss", "admin_bot"]
     entry.ctfMissingTools = ["sqlmap"]
@@ -349,6 +360,9 @@ async def test_mcp_task_inspection_and_result_expose_ctf_truth_fields() -> None:
     assert "mode:       ctf" in status_output
     assert "mode_subtype: web" in status_output
     assert "goal_style: flag" in status_output
+    assert "run_id:     mcp-ctf-12345" in status_output
+    assert "ledger_path: loot/session_ledgers/mcp-ctf-12345.jsonl" in status_output
+    assert "checkpoint_path: loot/checkpoints/mcp-ctf-12345.jsonl" in status_output
     assert "final_flag: flag{inspection_truth}" in status_output
     assert "ctf_chain_used: xss, admin_bot" in status_output
     assert "ctf_missing_tools: sqlmap" in status_output
@@ -357,6 +371,9 @@ async def test_mcp_task_inspection_and_result_expose_ctf_truth_fields() -> None:
     assert "mode:        ctf" in result_output
     assert "mode_subtype: web" in result_output
     assert "goal_style:  flag" in result_output
+    assert "run_id:      mcp-ctf-12345" in result_output
+    assert "ledger_path: loot/session_ledgers/mcp-ctf-12345.jsonl" in result_output
+    assert "checkpoint_path: loot/checkpoints/mcp-ctf-12345.jsonl" in result_output
     assert "final_flag:  flag{inspection_truth}" in result_output
     assert "\n[ctf_chain_used]\n  xss\n  admin_bot" in result_output
     assert "\n[ctf_missing_tools]\n  sqlmap" in result_output

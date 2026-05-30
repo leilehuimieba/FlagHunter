@@ -171,6 +171,49 @@ class TestSaveUpdateInPlace:
         assert len(index) == 1
         assert index[0]["id"] == new_id
 
+    def test_persists_handoff_metadata_in_conversation_file_and_index(self, tmp_path):
+        store = ConversationStore(tmp_path)
+        handoff = {
+            "last_run_id": "run-ctf-42",
+            "last_checkpoint": "loot/checkpoints/run-ctf-42.jsonl",
+            "last_ledger": "loot/session_ledgers/run-ctf-42.jsonl",
+            "last_resume_summary": "run_id=run-ctf-42; stop_reason=flag_verified",
+            "ctf_context": {
+                "url": "http://ctf.local/challenges/42",
+                "goal": "拿到flag",
+                "type": "web",
+                "hint": "先看登录口",
+            },
+        }
+
+        conv_id = store.save(_HELLO_MESSAGES, handoff=handoff)
+
+        data = json.loads((tmp_path / f"{conv_id}.json").read_text())
+        index = json.loads((tmp_path / "index.json").read_text())
+
+        assert data["handoff"] == handoff
+        assert index[0]["last_run_id"] == "run-ctf-42"
+        assert index[0]["last_checkpoint"] == "loot/checkpoints/run-ctf-42.jsonl"
+        assert index[0]["last_ledger"] == "loot/session_ledgers/run-ctf-42.jsonl"
+
+    def test_load_handoff_metadata_returns_saved_payload(self, tmp_path):
+        store = ConversationStore(tmp_path)
+        handoff = {
+            "last_run_id": "run-ctf-99",
+            "last_checkpoint": "loot/checkpoints/run-ctf-99.jsonl",
+            "last_ledger": "loot/session_ledgers/run-ctf-99.jsonl",
+            "last_resume_summary": "run_id=run-ctf-99; stop_reason=wrong_flag_feedback",
+            "ctf_context": {
+                "url": "http://ctf.local/challenges/99",
+                "goal": "拿到flag",
+                "type": "web",
+            },
+        }
+
+        conv_id = store.save(_HELLO_MESSAGES, handoff=handoff)
+
+        assert store.load_handoff_metadata(conv_id) == handoff
+
 
 # ---------------------------------------------------------------------------
 # ConversationStore.load

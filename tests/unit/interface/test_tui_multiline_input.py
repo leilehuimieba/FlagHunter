@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 pytest.importorskip("textual")
 from textual import events
 
+from pentestagent.agents.base_agent import AgentMessage
 from pentestagent.interface.tui import ChatInputTextArea, PentestAgentTUI
 
 
@@ -878,6 +881,135 @@ async def test_ctf_wrong_subcommand_restarts_crew_when_last_mode_is_crew(monkeyp
     assert captured["runner_config"]["_autonomy_resume_reason"] == "wrong_flag_feedback_restart"
     assert captured["runner_config"]["_autonomy_resume_state"]["records"][0]["reason"] == "wrong_flag_feedback"
     assert tui._current_worker == "crew-worker"
+
+
+@pytest.mark.asyncio
+async def test_save_current_conversation_persists_last_ctf_handoff_metadata(monkeypatch):
+    tui = _make_tui_stub()
+    tui._mode = "assist"
+    tui.target = "ctf"
+    tui._current_conv_id = None
+    tui.agent = type(
+        "Agent",
+        (),
+        {
+            "conversation_history": [
+                AgentMessage(role="user", content="继续"),
+                AgentMessage(role="assistant", content="收到"),
+            ]
+        },
+    )()
+    tui._last_ctf_context = {
+        "url": "http://ctf.local/challenges/42",
+        "goal": "拿到flag",
+        "type": "web",
+        "hint": "先看登录口",
+        "submit_profile": {"challenge_id": "42", "base_url": "https://ctf.example.com"},
+        "runner_config": {"mode": "single"},
+        "execution_mode": "dispatcher",
+        "autonomy_state": {"records": [{"challenge_id": "42"}]},
+        "autonomy_end_reason": "flag_verified",
+        "sessionContext": {
+            "resumeContext": {
+                "runId": "run-ctf-42",
+                "checkpointId": "checkpoint-1",
+                "checkpointLabel": "task_finished",
+                "stopReason": "flag_verified",
+                "summary": "run_id=run-ctf-42; stop_reason=flag_verified",
+            }
+        },
+    }
+
+    captured = {}
+
+    class _FakeConversationStore:
+        def __init__(self, base):
+            captured["base"] = base
+
+        def save(self, messages, conv_id=None, handoff=None):
+            captured["messages"] = messages
+            captured["conv_id"] = conv_id
+            captured["handoff"] = handoff
+            return "conv-123"
+
+    async def _fake_save_session_state():
+        captured["saved_session_state"] = True
+
+    monkeypatch.setattr("pentestagent.workspaces.utils.get_conversations_base", lambda: Path("D:/tmp/conversations"))
+    monkeypatch.setattr("pentestagent.interface.conversation_store.ConversationStore", _FakeConversationStore)
+    tui._save_session_state = _fake_save_session_state
+
+    await PentestAgentTUI._save_current_conversation(tui)
+
+    assert captured["handoff"]["last_run_id"] == "run-ctf-42"
+    assert captured["handoff"]["last_resume_summary"] == "run_id=run-ctf-42; stop_reason=flag_verified"
+    assert captured["handoff"]["ctf_context"]["url"] == "http://ctf.local/challenges/42"
+    assert captured["saved_session_state"] is True
+    assert tui._current_conv_id == "conv-123"
+
+
+@pytest.mark.asyncio
+async def test_restore_conversation_hydrates_last_ctf_context_from_saved_handoff(monkeypatch):
+    tui = _make_tui_stub()
+    tui._chat_widgets = []
+    tui.agent = type("Agent", (), {"conversation_history": []})()
+    tui._current_conv_id = None
+
+    restored_messages = [
+        AgentMessage(role="user", content="继续"),
+        AgentMessage(role="assistant", content="收到"),
+    ]
+    restored_handoff = {
+        "last_run_id": "run-ctf-restore",
+        "last_checkpoint": "loot/checkpoints/run-ctf-restore.jsonl",
+        "last_ledger": "loot/session_ledgers/run-ctf-restore.jsonl",
+        "last_resume_summary": "run_id=run-ctf-restore; stop_reason=flag_verified",
+        "ctf_context": {
+            "url": "http://ctf.local/challenges/restore",
+            "goal": "拿到flag",
+            "type": "web",
+            "hint": "继续看 /admin",
+            "submit_profile": {"challenge_id": "restore"},
+            "runner_config": {"mode": "single"},
+            "execution_mode": "dispatcher",
+            "sessionContext": {
+                "resumeContext": {
+                    "runId": "run-ctf-restore",
+                    "checkpointLabel": "task_finished",
+                    "stopReason": "flag_verified",
+                    "summary": "run_id=run-ctf-restore; stop_reason=flag_verified",
+                }
+            },
+        },
+    }
+
+    class _FakeConversationStore:
+        def __init__(self, base):
+            self.base = base
+
+        def load(self, conv_id):
+            assert conv_id == "conv-restore"
+            return restored_messages
+
+        def load_handoff_metadata(self, conv_id):
+            assert conv_id == "conv-restore"
+            return restored_handoff
+
+    class _FakeScroll:
+        async def remove_children(self):
+            return None
+
+    monkeypatch.setattr("pentestagent.workspaces.utils.get_conversations_base", lambda: Path("D:/tmp/conversations"))
+    monkeypatch.setattr("pentestagent.interface.conversation_store.ConversationStore", _FakeConversationStore)
+    tui.query_one = lambda *args, **kwargs: _FakeScroll()
+
+    await PentestAgentTUI._restore_conversation(tui, "conv-restore")
+
+    assert tui.agent.conversation_history == restored_messages
+    assert tui._current_conv_id == "conv-restore"
+    assert tui._last_ctf_context["url"] == "http://ctf.local/challenges/restore"
+    assert tui._last_ctf_context["sessionContext"]["resumeContext"]["runId"] == "run-ctf-restore"
+    assert any("Conversation restored" in message for message in tui._captured_messages)
 
 
 @pytest.mark.asyncio
