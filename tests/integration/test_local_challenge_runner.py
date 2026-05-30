@@ -53,3 +53,18 @@ async def test_local_challenge_runner_keeps_no_asset_easy_login_honest(monkeypat
     assert result.success is False
     assert result.flag is None
     assert result.reason
+
+
+@pytest.mark.asyncio
+async def test_local_challenge_runner_solves_easy_login_runtime_only_variant(monkeypatch):
+    sample = get_local_challenge_sample("easy_login")
+
+    result = await run_active_local_challenge_sample(
+        sample,
+        variant="runtime_only",
+        monkeypatch=monkeypatch,
+    )
+
+    assert result.success is True
+    assert result.flag == "flag{dummy_flag_for_testing}"
+    assert result.reason == "docker localhost visit fallback"

@@ -90,6 +90,98 @@ class _EasyLoginLocalAssetRuntime:
         return _EvalCommandResult(1, stderr=f"unexpected command: {command}")
 
 
+class _EasyLoginRuntimeOnlyFallbackRuntime:
+    def __init__(self):
+        self.environment = type("Env", (), {"available_tools": []})()
+        self.requests: list[tuple[str, str, dict]] = []
+        self.commands: list[str] = []
+        self.internal_probe_started = False
+        self.internal_probe_visited = False
+
+    async def browser_action(self, action: str, **kwargs):
+        if action == "navigate":
+            return {"url": "http://127.0.0.1:3000/", "title": "easy_login"}
+        if action == "get_content":
+            return {
+                "content": "easy_login Login Portal Playground /login /visit /admin",
+                "html": """
+                <html>
+                  <body>
+                    <form action="/" method="get">
+                      <input name="username" />
+                      <input name="password" type="password" />
+                    </form>
+                    <a href="/login">login</a>
+                    <a href="/admin">admin</a>
+                    <a href="/visit">visit</a>
+                  </body>
+                </html>
+                """,
+            }
+        if action == "get_forms":
+            return {
+                "forms": [
+                    {
+                        "action": "http://127.0.0.1:3000/",
+                        "method": "get",
+                        "inputs": [
+                            {"name": "username", "type": "text"},
+                            {"name": "password", "type": "password"},
+                        ],
+                    }
+                ]
+            }
+        return {"error": f"unexpected browser action: {action}"}
+
+    async def proxy_action(self, action: str, **kwargs):
+        self.requests.append((action, kwargs.get("url", ""), dict(kwargs)))
+        url = str(kwargs.get("url") or "")
+        method = str(kwargs.get("method") or "").upper()
+        if action == "get" and url == "http://127.0.0.1:3000/app.js":
+            return {
+                "status_code": 200,
+                "body": "const loginPath='/login'; const visitPath='/visit'; const adminPath='/admin';",
+            }
+        if action == "request" and method == "POST" and url == "http://127.0.0.1:3000/visit":
+            visit_target = str((kwargs.get("json") or {}).get("url") or "")
+            if visit_target.startswith("http://127.0.0.1:7777/"):
+                self.internal_probe_visited = True
+                return {"status_code": 200, "body": '{"ok":true}'}
+            return {"status_code": 200, "body": '{"ok":true}'}
+        if action == "request" and method == "GET" and url == "http://127.0.0.1:3000/admin":
+            cookies = str(kwargs.get("headers", {}).get("Cookie") or "")
+            if "sid=admin-eval-sid" in cookies:
+                return {"status_code": 200, "body": "welcome admin\nflag{dummy_flag_for_testing}"}
+            return {"status_code": 403, "body": "forbidden"}
+        return {"status_code": 404, "body": ""}
+
+    async def execute_command(self, command: str, timeout: int = 300):
+        self.commands.append(command)
+        if 'docker ps --format "{{.Names}}|{{.Ports}}"' in command:
+            return _EvalCommandResult(0, stdout="easy_login_app|0.0.0.0:3000->3000/tcp\n")
+        if "docker cp " in command and "flaghunter_visit_collector.js" in command:
+            return _EvalCommandResult(0, stdout="")
+        if (
+            "docker exec easy_login_app sh -lc" in command
+            and "node /tmp/flaghunter_visit_collector.js" in command
+        ):
+            self.internal_probe_started = True
+            return _EvalCommandResult(0, stdout="")
+        if (
+            "docker exec easy_login_app sh -lc" in command
+            and "cat /tmp/flaghunter_visit_collector.log" in command
+        ):
+            if self.internal_probe_visited:
+                return _EvalCommandResult(
+                    0,
+                    stdout="/\n/c?sid=sid%3Dadmin-eval-sid\n/favicon.ico\n",
+                )
+            return _EvalCommandResult(1, stderr="probe log empty")
+        if "docker exec easy_login_app sh -lc" in command and "flaghunter_visit_collector.pid" in command:
+            return _EvalCommandResult(0, stdout="")
+        return _EvalCommandResult(1, stderr=f"unexpected command: {command}")
+
+
 async def run_active_local_challenge_sample(
     sample: LocalChallengeSample,
     *,
@@ -105,7 +197,10 @@ async def run_active_local_challenge_sample(
         raise NotImplementedError(f"active runner not implemented for sample: {sample.key}")
 
     enable_local_pivot = variant in {"directory", "zip"}
-    runtime = _EasyLoginLocalAssetRuntime(enable_local_pivot=enable_local_pivot)
+    if variant == "runtime_only":
+        runtime = _EasyLoginRuntimeOnlyFallbackRuntime()
+    else:
+        runtime = _EasyLoginLocalAssetRuntime(enable_local_pivot=enable_local_pivot)
     dispatcher = CTFTaskDispatcher(runtime=runtime, progress_callback=None)
 
     run_kwargs = {
