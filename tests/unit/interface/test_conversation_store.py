@@ -178,6 +178,8 @@ class TestSaveUpdateInPlace:
             "last_checkpoint": "loot/checkpoints/run-ctf-42.jsonl",
             "last_ledger": "loot/session_ledgers/run-ctf-42.jsonl",
             "last_resume_summary": "run_id=run-ctf-42; stop_reason=flag_verified",
+            "last_resume_from_run": "run-prev-42",
+            "last_resume_from_checkpoint": "checkpoint-prev-42",
             "ctf_context": {
                 "url": "http://ctf.local/challenges/42",
                 "goal": "拿到flag",
@@ -195,6 +197,8 @@ class TestSaveUpdateInPlace:
         assert index[0]["last_run_id"] == "run-ctf-42"
         assert index[0]["last_checkpoint"] == "loot/checkpoints/run-ctf-42.jsonl"
         assert index[0]["last_ledger"] == "loot/session_ledgers/run-ctf-42.jsonl"
+        assert index[0]["last_resume_from_run"] == "run-prev-42"
+        assert index[0]["last_resume_from_checkpoint"] == "checkpoint-prev-42"
 
     def test_load_handoff_metadata_returns_saved_payload(self, tmp_path):
         store = ConversationStore(tmp_path)
@@ -203,6 +207,8 @@ class TestSaveUpdateInPlace:
             "last_checkpoint": "loot/checkpoints/run-ctf-99.jsonl",
             "last_ledger": "loot/session_ledgers/run-ctf-99.jsonl",
             "last_resume_summary": "run_id=run-ctf-99; stop_reason=wrong_flag_feedback",
+            "last_resume_from_run": "run-prev-99",
+            "last_resume_from_checkpoint": "checkpoint-prev-99",
             "ctf_context": {
                 "url": "http://ctf.local/challenges/99",
                 "goal": "拿到flag",

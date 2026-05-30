@@ -910,6 +910,12 @@ async def test_save_current_conversation_persists_last_ctf_handoff_metadata(monk
         "autonomy_state": {"records": [{"challenge_id": "42"}]},
         "autonomy_end_reason": "flag_verified",
         "sessionContext": {
+            "resumeIngress": {
+                "hasResumeContext": True,
+                "runId": "run-prev-17",
+                "checkpointId": "checkpoint-prev-17",
+                "sourceEvent": "dispatcher_started",
+            },
             "resumeContext": {
                 "runId": "run-ctf-42",
                 "checkpointId": "checkpoint-1",
@@ -943,6 +949,8 @@ async def test_save_current_conversation_persists_last_ctf_handoff_metadata(monk
 
     assert captured["handoff"]["last_run_id"] == "run-ctf-42"
     assert captured["handoff"]["last_resume_summary"] == "run_id=run-ctf-42; stop_reason=flag_verified"
+    assert captured["handoff"]["last_resume_from_run"] == "run-prev-17"
+    assert captured["handoff"]["last_resume_from_checkpoint"] == "checkpoint-prev-17"
     assert captured["handoff"]["ctf_context"]["url"] == "http://ctf.local/challenges/42"
     assert captured["saved_session_state"] is True
     assert tui._current_conv_id == "conv-123"
@@ -964,6 +972,8 @@ async def test_restore_conversation_hydrates_last_ctf_context_from_saved_handoff
         "last_checkpoint": "loot/checkpoints/run-ctf-restore.jsonl",
         "last_ledger": "loot/session_ledgers/run-ctf-restore.jsonl",
         "last_resume_summary": "run_id=run-ctf-restore; stop_reason=flag_verified",
+        "last_resume_from_run": "run-prev-restore",
+        "last_resume_from_checkpoint": "checkpoint-prev-restore",
         "ctf_context": {
             "url": "http://ctf.local/challenges/restore",
             "goal": "拿到flag",
@@ -1009,6 +1019,12 @@ async def test_restore_conversation_hydrates_last_ctf_context_from_saved_handoff
     assert tui._current_conv_id == "conv-restore"
     assert tui._last_ctf_context["url"] == "http://ctf.local/challenges/restore"
     assert tui._last_ctf_context["sessionContext"]["resumeContext"]["runId"] == "run-ctf-restore"
+    assert tui._last_ctf_context["sessionContext"]["resumeIngress"] == {
+        "hasResumeContext": True,
+        "runId": "run-prev-restore",
+        "checkpointId": "checkpoint-prev-restore",
+        "sourceEvent": "conversation_handoff",
+    }
     assert any("Conversation restored" in message for message in tui._captured_messages)
 
 
