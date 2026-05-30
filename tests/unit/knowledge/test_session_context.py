@@ -102,3 +102,45 @@ def test_session_context_view_returns_stable_empty_shape_without_run_data(tmp_pa
     assert context["artifacts"] == []
     assert context["latestCheckpoint"] is None
     assert context["resumeContext"] is None
+
+
+def test_session_context_view_projects_resume_ingress_from_dispatcher_started_event(
+    tmp_path,
+) -> None:
+    run_id = "run-session-context-resume"
+
+    ledger = SessionLedger(tmp_path / "session_ledgers")
+    ledger.append_event(
+        run_id,
+        "dispatcher_started",
+        {
+            "target": "http://ctf.local",
+            "has_resume_context": True,
+            "resume_run_id": "run-prev-1",
+            "resume_checkpoint_id": "checkpoint-prev-1",
+        },
+    )
+    ledger.append_event(run_id, "task_finished", {"success": False})
+
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    state.stop_reason = "wrong_flag_feedback"
+    CheckpointStore(tmp_path / "checkpoints").save_checkpoint(
+        run_id=run_id,
+        label="task_finished",
+        state_snapshot=state.to_snapshot(),
+        metadata={"success": False},
+    )
+
+    view = SessionContextView(
+        ledger_root=tmp_path / "session_ledgers",
+        artifact_root=tmp_path / "artifact_registry",
+        checkpoint_root=tmp_path / "checkpoints",
+    )
+    context = view.build_run_context(run_id)
+
+    assert context["resumeIngress"] == {
+        "hasResumeContext": True,
+        "runId": "run-prev-1",
+        "checkpointId": "checkpoint-prev-1",
+        "sourceEvent": "dispatcher_started",
+    }

@@ -91,3 +91,60 @@ async def test_dispatcher_writes_start_and_finish_checkpoints(
     restored = CTFState.from_snapshot(latest["state"])
     assert restored.target == "http://ctf.local"
     assert restored.verified_flags[0].value == "flag{checkpoint_verified_ok}"
+
+
+@pytest.mark.asyncio
+async def test_dispatcher_persists_resume_ingress_into_start_event_and_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_checkpoint_resume.json")
+    notes_module._notes.clear()
+
+    dispatcher = CTFTaskDispatcher(
+        runtime=_CheckpointRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+
+    result = await dispatcher.run(
+        target="http://ctf.local/",
+        goal="拿到flag",
+        type="web",
+        hint="",
+        challenge_context={
+            "resumeContext": {
+                "runId": "run-prev-1",
+                "checkpointId": "checkpoint-prev-1",
+                "checkpointLabel": "task_failed",
+                "stopReason": "wrong_flag_feedback",
+                "summary": "run_id=run-prev-1; stop_reason=wrong_flag_feedback",
+            }
+        },
+        run_id="run-checkpoint-resume",
+        ledger_root=tmp_path / "ledgers",
+        checkpoint_root=tmp_path / "checkpoints",
+    )
+
+    store = CheckpointStore(tmp_path / "checkpoints")
+    events = SessionLedger(tmp_path / "ledgers").read_events("run-checkpoint-resume")
+    checkpoints = store.list_checkpoints("run-checkpoint-resume")
+    started_checkpoint = checkpoints[0]
+
+    assert result.success is True
+    assert events[0]["event_type"] == "dispatcher_started"
+    assert events[0]["payload"]["has_resume_context"] is True
+    assert events[0]["payload"]["resume_run_id"] == "run-prev-1"
+    assert events[0]["payload"]["resume_checkpoint_id"] == "checkpoint-prev-1"
+    assert started_checkpoint["label"] == "dispatcher_started"
+    assert started_checkpoint["metadata"]["has_resume_context"] is True
+    assert started_checkpoint["metadata"]["resume_run_id"] == "run-prev-1"
+    assert started_checkpoint["metadata"]["resume_checkpoint_id"] == "checkpoint-prev-1"
+    assert events[1]["event_type"] == "checkpoint_written"
+    assert events[1]["payload"]["metadata"]["has_resume_context"] is True
+    assert events[1]["payload"]["metadata"]["resume_run_id"] == "run-prev-1"
+    assert events[1]["payload"]["metadata"]["resume_checkpoint_id"] == "checkpoint-prev-1"

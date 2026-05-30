@@ -1855,6 +1855,87 @@ def test_task_detail_payload_exposes_harness_session_context_when_run_artifacts_
     assert "recent_events=task_finished" in detail["sessionContext"]["resumeContext"]["summary"]
 
 
+def test_task_detail_payload_includes_harness_resume_ingress(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    from pentestagent.agents.pa_agent.ctf_state import CTFState
+    from pentestagent.harness.checkpoint_store import CheckpointStore
+    from pentestagent.harness.session_ledger import SessionLedger
+
+    task = {
+        "id": "task_resume_ingress",
+        "title": "resume ingress",
+        "target": "http://ctf.local",
+        "goal": "拿到flag",
+        "status": "failed",
+        "createdAt": web_server._now_iso(),
+        "startedAt": web_server._now_iso(),
+        "finishedAt": web_server._now_iso(),
+        "tokensUsed": 0,
+        "toolCalls": 0,
+        "finalFlag": None,
+        "stopReason": "wrong_flag_feedback",
+        "currentRunId": "run-resume-ingress",
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    monkeypatch.setattr(web_server, "_pick_metrics_for_task", lambda project_root, item: None)
+    monkeypatch.setattr(
+        web_server,
+        "_pick_session_snapshot",
+        lambda project_root, item: (
+            None,
+            None,
+            {
+                "matchedBy": "none",
+                "confidence": "none",
+                "expectedSessionId": None,
+                "blockedReason": None,
+                "candidateScore": None,
+            },
+        ),
+    )
+
+    run_id = "run-resume-ingress"
+    SessionLedger(tmp_path / "loot" / "session_ledgers").append_event(
+        run_id,
+        "dispatcher_started",
+        {
+            "has_resume_context": True,
+            "resume_run_id": "run-prev-1",
+            "resume_checkpoint_id": "checkpoint-prev-1",
+        },
+    )
+    SessionLedger(tmp_path / "loot" / "session_ledgers").append_event(
+        run_id,
+        "task_finished",
+        {"success": False},
+    )
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    state.stop_reason = "wrong_flag_feedback"
+    CheckpointStore(tmp_path / "loot" / "checkpoints").save_checkpoint(
+        run_id=run_id,
+        label="task_finished",
+        state_snapshot=state.to_snapshot(),
+        metadata={"success": False},
+    )
+
+    detail = web_server._task_detail_payload(tmp_path, task)
+
+    assert detail["detailSource"]["sessionContext"] == "harness"
+    assert detail["sessionContext"]["resumeIngress"] == {
+        "hasResumeContext": True,
+        "runId": "run-prev-1",
+        "checkpointId": "checkpoint-prev-1",
+        "sourceEvent": "dispatcher_started",
+    }
+
+
 def test_pick_session_snapshot_falls_back_to_heuristic_when_explicit_session_missing(tmp_path: Path):
     sessions_dir = tmp_path / "loot" / "sessions"
     sessions_dir.mkdir(parents=True, exist_ok=True)
