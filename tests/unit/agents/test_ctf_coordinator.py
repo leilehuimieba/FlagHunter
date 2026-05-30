@@ -696,7 +696,7 @@ async def test_coordinator_returns_missing_recon_result_before_inner_run(tmp_pat
 
     class _Dispatcher:
         def __init__(self):
-            self._notes_log = ["note-a"]
+            self._notes_log = []
             self._challenge_context = None
             self._ledger_run_id = None
             self._current_fingerprint = None
@@ -786,3 +786,359 @@ async def test_coordinator_returns_missing_recon_result_before_inner_run(tmp_pat
         {"browser": "install browser", "http_request": "install http_request"},
     )
     assert finalized and finalized[0] is result
+
+
+@pytest.mark.asyncio
+async def test_coordinator_applies_post_recon_contract_before_inner_run(
+    monkeypatch, tmp_path: Path
+):
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.detect_type",
+        lambda content, target: "misc",
+    )
+    coordinator = CTFCoordinator()
+    sentinel = SolveResult(success=False, reason="post-recon-ready")
+    captured: dict[str, object] = {}
+    page_features = {
+        "html": "<html><title>Archive</title></html>",
+        "content": "download the archive",
+        "forms": [],
+        "endpoints": ["/download"],
+        "recon_missing_tools": [],
+    }
+
+    class _CapabilityRegistry:
+        async def full_check(self):
+            return None
+
+        def to_dict(self):
+            return {}
+
+    class _Dispatcher:
+        def __init__(self):
+            self._notes_log = []
+            self._challenge_context = None
+            self._ledger_run_id = None
+            self._current_fingerprint = None
+            self._memory_match_ids = []
+            self._pending_wrong_flag_feedback = []
+            self._exhausted_visit_url_targets = set()
+            self.reasoning_layer = SimpleNamespace(degradation_events=[])
+            self.state = None
+            self.capability_registry = _CapabilityRegistry()
+
+        def _setup_session_ledger(self, *, run_id=None, ledger_root=None):
+            self._ledger_run_id = run_id
+
+        def _setup_artifact_registry(self, *, run_id=None, registry_root=None):
+            return None
+
+        def _setup_checkpoint_store(self, *, run_id=None, checkpoint_root=None):
+            return None
+
+        def _apply_submit_profile(self, submit_profile):
+            return None
+
+        async def _start_failover_monitor_if_available(self):
+            return None
+
+        def _record_session_event(self, event_type: str, payload: dict[str, object]):
+            return None
+
+        def _write_checkpoint(self, label: str, payload: dict[str, object]):
+            return None
+
+        def _load_rejected_flags(self):
+            return None
+
+        async def _snapshot_platform_context(self, target: str):
+            return None
+
+        async def _phase_recon(self, target: str):
+            return dict(page_features)
+
+        def _ingest_local_challenge_artifacts(self, target: str):
+            return None
+
+        def _align_platform_challenge(self, target: str, features: dict[str, object]):
+            return None
+
+        def _extract_flag(self, text: str):
+            return None
+
+        def _emit(self, message: str):
+            return None
+
+        async def run(self, **kwargs):
+            captured.update(kwargs)
+            return sentinel
+
+    dispatcher = _Dispatcher()
+
+    result = await coordinator.execute(
+        dispatcher,
+        target="127.0.0.1:3000",
+        goal="goal",
+        type="auto",
+        hint="",
+        submit_profile=None,
+        challenge_context={"artifactPaths": []},
+        run_id="run-post-recon",
+        ledger_root=tmp_path / "ledgers",
+        checkpoint_root=tmp_path / "checkpoints",
+    )
+
+    assert result is sentinel
+    assert captured["_post_recon_ready"] is True
+    assert captured["_page_features"] == page_features
+    assert captured["_detected_type"] == "misc"
+    assert dispatcher.state is not None
+    assert dispatcher.state.detected_type == "misc"
+
+
+@pytest.mark.asyncio
+async def test_coordinator_stops_when_platform_alignment_marks_already_solved(tmp_path: Path):
+    coordinator = CTFCoordinator()
+
+    class _CapabilityRegistry:
+        async def full_check(self):
+            return None
+
+        def to_dict(self):
+            return {}
+
+    class _Dispatcher:
+        def __init__(self):
+            self._notes_log = []
+            self._challenge_context = None
+            self._ledger_run_id = None
+            self._current_fingerprint = None
+            self._memory_match_ids = []
+            self._pending_wrong_flag_feedback = []
+            self._exhausted_visit_url_targets = set()
+            self.reasoning_layer = SimpleNamespace(degradation_events=[])
+            self.state = None
+            self.capability_registry = _CapabilityRegistry()
+            self.run_called = False
+            self.finalized_results: list[SolveResult] = []
+
+        def _setup_session_ledger(self, *, run_id=None, ledger_root=None):
+            self._ledger_run_id = run_id
+
+        def _setup_artifact_registry(self, *, run_id=None, registry_root=None):
+            return None
+
+        def _setup_checkpoint_store(self, *, run_id=None, checkpoint_root=None):
+            return None
+
+        def _apply_submit_profile(self, submit_profile):
+            return None
+
+        async def _start_failover_monitor_if_available(self):
+            return None
+
+        def _record_session_event(self, event_type: str, payload: dict[str, object]):
+            return None
+
+        def _write_checkpoint(self, label: str, payload: dict[str, object]):
+            return None
+
+        def _load_rejected_flags(self):
+            return None
+
+        async def _snapshot_platform_context(self, target: str):
+            return None
+
+        async def _phase_recon(self, target: str):
+            return {
+                "html": "<html></html>",
+                "content": "portal",
+                "forms": [],
+                "endpoints": ["/challenge/42"],
+                "recon_missing_tools": [],
+            }
+
+        def _ingest_local_challenge_artifacts(self, target: str):
+            return None
+
+        def _align_platform_challenge(self, target: str, features: dict[str, object]):
+            return {
+                "challenge_id": "42",
+                "challenge_name": "EasySQL",
+                "platform_type": "ctfd",
+                "already_solved": True,
+            }
+
+        def _build_already_solved_reason(self) -> str:
+            return "already solved on platform"
+
+        def _extract_flag(self, text: str):
+            return None
+
+        def _emit(self, message: str):
+            return None
+
+        async def _finalize_solve_result(self, result: SolveResult):
+            self.finalized_results.append(result)
+            return result
+
+        async def run(self, **kwargs):
+            self.run_called = True
+            return SolveResult(success=False, reason="should-not-run")
+
+    dispatcher = _Dispatcher()
+
+    result = await coordinator.execute(
+        dispatcher,
+        target="127.0.0.1:3000",
+        goal="goal",
+        type="web",
+        hint="",
+        submit_profile=None,
+        challenge_context={"artifactPaths": []},
+        run_id="run-already-solved",
+        ledger_root=tmp_path / "ledgers",
+        checkpoint_root=tmp_path / "checkpoints",
+    )
+
+    assert dispatcher.run_called is False
+    assert dispatcher.finalized_results
+    assert result.reason == "already solved on platform"
+    assert dispatcher.state is not None
+    assert dispatcher.state.submit_challenge_id == "42"
+    assert any(
+        isinstance(item, dict)
+        and item.get("type") == "platform_challenge_alignment"
+        and item.get("already_solved") is True
+        and item.get("challenge_id") == "42"
+        for item in dispatcher.state.meta_reasonings
+    )
+
+
+@pytest.mark.asyncio
+async def test_coordinator_returns_verified_direct_flag_before_inner_run(tmp_path: Path):
+    coordinator = CTFCoordinator()
+    observed: list[tuple[str, str, str, str]] = []
+
+    class _CapabilityRegistry:
+        async def full_check(self):
+            return None
+
+        def to_dict(self):
+            return {}
+
+    class _Dispatcher:
+        def __init__(self):
+            self._notes_log = ["note-a"]
+            self._challenge_context = None
+            self._ledger_run_id = None
+            self._current_fingerprint = None
+            self._memory_match_ids = []
+            self._pending_wrong_flag_feedback = []
+            self._exhausted_visit_url_targets = set()
+            self.reasoning_layer = SimpleNamespace(degradation_events=[])
+            self.state = None
+            self.capability_registry = _CapabilityRegistry()
+            self.run_called = False
+            self.finalized_results: list[SolveResult] = []
+
+        def _setup_session_ledger(self, *, run_id=None, ledger_root=None):
+            self._ledger_run_id = run_id
+
+        def _setup_artifact_registry(self, *, run_id=None, registry_root=None):
+            return None
+
+        def _setup_checkpoint_store(self, *, run_id=None, checkpoint_root=None):
+            return None
+
+        def _apply_submit_profile(self, submit_profile):
+            return None
+
+        async def _start_failover_monitor_if_available(self):
+            return None
+
+        def _record_session_event(self, event_type: str, payload: dict[str, object]):
+            return None
+
+        def _write_checkpoint(self, label: str, payload: dict[str, object]):
+            return None
+
+        def _load_rejected_flags(self):
+            return None
+
+        async def _snapshot_platform_context(self, target: str):
+            return None
+
+        async def _phase_recon(self, target: str):
+            self._notes_log.append("note-a")
+            return {
+                "html": "<html></html>",
+                "content": "welcome flag{win}",
+                "forms": [],
+                "endpoints": ["/"],
+                "recon_missing_tools": [],
+            }
+
+        def _ingest_local_challenge_artifacts(self, target: str):
+            return None
+
+        def _align_platform_challenge(self, target: str, features: dict[str, object]):
+            return None
+
+        def _extract_flag(self, text: str):
+            return "flag{win}"
+
+        async def _observe_flag(
+            self,
+            flag: str,
+            target: str,
+            *,
+            evidence_source: str,
+            rationale: str,
+        ):
+            observed.append((flag, target, evidence_source, rationale))
+            return SimpleNamespace(decision="verified")
+
+        def _emit(self, message: str):
+            return None
+
+        async def _finalize_solve_result(self, result: SolveResult):
+            self.finalized_results.append(result)
+            return result
+
+        async def run(self, **kwargs):
+            self.run_called = True
+            return SolveResult(success=False, reason="should-not-run")
+
+    dispatcher = _Dispatcher()
+
+    result = await coordinator.execute(
+        dispatcher,
+        target="127.0.0.1:3000",
+        goal="goal",
+        type="web",
+        hint="",
+        submit_profile=None,
+        challenge_context={"artifactPaths": []},
+        run_id="run-direct-flag",
+        ledger_root=tmp_path / "ledgers",
+        checkpoint_root=tmp_path / "checkpoints",
+    )
+
+    assert dispatcher.run_called is False
+    assert dispatcher.finalized_results
+    assert result.success is True
+    assert result.flag == "flag{win}"
+    assert result.chain_used == ["recon"]
+    assert result.reason == "首页直接命中旗帜"
+    assert result.notes == ["note-a"]
+    assert observed == [
+        (
+            "flag{win}",
+            "http://127.0.0.1:3000",
+            "browser-rendered-page",
+            "首页直接命中旗帜",
+        )
+    ]
+    assert dispatcher.state is not None
+    assert dispatcher.state.stop_reason == "首页直接命中旗帜"
