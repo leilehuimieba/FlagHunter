@@ -26,7 +26,20 @@ def _close_created_task(coro):
 
 
 @pytest.fixture(autouse=True)
-def _reset_mcp_task_state(monkeypatch: pytest.MonkeyPatch):
+def _reset_mcp_task_state(monkeypatch: pytest.MonkeyPatch, tmp_path):
+    (tmp_path / ".env").write_text(
+        "\n".join(
+            [
+                "PENTESTAGENT_MODEL=openai/gpt-5.4",
+                "FH_PROVIDER=custom",
+                "LITELLM_API_BASE=http://127.0.0.1:11434/v1",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(settings_module, "_settings", None)
     mcp_tools._tasks.clear()
     monkeypatch.setattr(mcp_tools, "_primary_agent", _PrimaryAgentStub())
 
@@ -195,6 +208,41 @@ async def test_get_server_status_exposes_model_readiness_reason(
     assert "ready:      True" in result
     assert "model_ready: False" in result
     assert "model_readiness_reason: custom_provider_unconfigured" in result
+
+
+@pytest.mark.asyncio
+async def test_run_task_async_rejects_when_model_is_not_ready(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / ".env").write_text(
+        "\n".join(
+            [
+                "PENTESTAGENT_MODEL=openai/gpt-5.4",
+                "FH_PROVIDER=custom",
+                "LITELLM_API_BASE=",
+                "OPENAI_API_KEY=",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(settings_module, "_settings", None)
+
+    result = await mcp_tools.run_task_async(
+        {
+            "task": "analyze challenge",
+            "target": "http://challenge.test",
+            "mode": "ctf",
+            "ctfType": "web",
+        }
+    )
+
+    assert result == "[error] model_not_ready: custom_provider_unconfigured"
+    assert mcp_tools._tasks == {}
 
 
 class _ForbiddenMcpAgent:

@@ -27,6 +27,18 @@ class _NoopThread:
 
 @pytest.fixture
 async def web_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    (tmp_path / ".env").write_text(
+        "\n".join(
+            [
+                "PENTESTAGENT_MODEL=openai/gpt-5.4",
+                "FH_PROVIDER=custom",
+                "LITELLM_API_BASE=http://127.0.0.1:11434/v1",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(settings_module, "_settings", None)
     web_server._tasks.clear()
     web_server._task_threads.clear()
     web_server._aggregator = web_server.DashboardAggregator()
@@ -2647,6 +2659,46 @@ async def test_settings_payload_exposes_unconfigured_custom_model_readiness(
         "provider": "custom",
         "model": "openai/gpt-5.4",
     }
+
+
+@pytest.mark.asyncio
+async def test_post_task_rejects_when_model_readiness_is_false(
+    web_client: TestClient,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    (tmp_path / ".env").write_text(
+        "\n".join(
+            [
+                "PENTESTAGENT_MODEL=openai/gpt-5.4",
+                "FH_PROVIDER=custom",
+                "LITELLM_API_BASE=",
+                "OPENAI_API_KEY=",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(settings_module, "_settings", None)
+
+    resp = await web_client.post(
+        "/api/tasks",
+        json={
+            "title": "blocked",
+            "target": "http://challenge.test",
+            "goal": "analyze challenge",
+            "mode": "ctf",
+        },
+    )
+
+    assert resp.status == 409
+    data = await resp.json()
+    assert data["error"] == "model not ready"
+    assert data["reason"] == "custom_provider_unconfigured"
+    assert data["readiness"]["ready"] is False
+    assert web_server._tasks == {}
 
 
 @pytest.mark.asyncio
