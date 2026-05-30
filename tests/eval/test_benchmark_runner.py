@@ -375,6 +375,7 @@ def test_aggregate_report_includes_harness_coverage_metrics() -> None:
                     "has_session_ledger": True,
                     "has_checkpoint": True,
                     "artifact_count": 2,
+                    "tool_event_count": 3,
                 }
             },
         ),
@@ -396,6 +397,7 @@ def test_aggregate_report_includes_harness_coverage_metrics() -> None:
                     "has_session_ledger": False,
                     "has_checkpoint": False,
                     "artifact_count": 0,
+                    "tool_event_count": 0,
                 }
             },
         ),
@@ -411,3 +413,4 @@ def test_aggregate_report_includes_harness_coverage_metrics() -> None:
     assert report.metadata["harness_session_coverage"] == 0.5
     assert report.metadata["harness_checkpoint_coverage"] == 0.5
     assert report.metadata["harness_artifact_coverage"] == 0.5
+    assert report.metadata["harness_tool_event_coverage"] == 0.5

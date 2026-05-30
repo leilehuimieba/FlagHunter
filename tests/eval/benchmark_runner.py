@@ -550,6 +550,12 @@ def _aggregate_report(
         if isinstance(item.metadata.get("harness"), dict)
         and int(item.metadata["harness"].get("artifact_count", 0) or 0) > 0
     )
+    harness_tool_event_hits = sum(
+        1
+        for item in results
+        if isinstance(item.metadata.get("harness"), dict)
+        and int(item.metadata["harness"].get("tool_event_count", 0) or 0) > 0
+    )
 
     # Phase 7: failure taxonomy distribution
     failure_distribution: dict[str, int] = {}
@@ -597,6 +603,9 @@ def _aggregate_report(
             "harness_session_coverage": round(harness_session_hits / total, 4) if total else 0.0,
             "harness_checkpoint_coverage": round(harness_checkpoint_hits / total, 4) if total else 0.0,
             "harness_artifact_coverage": round(harness_artifact_hits / total, 4) if total else 0.0,
+            "harness_tool_event_coverage": round(harness_tool_event_hits / total, 4)
+            if total
+            else 0.0,
         },
     )
 
