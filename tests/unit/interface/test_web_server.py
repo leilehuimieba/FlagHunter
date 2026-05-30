@@ -959,7 +959,7 @@ def test_run_agent_task_routes_ctf_progress_messages_into_logs(
             self.runtime = runtime
             self.progress_callback = progress_callback
 
-        async def run(self, target, goal, type=None, hint=None, submit_profile=None):
+        async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None):
             if self.progress_callback is not None:
                 self.progress_callback("dispatcher phase 1")
             return types.SimpleNamespace(
@@ -1065,7 +1065,7 @@ def test_run_agent_task_emits_ctf_dispatcher_lifecycle_summary_logs(
             self.runtime = runtime
             self.progress_callback = progress_callback
 
-        async def run(self, target, goal, type=None, hint=None, submit_profile=None):
+        async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None):
             return types.SimpleNamespace(
                 success=True,
                 flag="flag{dispatcher_summary}",
@@ -1178,7 +1178,7 @@ def test_run_agent_task_emits_ctf_dispatcher_missing_tools_log_on_stop(
             self.runtime = runtime
             self.progress_callback = progress_callback
 
-        async def run(self, target, goal, type=None, hint=None, submit_profile=None):
+        async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None):
             return types.SimpleNamespace(
                 success=False,
                 flag=None,
@@ -1808,6 +1808,9 @@ def test_task_detail_payload_exposes_harness_session_context_when_run_artifacts_
     assert detail["sessionContext"]["recentEvents"][0]["type"] == "task_finished"
     assert detail["sessionContext"]["artifacts"][0]["title"] == "ctf_backup_candidate"
     assert detail["sessionContext"]["latestCheckpoint"]["stopReason"] == "flag_verified"
+    assert detail["sessionContext"]["resumeContext"]["runId"] == run_id
+    assert detail["sessionContext"]["resumeContext"]["stopReason"] == "flag_verified"
+    assert "recent_events=task_finished" in detail["sessionContext"]["resumeContext"]["summary"]
 
 
 def test_pick_session_snapshot_falls_back_to_heuristic_when_explicit_session_missing(tmp_path: Path):

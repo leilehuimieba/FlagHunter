@@ -53,6 +53,7 @@ def test_context_assembler_includes_harness_session_context_summary(tmp_path) ->
 
     text = ContextAssembler(_StubAgent(project_root=tmp_path, run_id=run_id)).assemble()
 
+    assert f"run_id={run_id}" in text
     assert "flag{ctx_summary_ok}" in text
     assert "flag_verified" in text
     assert "ctf_backup_candidate" in text

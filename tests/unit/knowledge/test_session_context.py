@@ -58,6 +58,34 @@ def test_session_context_view_builds_recent_events_artifacts_and_latest_checkpoi
     assert context["latestCheckpoint"]["label"] == "task_finished"
     assert context["latestCheckpoint"]["stopReason"] == "flag_verified"
     assert context["latestCheckpoint"]["verifiedFlags"] == ["flag{ctx_ok}"]
+    assert context["resumeContext"] == {
+        "runId": run_id,
+        "checkpointId": context["latestCheckpoint"]["checkpointId"],
+        "checkpointLabel": "task_finished",
+        "stopReason": "flag_verified",
+        "verifiedFlags": ["flag{ctx_ok}"],
+        "runtimeFlags": [],
+        "recentEventTypes": [
+            "dispatcher_started",
+            "verification_decision",
+            "task_finished",
+        ],
+        "artifactRefs": [
+            {
+                "artifactId": context["artifacts"][0]["artifactId"],
+                "kind": "artifact",
+                "title": "ctf_backup_candidate",
+                "location": "http://ctf.local/www.zip",
+                "path": None,
+            }
+        ],
+        "summary": (
+            f"run_id={run_id}; latest_checkpoint=task_finished; "
+            "stop_reason=flag_verified; verified_flags=flag{ctx_ok}; "
+            "recent_events=dispatcher_started, verification_decision, task_finished; "
+            "artifacts=ctf_backup_candidate"
+        ),
+    }
 
 
 def test_session_context_view_returns_stable_empty_shape_without_run_data(tmp_path) -> None:
@@ -73,3 +101,4 @@ def test_session_context_view_returns_stable_empty_shape_without_run_data(tmp_pa
     assert context["recentEvents"] == []
     assert context["artifacts"] == []
     assert context["latestCheckpoint"] is None
+    assert context["resumeContext"] is None
