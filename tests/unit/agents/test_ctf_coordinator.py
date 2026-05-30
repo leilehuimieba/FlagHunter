@@ -1605,3 +1605,162 @@ async def test_coordinator_applies_missing_tools_recovery_contract_switch_chain(
     assert stored == [(["sqlmap"], {"sqlmap": "install sqlmap"})]
     assert recorded == [("sqli", "switch to web after missing sqlmap")]
     assert emitted == ["[CTF recovery] switch to web after missing sqlmap"]
+
+
+def test_coordinator_applies_progress_evaluation_contract_with_effective_progress():
+    coordinator = CTFCoordinator()
+    feedback_calls: list[dict[str, object]] = []
+    interpretations: list[dict[str, object]] = []
+    evaluations: list[dict[str, object]] = []
+
+    hypothesis = Hypothesis(
+        id="hyp-1",
+        kind="auth_form_sqli",
+        description="try auth form sqli",
+        confidence=0.82,
+    )
+
+    class _State:
+        def __init__(self):
+            self.progress_markers: list[str] = []
+            self.no_progress_markers: list[str] = []
+
+        def mark_progress(self, marker: str):
+            self.progress_markers.append(marker)
+
+        def mark_no_progress(self, marker: str):
+            self.no_progress_markers.append(marker)
+
+    class _HypothesisEngine:
+        def record_experiment_feedback(self, state, **kwargs):
+            feedback_calls.append(dict(kwargs))
+
+    class _ReasoningLayer:
+        def record_interpretation(self, state, **kwargs):
+            interpretations.append(dict(kwargs))
+
+        def evaluate_experiment_result(self, state, **kwargs):
+            evaluations.append(dict(kwargs))
+
+    class _Dispatcher:
+        def __init__(self):
+            self.state = _State()
+            self.hypothesis_engine = _HypothesisEngine()
+            self.reasoning_layer = _ReasoningLayer()
+
+        def _derive_progress_delta(self, before_state, *, chain_outcome):
+            return "strong"
+
+        def _emit(self, message: str):
+            return None
+
+    dispatcher = _Dispatcher()
+    outcome = SimpleNamespace(progress=True, reason="login bypass worked")
+    experiment = SimpleNamespace(
+        id="exp-1",
+        inputs={"chain": "sqli"},
+        expected_signal="flag or progress",
+    )
+
+    contract = coordinator._apply_progress_evaluation_contract(
+        dispatcher,
+        chain_name="sqli",
+        before_state={"runtime": 0},
+        outcome=outcome,
+        no_progress_rounds=2,
+        active_hypothesis=hypothesis,
+        experiment=experiment,
+    )
+
+    assert contract["progress_delta"] == "strong"
+    assert contract["effective_progress"] is True
+    assert contract["no_progress_rounds"] == 0
+    assert dispatcher.state.progress_markers == ["login bypass worked"]
+    assert dispatcher.state.no_progress_markers == []
+    assert feedback_calls == [
+        {
+            "hypothesis_id": "hyp-1",
+            "progress_delta": "strong",
+            "observed_signal": "login bypass worked",
+            "experiment_id": "exp-1",
+            "inputs": {"chain": "sqli"},
+            "expected_signal": "flag or progress",
+        }
+    ]
+    assert interpretations == [
+        {
+            "observation_ids": ["exp-1"],
+            "content": "链路 sqli 取得进展：login bypass worked",
+            "hypothesis_ids": ["hyp-1"],
+            "confidence": 0.72,
+        }
+    ]
+    assert evaluations == [
+        {
+            "experiment_id": "exp-1",
+            "progress_delta": "strong",
+            "observed_signal": "login bypass worked",
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_coordinator_applies_after_chain_recovery_contract_stop(tmp_path: Path):
+    coordinator = CTFCoordinator()
+    recorded: list[tuple[str, str]] = []
+    emitted: list[str] = []
+    retrospectives: list[tuple[str, str, str]] = []
+
+    class _RecoveryController:
+        def after_chain(self, state, *, current_chain: str, active_hypothesis, outcome_progress: bool, no_progress_count: int, used_chains: list[str]):
+            return RecoveryDecision(
+                action="stop_candidate_only",
+                should_stop=True,
+                reason="candidate only without runtime proof",
+            )
+
+    class _Dispatcher:
+        def __init__(self):
+            self.recovery_controller = _RecoveryController()
+            self.state = SimpleNamespace(stop_reason=None)
+            self._notes_log = ["note-a"]
+
+        def _record_recovery_decision(self, decision, *, chain_name: str):
+            recorded.append((chain_name, decision.reason))
+
+        def _emit(self, message: str):
+            emitted.append(message)
+
+        async def _store_retrospective(self, reason: str, target: str, chain_name: str):
+            retrospectives.append((reason, target, chain_name))
+
+        async def _finalize_solve_result(self, result: SolveResult):
+            return result
+
+    dispatcher = _Dispatcher()
+    result = SolveResult(success=False)
+
+    contract = await coordinator._apply_after_chain_recovery_contract(
+        dispatcher,
+        chain_name="web",
+        chain_index=0,
+        chain_order=["web", "xss"],
+        result=result,
+        target="http://ctf.local",
+        active_hypothesis=None,
+        effective_progress=False,
+        no_progress_rounds=1,
+    )
+
+    assert contract["continue_loop"] is False
+    assert contract["chain_order"] == ["web", "xss"]
+    assert contract["next_chain_index"] == 0
+    assert contract["final_result"] is result
+    assert result.reason == "candidate only without runtime proof"
+    assert result.notes == ["note-a"]
+    assert dispatcher.state.stop_reason == "candidate only without runtime proof"
+    assert recorded == [("web", "candidate only without runtime proof")]
+    assert emitted == ["[CTF recovery] candidate only without runtime proof"]
+    assert retrospectives == [
+        ("candidate only without runtime proof", "http://ctf.local", "web")
+    ]
