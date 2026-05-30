@@ -29,6 +29,13 @@ class _BootstrapCapableDispatcher:
         self.applied_submit_profile = None
         self.recorded_events: list[tuple[str, dict[str, object]]] = []
         self.written_checkpoints: list[tuple[str, dict[str, object]]] = []
+        self.rejected_flags_loaded = False
+        self.platform_snapshot_targets: list[str] = []
+        self.capability_registry = SimpleNamespace(
+            full_check=self._capability_full_check,
+            to_dict=lambda: {"http_request_basic": "available"},
+        )
+        self.capability_full_check_calls = 0
 
     def _setup_session_ledger(self, *, run_id=None, ledger_root=None):
         self._ledger_run_id = run_id
@@ -50,6 +57,15 @@ class _BootstrapCapableDispatcher:
 
     def _write_checkpoint(self, label: str, payload: dict[str, object]):
         self.written_checkpoints.append((label, dict(payload)))
+
+    def _load_rejected_flags(self):
+        self.rejected_flags_loaded = True
+
+    async def _snapshot_platform_context(self, target: str):
+        self.platform_snapshot_targets.append(target)
+
+    async def _capability_full_check(self):
+        self.capability_full_check_calls += 1
 
     async def run(self, **kwargs):
         self._captured = dict(kwargs)
@@ -197,6 +213,13 @@ async def test_coordinator_bootstraps_dispatcher_before_inner_run(tmp_path: Path
             self.checkpoint_setup_calls: list[tuple[str | None, object]] = []
             self.applied_submit_profile = None
             self.monitor_started = False
+            self.rejected_flags_loaded = False
+            self.platform_snapshot_targets: list[str] = []
+            self.capability_full_check_calls = 0
+            self.capability_registry = SimpleNamespace(
+                full_check=self._capability_full_check,
+                to_dict=lambda: {"http_request_basic": "available"},
+            )
 
         def _setup_session_ledger(self, *, run_id=None, ledger_root=None):
             self._ledger_run_id = run_id or "generated-run-id"
@@ -220,6 +243,15 @@ async def test_coordinator_bootstraps_dispatcher_before_inner_run(tmp_path: Path
         def _write_checkpoint(self, label: str, payload: dict[str, object]):
             return None
 
+        def _load_rejected_flags(self):
+            self.rejected_flags_loaded = True
+
+        async def _snapshot_platform_context(self, target: str):
+            self.platform_snapshot_targets.append(target)
+
+        async def _capability_full_check(self):
+            self.capability_full_check_calls += 1
+
         async def run(self, **kwargs):
             captured.update(kwargs)
             captured["notes_log"] = list(self._notes_log)
@@ -236,6 +268,10 @@ async def test_coordinator_bootstraps_dispatcher_before_inner_run(tmp_path: Path
             captured["checkpoint_setup_calls"] = list(self.checkpoint_setup_calls)
             captured["applied_submit_profile"] = self.applied_submit_profile
             captured["monitor_started"] = self.monitor_started
+            captured["rejected_flags_loaded"] = self.rejected_flags_loaded
+            captured["platform_snapshot_targets"] = list(self.platform_snapshot_targets)
+            captured["capability_full_check_calls"] = self.capability_full_check_calls
+            captured["state_capabilities"] = dict(getattr(self.state, "capabilities", {}) or {})
             return sentinel
 
     dispatcher = _Dispatcher()
@@ -277,6 +313,10 @@ async def test_coordinator_bootstraps_dispatcher_before_inner_run(tmp_path: Path
     assert captured["checkpoint_setup_calls"] == [("run-bootstrap", tmp_path / "checkpoints")]
     assert captured["applied_submit_profile"] == {"platform": "ctf"}
     assert captured["monitor_started"] is True
+    assert captured["rejected_flags_loaded"] is True
+    assert captured["platform_snapshot_targets"] == ["http://127.0.0.1:3000"]
+    assert captured["capability_full_check_calls"] == 1
+    assert captured["state_capabilities"] == {"http_request_basic": "available"}
 
 
 @pytest.mark.asyncio
@@ -300,6 +340,13 @@ async def test_coordinator_applies_run_start_contract_before_inner_run(tmp_path:
             self.state = None
             self.recorded_events: list[tuple[str, dict[str, object]]] = []
             self.written_checkpoints: list[tuple[str, dict[str, object]]] = []
+            self.rejected_flags_loaded = False
+            self.platform_snapshot_targets: list[str] = []
+            self.capability_full_check_calls = 0
+            self.capability_registry = SimpleNamespace(
+                full_check=self._capability_full_check,
+                to_dict=lambda: {"http_request_basic": "available"},
+            )
 
         def _setup_session_ledger(self, *, run_id=None, ledger_root=None):
             self._ledger_run_id = run_id
@@ -321,6 +368,15 @@ async def test_coordinator_applies_run_start_contract_before_inner_run(tmp_path:
 
         def _write_checkpoint(self, label: str, payload: dict[str, object]):
             self.written_checkpoints.append((label, dict(payload)))
+
+        def _load_rejected_flags(self):
+            self.rejected_flags_loaded = True
+
+        async def _snapshot_platform_context(self, target: str):
+            self.platform_snapshot_targets.append(target)
+
+        async def _capability_full_check(self):
+            self.capability_full_check_calls += 1
 
         async def run(self, **kwargs):
             captured.update(kwargs)
@@ -369,3 +425,92 @@ async def test_coordinator_applies_run_start_contract_before_inner_run(tmp_path:
             },
         )
     ]
+
+
+@pytest.mark.asyncio
+async def test_coordinator_applies_pre_recon_contract_before_inner_run(tmp_path: Path):
+    coordinator = CTFCoordinator()
+    sentinel = SolveResult(success=False, reason="pre-recon-ready")
+    captured: dict[str, object] = {}
+
+    class _CapabilityRegistry:
+        def __init__(self):
+            self.full_check_calls = 0
+
+        async def full_check(self):
+            self.full_check_calls += 1
+
+        def to_dict(self):
+            return {"http_request_basic": "available"}
+
+    class _Dispatcher:
+        def __init__(self):
+            self._notes_log = []
+            self._challenge_context = None
+            self._ledger_run_id = None
+            self._current_fingerprint = None
+            self._memory_match_ids = []
+            self._pending_wrong_flag_feedback = []
+            self._exhausted_visit_url_targets = set()
+            self.reasoning_layer = SimpleNamespace(degradation_events=[])
+            self.state = None
+            self.capability_registry = _CapabilityRegistry()
+            self.rejected_flags_loaded = False
+            self.platform_snapshot_targets: list[str] = []
+
+        def _setup_session_ledger(self, *, run_id=None, ledger_root=None):
+            self._ledger_run_id = run_id
+
+        def _setup_artifact_registry(self, *, run_id=None, registry_root=None):
+            return None
+
+        def _setup_checkpoint_store(self, *, run_id=None, checkpoint_root=None):
+            return None
+
+        def _apply_submit_profile(self, submit_profile):
+            return None
+
+        async def _start_failover_monitor_if_available(self):
+            return None
+
+        def _record_session_event(self, event_type: str, payload: dict[str, object]):
+            return None
+
+        def _write_checkpoint(self, label: str, payload: dict[str, object]):
+            return None
+
+        def _load_rejected_flags(self):
+            self.rejected_flags_loaded = True
+
+        async def _snapshot_platform_context(self, target: str):
+            self.platform_snapshot_targets.append(target)
+
+        async def run(self, **kwargs):
+            captured.update(kwargs)
+            captured["rejected_flags_loaded"] = self.rejected_flags_loaded
+            captured["platform_snapshot_targets"] = list(self.platform_snapshot_targets)
+            captured["capability_full_check_calls"] = self.capability_registry.full_check_calls
+            captured["state_capabilities"] = dict(getattr(self.state, "capabilities", {}) or {})
+            return sentinel
+
+    dispatcher = _Dispatcher()
+
+    result = await coordinator.execute(
+        dispatcher,
+        target="127.0.0.1:3000",
+        goal="goal",
+        type="web",
+        hint="",
+        submit_profile=None,
+        challenge_context={"artifactPaths": []},
+        run_id="run-prerecon",
+        ledger_root=tmp_path / "ledgers",
+        checkpoint_root=tmp_path / "checkpoints",
+    )
+
+    assert result is sentinel
+    assert captured["_pre_recon_ready"] is True
+    assert captured["rejected_flags_loaded"] is True
+    assert captured["platform_snapshot_targets"] == ["http://127.0.0.1:3000"]
+    assert captured["capability_full_check_calls"] == 1
+    assert captured["state_capabilities"] == {"http_request_basic": "available"}
