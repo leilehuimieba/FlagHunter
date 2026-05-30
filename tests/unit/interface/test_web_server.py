@@ -132,6 +132,48 @@ def test_serialize_task_normalizes_dirty_collections():
     assert serialized["capabilities"]["stop"] is False
 
 
+def test_ctf_dispatcher_hint_and_context_include_resume_contract():
+    task = {
+        "hints": [{"text": "focus on the admin flow"}],
+        "challengePath": r"D:\webstudy\CTF\2026\easy_login",
+        "artifactPaths": [r"D:\webstudy\CTF\2026\easy_login\docker-compose.yml"],
+        "resumeFromRunId": "run-prev-1",
+        "resumeFromCheckpointId": "checkpoint-prev-1",
+        "resumeSummary": "run_id=run-prev-1; stop_reason=wrong_flag_feedback",
+        "sessionContext": {
+            "resumeContext": {
+                "runId": "run-prev-1",
+                "checkpointId": "checkpoint-prev-1",
+                "checkpointLabel": "task_failed",
+                "stopReason": "wrong_flag_feedback",
+                "summary": "run_id=run-prev-1; stop_reason=wrong_flag_feedback",
+                "verifiedFlags": [],
+                "runtimeFlags": [],
+            }
+        },
+    }
+
+    hint = web_server._ctf_dispatcher_hint(task)
+    challenge_context = web_server._build_ctf_challenge_context(task)
+
+    assert "[local_ctf_assets]" in hint
+    assert "[resume_context]" in hint
+    assert "run_id=run-prev-1; stop_reason=wrong_flag_feedback" in hint
+    assert challenge_context == {
+        "challengePath": r"D:\webstudy\CTF\2026\easy_login",
+        "artifactPaths": [r"D:\webstudy\CTF\2026\easy_login\docker-compose.yml"],
+        "resumeContext": {
+            "runId": "run-prev-1",
+            "checkpointId": "checkpoint-prev-1",
+            "checkpointLabel": "task_failed",
+            "stopReason": "wrong_flag_feedback",
+            "summary": "run_id=run-prev-1; stop_reason=wrong_flag_feedback",
+            "verifiedFlags": [],
+            "runtimeFlags": [],
+        },
+    }
+
+
 @pytest.mark.asyncio
 async def test_dashboard_summary_uses_truthful_empty_defaults(web_client: TestClient):
     resp = await web_client.get("/api/dashboard/summary")
@@ -2137,6 +2179,61 @@ async def test_trace_replay_creates_new_task_from_existing_run(web_client: TestC
 
 
 @pytest.mark.asyncio
+async def test_trace_replay_inherits_resume_context_lineage_and_detail_seed(
+    web_client: TestClient, tmp_path: Path
+):
+    from pentestagent.agents.pa_agent.ctf_state import CTFState
+    from pentestagent.harness.checkpoint_store import CheckpointStore
+    from pentestagent.harness.session_ledger import SessionLedger
+
+    created = await web_client.post(
+        "/api/tasks",
+        json={"title": "replay-lineage", "target": "http://replay-lineage.test", "goal": "re-run original task"},
+    )
+    assert created.status == 201
+    original_task = await created.json()
+    original_task_id = original_task["id"]
+    original_run_id = original_task["currentRunId"]
+    web_server._tasks[original_task_id]["mode"] = "ctf"
+    web_server._tasks[original_task_id]["modeSubtype"] = "web"
+    web_server._tasks[original_task_id]["goalStyle"] = "flag"
+    web_server._tasks[original_task_id]["challengePath"] = r"D:\webstudy\CTF\2026\CTF比赛题\easy_login"
+    web_server._tasks[original_task_id]["artifactPaths"] = [
+        r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
+    ]
+
+    SessionLedger(tmp_path / "loot" / "session_ledgers").append_event(
+        original_run_id,
+        "task_finished",
+        {"success": True, "flag": "flag{replay_ctx_ok}"},
+    )
+    state = CTFState(target="http://replay-lineage.test", goal="拿到flag")
+    state.stop_reason = "flag_verified"
+    state.add_flag("flag{replay_ctx_ok}", level="verified", evidence_source="http-response", confidence=1.0)
+    checkpoint = CheckpointStore(tmp_path / "loot" / "checkpoints").save_checkpoint(
+        run_id=original_run_id,
+        label="task_finished",
+        state_snapshot=state.to_snapshot(),
+        metadata={"success": True},
+    )
+
+    replay_resp = await web_client.post(f"/api/traces/{original_run_id}/replay")
+    assert replay_resp.status == 200
+    replayed_task = await replay_resp.json()
+
+    assert replayed_task["sourceRunId"] == original_run_id
+    assert replayed_task["resumeFromRunId"] == original_run_id
+    assert replayed_task["resumeFromCheckpointId"] == checkpoint["checkpoint_id"]
+    assert "stop_reason=flag_verified" in replayed_task["resumeSummary"]
+    assert replayed_task["sessionContext"]["resumeContext"]["runId"] == original_run_id
+
+    detail_resp = await web_client.get(f"/api/tasks/{replayed_task['id']}")
+    detail = await detail_resp.json()
+    assert detail["detailSource"]["sessionContext"] == "inherited_resume"
+    assert detail["sessionContext"]["resumeContext"]["runId"] == original_run_id
+
+
+@pytest.mark.asyncio
 async def test_task_retry_creates_new_task_from_finished_task(web_client: TestClient):
     created = await web_client.post(
         "/api/tasks",
@@ -2188,6 +2285,57 @@ async def test_task_retry_creates_new_task_from_finished_task(web_client: TestCl
 
 
 @pytest.mark.asyncio
+async def test_task_retry_inherits_resume_context_lineage_and_detail_seed(
+    web_client: TestClient, tmp_path: Path
+):
+    from pentestagent.agents.pa_agent.ctf_state import CTFState
+    from pentestagent.harness.checkpoint_store import CheckpointStore
+    from pentestagent.harness.session_ledger import SessionLedger
+
+    created = await web_client.post(
+        "/api/tasks",
+        json={"title": "retry-lineage", "target": "http://retry-lineage.test", "goal": "retry original task"},
+    )
+    assert created.status == 201
+    original_task = await created.json()
+    original_task_id = original_task["id"]
+    original_run_id = original_task["currentRunId"]
+    web_server._tasks[original_task_id]["mode"] = "ctf"
+    web_server._tasks[original_task_id]["modeSubtype"] = "web"
+    web_server._tasks[original_task_id]["goalStyle"] = "flag"
+    web_server._tasks[original_task_id]["status"] = "failed"
+
+    SessionLedger(tmp_path / "loot" / "session_ledgers").append_event(
+        original_run_id,
+        "task_finished",
+        {"success": False, "reason": "wrong_flag_feedback"},
+    )
+    state = CTFState(target="http://retry-lineage.test", goal="拿到flag")
+    state.stop_reason = "wrong_flag_feedback"
+    checkpoint = CheckpointStore(tmp_path / "loot" / "checkpoints").save_checkpoint(
+        run_id=original_run_id,
+        label="task_failed",
+        state_snapshot=state.to_snapshot(),
+        metadata={"success": False},
+    )
+
+    retry_resp = await web_client.post(f"/api/tasks/{original_task_id}/retry")
+    assert retry_resp.status == 200
+    retried_task = await retry_resp.json()
+
+    assert retried_task["sourceRunId"] == original_run_id
+    assert retried_task["resumeFromRunId"] == original_run_id
+    assert retried_task["resumeFromCheckpointId"] == checkpoint["checkpoint_id"]
+    assert "stop_reason=wrong_flag_feedback" in retried_task["resumeSummary"]
+    assert retried_task["sessionContext"]["resumeContext"]["runId"] == original_run_id
+
+    detail_resp = await web_client.get(f"/api/tasks/{retried_task['id']}")
+    detail = await detail_resp.json()
+    assert detail["detailSource"]["sessionContext"] == "inherited_resume"
+    assert detail["sessionContext"]["resumeContext"]["runId"] == original_run_id
+
+
+@pytest.mark.asyncio
 async def test_task_retry_from_pentest_does_not_backfill_ctf_fields(web_client: TestClient):
     created = await web_client.post(
         "/api/tasks",
@@ -2209,7 +2357,9 @@ async def test_task_retry_from_pentest_does_not_backfill_ctf_fields(web_client: 
 
 
 @pytest.mark.asyncio
-async def test_task_continue_accepts_running_task_without_creating_new_task(web_client: TestClient):
+async def test_task_continue_accepts_running_task_without_creating_new_task(
+    web_client: TestClient, tmp_path: Path
+):
     created = await web_client.post(
         "/api/tasks",
         json={"title": "continue-source", "target": "http://continue.test", "goal": "continue original task"},
@@ -2225,6 +2375,24 @@ async def test_task_continue_accepts_running_task_without_creating_new_task(web_
     web_server._tasks[task_id]["status"] = "running"
     web_server._tasks[task_id]["startedAt"] = web_server._now_iso()
 
+    from pentestagent.agents.pa_agent.ctf_state import CTFState
+    from pentestagent.harness.checkpoint_store import CheckpointStore
+    from pentestagent.harness.session_ledger import SessionLedger
+
+    SessionLedger(tmp_path / "loot" / "session_ledgers").append_event(
+        run_id,
+        "task_running",
+        {"success": False},
+    )
+    state = CTFState(target="http://continue.test", goal="拿到flag")
+    state.stop_reason = "waiting_for_verification"
+    checkpoint = CheckpointStore(tmp_path / "loot" / "checkpoints").save_checkpoint(
+        run_id=run_id,
+        label="task_running",
+        state_snapshot=state.to_snapshot(),
+        metadata={"success": False},
+    )
+
     continue_resp = await web_client.post(f"/api/tasks/{task_id}/continue")
 
     assert continue_resp.status == 200
@@ -2233,6 +2401,8 @@ async def test_task_continue_accepts_running_task_without_creating_new_task(web_
     assert continue_result["taskId"] == task_id
     assert continue_result["runId"] == run_id
     assert continue_result["accepted"] is True
+    assert continue_result["sessionContext"]["resumeContext"]["runId"] == run_id
+    assert continue_result["resumeFromCheckpointId"] == checkpoint["checkpoint_id"]
     assert set(web_server._tasks.keys()) == {task_id}
     assert web_server._tasks[task_id]["status"] == "running"
     assert web_server._tasks[task_id]["mode"] == "ctf"

@@ -189,6 +189,15 @@ async def test_coordinator_normalizes_public_run_inputs_before_dispatch():
         challenge_context={
             "challengePath": "   ",
             "artifactPaths": [" C:/tmp/app.zip ", "", "C:/tmp/app.zip"],
+            "resumeContext": {
+                "runId": " run-prev-1 ",
+                "checkpointId": " checkpoint-prev-1 ",
+                "checkpointLabel": " task_failed ",
+                "stopReason": " wrong_flag_feedback ",
+                "summary": " run_id=run-prev-1; stop_reason=wrong_flag_feedback ",
+                "verifiedFlags": ["", " flag{dup} ", "flag{dup}"],
+                "runtimeFlags": [" candidate{1} ", ""],
+            },
         },
         run_id="run-normalize",
         ledger_root=None,
@@ -203,6 +212,15 @@ async def test_coordinator_normalizes_public_run_inputs_before_dispatch():
     assert dispatcher._captured["challenge_context"] == {
         "challengePath": None,
         "artifactPaths": ["C:/tmp/app.zip"],
+        "resumeContext": {
+            "runId": "run-prev-1",
+            "checkpointId": "checkpoint-prev-1",
+            "checkpointLabel": "task_failed",
+            "stopReason": "wrong_flag_feedback",
+            "summary": "run_id=run-prev-1; stop_reason=wrong_flag_feedback",
+            "verifiedFlags": ["flag{dup}"],
+            "runtimeFlags": ["candidate{1}"],
+        },
     }
 
 
