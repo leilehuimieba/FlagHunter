@@ -33,6 +33,22 @@
 
 ## 3. 最小场景集
 
+### catalog 合同前提
+
+`LocalChallengeSample` 现在应显式声明：
+
+- `supported_variants`
+- `primary_eval_focus`
+
+对当前 `easy_login`，约定应为：
+
+```text
+supported_variants = ("directory", "zip", "none", "runtime_only")
+primary_eval_focus = "runtime_and_asset_dual_path"
+```
+
+这样 runner / catalog / 文档使用的是同一套事实源，而不是分散在测试名和调用约定里。
+
 ### Scenario A — directory variant success
 
 - **目的**
