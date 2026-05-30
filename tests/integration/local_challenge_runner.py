@@ -5,6 +5,7 @@ from pathlib import Path
 from pentestagent.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
 from tests.integration.local_challenge_catalog import (
     LocalChallengeSample,
+    get_local_challenge_sample,
     build_challenge_context,
 )
 
@@ -253,3 +254,18 @@ async def run_active_local_challenge_sample(
         run_kwargs["hint"] = ""
 
     return await dispatcher.run(**run_kwargs)
+
+
+async def run_catalog_local_challenge_eval_case(
+    case: dict[str, str],
+    *,
+    monkeypatch,
+    tmp_dir: Path | None = None,
+):
+    sample = get_local_challenge_sample(case["sample_key"])
+    return await run_active_local_challenge_sample(
+        sample,
+        variant=case["variant"],
+        monkeypatch=monkeypatch,
+        tmp_dir=tmp_dir,
+    )

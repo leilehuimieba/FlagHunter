@@ -78,6 +78,11 @@ def test_local_challenge_catalog_builds_programmatic_eval_case_index() -> None:
     assert easy_runtime_case["expected_outcome"] == "verified_flag"
     assert easy_runtime_case["status"] == "active"
 
+    easy_none_case = next(
+        case for case in cases if case["sample_key"] == "easy_login" and case["variant"] == "none"
+    )
+    assert easy_none_case["expected_outcome"] == "honest_no_flag"
+
     backup_zip_case = next(
         case for case in cases if case["sample_key"] == "backup_node_app" and case["variant"] == "zip"
     )
