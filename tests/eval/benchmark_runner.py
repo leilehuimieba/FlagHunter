@@ -520,6 +520,24 @@ def _aggregate_report(
         1 for item in results if bool(item.metadata.get("no_progress_stop"))
     )
     first_hit_rate = solved and sum(1 for item in results if item.first_chain_solve) / total or 0.0
+    harness_session_hits = sum(
+        1
+        for item in results
+        if isinstance(item.metadata.get("harness"), dict)
+        and bool(item.metadata["harness"].get("has_session_ledger"))
+    )
+    harness_checkpoint_hits = sum(
+        1
+        for item in results
+        if isinstance(item.metadata.get("harness"), dict)
+        and bool(item.metadata["harness"].get("has_checkpoint"))
+    )
+    harness_artifact_hits = sum(
+        1
+        for item in results
+        if isinstance(item.metadata.get("harness"), dict)
+        and int(item.metadata["harness"].get("artifact_count", 0) or 0) > 0
+    )
 
     # Phase 7: failure taxonomy distribution
     failure_distribution: dict[str, int] = {}
@@ -564,6 +582,9 @@ def _aggregate_report(
         failure_distribution=failure_distribution,
         metadata={
             "challenge_ids": [item.challenge_id for item in results],
+            "harness_session_coverage": round(harness_session_hits / total, 4) if total else 0.0,
+            "harness_checkpoint_coverage": round(harness_checkpoint_hits / total, 4) if total else 0.0,
+            "harness_artifact_coverage": round(harness_artifact_hits / total, 4) if total else 0.0,
         },
     )
 

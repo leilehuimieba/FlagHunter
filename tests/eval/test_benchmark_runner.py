@@ -331,3 +331,61 @@ async def test_p7_eval_04_failure_distribution_in_report(monkeypatch, tmp_path: 
     assert "give_up" in report.failure_distribution
     # solved challenge should not contribute to failure_distribution
     assert report.failure_distribution.get("give_up") == 1
+
+
+def test_aggregate_report_includes_harness_coverage_metrics() -> None:
+    results = [
+        ChallengeResult(
+            challenge_id="a",
+            solved=True,
+            expected_solved=True,
+            wrong_flag_count=0,
+            flag_submit_attempts=0,
+            chain_iterations=1,
+            stop_reason="ok",
+            stop_reason_class="flag_verified",
+            has_source_only_stop=False,
+            hypothesis_exhausted_count=0,
+            hypothesis_total_count=1,
+            wall_time_seconds=0.1,
+            metadata={
+                "harness": {
+                    "has_session_ledger": True,
+                    "has_checkpoint": True,
+                    "artifact_count": 2,
+                }
+            },
+        ),
+        ChallengeResult(
+            challenge_id="b",
+            solved=False,
+            expected_solved=True,
+            wrong_flag_count=0,
+            flag_submit_attempts=0,
+            chain_iterations=1,
+            stop_reason="stop",
+            stop_reason_class="give_up",
+            has_source_only_stop=False,
+            hypothesis_exhausted_count=0,
+            hypothesis_total_count=1,
+            wall_time_seconds=0.2,
+            metadata={
+                "harness": {
+                    "has_session_ledger": False,
+                    "has_checkpoint": False,
+                    "artifact_count": 0,
+                }
+            },
+        ),
+    ]
+
+    report = benchmark_runner._aggregate_report(
+        run_id="benchmark_cov",
+        timestamp="2026-05-30T00:00:00+00:00",
+        git_sha="deadbeef",
+        results=results,
+    )
+
+    assert report.metadata["harness_session_coverage"] == 0.5
+    assert report.metadata["harness_checkpoint_coverage"] == 0.5
+    assert report.metadata["harness_artifact_coverage"] == 0.5
