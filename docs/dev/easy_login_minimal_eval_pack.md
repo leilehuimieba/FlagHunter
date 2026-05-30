@@ -85,6 +85,7 @@ primary_eval_focus = "runtime_and_asset_dual_path"
   - `result.success == False`
   - `result.flag is None`
   - `result.reason` 非空
+  - 程序化 matrix 合同中，这一条应落为 `expected_outcome = "honest_no_flag"`
 - **对应测试**
   - `tests/integration/test_local_asset_eval_pack.py::test_eval_no_local_asset_is_honest_not_false_verified`
   - `tests/integration/test_local_challenge_runner.py::test_local_challenge_runner_keeps_no_asset_easy_login_honest`
