@@ -1,0 +1,158 @@
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+from pentestagent.harness.audit_events import (
+    build_artifact_registered_event,
+    build_checkpoint_written_event,
+    build_dispatcher_started_event,
+    build_missing_tools_recorded_event,
+    build_recovery_decision_event,
+    build_task_finished_event,
+    build_verification_decision_event,
+)
+
+
+def test_build_dispatcher_started_event_keeps_resume_contract() -> None:
+    event = build_dispatcher_started_event(
+        target="http://ctf.local",
+        goal="capture the flag",
+        requested_type="web",
+        local_challenge_auto_verify=True,
+        has_challenge_context=True,
+        has_resume_context=True,
+        resume_run_id="run-prev-1",
+        resume_checkpoint_id="checkpoint-prev-1",
+    )
+
+    assert event["event_type"] == "dispatcher_started"
+    assert event["payload"]["target"] == "http://ctf.local"
+    assert event["payload"]["requested_type"] == "web"
+    assert event["payload"]["has_resume_context"] is True
+    assert event["payload"]["resume_run_id"] == "run-prev-1"
+    assert event["payload"]["resume_checkpoint_id"] == "checkpoint-prev-1"
+
+
+def test_build_verification_decision_event_exposes_strategy_and_hypothesis() -> None:
+    event = build_verification_decision_event(
+        decision="verified",
+        flag="flag{ok}",
+        evidence_source="browser-rendered-page",
+        rationale="homepage contains flag",
+        confidence=0.97,
+        hypothesis_id="hyp-7",
+        strategy_kind="recon",
+    )
+
+    assert event == {
+        "event_type": "verification_decision",
+        "payload": {
+            "decision": "verified",
+            "flag": "flag{ok}",
+            "evidence_source": "browser-rendered-page",
+            "rationale": "homepage contains flag",
+            "confidence": 0.97,
+            "hypothesis_id": "hyp-7",
+            "strategy_kind": "recon",
+        },
+    }
+
+
+def test_build_artifact_registered_event_preserves_metadata() -> None:
+    event = build_artifact_registered_event(
+        {
+            "artifact_id": "artifact-1",
+            "kind": "flag",
+            "title": "ctf_flag",
+            "location": "note://ctf_flag",
+            "path": None,
+            "producer": "verifier",
+            "metadata": {"source": "verified_flag"},
+        }
+    )
+
+    assert event == {
+        "event_type": "artifact_registered",
+        "payload": {
+            "artifact_id": "artifact-1",
+            "kind": "flag",
+            "title": "ctf_flag",
+            "location": "note://ctf_flag",
+            "path": None,
+            "producer": "verifier",
+            "metadata": {"source": "verified_flag"},
+        },
+    }
+
+
+def test_build_recovery_decision_event_normalizes_decision_shape() -> None:
+    decision = SimpleNamespace(
+        action="switch_chain",
+        reason="login dead end",
+        should_stop=False,
+        next_chain_order=["sqli", "lfi"],
+    )
+
+    event = build_recovery_decision_event(decision, chain_name="login")
+
+    assert event == {
+        "event_type": "recovery_decision",
+        "payload": {
+            "action": "switch_chain",
+            "reason": "login dead end",
+            "should_stop": False,
+            "chain_name": "login",
+            "next_chain_order": ["sqli", "lfi"],
+        },
+    }
+
+
+def test_build_task_finished_event_and_missing_tools_event_keep_truthful_fields() -> None:
+    finished = build_task_finished_event(
+        success=False,
+        flag="",
+        reason="missing tools",
+        chain_used=["recon"],
+        missing_tools=["sqlmap"],
+    )
+    missing = build_missing_tools_recorded_event(
+        missing_tools=["sqlmap"],
+        install_commands={"sqlmap": "pip install sqlmap"},
+    )
+
+    assert finished == {
+        "event_type": "task_finished",
+        "payload": {
+            "success": False,
+            "flag": "",
+            "reason": "missing tools",
+            "chain_used": ["recon"],
+            "missing_tools": ["sqlmap"],
+        },
+    }
+    assert missing == {
+        "event_type": "missing_tools_recorded",
+        "payload": {
+            "missing_tools": ["sqlmap"],
+            "install_commands": {"sqlmap": "pip install sqlmap"},
+        },
+    }
+
+
+def test_build_checkpoint_written_event_keeps_label_and_metadata() -> None:
+    event = build_checkpoint_written_event(
+        {
+            "checkpoint_id": "checkpoint-1",
+            "label": "task_finished",
+            "metadata": {"success": True, "flag": "flag{ok}"},
+        }
+    )
+
+    assert event == {
+        "event_type": "checkpoint_written",
+        "payload": {
+            "checkpoint_id": "checkpoint-1",
+            "label": "task_finished",
+            "metadata": {"success": True, "flag": "flag{ok}"},
+        },
+    }
