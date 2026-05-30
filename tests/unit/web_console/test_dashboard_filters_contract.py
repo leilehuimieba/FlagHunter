@@ -42,9 +42,10 @@ def test_dashboard_notes_artifacts_card_no_longer_depends_on_synthetic_notes_art
     source = _read("web/console/src/pages/dashboard.jsx")
 
     assert "recentNotes: []" not in source
-    assert "recentArtifacts: []" not in source
     assert "recentNotes.length === 0 && recentArtifacts.length === 0" not in source
     assert "recentNotes.map(" not in source
-    assert "recentArtifacts.map(" not in source
-    assert "alerts.length === 0" in source
-    assert "alerts.map(" in source
+    assert "const recentArtifacts = dashboardData.recentArtifacts || [];" in source
+    assert "recentArtifacts.length === 0" in source
+    assert "recentArtifacts.map(" in source
+    assert "alerts.length === 0" not in source
+    assert "alerts.map(n => (" not in source

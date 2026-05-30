@@ -197,6 +197,7 @@ async def test_dashboard_summary_uses_truthful_empty_defaults(web_client: TestCl
     assert data["flags"] == []
     assert data["recentTasks"] == []
     assert data["recentToolCalls"] == []
+    assert data["recentArtifacts"] == []
     assert isinstance(data["alerts"], list)
 
 
@@ -212,6 +213,7 @@ async def test_dashboard_summary_never_omits_required_collections(web_client: Te
         "flags",
         "recentTasks",
         "recentToolCalls",
+        "recentArtifacts",
         "alerts",
     ]:
         assert key in data
@@ -295,6 +297,7 @@ async def test_dashboard_summary_supports_window_and_runtime_filters(web_client:
         "flags",
         "recentTasks",
         "recentToolCalls",
+        "recentArtifacts",
         "alerts",
     ]:
         assert key in docker_data
@@ -338,6 +341,65 @@ async def test_dashboard_summary_flags_prefer_mode_subtype_over_legacy_detected_
     data = await resp.json()
     assert data["flags"][0]["id"] == "task_flag_contract"
     assert data["flags"][0]["type"] == "crypto"
+
+
+@pytest.mark.asyncio
+async def test_dashboard_summary_projects_recent_artifacts_from_harness_context(
+    web_client: TestClient,
+):
+    now = web_server._now_iso()
+    web_server._tasks["task_dashboard_artifact"] = {
+        "id": "task_dashboard_artifact",
+        "title": "dashboard artifact",
+        "target": "http://artifact.test",
+        "goal": "surface artifact",
+        "mode": "ctf",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
+        "status": "success",
+        "createdAt": now,
+        "startedAt": now,
+        "finishedAt": now,
+        "tokensUsed": 1,
+        "toolCalls": 1,
+        "currentRunId": "run_dashboard_artifact",
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    original_builder = web_server._build_run_session_context
+    web_server._build_run_session_context = lambda project_root, run_id: {
+        "runId": run_id,
+        "recentEvents": [],
+        "artifacts": [
+            {
+                "artifactId": "artifact-dashboard-1",
+                "kind": "artifact",
+                "title": "ssti_response_dump",
+                "path": None,
+                "location": "http://artifact.test/debug.txt",
+                "producer": "ssti_exploit",
+                "metadata": {"category": "exploit-output"},
+                "t": "2026-05-29T10:00:01+00:00",
+            }
+        ],
+        "latestCheckpoint": None,
+        "resumeContext": None,
+    }
+    try:
+        resp = await web_client.get("/api/dashboard/summary?window=all&runtime=all")
+    finally:
+        web_server._build_run_session_context = original_builder
+
+    assert resp.status == 200
+    data = await resp.json()
+    assert data["recentArtifacts"][0]["title"] == "ssti_response_dump"
+    assert data["recentArtifacts"][0]["taskId"] == "task_dashboard_artifact"
+    assert data["recentArtifacts"][0]["runId"] == "run_dashboard_artifact"
 
 
 @pytest.mark.asyncio
