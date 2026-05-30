@@ -248,7 +248,11 @@ function TraceDetail({ runId, onNav }) {
     ? resolvedRun.latestCheckpoint
     : null;
   const hasObservedToolIO = Array.isArray(resolvedRun.toolEvents) && resolvedRun.toolEvents.length > 0;
-  const graph = uM(() => buildTraceGraph(timeline, resolvedRun), [timeline, resolvedRun.id, resolvedRun.status, resolvedRun.startedAt]);
+  const graph = uM(() => buildTraceGraph(timeline, resolvedRun, {
+    outcomeEvents,
+    latestCheckpoint,
+    sessionArtifacts,
+  }), [timeline, outcomeEvents, latestCheckpoint, sessionArtifacts, resolvedRun.id, resolvedRun.status, resolvedRun.startedAt]);
   const traceEmptyState = traceDetailAvailable ? t('tr.empty.timeline') : (traceDetailUnavailableReason || t('c.unavailable'));
 
   async function handleReplay() {
@@ -717,6 +721,8 @@ function graphNodeMeta(event, isTerminal) {
     case 'task': return { color: 'green', tag: 'TASK', label: event.title || 'task started' };
     case 'verify': return { color: 'green', tag: 'VERIFY', label: event.title || 'flag verified' };
     case 'tool': return { color: event.status === 'failed' ? 'red' : 'cyan', tag: 'TOOL', label: event.tool || event.title || 'tool' };
+    case 'checkpoint': return { color: 'magenta', tag: 'CHECKPOINT', label: event.title || event.summary || 'checkpoint' };
+    case 'artifact': return { color: 'amber', tag: 'ARTIFACT', label: event.title || event.summary || 'artifact' };
     case 'knowledge': return { color: 'blue', tag: 'KNOWLEDGE', label: event.summary || event.title || 'knowledge' };
     case 'note': return { color: 'amber', tag: 'NOTE', label: event.summary || event.title || 'note' };
     case 'plan': return { color: 'magenta', tag: 'PLAN', label: event.title || 'plan' };
@@ -726,8 +732,45 @@ function graphNodeMeta(event, isTerminal) {
   }
 }
 
-function buildTraceGraph(events, run) {
-  const ordered = (events || [])
+function buildGraphEvents(events, extras = {}) {
+  const baseEvents = Array.isArray(events) ? events : [];
+  const outcomeEvents = Array.isArray(extras?.outcomeEvents) ? extras.outcomeEvents : [];
+  const latestCheckpoint = extras?.latestCheckpoint && typeof extras.latestCheckpoint === 'object'
+    ? extras.latestCheckpoint
+    : null;
+  const sessionArtifacts = Array.isArray(extras?.sessionArtifacts) ? extras.sessionArtifacts : [];
+
+  const checkpointEvent = latestCheckpoint
+    ? [normalizeTraceEvent({
+      id: `checkpoint_${latestCheckpoint.checkpointId || latestCheckpoint.label || 'latest'}`,
+      type: 'checkpoint',
+      kind: 'checkpoint.latest',
+      title: latestCheckpoint.label || latestCheckpoint.checkpointId || 'latest checkpoint',
+      summary: latestCheckpoint.stopReason
+        ? `${latestCheckpoint.stopReason} · artifacts=${latestCheckpoint.artifactCount ?? 0}`
+        : `artifacts=${latestCheckpoint.artifactCount ?? 0}`,
+      status: 'done',
+      t: latestCheckpoint.t || new Date().toISOString(),
+      output: JSON.stringify(latestCheckpoint, null, 2),
+    }, 0, 'checkpoint')]
+    : [];
+
+  const artifactEvents = sessionArtifacts.map((artifact, index) => normalizeTraceEvent({
+    id: `artifact_${artifact.artifactId || index}`,
+    type: 'artifact',
+    kind: 'artifact.registered',
+    title: artifact.title || artifact.kind || 'artifact',
+    summary: artifact.location || artifact.path || artifact.producer || 'artifact observed',
+    status: 'done',
+    t: artifact.t || new Date().toISOString(),
+    output: JSON.stringify(artifact, null, 2),
+  }, index, 'artifact'));
+
+  return [...baseEvents, ...checkpointEvent, ...outcomeEvents, ...artifactEvents];
+}
+
+function buildTraceGraph(events, run, extras = {}) {
+  const ordered = buildGraphEvents(events, extras)
     .filter(e => e && e.id)
     .slice()
     .sort((a, b) => {
@@ -784,6 +827,8 @@ function GraphView({ graph, run, onPick }) {
       <div style={{ position: 'absolute', top: 10, right: 14, display: 'flex', gap: 10, fontSize: 10, color: 'var(--fg-2)' }}>
         <LegendDot c="var(--accent)" t={t('tr.graph.taskVerify')} />
         <LegendDot c="var(--cyan)" t={t('tr.graph.tool')} />
+        <LegendDot c="var(--magenta)" t="checkpoint / outcome" />
+        <LegendDot c="var(--amber)" t="artifact" />
         <LegendDot c="var(--magenta)" t="plan / system" />
         <LegendDot c="var(--blue)" t={t('tr.graph.knowledge')} />
         <LegendDot c="var(--amber)" t={t('tr.graph.note')} />

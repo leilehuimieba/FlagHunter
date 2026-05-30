@@ -64,3 +64,20 @@ def test_trace_data_artifacts_tab_uses_truthful_session_artifacts() -> None:
 
     assert "run.sessionArtifacts" in source
     assert "ArtifactsTable" in source
+
+
+def test_trace_graph_builder_consumes_truthful_outcomes_checkpoints_and_artifacts() -> None:
+    source = _read("web/console/src/pages/traces.jsx")
+
+    assert "buildTraceGraph(timeline, resolvedRun, {" in source
+    assert "outcomeEvents," in source
+    assert "latestCheckpoint," in source
+    assert "sessionArtifacts," in source
+
+
+def test_trace_graph_introduces_checkpoint_and_artifact_node_kinds() -> None:
+    source = _read("web/console/src/pages/traces.jsx")
+
+    assert "case 'checkpoint':" in source
+    assert "case 'artifact':" in source
+    assert "buildGraphEvents(" in source
