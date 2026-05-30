@@ -247,8 +247,10 @@ def _build_harness_summary_for_run(*, run_id: str, workspace_root: str | Path) -
             "run_id": "",
             "ledger_path": "",
             "event_types": [],
+            "tool_event_count": 0,
             "artifact_count": 0,
             "artifact_titles": [],
+            "artifact_kinds": [],
             "has_checkpoint": False,
             "latest_checkpoint_label": "",
             "latest_checkpoint_stop_reason": "",
@@ -268,18 +270,28 @@ def _build_harness_summary_for_run(*, run_id: str, workspace_root: str | Path) -
         for item in recent_events
         if isinstance(item, dict) and str(item.get("type") or "").strip()
     ]
+    tool_event_count = sum(1 for event_type in event_types if event_type.startswith("tool_"))
     artifact_titles = [
         str(item.get("title") or "").strip()
         for item in artifacts
         if isinstance(item, dict) and str(item.get("title") or "").strip()
     ]
+    artifact_kinds = [
+        str(item.get("kind") or "").strip()
+        for item in artifacts
+        if isinstance(item, dict) and str(item.get("kind") or "").strip()
+    ]
+    artifact_titles = list(dict.fromkeys(artifact_titles))
+    artifact_kinds = list(dict.fromkeys(artifact_kinds))
     return {
         "has_session_ledger": len(recent_events) > 0,
         "run_id": normalized_run_id,
         "ledger_path": str(ledger_path),
         "event_types": event_types,
+        "tool_event_count": tool_event_count,
         "artifact_count": len([item for item in artifacts if isinstance(item, dict)]),
         "artifact_titles": artifact_titles,
+        "artifact_kinds": artifact_kinds,
         "has_checkpoint": bool(latest_checkpoint),
         "latest_checkpoint_label": str(latest_checkpoint.get("label") or "").strip(),
         "latest_checkpoint_stop_reason": str(latest_checkpoint.get("stopReason") or "").strip(),
