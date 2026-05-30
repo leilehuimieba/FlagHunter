@@ -1142,3 +1142,155 @@ async def test_coordinator_returns_verified_direct_flag_before_inner_run(tmp_pat
     ]
     assert dispatcher.state is not None
     assert dispatcher.state.stop_reason == "首页直接命中旗帜"
+
+
+@pytest.mark.asyncio
+async def test_coordinator_applies_strategy_memory_contract_before_inner_run(
+    tmp_path: Path,
+):
+    coordinator = CTFCoordinator()
+    sentinel = SolveResult(success=False, reason="strategy-memory-ready")
+    captured: dict[str, object] = {}
+    query_usage_calls: list[list[str]] = []
+
+    class _CapabilityRegistry:
+        async def full_check(self):
+            return None
+
+        def to_dict(self):
+            return {}
+
+    class _Entry:
+        def __init__(self):
+            self.id = "mem-1"
+            self.atomic_facts = ["auth:form_login"]
+            self.winning_hypothesis_kinds = ["auth_form_sqli"]
+            self.failed_hypothesis_kinds = ["generic_web_recon"]
+
+    class _StrategyMemory:
+        def build_fingerprint(self, state, *, page_features, target):
+            return {"target": target, "detected_type": state.detected_type}
+
+        async def query(self, fingerprint):
+            return [(_Entry(), 0.8123)]
+
+        async def record_query_usage(self, entry_ids: list[str]):
+            query_usage_calls.append(list(entry_ids))
+
+        def compute_hypothesis_adjustments(self, memory_matches):
+            return {"auth_form_sqli": 0.35}
+
+        def build_atomic_facts(self, *, state, fingerprint):
+            return ["detected:sqli", "auth:form_login"]
+
+    class _Dispatcher:
+        def __init__(self):
+            self._notes_log = []
+            self._challenge_context = None
+            self._ledger_run_id = None
+            self._current_fingerprint = None
+            self._memory_match_ids = []
+            self._pending_wrong_flag_feedback = []
+            self._exhausted_visit_url_targets = set()
+            self.reasoning_layer = SimpleNamespace(degradation_events=[])
+            self.state = None
+            self.capability_registry = _CapabilityRegistry()
+            self.strategy_memory = _StrategyMemory()
+
+        def _setup_session_ledger(self, *, run_id=None, ledger_root=None):
+            self._ledger_run_id = run_id
+
+        def _setup_artifact_registry(self, *, run_id=None, registry_root=None):
+            return None
+
+        def _setup_checkpoint_store(self, *, run_id=None, checkpoint_root=None):
+            return None
+
+        def _apply_submit_profile(self, submit_profile):
+            return None
+
+        async def _start_failover_monitor_if_available(self):
+            return None
+
+        def _record_session_event(self, event_type: str, payload: dict[str, object]):
+            return None
+
+        def _write_checkpoint(self, label: str, payload: dict[str, object]):
+            return None
+
+        def _load_rejected_flags(self):
+            return None
+
+        async def _snapshot_platform_context(self, target: str):
+            return None
+
+        async def _phase_recon(self, target: str):
+            return {
+                "html": "<html></html>",
+                "content": "login portal",
+                "forms": [],
+                "endpoints": ["/login"],
+                "recon_missing_tools": [],
+            }
+
+        def _ingest_local_challenge_artifacts(self, target: str):
+            return None
+
+        def _align_platform_challenge(self, target: str, features: dict[str, object]):
+            return None
+
+        def _extract_flag(self, text: str):
+            return None
+
+        def _emit(self, message: str):
+            return None
+
+        async def run(self, **kwargs):
+            captured.update(kwargs)
+            captured["current_fingerprint"] = self._current_fingerprint
+            captured["memory_match_ids"] = list(self._memory_match_ids)
+            captured["hypothesis_memory_adjustments"] = dict(
+                getattr(self.state, "hypothesis_memory_adjustments", {}) or {}
+            )
+            captured["meta_reasonings"] = list(getattr(self.state, "meta_reasonings", []) or [])
+            return sentinel
+
+    dispatcher = _Dispatcher()
+
+    result = await coordinator.execute(
+        dispatcher,
+        target="127.0.0.1:3000",
+        goal="goal",
+        type="sqli",
+        hint="",
+        submit_profile=None,
+        challenge_context={"artifactPaths": []},
+        run_id="run-strategy-memory",
+        ledger_root=tmp_path / "ledgers",
+        checkpoint_root=tmp_path / "checkpoints",
+    )
+
+    assert result is sentinel
+    assert captured["_strategy_memory_ready"] is True
+    assert captured["current_fingerprint"] == {
+        "target": "http://127.0.0.1:3000",
+        "detected_type": "sqli",
+    }
+    assert captured["memory_match_ids"] == ["mem-1"]
+    assert captured["hypothesis_memory_adjustments"] == {"auth_form_sqli": 0.35}
+    assert query_usage_calls == [["mem-1"]]
+    assert any(
+        isinstance(item, dict)
+        and item.get("type") == "strategy_memory_audit"
+        and item.get("matched_entries") == [
+            {
+                "id": "mem-1",
+                "similarity": 0.8123,
+                "atomic_facts": ["auth:form_login"],
+                "winning_hypothesis_kinds": ["auth_form_sqli"],
+                "failed_hypothesis_kinds": ["generic_web_recon"],
+            }
+        ]
+        and item.get("adjustments") == {"auth_form_sqli": 0.35}
+        for item in captured["meta_reasonings"]
+    )
