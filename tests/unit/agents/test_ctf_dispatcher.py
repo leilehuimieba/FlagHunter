@@ -4042,6 +4042,29 @@ class _HelperAuditRuntime:
         return SimpleNamespace(exit_code=0, stdout="command ok", stderr="")
 
 
+class _ExploitAuditRuntime:
+    def __init__(self):
+        self.environment = SimpleNamespace(available_tools=["terminal", "http_request"])
+        self.commands: list[str] = []
+        self.requests: list[tuple[str, dict[str, object]]] = []
+
+    async def browser_action(self, action: str, **kwargs):
+        return {"error": f"unexpected action: {action}"}
+
+    async def proxy_action(self, action: str, **kwargs):
+        self.requests.append((action, dict(kwargs)))
+        return {"status_code": 200, "body": "visit triggered", "final_url": str(kwargs.get("url") or "")}
+
+    async def execute_command(self, command: str, timeout: int = 180):
+        self.commands.append(command)
+        lower = command.lower()
+        if "cat /tmp/flaghunter_visit_collector.log" in lower or "type /tmp/flaghunter_visit_collector.log" in lower:
+            return SimpleNamespace(success=True, exit_code=0, stdout="sid=loopback-admin", stderr="")
+        if "docker ps --format" in lower:
+            return SimpleNamespace(success=True, exit_code=0, stdout='easy_login_app|0.0.0.0:3000->3000/tcp\n', stderr="")
+        return SimpleNamespace(success=True, exit_code=0, stdout="", stderr="")
+
+
 @pytest.mark.asyncio
 async def test_dispatcher_writes_session_ledger_events_for_verified_flag(
     monkeypatch: pytest.MonkeyPatch,
@@ -4263,4 +4286,96 @@ async def test_fetch_admin_with_sid_writes_proxy_tool_audit_events(
         and event["payload"]["ok"] is True
         and str(event["payload"]["target"]).endswith("/admin")
         for event in tool_finished_events
+    )
+
+
+@pytest.mark.asyncio
+async def test_download_and_analyze_backup_artifact_writes_execute_command_tool_audit_events(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from pentestagent.harness.session_ledger import SessionLedger
+
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher._pick_python_command",
+        lambda runtime: "python",
+    )
+    set_notes_file(tmp_path / "notes_backup_audit.json")
+    notes_module._notes.clear()
+
+    runtime = _HelperAuditRuntime()
+    async def _fake_execute_command(command, timeout=180):
+        return SimpleNamespace(
+            exit_code=0,
+            stdout='{"url":"http://ctf.local/backup.zip","kind":"zip","entries":[],"interesting":[],"flag":null,"php_unserialize":false,"profile_photo_poisoning":false}',
+            stderr="",
+        )
+    runtime.execute_command = _fake_execute_command  # type: ignore[method-assign]
+
+    dispatcher = CTFTaskDispatcher(runtime=runtime, progress_callback=None)
+    dispatcher._setup_session_ledger(run_id="run-backup-audit", ledger_root=tmp_path / "ledgers")
+
+    outcome = await dispatcher._download_and_analyze_backup_artifact(
+        "http://ctf.local/backup.zip",
+        "http://ctf.local/",
+    )
+
+    events = SessionLedger(tmp_path / "ledgers").read_events("run-backup-audit")
+
+    assert outcome.progress is True
+    assert any(
+        event["event_type"] == "tool_called"
+        and event["payload"]["tool_name"] == "execute_command"
+        for event in events
+    )
+    assert any(
+        event["event_type"] == "tool_finished"
+        and event["payload"]["tool_name"] == "execute_command"
+        and event["payload"]["ok"] is True
+        for event in events
+    )
+
+
+@pytest.mark.asyncio
+async def test_attempt_docker_loopback_visit_chain_writes_tool_audit_events(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from pentestagent.harness.session_ledger import SessionLedger
+
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_loopback_audit.json")
+    notes_module._notes.clear()
+
+    dispatcher = CTFTaskDispatcher(runtime=_ExploitAuditRuntime(), progress_callback=None)
+    dispatcher._setup_session_ledger(run_id="run-loopback-audit", ledger_root=tmp_path / "ledgers")
+    dispatcher.state = CTFState(target="http://127.0.0.1:3000/", goal="get flag")
+    monkeypatch.setattr(
+        dispatcher,
+        "_fetch_admin_with_sid",
+        lambda base, sid: asyncio.sleep(0, result="flag{loopback_audit_ok}"),
+    )
+
+    outcome = await dispatcher._attempt_docker_loopback_visit_chain("http://127.0.0.1:3000")
+
+    events = SessionLedger(tmp_path / "ledgers").read_events("run-loopback-audit")
+
+    assert outcome.flag == "flag{loopback_audit_ok}"
+    assert any(
+        event["event_type"] == "tool_called"
+        and event["payload"]["tool_name"] == "execute_command"
+        for event in events
+    )
+    assert any(
+        event["event_type"] == "tool_called"
+        and event["payload"]["tool_name"] == "proxy_action"
+        and str(event["payload"]["target"]).endswith("/visit")
+        for event in events
     )
