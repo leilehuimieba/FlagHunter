@@ -132,8 +132,12 @@ def test_build_harness_summary_for_run_reads_session_artifacts_and_checkpoint(tm
     summary = benchmark_runner._build_harness_summary_for_run(run_id=run_id, workspace_root=root)
 
     assert summary["has_session_ledger"] is True
+    assert summary["run_id"] == run_id
+    assert summary["ledger_path"].endswith("benchmark-run-1.jsonl")
     assert "tool_called" in summary["event_types"]
     assert summary["artifact_count"] == 1
+    assert summary["artifact_titles"] == ["response_dump"]
+    assert summary["has_checkpoint"] is True
     assert summary["latest_checkpoint_label"] == "task_finished"
     assert summary["latest_checkpoint_stop_reason"] == "verifier_reject"
 
@@ -158,8 +162,12 @@ async def test_run_benchmark_attaches_harness_summary_to_result_metadata(monkeyp
             state,
             {
                 "has_session_ledger": True,
+                "run_id": "synthetic-run-1",
+                "ledger_path": "loot/session_ledgers/synthetic-run-1.jsonl",
                 "event_types": ["tool_called", "task_finished"],
                 "artifact_count": 1,
+                "artifact_titles": ["response_dump"],
+                "has_checkpoint": True,
                 "latest_checkpoint_label": "task_finished",
                 "latest_checkpoint_stop_reason": "flag_verified",
             },
@@ -179,7 +187,10 @@ async def test_run_benchmark_attaches_harness_summary_to_result_metadata(monkeyp
     report = await benchmark_runner.run_benchmark(report_path=str(tmp_path / "benchmark.json"))
 
     assert report.results[0].metadata["harness"]["has_session_ledger"] is True
+    assert report.results[0].metadata["harness"]["run_id"] == "synthetic-run-1"
     assert report.results[0].metadata["harness"]["artifact_count"] == 1
+    assert report.results[0].metadata["harness"]["artifact_titles"] == ["response_dump"]
+    assert report.results[0].metadata["harness"]["has_checkpoint"] is True
     assert report.results[0].metadata["harness"]["latest_checkpoint_stop_reason"] == "flag_verified"
 
 

@@ -240,11 +240,16 @@ def _build_challenge_result(
 def _build_harness_summary_for_run(*, run_id: str, workspace_root: str | Path) -> dict[str, Any]:
     normalized_run_id = str(run_id or "").strip()
     root = Path(workspace_root)
+    ledger_path = root / "loot" / "session_ledgers" / f"{normalized_run_id}.jsonl"
     if not normalized_run_id:
         return {
             "has_session_ledger": False,
+            "run_id": "",
+            "ledger_path": "",
             "event_types": [],
             "artifact_count": 0,
+            "artifact_titles": [],
+            "has_checkpoint": False,
             "latest_checkpoint_label": "",
             "latest_checkpoint_stop_reason": "",
         }
@@ -263,10 +268,19 @@ def _build_harness_summary_for_run(*, run_id: str, workspace_root: str | Path) -
         for item in recent_events
         if isinstance(item, dict) and str(item.get("type") or "").strip()
     ]
+    artifact_titles = [
+        str(item.get("title") or "").strip()
+        for item in artifacts
+        if isinstance(item, dict) and str(item.get("title") or "").strip()
+    ]
     return {
         "has_session_ledger": len(recent_events) > 0,
+        "run_id": normalized_run_id,
+        "ledger_path": str(ledger_path),
         "event_types": event_types,
         "artifact_count": len([item for item in artifacts if isinstance(item, dict)]),
+        "artifact_titles": artifact_titles,
+        "has_checkpoint": bool(latest_checkpoint),
         "latest_checkpoint_label": str(latest_checkpoint.get("label") or "").strip(),
         "latest_checkpoint_stop_reason": str(latest_checkpoint.get("stopReason") or "").strip(),
     }
