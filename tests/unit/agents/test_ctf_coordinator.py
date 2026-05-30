@@ -1764,3 +1764,192 @@ async def test_coordinator_applies_after_chain_recovery_contract_stop(tmp_path: 
     assert retrospectives == [
         ("candidate only without runtime proof", "http://ctf.local", "web")
     ]
+
+
+@pytest.mark.asyncio
+async def test_coordinator_applies_wrong_flag_early_stop_contract():
+    coordinator = CTFCoordinator()
+    retrospectives: list[tuple[str, str, str]] = []
+
+    class _Dispatcher:
+        def __init__(self):
+            self._pending_wrong_flag_feedback = [{"flag": "flag{wrong}"}]
+            self._notes_log = ["note-a"]
+            self.state = SimpleNamespace(stop_reason=None)
+
+        async def _store_retrospective(self, reason: str, target: str, chain_name: str):
+            retrospectives.append((reason, target, chain_name))
+
+        async def _finalize_solve_result(self, result: SolveResult):
+            return result
+
+    dispatcher = _Dispatcher()
+    result = SolveResult(success=False)
+    outcome = SimpleNamespace(flag=None)
+
+    finalized = await coordinator._apply_wrong_flag_early_stop_contract(
+        dispatcher,
+        result=result,
+        outcome=outcome,
+        target="http://ctf.local",
+        chain_name="web",
+    )
+
+    assert finalized is result
+    assert result.reason == "wrong flag feedback: flag{wrong}"
+    assert result.notes == ["note-a"]
+    assert dispatcher.state.stop_reason == "wrong flag feedback: flag{wrong}"
+    assert retrospectives == [
+        ("wrong flag feedback: flag{wrong}", "http://ctf.local", "web")
+    ]
+
+
+@pytest.mark.asyncio
+async def test_coordinator_applies_terminal_success_contract():
+    coordinator = CTFCoordinator()
+    feedback_calls: list[dict[str, object]] = []
+    interpretations: list[dict[str, object]] = []
+    evaluations: list[dict[str, object]] = []
+
+    hypothesis = Hypothesis(
+        id="hyp-1",
+        kind="auth_form_sqli",
+        description="try auth form sqli",
+        confidence=0.82,
+    )
+
+    class _State:
+        def __init__(self):
+            self.stop_reason = None
+            self.progress_markers: list[str] = []
+
+        def mark_progress(self, marker: str):
+            self.progress_markers.append(marker)
+
+    class _HypothesisEngine:
+        def record_experiment_feedback(self, state, **kwargs):
+            feedback_calls.append(dict(kwargs))
+
+    class _ReasoningLayer:
+        def record_interpretation(self, state, **kwargs):
+            interpretations.append(dict(kwargs))
+
+        def evaluate_experiment_result(self, state, **kwargs):
+            evaluations.append(dict(kwargs))
+
+    class _Dispatcher:
+        def __init__(self):
+            self.state = _State()
+            self._notes_log = ["note-a"]
+            self.hypothesis_engine = _HypothesisEngine()
+            self.reasoning_layer = _ReasoningLayer()
+
+        async def _finalize_solve_result(self, result: SolveResult):
+            return result
+
+    dispatcher = _Dispatcher()
+    result = SolveResult(success=False)
+    experiment = SimpleNamespace(
+        id="exp-1",
+        inputs={"chain": "sqli"},
+        expected_signal="flag or progress",
+    )
+    outcome = SimpleNamespace(flag="flag{ok}", reason="sqli verified")
+
+    finalized = await coordinator._apply_terminal_success_contract(
+        dispatcher,
+        result=result,
+        outcome=outcome,
+        chain_name="sqli",
+        active_hypothesis=hypothesis,
+        experiment=experiment,
+    )
+
+    assert finalized is result
+    assert result.success is True
+    assert result.flag == "flag{ok}"
+    assert result.reason == "sqli verified"
+    assert result.notes == ["note-a"]
+    assert dispatcher.state.stop_reason == "sqli verified"
+    assert dispatcher.state.progress_markers == ["sqli verified"]
+    assert feedback_calls == [
+        {
+            "hypothesis_id": "hyp-1",
+            "progress_delta": "terminal",
+            "observed_signal": "sqli verified",
+            "experiment_id": "exp-1",
+            "inputs": {"chain": "sqli"},
+            "expected_signal": "flag or progress",
+        }
+    ]
+    assert interpretations == [
+        {
+            "observation_ids": ["exp-1"],
+            "content": "链路 sqli 命中终局信号：sqli verified",
+            "hypothesis_ids": ["hyp-1"],
+            "confidence": 0.9,
+        }
+    ]
+    assert evaluations == [
+        {
+            "experiment_id": "exp-1",
+            "progress_delta": "terminal",
+            "observed_signal": "sqli verified",
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_coordinator_applies_final_recovery_contract():
+    coordinator = CTFCoordinator()
+    recorded: list[tuple[str, str]] = []
+    emitted: list[str] = []
+    retrospectives: list[tuple[str, str, str]] = []
+
+    class _RecoveryController:
+        def finalize(self, state, *, used_chains: list[str], no_progress_count: int):
+            return RecoveryDecision(
+                action="stop_exhausted",
+                should_stop=True,
+                reason="all chains exhausted",
+            )
+
+    class _Dispatcher:
+        def __init__(self):
+            self.recovery_controller = _RecoveryController()
+            self.state = SimpleNamespace(stop_reason=None)
+            self._notes_log = ["note-a"]
+
+        def _record_recovery_decision(self, decision, *, chain_name: str):
+            recorded.append((chain_name, decision.reason))
+
+        def _emit(self, message: str):
+            emitted.append(message)
+
+        async def _store_retrospective(self, reason: str, target: str, chain_name: str):
+            retrospectives.append((reason, target, chain_name))
+
+        async def _finalize_solve_result(self, result: SolveResult):
+            return result
+
+    dispatcher = _Dispatcher()
+    result = SolveResult(success=False)
+    result.chain_used = ["sqli", "web"]
+
+    finalized = await coordinator._apply_final_recovery_contract(
+        dispatcher,
+        result=result,
+        target="http://ctf.local",
+        detected_type="sqli",
+        no_progress_rounds=3,
+    )
+
+    assert finalized is result
+    assert result.reason == "all chains exhausted"
+    assert result.notes == ["note-a"]
+    assert dispatcher.state.stop_reason == "all chains exhausted"
+    assert recorded == [("sqli", "all chains exhausted")]
+    assert emitted == ["[CTF recovery] all chains exhausted"]
+    assert retrospectives == [
+        ("all chains exhausted", "http://ctf.local", "sqli")
+    ]
