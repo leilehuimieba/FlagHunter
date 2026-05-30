@@ -7,6 +7,7 @@ import pytest
 
 from pentestagent.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher, SolveResult
 from pentestagent.agents.pa_agent.coordinator import CTFCoordinator
+from pentestagent.agents.pa_agent.ctf_state import Hypothesis
 
 
 class _Runtime:
@@ -1294,3 +1295,152 @@ async def test_coordinator_applies_strategy_memory_contract_before_inner_run(
         and item.get("adjustments") == {"auth_form_sqli": 0.35}
         for item in captured["meta_reasonings"]
     )
+
+
+@pytest.mark.asyncio
+async def test_coordinator_applies_hypothesis_contract_before_inner_run(tmp_path: Path):
+    coordinator = CTFCoordinator()
+    sentinel = SolveResult(success=False, reason="hypothesis-ready")
+    captured: dict[str, object] = {}
+
+    class _CapabilityRegistry:
+        async def full_check(self):
+            return None
+
+        def to_dict(self):
+            return {}
+
+    class _StrategyMemory:
+        def build_fingerprint(self, state, *, page_features, target):
+            return {"target": target}
+
+        async def query(self, fingerprint):
+            return []
+
+        async def record_query_usage(self, entry_ids: list[str]):
+            return None
+
+        def compute_hypothesis_adjustments(self, memory_matches):
+            return {}
+
+        def build_atomic_facts(self, *, state, fingerprint):
+            return []
+
+    class _HypothesisEngine:
+        def generate(self, state):
+            state.hypotheses = [
+                Hypothesis(
+                    id="hyp-1",
+                    kind="auth_form_sqli",
+                    description="try auth form sqli",
+                    confidence=0.78,
+                ),
+                Hypothesis(
+                    id="hyp-2",
+                    kind="generic_web_recon",
+                    description="continue web recon",
+                    confidence=0.52,
+                ),
+            ]
+            return list(state.hypotheses)
+
+        def choose_chain_order(self, state):
+            return ["sqli", "web", "web"]
+
+    class _Dispatcher:
+        def __init__(self):
+            self._notes_log = []
+            self._challenge_context = None
+            self._ledger_run_id = None
+            self._current_fingerprint = None
+            self._memory_match_ids = []
+            self._pending_wrong_flag_feedback = []
+            self._exhausted_visit_url_targets = set()
+            self.reasoning_layer = SimpleNamespace(degradation_events=[])
+            self.state = None
+            self.capability_registry = _CapabilityRegistry()
+            self.strategy_memory = _StrategyMemory()
+            self.hypothesis_engine = _HypothesisEngine()
+
+        def _setup_session_ledger(self, *, run_id=None, ledger_root=None):
+            self._ledger_run_id = run_id
+
+        def _setup_artifact_registry(self, *, run_id=None, registry_root=None):
+            return None
+
+        def _setup_checkpoint_store(self, *, run_id=None, checkpoint_root=None):
+            return None
+
+        def _apply_submit_profile(self, submit_profile):
+            return None
+
+        async def _start_failover_monitor_if_available(self):
+            return None
+
+        def _record_session_event(self, event_type: str, payload: dict[str, object]):
+            return None
+
+        def _write_checkpoint(self, label: str, payload: dict[str, object]):
+            return None
+
+        def _load_rejected_flags(self):
+            return None
+
+        async def _snapshot_platform_context(self, target: str):
+            return None
+
+        async def _phase_recon(self, target: str):
+            return {
+                "html": "<html></html>",
+                "content": "login portal",
+                "forms": [],
+                "endpoints": ["/login"],
+                "recon_missing_tools": [],
+            }
+
+        def _ingest_local_challenge_artifacts(self, target: str):
+            return None
+
+        def _align_platform_challenge(self, target: str, features: dict[str, object]):
+            return None
+
+        def _extract_flag(self, text: str):
+            return None
+
+        def _emit(self, message: str):
+            return None
+
+        async def run(self, **kwargs):
+            captured.update(kwargs)
+            captured["hypotheses"] = [
+                {
+                    "id": item.id,
+                    "kind": item.kind,
+                    "confidence": item.confidence,
+                }
+                for item in getattr(self.state, "hypotheses", [])
+            ]
+            return sentinel
+
+    dispatcher = _Dispatcher()
+
+    result = await coordinator.execute(
+        dispatcher,
+        target="127.0.0.1:3000",
+        goal="goal",
+        type="sqli",
+        hint="",
+        submit_profile=None,
+        challenge_context={"artifactPaths": []},
+        run_id="run-hypothesis",
+        ledger_root=tmp_path / "ledgers",
+        checkpoint_root=tmp_path / "checkpoints",
+    )
+
+    assert result is sentinel
+    assert captured["_hypotheses_ready"] is True
+    assert captured["_chain_order"] == ["sqli", "web"]
+    assert captured["hypotheses"] == [
+        {"id": "hyp-1", "kind": "auth_form_sqli", "confidence": 0.78},
+        {"id": "hyp-2", "kind": "generic_web_recon", "confidence": 0.52},
+    ]
