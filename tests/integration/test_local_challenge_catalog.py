@@ -5,6 +5,7 @@ from pathlib import Path
 from tests.integration.local_challenge_catalog import (
     build_challenge_context,
     get_local_challenge_sample,
+    list_local_challenge_eval_cases,
     list_local_challenge_samples,
 )
 
@@ -58,3 +59,27 @@ def test_local_challenge_catalog_exposes_supported_variants_as_runner_contract()
 
     assert "runtime_only" in easy_login.supported_variants
     assert "directory" not in backup.supported_variants
+
+
+def test_local_challenge_catalog_builds_programmatic_eval_case_index() -> None:
+    cases = list_local_challenge_eval_cases()
+    keys = {(case["sample_key"], case["variant"]) for case in cases}
+
+    assert ("easy_login", "directory") in keys
+    assert ("easy_login", "zip") in keys
+    assert ("easy_login", "none") in keys
+    assert ("easy_login", "runtime_only") in keys
+    assert ("backup_node_app", "zip") in keys
+    assert ("backup_node_app", "none") in keys
+
+    easy_runtime_case = next(
+        case for case in cases if case["sample_key"] == "easy_login" and case["variant"] == "runtime_only"
+    )
+    assert easy_runtime_case["expected_outcome"] == "verified_flag"
+    assert easy_runtime_case["status"] == "active"
+
+    backup_zip_case = next(
+        case for case in cases if case["sample_key"] == "backup_node_app" and case["variant"] == "zip"
+    )
+    assert backup_zip_case["expected_outcome"] == "candidate_only_honesty"
+    assert backup_zip_case["status"] == "candidate"

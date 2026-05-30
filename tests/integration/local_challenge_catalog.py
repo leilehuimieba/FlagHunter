@@ -51,6 +51,24 @@ def list_local_challenge_samples() -> tuple[LocalChallengeSample, ...]:
     return _SAMPLES
 
 
+def list_local_challenge_eval_cases() -> list[dict[str, str]]:
+    cases: list[dict[str, str]] = []
+    for sample in _SAMPLES:
+        for variant in sample.supported_variants:
+            cases.append(
+                {
+                    "sample_key": sample.key,
+                    "variant": variant,
+                    "expected_outcome": sample.expected_outcome,
+                    "status": sample.status,
+                    "mode": sample.mode,
+                    "mode_subtype": sample.mode_subtype,
+                    "primary_eval_focus": sample.primary_eval_focus,
+                }
+            )
+    return cases
+
+
 def get_local_challenge_sample(key: str) -> LocalChallengeSample:
     normalized = str(key or "").strip().lower()
     for sample in _SAMPLES:
