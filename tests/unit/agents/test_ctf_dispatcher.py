@@ -4017,6 +4017,31 @@ class _DirectFlagPageRuntime:
         return SimpleNamespace(exit_code=0, stdout="", stderr="")
 
 
+class _HelperAuditRuntime:
+    def __init__(self):
+        self.environment = SimpleNamespace(available_tools=["terminal", "http_request"])
+        self.commands: list[str] = []
+        self.requests: list[tuple[str, dict[str, object]]] = []
+
+    async def browser_action(self, action: str, **kwargs):
+        return {"error": f"unexpected action: {action}"}
+
+    async def proxy_action(self, action: str, **kwargs):
+        self.requests.append((action, dict(kwargs)))
+        url = str(kwargs.get("url") or "")
+        method = str(kwargs.get("method") or "").upper()
+        if action == "request" and method == "GET" and "/admin" in url:
+            cookie = str((kwargs.get("headers") or {}).get("Cookie") or "")
+            if "sid=helper-admin" in cookie:
+                return {"status_code": 200, "body": "flag{helper_admin_ok}"}
+            return {"status_code": 403, "body": "forbidden"}
+        return {"status_code": 200, "body": "helper response"}
+
+    async def execute_command(self, command: str, timeout: int = 180):
+        self.commands.append(command)
+        return SimpleNamespace(exit_code=0, stdout="command ok", stderr="")
+
+
 @pytest.mark.asyncio
 async def test_dispatcher_writes_session_ledger_events_for_verified_flag(
     monkeypatch: pytest.MonkeyPatch,
@@ -4125,3 +4150,117 @@ async def test_dispatcher_writes_missing_tools_event_to_session_ledger(
     task_finished_event = next(event for event in events if event["event_type"] == "task_finished")
     assert missing_tools_event["payload"]["missing_tools"] == ["browser", "http_request"]
     assert task_finished_event["payload"]["success"] is False
+
+
+@pytest.mark.asyncio
+async def test_execute_terminal_commands_writes_execute_command_tool_audit_events(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from pentestagent.harness.session_ledger import SessionLedger
+
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_helper_terminal.json")
+    notes_module._notes.clear()
+
+    dispatcher = CTFTaskDispatcher(runtime=_HelperAuditRuntime(), progress_callback=None)
+    dispatcher._setup_session_ledger(run_id="run-helper-terminal", ledger_root=tmp_path / "ledgers")
+
+    result = await dispatcher._execute_terminal_commands(
+        "http://ctf.local/",
+        ['curl -s "http://ctf.local/"'],
+    )
+
+    events = SessionLedger(tmp_path / "ledgers").read_events("run-helper-terminal")
+    execute_called = next(event for event in events if event["event_type"] == "tool_called")
+    execute_finished = next(event for event in events if event["event_type"] == "tool_finished")
+
+    assert result.progress is True
+    assert execute_called["payload"]["tool_name"] == "execute_command"
+    assert execute_called["payload"]["action"] == "shell"
+    assert execute_finished["payload"]["tool_name"] == "execute_command"
+    assert execute_finished["payload"]["ok"] is True
+
+
+@pytest.mark.asyncio
+async def test_submit_form_request_writes_proxy_tool_audit_events(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from pentestagent.harness.session_ledger import SessionLedger
+
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_helper_form.json")
+    notes_module._notes.clear()
+
+    dispatcher = CTFTaskDispatcher(runtime=_HelperAuditRuntime(), progress_callback=None)
+    dispatcher._setup_session_ledger(run_id="run-helper-form", ledger_root=tmp_path / "ledgers")
+
+    response, request_url = await dispatcher._submit_form_request(
+        "http://ctf.local/contact",
+        {
+            "method": "POST",
+            "action": "http://ctf.local/contact",
+        },
+        {"message": "hello"},
+    )
+
+    events = SessionLedger(tmp_path / "ledgers").read_events("run-helper-form")
+    proxy_called = next(event for event in events if event["event_type"] == "tool_called")
+    proxy_finished = next(event for event in events if event["event_type"] == "tool_finished")
+
+    assert response["status_code"] == 200
+    assert request_url == "http://ctf.local/contact"
+    assert proxy_called["payload"]["tool_name"] == "proxy_action"
+    assert proxy_called["payload"]["action"] == "request"
+    assert proxy_finished["payload"]["tool_name"] == "proxy_action"
+    assert proxy_finished["payload"]["ok"] is True
+
+
+@pytest.mark.asyncio
+async def test_fetch_admin_with_sid_writes_proxy_tool_audit_events(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from pentestagent.harness.session_ledger import SessionLedger
+
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_helper_admin.json")
+    notes_module._notes.clear()
+
+    dispatcher = CTFTaskDispatcher(
+        runtime=_HelperAuditRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher._setup_session_ledger(run_id="run-helper-admin", ledger_root=tmp_path / "ledgers")
+    dispatcher.state = CTFState(target="http://ctf.local/", goal="get flag")
+
+    flag = await dispatcher._fetch_admin_with_sid("http://ctf.local", "helper-admin")
+
+    events = SessionLedger(tmp_path / "ledgers").read_events("run-helper-admin")
+    tool_called_events = [event for event in events if event["event_type"] == "tool_called"]
+    tool_finished_events = [event for event in events if event["event_type"] == "tool_finished"]
+
+    assert flag == "flag{helper_admin_ok}"
+    assert any(
+        event["payload"]["tool_name"] == "proxy_action"
+        and event["payload"]["action"] == "request"
+        and str(event["payload"]["target"]).endswith("/admin")
+        for event in tool_called_events
+    )
+    assert any(
+        event["payload"]["tool_name"] == "proxy_action"
+        and event["payload"]["ok"] is True
+        and str(event["payload"]["target"]).endswith("/admin")
+        for event in tool_finished_events
+    )
