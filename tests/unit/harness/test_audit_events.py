@@ -9,6 +9,8 @@ from pentestagent.harness.audit_events import (
     build_missing_tools_recorded_event,
     build_recovery_decision_event,
     build_task_finished_event,
+    build_tool_called_event,
+    build_tool_finished_event,
     build_verification_decision_event,
 )
 
@@ -154,5 +156,43 @@ def test_build_checkpoint_written_event_keeps_label_and_metadata() -> None:
             "checkpoint_id": "checkpoint-1",
             "label": "task_finished",
             "metadata": {"success": True, "flag": "flag{ok}"},
+        },
+    }
+
+
+def test_build_tool_called_and_finished_events_keep_runtime_contract() -> None:
+    called = build_tool_called_event(
+        tool_name="proxy_action",
+        action="request",
+        target="http://ctf.local/login",
+        metadata={"method": "POST", "phase": "llm_action"},
+    )
+    finished = build_tool_finished_event(
+        tool_name="proxy_action",
+        action="request",
+        ok=True,
+        status_code=200,
+        target="http://ctf.local/login",
+        metadata={"phase": "llm_action"},
+    )
+
+    assert called == {
+        "event_type": "tool_called",
+        "payload": {
+            "tool_name": "proxy_action",
+            "action": "request",
+            "target": "http://ctf.local/login",
+            "metadata": {"method": "POST", "phase": "llm_action"},
+        },
+    }
+    assert finished == {
+        "event_type": "tool_finished",
+        "payload": {
+            "tool_name": "proxy_action",
+            "action": "request",
+            "ok": True,
+            "status_code": 200,
+            "target": "http://ctf.local/login",
+            "metadata": {"phase": "llm_action"},
         },
     }

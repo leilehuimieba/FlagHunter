@@ -74,20 +74,24 @@ async def test_dispatcher_writes_start_and_finish_checkpoints(
         "dispatcher_started",
         "task_finished",
     ]
-    assert [event["event_type"] for event in events] == [
-        "dispatcher_started",
-        "checkpoint_written",
-        "verification_decision",
-        "artifact_registered",
-        "task_finished",
-        "checkpoint_written",
-    ]
+    event_types = [event["event_type"] for event in events]
+    assert "dispatcher_started" in event_types
+    assert "checkpoint_written" in event_types
+    assert "verification_decision" in event_types
+    assert "artifact_registered" in event_types
+    assert "task_finished" in event_types
+    assert event_types.index("dispatcher_started") < event_types.index("checkpoint_written")
+    assert event_types.index("checkpoint_written") < event_types.index("verification_decision")
+    assert event_types.index("verification_decision") < event_types.index("artifact_registered")
+    assert event_types.index("artifact_registered") < event_types.index("task_finished")
+    assert event_types[-1] == "checkpoint_written"
     assert latest is not None
     assert latest["metadata"]["success"] is True
     assert latest["metadata"]["flag"] == "flag{checkpoint_verified_ok}"
     assert events[1]["payload"]["label"] == "dispatcher_started"
-    assert events[3]["payload"]["title"] == "ctf_flag"
-    assert events[5]["payload"]["label"] == "task_finished"
+    artifact_event = next(event for event in events if event["event_type"] == "artifact_registered")
+    assert artifact_event["payload"]["title"] == "ctf_flag"
+    assert events[-1]["payload"]["label"] == "task_finished"
     restored = CTFState.from_snapshot(latest["state"])
     assert restored.target == "http://ctf.local"
     assert restored.verified_flags[0].value == "flag{checkpoint_verified_ok}"

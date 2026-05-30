@@ -4052,11 +4052,21 @@ async def test_dispatcher_writes_session_ledger_events_for_verified_flag(
     assert result.success is True
     assert result.flag == "flag{ledger_verified_ok}"
     assert "dispatcher_started" in event_types
+    assert "tool_called" in event_types
+    assert "tool_finished" in event_types
     assert "verification_decision" in event_types
     assert "task_finished" in event_types
-    assert event_types.index("dispatcher_started") < event_types.index("verification_decision") < event_types.index("task_finished")
+    assert event_types.index("dispatcher_started") < event_types.index("tool_called") < event_types.index("tool_finished") < event_types.index("verification_decision") < event_types.index("task_finished")
+    tool_called_event = next(event for event in events if event["event_type"] == "tool_called")
+    tool_finished_events = [event for event in events if event["event_type"] == "tool_finished"]
     verification_event = next(event for event in events if event["event_type"] == "verification_decision")
     task_finished_event = next(event for event in events if event["event_type"] == "task_finished")
+    assert tool_called_event["payload"]["tool_name"] in {"browser_action", "proxy_action"}
+    assert any(
+        event["payload"]["tool_name"] in {"browser_action", "proxy_action"}
+        for event in tool_finished_events
+    )
+    assert any(event["payload"]["ok"] is True for event in tool_finished_events)
     assert verification_event["payload"]["decision"] == "verified"
     assert task_finished_event["payload"]["success"] is True
     assert task_finished_event["payload"]["flag"] == "flag{ledger_verified_ok}"
