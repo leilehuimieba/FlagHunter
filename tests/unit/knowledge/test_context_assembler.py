@@ -58,3 +58,38 @@ def test_context_assembler_includes_harness_session_context_summary(tmp_path) ->
     assert "flag_verified" in text
     assert "ctf_backup_candidate" in text
     assert "task_finished" in text
+
+
+def test_context_assembler_appends_resume_ingress_lineage_to_session_summary(
+    tmp_path,
+) -> None:
+    run_id = "run-context-assembler-resume"
+    SessionLedger(tmp_path / "loot" / "session_ledgers").append_event(
+        run_id,
+        "dispatcher_started",
+        {
+            "has_resume_context": True,
+            "resume_run_id": "run-prev-1",
+            "resume_checkpoint_id": "checkpoint-prev-1",
+        },
+    )
+    SessionLedger(tmp_path / "loot" / "session_ledgers").append_event(
+        run_id,
+        "task_finished",
+        {"success": False},
+    )
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    state.stop_reason = "wrong_flag_feedback"
+    CheckpointStore(tmp_path / "loot" / "checkpoints").save_checkpoint(
+        run_id=run_id,
+        label="task_finished",
+        state_snapshot=state.to_snapshot(),
+        metadata={"success": False},
+    )
+
+    text = ContextAssembler(_StubAgent(project_root=tmp_path, run_id=run_id)).assemble()
+
+    assert f"run_id={run_id}" in text
+    assert "wrong_flag_feedback" in text
+    assert "resumed_from_run=run-prev-1" in text
+    assert "resumed_from_checkpoint=checkpoint-prev-1" in text
