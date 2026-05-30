@@ -8,6 +8,7 @@ import pytest
 from pentestagent.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher, SolveResult
 from pentestagent.agents.pa_agent.coordinator import CTFCoordinator
 from pentestagent.agents.pa_agent.ctf_state import Hypothesis
+from pentestagent.agents.pa_agent.recovery import RecoveryDecision
 
 
 class _Runtime:
@@ -1444,3 +1445,163 @@ async def test_coordinator_applies_hypothesis_contract_before_inner_run(tmp_path
         {"id": "hyp-1", "kind": "auth_form_sqli", "confidence": 0.78},
         {"id": "hyp-2", "kind": "generic_web_recon", "confidence": 0.52},
     ]
+
+
+def test_coordinator_prepares_chain_iteration_contract():
+    coordinator = CTFCoordinator()
+    hypothesis = Hypothesis(
+        id="hyp-1",
+        kind="auth_form_sqli",
+        description="try auth form sqli",
+        confidence=0.82,
+    )
+    planned_calls: list[dict[str, object]] = []
+
+    class _CapabilityRegistry:
+        def best_available(self, primitive: str):
+            return {"primitive": primitive, "provider": "sqlmap"}
+
+    class _ReasoningLayer:
+        def plan_chain_execution(
+            self,
+            state,
+            *,
+            chain_name,
+            hypothesis,
+            strategy,
+            capability_primitive,
+            capability_choice,
+            alternatives,
+        ):
+            planned_calls.append(
+                {
+                    "chain_name": chain_name,
+                    "hypothesis_id": hypothesis.id if hypothesis is not None else None,
+                    "strategy": strategy,
+                    "capability_primitive": capability_primitive,
+                    "capability_choice": capability_choice,
+                    "alternatives": list(alternatives),
+                }
+            )
+            return SimpleNamespace(
+                id="exp-1",
+                hypothesis_id=hypothesis.id if hypothesis is not None else None,
+                inputs={"chain": chain_name},
+                expected_signal="flag or progress",
+            )
+
+    class _Dispatcher:
+        def __init__(self):
+            self.state = SimpleNamespace(hypotheses=[hypothesis])
+            self.capability_registry = _CapabilityRegistry()
+            self.reasoning_layer = _ReasoningLayer()
+
+        def _select_hypothesis_for_chain(self, chain_name: str):
+            return hypothesis
+
+        def _select_primary_strategy(self, chain_name: str, *, target: str, page_features, hint: str):
+            return {"kind": "auth_form_sqli", "chain": chain_name, "target": target}
+
+        def _primary_capability_for_chain(self, chain_name: str):
+            return "sql_injection_test"
+
+    dispatcher = _Dispatcher()
+
+    contract = coordinator._prepare_chain_iteration_contract(
+        dispatcher,
+        chain_name="sqli",
+        target="http://ctf.local",
+        page_features={"forms": [{"action": "/login"}]},
+        hint="",
+        chain_order=["sqli", "web", "xss"],
+    )
+
+    assert contract["active_hypothesis"] is hypothesis
+    assert contract["strategy"] == {
+        "kind": "auth_form_sqli",
+        "chain": "sqli",
+        "target": "http://ctf.local",
+    }
+    assert contract["capability_primitive"] == "sql_injection_test"
+    assert contract["capability_choice"] == {
+        "primitive": "sql_injection_test",
+        "provider": "sqlmap",
+    }
+    assert getattr(contract["experiment"], "id", "") == "exp-1"
+    assert planned_calls == [
+        {
+            "chain_name": "sqli",
+            "hypothesis_id": "hyp-1",
+            "strategy": {
+                "kind": "auth_form_sqli",
+                "chain": "sqli",
+                "target": "http://ctf.local",
+            },
+            "capability_primitive": "sql_injection_test",
+            "capability_choice": {
+                "primitive": "sql_injection_test",
+                "provider": "sqlmap",
+            },
+            "alternatives": ["web", "xss"],
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_coordinator_applies_missing_tools_recovery_contract_switch_chain():
+    coordinator = CTFCoordinator()
+    recorded: list[tuple[str, str]] = []
+    emitted: list[str] = []
+    stored: list[tuple[list[str], dict[str, str]]] = []
+
+    class _ToolGuard:
+        def suggest_install(self, name: str) -> str:
+            return f"install {name}"
+
+    class _RecoveryController:
+        def on_missing_tools(self, state, *, current_chain: str, missing_tools: list[str], used_chains: list[str]):
+            return RecoveryDecision(
+                action="switch_chain",
+                should_stop=False,
+                reason="switch to web after missing sqlmap",
+                next_chain_order=["web", "xss"],
+                missing_tools=list(missing_tools),
+            )
+
+    class _Dispatcher:
+        def __init__(self):
+            self.tool_guard = _ToolGuard()
+            self.recovery_controller = _RecoveryController()
+            self.state = SimpleNamespace(stop_reason=None)
+
+        async def _store_missing_tools(self, missing_names, install_commands):
+            stored.append((list(missing_names), dict(install_commands)))
+
+        def _record_recovery_decision(self, decision, *, chain_name: str):
+            recorded.append((chain_name, decision.reason))
+
+        def _emit(self, message: str):
+            emitted.append(message)
+
+    dispatcher = _Dispatcher()
+    result = SolveResult(success=False)
+
+    contract = await coordinator._apply_missing_tools_recovery_contract(
+        dispatcher,
+        chain_name="sqli",
+        chain_index=0,
+        chain_order=["sqli"],
+        missing_names=["sqlmap"],
+        result=result,
+        target="http://ctf.local",
+        active_hypothesis=None,
+        experiment=None,
+    )
+
+    assert contract["continue_loop"] is True
+    assert contract["next_chain_index"] == 1
+    assert contract["chain_order"] == ["sqli", "web", "xss"]
+    assert contract["final_result"] is None
+    assert stored == [(["sqlmap"], {"sqlmap": "install sqlmap"})]
+    assert recorded == [("sqli", "switch to web after missing sqlmap")]
+    assert emitted == ["[CTF recovery] switch to web after missing sqlmap"]
