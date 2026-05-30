@@ -994,6 +994,163 @@ function TaskStatusCard({ task }) {
   );
 }
 
+function normalizeHarnessToolEvents(sessionContext) {
+  const events = Array.isArray(sessionContext?.recentEvents) ? sessionContext?.recentEvents : [];
+  return events
+    .filter(event => event && (event.type === 'tool_called' || event.type === 'tool_finished'))
+    .map((event, index) => {
+      const payload = event?.payload || {};
+      const tool = payload.tool_name || 'tool';
+      const action = payload.action || '';
+      const target = payload.target || '';
+      const summary = [action, target, event.type === 'tool_finished' ? (payload.ok === false ? 'failed' : 'ok') : '']
+        .filter(Boolean)
+        .join(' · ');
+      return {
+        id: `task_harness_tool_${index}_${tool}`,
+        t: event?.t,
+        tool,
+        title: `${tool} ${event.type === 'tool_called' ? 'called' : 'finished'}`,
+        summary: summary || event.type,
+        status: event.type === 'tool_called' ? 'running' : (payload.ok === false ? 'failed' : 'done'),
+      };
+    });
+}
+
+function normalizeHarnessOutcomeEvents(sessionContext) {
+  const events = Array.isArray(sessionContext?.recentEvents) ? sessionContext?.recentEvents : [];
+  return events
+    .filter(event => event && ['verification_decision', 'recovery_decision', 'task_finished', 'checkpoint_written'].includes(event.type))
+    .map((event, index) => {
+      const payload = event?.payload || {};
+      if (event.type === 'verification_decision') {
+        return {
+          id: `task_harness_outcome_${index}`,
+          t: event?.t,
+          title: 'verification decision',
+          summary: [payload.decision, payload.flag, payload.strategy_kind].filter(Boolean).join(' · ') || event.type,
+          status: payload.decision === 'rejected' ? 'failed' : 'done',
+          kind: event.type,
+        };
+      }
+      if (event.type === 'recovery_decision') {
+        return {
+          id: `task_harness_outcome_${index}`,
+          t: event?.t,
+          title: 'recovery decision',
+          summary: [payload.action, payload.chain_name, payload.reason].filter(Boolean).join(' · ') || event.type,
+          status: payload.should_stop ? 'failed' : 'done',
+          kind: event.type,
+        };
+      }
+      if (event.type === 'task_finished') {
+        return {
+          id: `task_harness_outcome_${index}`,
+          t: event?.t,
+          title: 'task finished',
+          summary: [payload.reason, Array.isArray(payload.chain_used) ? payload.chain_used.join(' → ') : ''].filter(Boolean).join(' · ') || event.type,
+          status: payload.success ? 'done' : 'failed',
+          kind: event.type,
+        };
+      }
+      return {
+        id: `task_harness_outcome_${index}`,
+        t: event?.t,
+        title: 'checkpoint written',
+        summary: payload.label || payload.checkpoint_id || event.type,
+        status: 'done',
+        kind: event.type,
+      };
+    });
+}
+
+function HarnessCheckpointCard({ checkpoint }) {
+  if (!checkpoint) return null;
+  return (
+    <div className="side-card">
+      <div className="h">◉ Latest checkpoint</div>
+      <div className="kv-list">
+        <div className="kv-row"><span className="k">label</span><span className="v">{checkpoint.label || checkpoint.checkpointId || '—'}</span></div>
+        <div className="kv-row"><span className="k">stop reason</span><span className="v">{checkpoint.stopReason || '—'}</span></div>
+        <div className="kv-row"><span className="k">artifacts</span><span className="v">{checkpoint.artifactCount ?? 0}</span></div>
+        <div className="kv-row"><span className="k">observations</span><span className="v">{checkpoint.observationCount ?? 0}</span></div>
+        <div className="kv-row"><span className="k">time</span><span className="v mono">{checkpoint.t ? fmt.hh(checkpoint.t).slice(0, 8) : '—'}</span></div>
+      </div>
+      {Array.isArray(checkpoint.runtimeFlags) && checkpoint.runtimeFlags.length > 0 && (
+        <div className="dim" style={{ marginTop: 8, fontSize: 11.5 }}>runtime flags · {checkpoint.runtimeFlags.join(', ')}</div>
+      )}
+    </div>
+  );
+}
+
+function HarnessOutcomeCard({ events }) {
+  if (!events.length) return null;
+  return (
+    <div className="side-card">
+      <div className="h">◇ Run outcomes <span className="dim right">{events.length}</span></div>
+      <div className="col gap-6">
+        {events.map(event => (
+          <div key={event.id} style={{ fontSize: 11.5, lineHeight: 1.45, padding: '6px 0', borderTop: '1px solid var(--line-1)' }}>
+            <div className="row gap-8" style={{ alignItems: 'center' }}>
+              <span className="bright">{event.title}</span>
+              <span className={`chip ghost ${event.status === 'failed' ? 'red' : event.status === 'running' ? 'amber' : 'green'}`.trim()} style={{ fontSize: 9.5 }}>
+                {event.status}
+              </span>
+              <span className="dim mono" style={{ marginLeft: 'auto', fontSize: 9.5 }}>{event.t ? fmt.hh(event.t).slice(0, 8) : '—'}</span>
+            </div>
+            <div className="muted" style={{ marginTop: 4 }}>{event.summary || event.kind}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function HarnessToolAuditCard({ events }) {
+  if (!events.length) return null;
+  return (
+    <div className="side-card">
+      <div className="h">⚒ Tool audit <span className="dim right">{events.length}</span></div>
+      <div className="col gap-6">
+        {events.map(event => (
+          <div key={event.id} style={{ fontSize: 11.5, lineHeight: 1.45, padding: '6px 0', borderTop: '1px solid var(--line-1)' }}>
+            <div className="row gap-8" style={{ alignItems: 'center' }}>
+              <span className="cyan">{event.tool}</span>
+              <span className="bright">{event.title}</span>
+              <span className={`chip ghost ${event.status === 'failed' ? 'red' : event.status === 'running' ? 'amber' : 'green'}`.trim()} style={{ fontSize: 9.5 }}>
+                {event.status}
+              </span>
+              <span className="dim mono" style={{ marginLeft: 'auto', fontSize: 9.5 }}>{event.t ? fmt.hh(event.t).slice(0, 8) : '—'}</span>
+            </div>
+            <div className="muted" style={{ marginTop: 4 }}>{event.summary}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function HarnessArtifactsCard({ artifacts }) {
+  if (!artifacts.length) return null;
+  return (
+    <div className="side-card">
+      <div className="h">◫ Harness artifacts <span className="dim right">{artifacts.length}</span></div>
+      <div className="col gap-6">
+        {artifacts.map((artifact, index) => (
+          <div key={artifact.artifactId || `${artifact.title}_${index}`} style={{ fontSize: 11.5, lineHeight: 1.45, padding: '6px 0', borderTop: '1px solid var(--line-1)' }}>
+            <div className="row gap-8" style={{ alignItems: 'center' }}>
+              <span className="magenta" style={{ fontSize: 10 }}>{artifact.kind || 'artifact'}</span>
+              <span className="bright ellipsis flex1">{artifact.title || 'artifact observed'}</span>
+              <span className="dim mono" style={{ fontSize: 9.5 }}>{artifact.t ? fmt.hh(artifact.t).slice(0, 8) : '—'}</span>
+            </div>
+            <div className="muted" style={{ marginTop: 4 }}>{artifact.location || artifact.path || artifact.producer || 'observed'}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function LocalAssetCard({ task }) {
   const challengePath = String(task?.challengePath || '').trim();
   const artifactPaths = Array.isArray(task?.artifactPaths) ? task.artifactPaths.filter(Boolean) : [];
@@ -1123,6 +1280,13 @@ function SyntheticSidePanel({ task, attachmentsAvailable, attachmentsUnavailable
 
 function LiveSidePanel({ task, plan, notes, knowledgeHits, observations, freshObservationId, attachmentsAvailable, attachmentsUnavailableReason, ...attachmentProps }) {
   const showFallbackSummary = !plan.length && !notes.length && !knowledgeHits.length && !observations.length;
+  const sessionContext = task.sessionContext && typeof task.sessionContext === 'object' ? task.sessionContext : null;
+  const latestCheckpoint = sessionContext?.latestCheckpoint && typeof sessionContext?.latestCheckpoint === 'object'
+    ? sessionContext.latestCheckpoint
+    : null;
+  const harnessToolEvents = normalizeHarnessToolEvents(sessionContext);
+  const harnessOutcomeEvents = normalizeHarnessOutcomeEvents(sessionContext);
+  const harnessArtifacts = Array.isArray(sessionContext?.artifacts) ? sessionContext?.artifacts : [];
   return (
     <>
       {showFallbackSummary ? (
@@ -1151,6 +1315,10 @@ function LiveSidePanel({ task, plan, notes, knowledgeHits, observations, freshOb
       <PlanCardLive plan={plan} />
       <KnowledgeCard hits={knowledgeHits} />
       <NotesCard notes={notes} />
+      <HarnessCheckpointCard checkpoint={latestCheckpoint} />
+      <HarnessOutcomeCard events={harnessOutcomeEvents} />
+      <HarnessToolAuditCard events={harnessToolEvents} />
+      <HarnessArtifactsCard artifacts={harnessArtifacts} />
       {!showFallbackSummary && <TaskSummaryCard task={task} />}
     </>
   );
