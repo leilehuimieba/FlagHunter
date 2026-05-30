@@ -35,6 +35,7 @@ def test_run_task_schema_accepts_mode_and_ctf_type() -> None:
 
     assert "mode" in schema["properties"]
     assert "ctfType" in schema["properties"]
+    assert "resumeContext" in schema["properties"]
     assert "challengePath" in schema["properties"]
     assert "artifactPaths" in schema["properties"]
 
@@ -44,6 +45,7 @@ def test_run_task_async_schema_accepts_mode_and_ctf_type() -> None:
 
     assert "mode" in schema["properties"]
     assert "ctfType" in schema["properties"]
+    assert "resumeContext" in schema["properties"]
     assert "challengePath" in schema["properties"]
     assert "artifactPaths" in schema["properties"]
 
@@ -72,6 +74,11 @@ async def test_run_task_async_resolves_mode_contract_before_task_creation(
             "target": "http://challenge.test",
             "mode": "auto",
             "ctfType": "web",
+            "resumeContext": {
+                "runId": "run-prev-1",
+                "checkpointId": "checkpoint-prev-1",
+                "summary": "run_id=run-prev-1; stop_reason=wrong_flag_feedback",
+            },
             "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
             "artifactPaths": [
                 r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
@@ -85,6 +92,11 @@ async def test_run_task_async_resolves_mode_contract_before_task_creation(
         "target": "http://challenge.test",
         "mode": "auto",
         "ctfType": "web",
+        "resumeContext": {
+            "runId": "run-prev-1",
+            "checkpointId": "checkpoint-prev-1",
+            "summary": "run_id=run-prev-1; stop_reason=wrong_flag_feedback",
+        },
         "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
         "artifactPaths": [
             r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
@@ -114,6 +126,11 @@ async def test_run_task_async_persists_and_reports_mode_contract(
             "target": "http://challenge.test",
             "mode": "auto",
             "ctfType": "web",
+            "resumeContext": {
+                "runId": "run-prev-1",
+                "checkpointId": "checkpoint-prev-1",
+                "summary": "run_id=run-prev-1; stop_reason=wrong_flag_feedback",
+            },
             "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
             "artifactPaths": [
                 r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
@@ -132,6 +149,9 @@ async def test_run_task_async_persists_and_reports_mode_contract(
         r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
         r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\src\server.ts",
     ]
+    assert getattr(entry, "resumeFromRunId", None) == "run-prev-1"
+    assert getattr(entry, "resumeFromCheckpointId", None) == "checkpoint-prev-1"
+    assert getattr(entry, "resumeSummary", None) == "run_id=run-prev-1; stop_reason=wrong_flag_feedback"
     assert getattr(entry, "runId", None)
     assert getattr(entry, "ledgerPath", None) == f"loot/session_ledgers/{entry.runId}.jsonl"
     assert getattr(entry, "checkpointPath", None) == f"loot/checkpoints/{entry.runId}.jsonl"
@@ -141,6 +161,8 @@ async def test_run_task_async_persists_and_reports_mode_contract(
     assert f"run_id: {entry.runId}" in result
     assert f"ledger_path: loot/session_ledgers/{entry.runId}.jsonl" in result
     assert f"checkpoint_path: loot/checkpoints/{entry.runId}.jsonl" in result
+    assert "resume_from_run: run-prev-1" in result
+    assert "resume_from_checkpoint: checkpoint-prev-1" in result
     assert r"challenge_path: D:\webstudy\CTF\2026\CTF比赛题\easy_login" in result
     assert r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml" in result
 
@@ -190,6 +212,11 @@ async def test_run_task_routes_ctf_mode_into_dispatcher_with_explicit_challenge_
             "target": "http://challenge.test",
             "mode": "ctf",
             "ctfType": "web",
+            "resumeContext": {
+                "runId": "run-prev-1",
+                "checkpointId": "checkpoint-prev-1",
+                "summary": "run_id=run-prev-1; stop_reason=wrong_flag_feedback",
+            },
             "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
             "artifactPaths": [
                 r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
@@ -207,6 +234,11 @@ async def test_run_task_routes_ctf_mode_into_dispatcher_with_explicit_challenge_
             r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
             r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\README.md",
         ],
+        "resumeContext": {
+            "runId": "run-prev-1",
+            "checkpointId": "checkpoint-prev-1",
+            "summary": "run_id=run-prev-1; stop_reason=wrong_flag_feedback",
+        },
     }
     assert "flag{mcp_ctf_ok}" in result
 
@@ -253,6 +285,11 @@ async def test_run_task_async_background_ctf_path_uses_explicit_challenge_contex
             "target": "http://challenge.test",
             "mode": "ctf",
             "ctfType": "web",
+            "resumeContext": {
+                "runId": "run-prev-1",
+                "checkpointId": "checkpoint-prev-1",
+                "summary": "run_id=run-prev-1; stop_reason=wrong_flag_feedback",
+            },
             "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
             "artifactPaths": [
                 r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
@@ -274,6 +311,11 @@ async def test_run_task_async_background_ctf_path_uses_explicit_challenge_contex
         "artifactPaths": [
             r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
         ],
+        "resumeContext": {
+            "runId": "run-prev-1",
+            "checkpointId": "checkpoint-prev-1",
+            "summary": "run_id=run-prev-1; stop_reason=wrong_flag_feedback",
+        },
     }
 
 
@@ -344,6 +386,9 @@ async def test_mcp_task_inspection_and_result_expose_ctf_truth_fields() -> None:
     entry.runId = "mcp-ctf-12345"
     entry.ledgerPath = "loot/session_ledgers/mcp-ctf-12345.jsonl"
     entry.checkpointPath = "loot/checkpoints/mcp-ctf-12345.jsonl"
+    entry.resumeFromRunId = "run-prev-1"
+    entry.resumeFromCheckpointId = "checkpoint-prev-1"
+    entry.resumeSummary = "run_id=run-prev-1; stop_reason=wrong_flag_feedback"
     entry.finalFlag = "flag{inspection_truth}"
     entry.ctfChainUsed = ["xss", "admin_bot"]
     entry.ctfMissingTools = ["sqlmap"]
@@ -363,6 +408,8 @@ async def test_mcp_task_inspection_and_result_expose_ctf_truth_fields() -> None:
     assert "run_id:     mcp-ctf-12345" in status_output
     assert "ledger_path: loot/session_ledgers/mcp-ctf-12345.jsonl" in status_output
     assert "checkpoint_path: loot/checkpoints/mcp-ctf-12345.jsonl" in status_output
+    assert "resume_from_run: run-prev-1" in status_output
+    assert "resume_from_checkpoint: checkpoint-prev-1" in status_output
     assert "final_flag: flag{inspection_truth}" in status_output
     assert "ctf_chain_used: xss, admin_bot" in status_output
     assert "ctf_missing_tools: sqlmap" in status_output
@@ -374,6 +421,8 @@ async def test_mcp_task_inspection_and_result_expose_ctf_truth_fields() -> None:
     assert "run_id:      mcp-ctf-12345" in result_output
     assert "ledger_path: loot/session_ledgers/mcp-ctf-12345.jsonl" in result_output
     assert "checkpoint_path: loot/checkpoints/mcp-ctf-12345.jsonl" in result_output
+    assert "resume_from_run: run-prev-1" in result_output
+    assert "resume_from_checkpoint: checkpoint-prev-1" in result_output
     assert "final_flag:  flag{inspection_truth}" in result_output
     assert "\n[ctf_chain_used]\n  xss\n  admin_bot" in result_output
     assert "\n[ctf_missing_tools]\n  sqlmap" in result_output
