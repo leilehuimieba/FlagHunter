@@ -403,6 +403,77 @@ async def test_dashboard_summary_projects_recent_artifacts_from_harness_context(
 
 
 @pytest.mark.asyncio
+async def test_dashboard_summary_projects_recent_tool_calls_from_harness_context(
+    web_client: TestClient,
+):
+    now = web_server._now_iso()
+    web_server._tasks["task_dashboard_tool"] = {
+        "id": "task_dashboard_tool",
+        "title": "dashboard tool",
+        "target": "http://tool.test",
+        "goal": "surface tool audit",
+        "mode": "ctf",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
+        "status": "success",
+        "createdAt": now,
+        "startedAt": now,
+        "finishedAt": now,
+        "tokensUsed": 1,
+        "toolCalls": 1,
+        "currentRunId": "run_dashboard_tool",
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    original_builder = web_server._build_run_session_context
+    web_server._build_run_session_context = lambda project_root, run_id: {
+        "runId": run_id,
+        "recentEvents": [
+            {
+                "type": "tool_called",
+                "t": "2026-05-29T10:00:00+00:00",
+                "payload": {
+                    "tool_name": "proxy_action",
+                    "action": "request",
+                    "target": "http://tool.test/login",
+                    "metadata": {"method": "GET"},
+                },
+            },
+            {
+                "type": "tool_finished",
+                "t": "2026-05-29T10:00:01+00:00",
+                "payload": {
+                    "tool_name": "proxy_action",
+                    "action": "request",
+                    "target": "http://tool.test/login",
+                    "ok": True,
+                    "metadata": {"status_code": 200},
+                },
+            },
+        ],
+        "artifacts": [],
+        "latestCheckpoint": None,
+        "resumeContext": None,
+    }
+    try:
+        resp = await web_client.get("/api/dashboard/summary?window=all&runtime=all")
+    finally:
+        web_server._build_run_session_context = original_builder
+
+    assert resp.status == 200
+    data = await resp.json()
+    assert data["recentToolCalls"][0]["tool"] == "proxy_action"
+    assert data["recentToolCalls"][0]["runId"] == "run_dashboard_tool"
+    assert data["recentToolCalls"][0]["status"] in {"running", "success"}
+    assert "request" in data["recentToolCalls"][0]["summary"]
+
+
+@pytest.mark.asyncio
 async def test_traces_list_supports_window_filter(web_client: TestClient):
     now = web_server._now_iso()
     old = (web_server.datetime.now(web_server.timezone.utc) - web_server.timedelta(days=2)).isoformat()

@@ -49,3 +49,11 @@ def test_dashboard_notes_artifacts_card_no_longer_depends_on_synthetic_notes_art
     assert "recentArtifacts.map(" in source
     assert "alerts.length === 0" not in source
     assert "alerts.map(n => (" not in source
+
+
+def test_dashboard_recent_tools_rows_link_to_trace_detail() -> None:
+    source = _read("web/console/src/pages/dashboard.jsx")
+
+    assert "recentToolCalls.map(c => (" in source
+    assert "onClick={() => c.runId && onNav(`traces/${c.runId}`)}" in source
+    assert "cursor: c.runId ? 'pointer' : 'default'" in source

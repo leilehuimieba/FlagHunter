@@ -336,7 +336,7 @@ function DashboardPage({ onNav }) {
         >
           <div>
             {recentToolCalls.length ? recentToolCalls.map(c => (
-              <div key={c.id} className="act-row">
+              <div key={c.id} className="act-row" onClick={() => c.runId && onNav(`traces/${c.runId}`)} style={{ cursor: c.runId ? 'pointer' : 'default' }}>
                 <span className="time">{c.time ? fmt.hh(c.time).slice(0,5) : '—'}</span>
                 <span className="ico" style={{ color: c.status === 'running' ? 'var(--amber)' : c.status === 'failed' ? 'var(--red)' : 'var(--accent)' }}>
                   {c.status === 'running' ? '◌' : c.status === 'failed' ? '✗' : '▸'}
