@@ -189,6 +189,12 @@ async def run_active_local_challenge_sample(
     monkeypatch,
     tmp_dir: Path | None = None,
 ):
+    normalized_variant = str(variant or "").strip().lower()
+    if normalized_variant not in sample.supported_variants:
+        raise ValueError(
+            f"unsupported variant '{variant}' for sample '{sample.key}'"
+        )
+
     monkeypatch.setattr(
         "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
@@ -196,8 +202,8 @@ async def run_active_local_challenge_sample(
     if sample.key != "easy_login":
         raise NotImplementedError(f"active runner not implemented for sample: {sample.key}")
 
-    enable_local_pivot = variant in {"directory", "zip"}
-    if variant == "runtime_only":
+    enable_local_pivot = normalized_variant in {"directory", "zip"}
+    if normalized_variant == "runtime_only":
         runtime = _EasyLoginRuntimeOnlyFallbackRuntime()
     else:
         runtime = _EasyLoginLocalAssetRuntime(enable_local_pivot=enable_local_pivot)
@@ -208,10 +214,10 @@ async def run_active_local_challenge_sample(
         "goal": sample.minimal_prompt,
         "type": sample.mode_subtype,
     }
-    if variant in {"directory", "zip"}:
+    if normalized_variant in {"directory", "zip"}:
         run_kwargs["challenge_context"] = build_challenge_context(
             sample,
-            variant=variant,
+            variant=normalized_variant,
             tmp_dir=tmp_dir,
         )
     else:

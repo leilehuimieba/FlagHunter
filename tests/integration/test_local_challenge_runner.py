@@ -68,3 +68,15 @@ async def test_local_challenge_runner_solves_easy_login_runtime_only_variant(mon
     assert result.success is True
     assert result.flag == "flag{dummy_flag_for_testing}"
     assert result.reason == "docker localhost visit fallback"
+
+
+@pytest.mark.asyncio
+async def test_local_challenge_runner_rejects_unsupported_variant(monkeypatch):
+    sample = get_local_challenge_sample("backup_node_app")
+
+    with pytest.raises(ValueError, match="unsupported variant"):
+        await run_active_local_challenge_sample(
+            sample,
+            variant="directory",
+            monkeypatch=monkeypatch,
+        )
