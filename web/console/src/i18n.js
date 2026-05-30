@@ -209,6 +209,7 @@ const DICT = {
     'nt.err.noTarget': 'target is required',
     'nt.err.noTitle': 'task title is required',
     'nt.err.createFailed': 'task creation failed · check /api/tasks and server logs',
+    'nt.err.modelNotReady': 'model is not ready · configure Settings first ({0})',
 
     /* task detail */
     'td.run': 'run',
@@ -406,6 +407,15 @@ const DICT = {
 
     'st.model.t': 'Model',
     'st.model.sub': 'Primary inference model. All token usage is billed against it.',
+    'st.model.status': 'readiness',
+    'st.model.ready': 'ready',
+    'st.model.notReady': 'not ready',
+    'st.model.reason': 'reason',
+    'st.model.reason.custom_provider_unconfigured': 'custom provider is missing api base or credentials',
+    'st.model.reason.openai_api_key_missing': 'OpenAI API key is missing',
+    'st.model.reason.anthropic_api_key_missing': 'Anthropic API key is missing',
+    'st.model.reason.model_unconfigured': 'model name is not configured',
+    'st.model.reason.unknown': 'unknown readiness blocker',
     'st.model.provider': 'provider',
     'st.model.apiBase': 'api base url',
     'st.model.apiBaseHint': 'leave blank for provider default; set for LiteLLM proxy / su8.codes',
@@ -746,6 +756,7 @@ const DICT = {
     'nt.err.noTarget': '目标不能为空',
     'nt.err.noTitle': '任务标题不能为空',
     'nt.err.createFailed': '创建任务失败 · 请检查 /api/tasks 与服务端日志',
+    'nt.err.modelNotReady': '模型尚未就绪 · 请先在设置中完成配置（{0}）',
 
     /* task detail */
     'td.run': '运行',
@@ -943,6 +954,15 @@ const DICT = {
 
     'st.model.t': '模型配置',
     'st.model.sub': '主要推理模型。所有 token 消耗均计入此模型。',
+    'st.model.status': '就绪状态',
+    'st.model.ready': '已就绪',
+    'st.model.notReady': '未就绪',
+    'st.model.reason': '原因',
+    'st.model.reason.custom_provider_unconfigured': '自定义 provider 缺少 API Base 或凭据',
+    'st.model.reason.openai_api_key_missing': '缺少 OpenAI API Key',
+    'st.model.reason.anthropic_api_key_missing': '缺少 Anthropic API Key',
+    'st.model.reason.model_unconfigured': '模型名称未配置',
+    'st.model.reason.unknown': '未知阻塞原因',
     'st.model.provider': '供应商',
     'st.model.apiBase': 'API Base URL',
     'st.model.apiBaseHint': '留空使用供应商默认；填写 LiteLLM 代理地址或 su8.codes',

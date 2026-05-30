@@ -52,6 +52,7 @@ const SETTINGS_DEFAULTS = {
     maxTokens: 8192,
     apiKey: '',
     streaming: true,
+    readiness: null,
   },
   runtime: {
     mode: 'local',
@@ -134,6 +135,12 @@ function supportHint(base, path, meta) {
   if (!isEditable(path, meta)) hints.push(t('st.fieldReadOnly'));
   else if (needsRestart(path, meta)) hints.push(t('st.fieldRestart'));
   return hints.join(' · ');
+}
+
+function modelReadinessReasonLabel(reason) {
+  const normalized = String(reason || '').trim();
+  if (!normalized) return t('st.model.reason.unknown');
+  return t(`st.model.reason.${normalized}`);
 }
 
 function buildSavePayload(draft, meta) {
@@ -412,6 +419,7 @@ function SecretField({ value, onChange, placeholder, disabled = false, title = '
 
 function ModelSec({ draft, patch, meta }) {
   const m = draft.model || {};
+  const modelReady = m.readiness?.ready !== false;
 
   function onProviderChange(id) {
     const p = PROVIDERS.find(px => px.id === id);
@@ -421,6 +429,21 @@ function ModelSec({ draft, patch, meta }) {
 
   return (
     <Section title={t('st.model.t')} sub={t('st.model.sub')}>
+      <div className="set-field" style={{ gridColumn: '1 / -1' }}>
+        <div className="lbl">
+          <span>{t('st.model.status')}</span>
+          <span className="badges">
+            <span className={`chip ${modelReady ? 'green' : 'red'}`}>
+              {modelReady ? t('st.model.ready') : t('st.model.notReady')}
+            </span>
+          </span>
+        </div>
+        {m.readiness?.ready === false && (
+          <div className="hint">
+            {t('st.model.reason')}: {modelReadinessReasonLabel(m.readiness?.reason)}
+          </div>
+        )}
+      </div>
       <Field label={t('st.model.provider')} path="model.provider" meta={meta}>
         <select className="input" value={m.provider || 'anthropic'} onChange={e => onProviderChange(e.target.value)} disabled={!isEditable('model.provider', meta)}>
           {PROVIDERS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}

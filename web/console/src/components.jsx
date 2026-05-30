@@ -280,9 +280,16 @@ function NewTaskModal({ onClose, onCreated }) {
   const [phase, setPhase] = useState('idle');  // idle | creating | uploading | done | error
   const [uploadPct, setUploadPct] = useState(0);
   const [err, setErr] = useState('');
+  const [modelReadiness, setModelReadiness] = useState(null);
   const fileRef = useRef(null);
 
   function patch(k, v) { setForm(f => ({ ...f, [k]: v })); setErr(''); }
+
+  function readinessReasonLabel(reason) {
+    const normalized = String(reason || '').trim();
+    if (!normalized) return t('st.model.reason.unknown');
+    return t(`st.model.reason.${normalized}`);
+  }
 
   function addFiles(newFiles) {
     setFiles(prev => {
@@ -301,6 +308,8 @@ function NewTaskModal({ onClose, onCreated }) {
   async function submit() {
     if (!form.target.trim()) { setErr(t('nt.err.noTarget')); return; }
     if (!form.title.trim())  { setErr(t('nt.err.noTitle'));  return; }
+    const modelBlocked = modelReadiness?.ready === false;
+    if (modelBlocked) { setErr(t('nt.err.modelNotReady', readinessReasonLabel(modelReadiness?.reason))); return; }
 
     // ── Phase 1: create task (JSON metadata) ──────────────────
     setErr('');
@@ -351,6 +360,18 @@ function NewTaskModal({ onClose, onCreated }) {
   const MODES = ['auto', 'pentest', 'ctf'];
   const ctfTypeEnabled = form.mode === 'ctf' || form.mode === 'auto';
   const loading = phase === 'creating' || phase === 'uploading';
+  const modelBlocked = modelReadiness?.ready === false;
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (typeof window.API?.getSettings !== 'function') return;
+      const settingsData = await window.API.getSettings();
+      if (!active) return;
+      setModelReadiness((settingsData?.model?.readiness) || null);
+    })();
+    return () => { active = false; };
+  }, []);
 
   // close on Escape
   useEffect(() => {
@@ -506,6 +527,12 @@ function NewTaskModal({ onClose, onCreated }) {
             </div>
           </div>
 
+          {modelBlocked && (
+            <div className="modal-err">
+              {t('nt.err.modelNotReady', readinessReasonLabel(modelReadiness?.reason))}
+            </div>
+          )}
+
           {err && <div className="modal-err">{err}</div>}
         </div>
 
@@ -513,7 +540,7 @@ function NewTaskModal({ onClose, onCreated }) {
           <button className="btn ghost" onClick={() => !loading && onClose()} disabled={loading}>
             {t('c.cancel')}
           </button>
-          <button className="btn primary" onClick={submit} disabled={loading}>
+          <button className="btn primary" onClick={submit} disabled={loading || modelBlocked} title={modelBlocked ? t('nt.err.modelNotReady', readinessReasonLabel(modelReadiness?.reason)) : ''}>
             {phaseLabel()}
           </button>
         </div>
