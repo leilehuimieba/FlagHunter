@@ -18,6 +18,7 @@ from unittest.mock import patch
 import pentestagent.tools.notes as notes_module
 from pentestagent.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher, SolveResult
 from pentestagent.agents.pa_agent.ctf_state import CTFState
+from pentestagent.knowledge.session_context import SessionContextView
 from pentestagent.runtime.runtime import LocalRuntime
 from pentestagent.tools.notes import set_notes_file
 from tests.eval.benchmark_result import BenchmarkReport, ChallengeResult
@@ -172,6 +173,7 @@ def _build_challenge_result(
     result: SolveResult,
     state: CTFState | None,
     wall_time_seconds: float,
+    harness_summary: dict[str, Any] | None = None,
 ) -> ChallengeResult:
     submit_attempts = _collect_submit_attempts(state)
     wrong_flag_count = sum(1 for item in submit_attempts if item.get("correct") is False)
@@ -229,9 +231,59 @@ def _build_challenge_result(
                 if isinstance(stop_report, dict)
                 else None
             ),
+            "harness": dict(harness_summary or {}),
         },
         failure_taxonomy=failure_taxonomy,
     )
+
+
+def _build_harness_summary_for_run(*, run_id: str, workspace_root: str | Path) -> dict[str, Any]:
+    normalized_run_id = str(run_id or "").strip()
+    root = Path(workspace_root)
+    if not normalized_run_id:
+        return {
+            "has_session_ledger": False,
+            "event_types": [],
+            "artifact_count": 0,
+            "latest_checkpoint_label": "",
+            "latest_checkpoint_stop_reason": "",
+        }
+
+    view = SessionContextView(
+        ledger_root=root / "loot" / "session_ledgers",
+        artifact_root=root / "loot" / "artifact_registry",
+        checkpoint_root=root / "loot" / "checkpoints",
+    )
+    context = view.build_run_context(normalized_run_id)
+    recent_events = context.get("recentEvents") if isinstance(context.get("recentEvents"), list) else []
+    latest_checkpoint = context.get("latestCheckpoint") if isinstance(context.get("latestCheckpoint"), dict) else {}
+    artifacts = context.get("artifacts") if isinstance(context.get("artifacts"), list) else []
+    event_types = [
+        str(item.get("type") or "").strip()
+        for item in recent_events
+        if isinstance(item, dict) and str(item.get("type") or "").strip()
+    ]
+    return {
+        "has_session_ledger": len(recent_events) > 0,
+        "event_types": event_types,
+        "artifact_count": len([item for item in artifacts if isinstance(item, dict)]),
+        "latest_checkpoint_label": str(latest_checkpoint.get("label") or "").strip(),
+        "latest_checkpoint_stop_reason": str(latest_checkpoint.get("stopReason") or "").strip(),
+    }
+
+
+def _normalize_runner_result(
+    raw: Any,
+) -> tuple[SolveResult, CTFState | None, dict[str, Any] | None]:
+    if not isinstance(raw, tuple):
+        raise TypeError(f"runner must return tuple, got {type(raw)!r}")
+    if len(raw) == 2:
+        result, state = raw
+        return result, state, None
+    if len(raw) == 3:
+        result, state, harness_summary = raw
+        return result, state, dict(harness_summary or {})
+    raise ValueError(f"runner returned unexpected tuple length: {len(raw)}")
 
 
 async def _execute_dispatcher(
@@ -242,7 +294,7 @@ async def _execute_dispatcher(
     hint: str = "",
     llm: Any | None = None,
     verification_callback: Callable[[str], Any] | None = None,
-) -> tuple[SolveResult, CTFState | None]:
+) -> tuple[SolveResult, CTFState | None, dict[str, Any]]:
     runtime = LocalRuntime()
     await runtime.start()
     try:
@@ -259,14 +311,19 @@ async def _execute_dispatcher(
             type=challenge_type,
             hint=hint,
         )
-        return result, dispatcher.state
+        run_id = str(getattr(dispatcher, "_ledger_run_id", "") or "").strip()
+        harness_summary = _build_harness_summary_for_run(
+            run_id=run_id,
+            workspace_root=Path.cwd(),
+        )
+        return result, dispatcher.state, harness_summary
     finally:
         await runtime.stop()
 
 
 async def _run_easy_tornado(
     verification_callback: Callable[[str], Any] | None = None,
-) -> tuple[SolveResult, CTFState | None]:
+) -> tuple[SolveResult, CTFState | None, dict[str, Any]]:
     with tempfile.TemporaryDirectory(prefix="benchmark_easy_tornado_") as temp_dir:
         tmp_path = Path(temp_dir)
         with _temporary_cwd(tmp_path), _isolated_notes(tmp_path):
@@ -281,7 +338,7 @@ async def _run_easy_tornado(
 
 async def _run_php_backup(
     verification_callback: Callable[[str], Any] | None = None,
-) -> tuple[SolveResult, CTFState | None]:
+) -> tuple[SolveResult, CTFState | None, dict[str, Any]]:
     with tempfile.TemporaryDirectory(prefix="benchmark_php_backup_") as temp_dir:
         tmp_path = Path(temp_dir)
         with _temporary_cwd(tmp_path), _isolated_notes(tmp_path):
@@ -296,7 +353,7 @@ async def _run_php_backup(
 
 async def _run_php_unserialize(
     verification_callback: Callable[[str], Any] | None = None,
-) -> tuple[SolveResult, CTFState | None]:
+) -> tuple[SolveResult, CTFState | None, dict[str, Any]]:
     with tempfile.TemporaryDirectory(prefix="benchmark_php_unserialize_") as temp_dir:
         tmp_path = Path(temp_dir)
         with _temporary_cwd(tmp_path), _isolated_notes(tmp_path):
@@ -313,7 +370,7 @@ async def _run_php_unserialize(
 
 async def _run_auth_sqli(
     verification_callback: Callable[[str], Any] | None = None,
-) -> tuple[SolveResult, CTFState | None]:
+) -> tuple[SolveResult, CTFState | None, dict[str, Any]]:
     with tempfile.TemporaryDirectory(prefix="benchmark_auth_sqli_") as temp_dir:
         tmp_path = Path(temp_dir)
         with _temporary_cwd(tmp_path), _isolated_notes(tmp_path):
@@ -328,7 +385,7 @@ async def _run_auth_sqli(
 
 async def _run_llm_unknown_web(
     verification_callback: Callable[[str], Any] | None = None,
-) -> tuple[SolveResult, CTFState | None]:
+) -> tuple[SolveResult, CTFState | None, dict[str, Any]]:
     with tempfile.TemporaryDirectory(prefix="benchmark_llm_unknown_web_") as temp_dir:
         tmp_path = Path(temp_dir)
         with _temporary_cwd(tmp_path), _isolated_notes(tmp_path):
@@ -512,8 +569,21 @@ async def run_benchmark(
     for challenge_id in selected_ids:
         spec = _CHALLENGE_CATALOG[challenge_id]
         started = time.perf_counter()
-        result, state = await spec.runner(callback)
+        raw_result = await spec.runner(callback)
+        result, state, harness_summary = _normalize_runner_result(raw_result)
         wall_time = time.perf_counter() - started
+        if harness_summary is None and state is not None:
+            run_id = getattr(state, "run_id", None)
+            if not run_id and hasattr(state, "meta_reasonings"):
+                for item in getattr(state, "meta_reasonings", []):
+                    if isinstance(item, dict) and item.get("type") == "run_context":
+                        run_id = item.get("run_id")
+                        break
+            if run_id:
+                harness_summary = _build_harness_summary_for_run(
+                    run_id=str(run_id),
+                    workspace_root=Path.cwd(),
+                )
         collected.append(
             _build_challenge_result(
                 challenge_id=spec.challenge_id,
@@ -522,6 +592,7 @@ async def run_benchmark(
                 result=result,
                 state=state,
                 wall_time_seconds=wall_time,
+                harness_summary=harness_summary,
             )
         )
 

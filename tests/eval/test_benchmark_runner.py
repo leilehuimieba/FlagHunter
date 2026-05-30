@@ -99,6 +99,90 @@ async def test_run_benchmark_subset_uses_catalog_and_writes_report(monkeypatch, 
     assert report_path.exists()
 
 
+def test_build_harness_summary_for_run_reads_session_artifacts_and_checkpoint(tmp_path: Path):
+    from pentestagent.agents.pa_agent.ctf_state import CTFState
+    from pentestagent.harness.artifact_registry import ArtifactRegistry
+    from pentestagent.harness.checkpoint_store import CheckpointStore
+    from pentestagent.harness.session_ledger import SessionLedger
+
+    run_id = "benchmark-run-1"
+    root = tmp_path
+    SessionLedger(root / "loot" / "session_ledgers").append_event(
+        run_id,
+        "tool_called",
+        {"tool_name": "proxy_action", "action": "request", "target": "http://ctf.local/login"},
+    )
+    ArtifactRegistry(root / "loot" / "artifact_registry").register_artifact(
+        run_id=run_id,
+        kind="artifact",
+        title="response_dump",
+        location="http://ctf.local/debug.txt",
+        producer="ssti_exploit",
+        metadata={"category": "exploit-output"},
+    )
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    state.stop_reason = "verifier_reject"
+    CheckpointStore(root / "loot" / "checkpoints").save_checkpoint(
+        run_id=run_id,
+        label="task_finished",
+        state_snapshot=state.to_snapshot(),
+        metadata={"success": False},
+    )
+
+    summary = benchmark_runner._build_harness_summary_for_run(run_id=run_id, workspace_root=root)
+
+    assert summary["has_session_ledger"] is True
+    assert "tool_called" in summary["event_types"]
+    assert summary["artifact_count"] == 1
+    assert summary["latest_checkpoint_label"] == "task_finished"
+    assert summary["latest_checkpoint_stop_reason"] == "verifier_reject"
+
+
+@pytest.mark.asyncio
+async def test_run_benchmark_attaches_harness_summary_to_result_metadata(monkeypatch, tmp_path: Path):
+    async def _fake_runner(_verification_callback=None):
+        from pentestagent.agents.pa_agent.ctf_dispatcher import SolveResult
+        from pentestagent.agents.pa_agent.ctf_state import CTFState
+
+        state = CTFState(target="http://ctf.local", goal="拿到flag")
+        state.stop_reason = "synthetic success"
+        state.stop_report = {"reason": "flag_verified"}
+        return (
+            SolveResult(
+                success=True,
+                flag="flag{synthetic}",
+                chain_used=["web"],
+                notes=["synthetic"],
+                reason="synthetic success",
+            ),
+            state,
+            {
+                "has_session_ledger": True,
+                "event_types": ["tool_called", "task_finished"],
+                "artifact_count": 1,
+                "latest_checkpoint_label": "task_finished",
+                "latest_checkpoint_stop_reason": "flag_verified",
+            },
+        )
+
+    fake_catalog = {
+        "synthetic": benchmark_runner._ChallengeSpec(
+            challenge_id="synthetic",
+            expected_solved=True,
+            source="tests/synthetic.py::fixture",
+            runner=_fake_runner,
+        )
+    }
+    monkeypatch.setattr(benchmark_runner, "_CHALLENGE_CATALOG", fake_catalog)
+    monkeypatch.setattr(benchmark_runner, "_DEFAULT_CHALLENGE_IDS", ["synthetic"])
+
+    report = await benchmark_runner.run_benchmark(report_path=str(tmp_path / "benchmark.json"))
+
+    assert report.results[0].metadata["harness"]["has_session_ledger"] is True
+    assert report.results[0].metadata["harness"]["artifact_count"] == 1
+    assert report.results[0].metadata["harness"]["latest_checkpoint_stop_reason"] == "flag_verified"
+
+
 # ---------------------------------------------------------------------------
 # Phase 7: failure taxonomy tests (P7-EVAL-01 to P7-EVAL-04)
 # ---------------------------------------------------------------------------
