@@ -730,6 +730,93 @@ async def test_ctf_hint_subcommand_restarts_crew_when_last_mode_is_crew(monkeypa
 
 
 @pytest.mark.asyncio
+async def test_ctf_hint_subcommand_restarts_from_session_context_resume_payload_when_autonomy_state_missing(monkeypatch):
+    tui = _make_tui_stub()
+    tui.runtime = object()
+    tui._last_ctf_context = {
+        "url": "http://ctf.local/challenges/42",
+        "goal": "拿到flag",
+        "type": "web",
+        "hint": "先看登录口",
+        "submit_profile": {
+            "base_url": "https://ctf.example.com",
+            "challenge_id": "42",
+        },
+        "runner_config": {"mode": "single"},
+        "sessionContext": {
+            "resumeContext": {
+                "runId": "run-session-context-1",
+                "checkpointId": "checkpoint-1",
+                "checkpointLabel": "task_finished",
+                "stopReason": "flag_verified",
+                "verifiedFlags": ["flag{ctx_ok}"],
+                "runtimeFlags": [],
+                "recentEventTypes": [
+                    "dispatcher_started",
+                    "verification_decision",
+                    "task_finished",
+                ],
+                "artifactRefs": [
+                    {
+                        "artifactId": "artifact-1",
+                        "kind": "artifact",
+                        "title": "ctf_backup_candidate",
+                        "location": "http://ctf.local/www.zip",
+                        "path": None,
+                    }
+                ],
+                "summary": (
+                    "run_id=run-session-context-1; latest_checkpoint=task_finished; "
+                    "stop_reason=flag_verified; verified_flags=flag{ctx_ok}; "
+                    "recent_events=dispatcher_started, verification_decision, task_finished; "
+                    "artifacts=ctf_backup_candidate"
+                ),
+            }
+        },
+    }
+
+    notes_calls = []
+
+    async def _fake_notes(payload, runtime=None):
+        notes_calls.append((payload, runtime))
+        return {"ok": True}
+
+    monkeypatch.setattr(
+        "pentestagent.tools.notes.notes",
+        _fake_notes,
+    )
+
+    captured = {}
+
+    def _fake_run(url, goal, chtype, hint, submit_profile, runner_config):
+        captured.update(
+            {
+                "url": url,
+                "goal": goal,
+                "type": chtype,
+                "hint": hint,
+                "submit_profile": submit_profile,
+                "runner_config": runner_config,
+            }
+        )
+        return "worker"
+
+    tui._run_ctf_dispatcher_mode = _fake_run
+
+    await PentestAgentTUI._parse_ctf_command(tui, '/ctf hint "试试 PHP 反序列化"')
+
+    assert notes_calls
+    assert captured["url"] == "http://ctf.local/challenges/42"
+    assert "试试 PHP 反序列化" in captured["hint"]
+    resume_state = captured["runner_config"]["_autonomy_resume_state"]
+    assert resume_state["records"][0]["challenge_id"] == "42"
+    assert resume_state["records"][0]["reason"] == "flag_verified"
+    assert resume_state["records"][0]["success"] is True
+    assert captured["runner_config"]["_autonomy_resume_reason"] == "operator_hint_restart"
+    assert tui._current_worker == "worker"
+
+
+@pytest.mark.asyncio
 async def test_ctf_wrong_subcommand_restarts_crew_when_last_mode_is_crew(monkeypatch):
     tui = _make_tui_stub()
     tui.runtime = object()
