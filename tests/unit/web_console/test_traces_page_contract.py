@@ -48,3 +48,19 @@ def test_trace_detail_links_tool_audit_rows_to_event_drawer() -> None:
 
     assert "setDrawer(event)" in source
     assert "tool-audit-list" in source
+
+
+def test_trace_detail_renders_checkpoint_and_outcome_panels_from_trace_payload() -> None:
+    source = _read("web/console/src/pages/traces.jsx")
+
+    assert "Latest checkpoint" in source
+    assert "Run outcomes" in source
+    assert "resolvedRun.latestCheckpoint" in source
+    assert "resolvedRun.outcomeEvents.map" in source
+
+
+def test_trace_data_artifacts_tab_uses_truthful_session_artifacts() -> None:
+    source = _read("web/console/src/pages/traces.jsx")
+
+    assert "run.sessionArtifacts" in source
+    assert "ArtifactsTable" in source

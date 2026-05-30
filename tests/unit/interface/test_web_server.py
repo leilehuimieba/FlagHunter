@@ -1707,6 +1707,121 @@ def test_build_trace_payload_projects_tool_audit_events_from_session_context(
     assert len(payload["toolEvents"]) >= 2
 
 
+def test_build_trace_payload_projects_artifacts_checkpoint_and_outcomes_from_session_context(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    task = {
+        "id": "task_trace_harness_projection",
+        "title": "trace harness projection",
+        "target": "http://trace.test",
+        "goal": "trace harness projection",
+        "mode": "ctf",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
+        "status": "stopped",
+        "createdAt": web_server._now_iso(),
+        "startedAt": web_server._now_iso(),
+        "finishedAt": web_server._now_iso(),
+        "tokensUsed": 0,
+        "toolCalls": 0,
+        "finalFlag": None,
+        "stopReason": "done",
+        "currentRunId": "run_trace_harness_projection",
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    monkeypatch.setattr(web_server, "_pick_metrics_for_task", lambda project_root, item: None)
+    monkeypatch.setattr(
+        web_server,
+        "_pick_session_snapshot",
+        lambda project_root, item: (
+            None,
+            None,
+            {"matchedBy": "none", "confidence": "none", "expectedSessionId": None, "blockedReason": None, "candidateScore": None},
+        ),
+    )
+    monkeypatch.setattr(
+        web_server,
+        "_build_run_session_context",
+        lambda project_root, run_id: {
+            "runId": run_id,
+            "recentEvents": [
+                {
+                    "type": "verification_decision",
+                    "t": "2026-05-29T10:00:02+00:00",
+                    "payload": {
+                        "decision": "candidate",
+                        "flag": "flag{candidate}",
+                        "evidence_source": "http-response",
+                        "rationale": "flag-like string found in exploit response",
+                        "confidence": 0.72,
+                        "strategy_kind": "ssti_exploit",
+                    },
+                },
+                {
+                    "type": "recovery_decision",
+                    "t": "2026-05-29T10:00:03+00:00",
+                    "payload": {
+                        "action": "explore_agenda",
+                        "reason": "candidate needs stronger runtime confirmation",
+                        "should_stop": False,
+                        "chain_name": "ssti_exploit",
+                    },
+                },
+                {
+                    "type": "task_finished",
+                    "t": "2026-05-29T10:00:04+00:00",
+                    "payload": {
+                        "success": False,
+                        "flag": "",
+                        "reason": "verifier_reject",
+                        "chain_used": ["recon", "ssti_exploit"],
+                        "missing_tools": [],
+                    },
+                },
+            ],
+            "artifacts": [
+                {
+                    "artifactId": "artifact-1",
+                    "kind": "artifact",
+                    "title": "ssti_response_dump",
+                    "path": None,
+                    "location": "http://trace.test/debug.txt",
+                    "producer": "ssti_exploit",
+                    "metadata": {"category": "exploit-output"},
+                    "t": "2026-05-29T10:00:01+00:00",
+                }
+            ],
+            "latestCheckpoint": {
+                "checkpointId": "checkpoint-1",
+                "label": "task_finished",
+                "t": "2026-05-29T10:00:04+00:00",
+                "metadata": {"success": False},
+                "stopReason": "verifier_reject",
+                "verifiedFlags": [],
+                "runtimeFlags": ["flag{candidate}"],
+                "artifactCount": 1,
+                "observationCount": 3,
+            },
+            "resumeContext": None,
+        },
+    )
+
+    payload = web_server._build_trace_payload(tmp_path, task, include_timeline=True)
+
+    assert payload["sessionArtifacts"][0]["title"] == "ssti_response_dump"
+    assert payload["latestCheckpoint"]["checkpointId"] == "checkpoint-1"
+    assert payload["latestCheckpoint"]["stopReason"] == "verifier_reject"
+    assert any(event["kind"] == "verification_decision" for event in payload["outcomeEvents"])
+    assert any(event["kind"] == "recovery_decision" for event in payload["outcomeEvents"])
+    assert any(event["kind"] == "task_finished" for event in payload["outcomeEvents"])
+
+
 def test_task_detail_payload_re_normalizes_dirty_derived_collections(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):

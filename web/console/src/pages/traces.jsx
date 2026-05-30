@@ -240,6 +240,13 @@ function TraceDetail({ runId, onNav }) {
   const toolAuditEvents = Array.isArray(resolvedRun.toolEvents)
     ? resolvedRun.toolEvents.map((event, index) => normalizeToolAuditEvent(event, index))
     : [];
+  const outcomeEvents = Array.isArray(resolvedRun.outcomeEvents)
+    ? resolvedRun.outcomeEvents.map((event, index) => normalizeTraceEvent(event, index, 'outcome'))
+    : [];
+  const sessionArtifacts = Array.isArray(resolvedRun.sessionArtifacts) ? resolvedRun.sessionArtifacts : [];
+  const latestCheckpoint = resolvedRun.latestCheckpoint && typeof resolvedRun.latestCheckpoint === 'object'
+    ? resolvedRun.latestCheckpoint
+    : null;
   const hasObservedToolIO = Array.isArray(resolvedRun.toolEvents) && resolvedRun.toolEvents.length > 0;
   const graph = uM(() => buildTraceGraph(timeline, resolvedRun), [timeline, resolvedRun.id, resolvedRun.status, resolvedRun.startedAt]);
   const traceEmptyState = traceDetailAvailable ? t('tr.empty.timeline') : (traceDetailUnavailableReason || t('c.unavailable'));
@@ -497,6 +504,62 @@ function TraceDetail({ runId, onNav }) {
           </div>
         )}
 
+        {(latestCheckpoint || outcomeEvents.length > 0) && (
+          <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--line-1)', display: 'grid', gap: 12 }}>
+            {latestCheckpoint && (
+              <div className="card" style={{ padding: '12px 14px' }}>
+                <div className="hk" style={{ marginBottom: 8 }}>Latest checkpoint</div>
+                <div className="row gap-12" style={{ flexWrap: 'wrap', fontSize: 12 }}>
+                  <span className="mono bright">{latestCheckpoint.label || latestCheckpoint.checkpointId || 'checkpoint'}</span>
+                  <span className="muted">stop: {latestCheckpoint.stopReason || '—'}</span>
+                  <span className="muted">artifacts: {latestCheckpoint.artifactCount ?? 0}</span>
+                  <span className="muted">observations: {latestCheckpoint.observationCount ?? 0}</span>
+                  <span className="dim">{latestCheckpoint.t ? fmt.hh(latestCheckpoint.t).slice(0, 8) : '—'}</span>
+                </div>
+                {(Array.isArray(latestCheckpoint.runtimeFlags) && latestCheckpoint.runtimeFlags.length > 0) && (
+                  <div className="muted" style={{ marginTop: 6 }}>
+                    runtime flags: {latestCheckpoint.runtimeFlags.join(', ')}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {outcomeEvents.length > 0 && (
+              <div>
+                <div className="hk" style={{ marginBottom: 8 }}>Run outcomes</div>
+                <div className="tool-audit-list" style={{ display: 'grid', gap: 8 }}>
+                  {resolvedRun.outcomeEvents.map((rawEvent, index) => {
+                    const event = normalizeTraceEvent(rawEvent, index, 'outcome');
+                    return (
+                      <button
+                        key={event.id}
+                        type="button"
+                        className="card"
+                        onClick={() => setDrawer(event)}
+                        style={{ width: '100%', textAlign: 'left', padding: '10px 12px', background: 'transparent', cursor: 'pointer' }}
+                      >
+                        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                          <div className="row gap-8" style={{ flexWrap: 'wrap' }}>
+                            <span className="bright">{event.title}</span>
+                            <span className="dim mono">{event.kind}</span>
+                          </div>
+                          <div className="row gap-8">
+                            <span className={`mono ${event.status === 'failed' ? 'red' : event.status === 'running' ? 'amber' : 'green'}`}>
+                              {event.status || 'done'}
+                            </span>
+                            <span className="dim">{fmt.hh(event.t).slice(0, 8)}</span>
+                          </div>
+                        </div>
+                        <div className="muted" style={{ marginTop: 6 }}>{event.summary || 'outcome observed'}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="tabs">
           <div className={`tab ${tab === 'timeline' ? 'active' : ''}`} onClick={() => setTab('timeline')}>
             {t('tr.tab.timeline')} <span className="count">{timeline.length}</span>
@@ -532,28 +595,40 @@ function Kv({ k, v }) { return (
 
 function normalizeToolAuditEvent(event, index) {
   const tool = event?.tool || 'tool';
-  const title = event?.title
-    || `${tool} ${event?.kind === 'tool_called' ? 'called' : event?.kind === 'tool_finished' ? 'finished' : 'observed'}`;
-  const summary = event?.summary
-    || (typeof event?.output === 'string' && event.output.trim())
-    || (typeof event?.input === 'string' && event.input.trim())
-    || 'tool event observed';
-  const status = event?.status
-    || (event?.kind === 'tool_called' ? 'running' : event?.success === false ? 'failed' : 'done');
   return {
-    id: event?.id || `tool_audit_${tool}_${index}`,
-    type: event?.type || 'tool',
-    kind: event?.kind || 'tool_observed',
+    ...normalizeTraceEvent({
+      ...event,
+      id: event?.id || `tool_audit_${tool}_${index}`,
+      type: event?.type || 'tool',
+      kind: event?.kind || 'tool_observed',
+      title: event?.title
+        || `${tool} ${event?.kind === 'tool_called' ? 'called' : event?.kind === 'tool_finished' ? 'finished' : 'observed'}`,
+      summary: event?.summary
+        || (typeof event?.output === 'string' && event.output.trim())
+        || (typeof event?.input === 'string' && event.input.trim())
+        || 'tool event observed',
+      status: event?.status
+        || (event?.kind === 'tool_called' ? 'running' : event?.success === false ? 'failed' : 'done'),
+    }, index, 'tool_audit'),
     tool,
-    title,
-    summary,
-    status,
+  };
+}
+
+function normalizeTraceEvent(event, index, prefix = 'event') {
+  return {
+    id: event?.id || `${prefix}_${index}`,
+    type: event?.type || 'system',
+    kind: event?.kind || `${prefix}_observed`,
+    title: event?.title || 'event observed',
+    summary: event?.summary || '',
+    status: event?.status || 'done',
     t: event?.t || new Date().toISOString(),
     input: event?.input || '',
     output: event?.output || '',
     durationMs: typeof event?.durationMs === 'number' ? event.durationMs : null,
     success: event?.success,
     tokens: typeof event?.tokens === 'number' ? event.tokens : 0,
+    tool: event?.tool || null,
   };
 }
 
@@ -769,6 +844,7 @@ function DataTables({ run, events }) {
   const tools = events.filter(e => e.tool);
   const knowledge = events.filter(e => e.type === 'knowledge');
   const notes = events.filter(e => e.type === 'note');
+  const artifacts = Array.isArray(run.sessionArtifacts) ? run.sessionArtifacts : [];
   return (
     <>
       <div className="tabs" style={{ padding: '0 14px' }}>
@@ -788,10 +864,33 @@ function DataTables({ run, events }) {
         {tab === 'tools' && <ToolsTable events={tools} />}
         {tab === 'knowledge' && <KnowledgeTbl events={knowledge} />}
         {tab === 'notes' && <NotesTbl events={notes} />}
-        {tab === 'artifacts' && <Empty>{t('tr.data.noArtifacts')}</Empty>}
+        {tab === 'artifacts' && (
+          artifacts.length > 0
+            ? <ArtifactsTable artifacts={artifacts} />
+            : <Empty>{t('tr.data.noArtifacts')}</Empty>
+        )}
         {tab === 'files' && <Empty>{t('tr.data.noFiles')}</Empty>}
       </div>
     </>
+  );
+}
+
+function ArtifactsTable({ artifacts }) {
+  return (
+    <table className="k-table">
+      <thead><tr><th>{t('c.time')}</th><th>{t('c.kind')}</th><th>{t('c.title')}</th><th>{t('c.target')}</th><th>{t('c.summary')}</th></tr></thead>
+      <tbody>
+        {artifacts.map(item => (
+          <tr key={item.artifactId || `${item.kind}_${item.title}`}>
+            <td className="muted mono">{item.t ? fmt.hh(item.t).slice(0, 8) : '—'}</td>
+            <td><span className="chip cyan">{item.kind || 'artifact'}</span></td>
+            <td className="bright">{item.title || 'artifact'}</td>
+            <td className="ellipsis" style={{ maxWidth: 360 }}>{item.location || item.path || '—'}</td>
+            <td className="muted">{item.producer || item.metadata?.category || 'observed'}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
