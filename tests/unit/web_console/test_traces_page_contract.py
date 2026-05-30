@@ -34,3 +34,17 @@ def test_traces_page_introduces_live_availability_guard() -> None:
     assert "tracesAvailable" in source
     assert "tracesUnavailableReason" in source
     assert "t('c.unavailable')" in source
+
+
+def test_trace_detail_renders_tool_audit_panel_from_truthful_tool_events() -> None:
+    source = _read("web/console/src/pages/traces.jsx")
+
+    assert "Tool audit" in source
+    assert "resolvedRun.toolEvents.map" in source
+
+
+def test_trace_detail_links_tool_audit_rows_to_event_drawer() -> None:
+    source = _read("web/console/src/pages/traces.jsx")
+
+    assert "setDrawer(event)" in source
+    assert "tool-audit-list" in source

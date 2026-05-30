@@ -237,6 +237,9 @@ function TraceDetail({ runId, onNav }) {
   const timeline = Array.isArray(resolvedRun.timeline) && resolvedRun.timeline.length
     ? resolvedRun.timeline
     : resolveTraceTimeline(resolvedRun);
+  const toolAuditEvents = Array.isArray(resolvedRun.toolEvents)
+    ? resolvedRun.toolEvents.map((event, index) => normalizeToolAuditEvent(event, index))
+    : [];
   const hasObservedToolIO = Array.isArray(resolvedRun.toolEvents) && resolvedRun.toolEvents.length > 0;
   const graph = uM(() => buildTraceGraph(timeline, resolvedRun), [timeline, resolvedRun.id, resolvedRun.status, resolvedRun.startedAt]);
   const traceEmptyState = traceDetailAvailable ? t('tr.empty.timeline') : (traceDetailUnavailableReason || t('c.unavailable'));
@@ -463,6 +466,37 @@ function TraceDetail({ runId, onNav }) {
           {resolvedRun.finalFlag && <Kv k={t('c.flag')} v={<span className="green">{resolvedRun.finalFlag}</span>} />}
         </div>
 
+        {toolAuditEvents.length > 0 && (
+          <div style={{ padding: '12px 14px', borderTop: '1px solid var(--line-1)', borderBottom: '1px solid var(--line-1)' }}>
+            <div className="hk" style={{ marginBottom: 8 }}>Tool audit</div>
+            <div className="tool-audit-list" style={{ display: 'grid', gap: 8 }}>
+              {toolAuditEvents.map(event => (
+                <button
+                  key={event.id}
+                  type="button"
+                  className="card"
+                  onClick={() => setDrawer(event)}
+                  style={{ width: '100%', textAlign: 'left', padding: '10px 12px', background: 'transparent', cursor: 'pointer' }}
+                >
+                  <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                    <div className="row gap-8" style={{ flexWrap: 'wrap' }}>
+                      <span className="cyan mono">{event.tool || 'tool'}</span>
+                      <span className="dim">{event.title}</span>
+                    </div>
+                    <div className="row gap-8">
+                      <span className={`mono ${event.status === 'failed' ? 'red' : event.status === 'running' ? 'amber' : 'green'}`}>
+                        {event.status || 'done'}
+                      </span>
+                      <span className="dim">{fmt.hh(event.t).slice(0, 8)}</span>
+                    </div>
+                  </div>
+                  <div className="muted" style={{ marginTop: 6 }}>{event.summary || 'tool event observed'}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="tabs">
           <div className={`tab ${tab === 'timeline' ? 'active' : ''}`} onClick={() => setTab('timeline')}>
             {t('tr.tab.timeline')} <span className="count">{timeline.length}</span>
@@ -495,6 +529,33 @@ function Kv({ k, v }) { return (
     <span className="v">{v}</span>
   </div>
 );}
+
+function normalizeToolAuditEvent(event, index) {
+  const tool = event?.tool || 'tool';
+  const title = event?.title
+    || `${tool} ${event?.kind === 'tool_called' ? 'called' : event?.kind === 'tool_finished' ? 'finished' : 'observed'}`;
+  const summary = event?.summary
+    || (typeof event?.output === 'string' && event.output.trim())
+    || (typeof event?.input === 'string' && event.input.trim())
+    || 'tool event observed';
+  const status = event?.status
+    || (event?.kind === 'tool_called' ? 'running' : event?.success === false ? 'failed' : 'done');
+  return {
+    id: event?.id || `tool_audit_${tool}_${index}`,
+    type: event?.type || 'tool',
+    kind: event?.kind || 'tool_observed',
+    tool,
+    title,
+    summary,
+    status,
+    t: event?.t || new Date().toISOString(),
+    input: event?.input || '',
+    output: event?.output || '',
+    durationMs: typeof event?.durationMs === 'number' ? event.durationMs : null,
+    success: event?.success,
+    tokens: typeof event?.tokens === 'number' ? event.tokens : 0,
+  };
+}
 
 // ----------------------------------------------------------------
 // Timeline

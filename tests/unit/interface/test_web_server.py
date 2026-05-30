@@ -1636,6 +1636,77 @@ def test_build_trace_payload_includes_ctf_dispatcher_truth_fields(
     assert payload["ctfNotes"] == ["phase1 done"]
 
 
+def test_build_trace_payload_projects_tool_audit_events_from_session_context(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    task = {
+        "id": "task_trace_tool_audit",
+        "title": "trace tool audit",
+        "target": "http://trace.test",
+        "goal": "trace tool audit",
+        "mode": "ctf",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
+        "status": "stopped",
+        "createdAt": web_server._now_iso(),
+        "startedAt": web_server._now_iso(),
+        "finishedAt": web_server._now_iso(),
+        "tokensUsed": 0,
+        "toolCalls": 0,
+        "finalFlag": None,
+        "stopReason": "done",
+        "currentRunId": "run_trace_tool_audit",
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    monkeypatch.setattr(web_server, "_pick_metrics_for_task", lambda project_root, item: None)
+    monkeypatch.setattr(
+        web_server,
+        "_pick_session_snapshot",
+        lambda project_root, item: (
+            None,
+            None,
+            {"matchedBy": "none", "confidence": "none", "expectedSessionId": None, "blockedReason": None, "candidateScore": None},
+        ),
+    )
+    monkeypatch.setattr(
+        web_server,
+        "_build_run_session_context",
+        lambda project_root, run_id: {
+            "runId": run_id,
+            "recentEvents": [
+                {
+                    "type": "tool_called",
+                    "t": "2026-05-29T10:00:00+00:00",
+                    "payload": {"tool_name": "proxy_action", "action": "request", "target": "http://trace.test/login"},
+                },
+                {
+                    "type": "tool_finished",
+                    "t": "2026-05-29T10:00:01+00:00",
+                    "payload": {"tool_name": "proxy_action", "action": "request", "target": "http://trace.test/login", "ok": True},
+                },
+            ],
+            "artifacts": [],
+            "latestCheckpoint": None,
+            "resumeContext": None,
+        },
+    )
+
+    payload = web_server._build_trace_payload(tmp_path, task, include_timeline=True)
+
+    assert not any(event["kind"] == "tool_called" for event in payload["timeline"])
+    assert not any(event["kind"] == "tool_finished" for event in payload["timeline"])
+    assert any(event["kind"] == "tool_called" for event in payload["toolEvents"])
+    assert any(event["kind"] == "tool_finished" for event in payload["toolEvents"])
+    assert any(event["tool"] == "proxy_action" for event in payload["toolEvents"])
+    assert len(payload["toolEvents"]) >= 2
+
+
 def test_task_detail_payload_re_normalizes_dirty_derived_collections(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
