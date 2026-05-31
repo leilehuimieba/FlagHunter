@@ -176,6 +176,13 @@ def test_build_harness_summary_for_run_reads_session_artifacts_and_checkpoint(tm
         "local_dump",
     ]
     assert summary["artifact_kinds"] == ["artifact", "flag"]
+    assert summary["artifact_producers"] == [
+        "ssti_exploit",
+        "flag_verifier",
+        "alias_writer",
+        "file_writer",
+    ]
+    assert summary["artifact_categories"] == ["exploit-output", "alias", "dump"]
     assert summary["artifact_locations_preview"] == [
         "http://ctf.local/debug.txt",
         "notes://flags/verified",
@@ -213,6 +220,8 @@ async def test_run_benchmark_attaches_harness_summary_to_result_metadata(monkeyp
                 "artifact_count": 1,
                 "artifact_titles": ["response_dump"],
                 "artifact_kinds": ["artifact"],
+                "artifact_producers": ["ssti_exploit"],
+                "artifact_categories": ["exploit-output"],
                 "artifact_locations_preview": ["http://ctf.local/debug.txt"],
                 "has_checkpoint": True,
                 "latest_checkpoint_label": "task_finished",
@@ -238,6 +247,8 @@ async def test_run_benchmark_attaches_harness_summary_to_result_metadata(monkeyp
     assert report.results[0].metadata["harness"]["artifact_count"] == 1
     assert report.results[0].metadata["harness"]["artifact_titles"] == ["response_dump"]
     assert report.results[0].metadata["harness"]["artifact_kinds"] == ["artifact"]
+    assert report.results[0].metadata["harness"]["artifact_producers"] == ["ssti_exploit"]
+    assert report.results[0].metadata["harness"]["artifact_categories"] == ["exploit-output"]
     assert report.results[0].metadata["harness"]["artifact_locations_preview"] == [
         "http://ctf.local/debug.txt"
     ]

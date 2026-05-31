@@ -251,6 +251,8 @@ def _build_harness_summary_for_run(*, run_id: str, workspace_root: str | Path) -
             "artifact_count": 0,
             "artifact_titles": [],
             "artifact_kinds": [],
+            "artifact_producers": [],
+            "artifact_categories": [],
             "artifact_locations_preview": [],
             "has_checkpoint": False,
             "latest_checkpoint_label": "",
@@ -282,6 +284,18 @@ def _build_harness_summary_for_run(*, run_id: str, workspace_root: str | Path) -
         for item in artifacts
         if isinstance(item, dict) and str(item.get("kind") or "").strip()
     ]
+    artifact_producers = [
+        str(item.get("producer") or "").strip()
+        for item in artifacts
+        if isinstance(item, dict) and str(item.get("producer") or "").strip()
+    ]
+    artifact_categories = [
+        str((item.get("metadata") or {}).get("category") or "").strip()
+        for item in artifacts
+        if isinstance(item, dict)
+        and isinstance(item.get("metadata"), dict)
+        and str((item.get("metadata") or {}).get("category") or "").strip()
+    ]
     artifact_locations_preview = []
     seen_artifact_location_keys: set[str] = set()
     seen_artifact_preview_values: set[str] = set()
@@ -304,6 +318,8 @@ def _build_harness_summary_for_run(*, run_id: str, workspace_root: str | Path) -
             artifact_locations_preview.append(preview)
     artifact_titles = list(dict.fromkeys(artifact_titles))
     artifact_kinds = list(dict.fromkeys(artifact_kinds))
+    artifact_producers = list(dict.fromkeys(artifact_producers))
+    artifact_categories = list(dict.fromkeys(artifact_categories))
     artifact_locations_preview = artifact_locations_preview[:3]
     return {
         "has_session_ledger": len(recent_events) > 0,
@@ -314,6 +330,8 @@ def _build_harness_summary_for_run(*, run_id: str, workspace_root: str | Path) -
         "artifact_count": len([item for item in artifacts if isinstance(item, dict)]),
         "artifact_titles": artifact_titles,
         "artifact_kinds": artifact_kinds,
+        "artifact_producers": artifact_producers,
+        "artifact_categories": artifact_categories,
         "artifact_locations_preview": artifact_locations_preview,
         "has_checkpoint": bool(latest_checkpoint),
         "latest_checkpoint_label": str(latest_checkpoint.get("label") or "").strip(),
