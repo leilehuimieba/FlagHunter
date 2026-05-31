@@ -507,3 +507,102 @@ async def test_dispatcher_registers_compose_file_from_extracted_challenge_root_i
     assert compose_entry["title"] == "docker-compose.yml"
     assert compose_entry["path"]
     assert compose_entry["location"] == compose_entry["path"]
+
+
+@pytest.mark.asyncio
+async def test_dispatcher_registers_whitelisted_key_files_from_explicit_challenge_root(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+
+    challenge_dir = tmp_path / "key_files_root"
+    challenge_dir.mkdir()
+    (challenge_dir / "README.md").write_text("# easy_login\n", encoding="utf-8")
+    (challenge_dir / "requirements.txt").write_text("flask==3.0.0\n", encoding="utf-8")
+    (challenge_dir / "app.py").write_text("print('hello')\n", encoding="utf-8")
+
+    dispatcher = CTFTaskDispatcher(runtime=_ArtifactRegistryRuntime(), progress_callback=None)
+    dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag")
+    dispatcher._challenge_context = {
+        "challengePath": str(challenge_dir),
+        "artifactPaths": [],
+    }
+    dispatcher._setup_session_ledger(
+        run_id="run-local-key-files-explicit-root",
+        ledger_root=tmp_path / "ledgers",
+    )
+    dispatcher._setup_artifact_registry(
+        run_id="run-local-key-files-explicit-root",
+        registry_root=tmp_path / "artifacts",
+    )
+
+    dispatcher._ingest_local_challenge_artifacts("http://ctf.local")
+
+    records = ArtifactRegistry(tmp_path / "artifacts").list_artifacts("run-local-key-files-explicit-root")
+    key_records = [item for item in records if item["kind"] == "local_challenge_key_file"]
+
+    assert {item["title"] for item in key_records} == {"README.md", "requirements.txt", "app.py"}
+    for item in key_records:
+        assert item["producer"] == "local_challenge_context"
+        assert item["metadata"]["target"] == "ctf.local"
+        assert item["metadata"]["kind"] == "challenge_key_file"
+        assert item["metadata"]["source_root_path"] == str(challenge_dir)
+        assert item["path"] == item["location"]
+
+
+@pytest.mark.asyncio
+async def test_dispatcher_registers_whitelisted_key_files_from_extracted_challenge_root_in_session_context(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+
+    archive_src = tmp_path / "archive_key_src" / "key_ctx"
+    archive_src.mkdir(parents=True)
+    (archive_src / "README.md").write_text("# key_ctx\n", encoding="utf-8")
+    (archive_src / "package.json").write_text('{"name":"key_ctx"}\n', encoding="utf-8")
+    (archive_src / "docker-compose.yml").write_text(
+        "services:\n  app:\n    image: key-ctx\n",
+        encoding="utf-8",
+    )
+
+    archive_path = tmp_path / "key_ctx.zip"
+    with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.write(archive_src / "README.md", arcname="key_ctx/README.md")
+        zf.write(archive_src / "package.json", arcname="key_ctx/package.json")
+        zf.write(
+            archive_src / "docker-compose.yml",
+            arcname="key_ctx/docker-compose.yml",
+        )
+
+    dispatcher = CTFTaskDispatcher(runtime=_ArtifactRegistryRuntime(), progress_callback=None)
+    dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag")
+    dispatcher._challenge_context = {"artifactPaths": [str(archive_path)]}
+    dispatcher._setup_session_ledger(
+        run_id="run-local-key-files-extracted-root",
+        ledger_root=tmp_path / "ledgers",
+    )
+    dispatcher._setup_artifact_registry(
+        run_id="run-local-key-files-extracted-root",
+        registry_root=tmp_path / "artifacts",
+    )
+
+    dispatcher._ingest_local_challenge_artifacts("http://ctf.local")
+
+    context = SessionContextView(
+        ledger_root=tmp_path / "ledgers",
+        artifact_root=tmp_path / "artifacts",
+        checkpoint_root=tmp_path / "checkpoints",
+    ).build_run_context("run-local-key-files-extracted-root")
+
+    key_entries = [item for item in context["artifacts"] if item["kind"] == "local_challenge_key_file"]
+    assert {item["title"] for item in key_entries} == {"README.md", "package.json"}
+    for item in key_entries:
+        assert item["path"] == item["location"]
