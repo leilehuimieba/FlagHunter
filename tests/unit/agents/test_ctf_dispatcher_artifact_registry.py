@@ -3,6 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
+import zipfile
 
 import pentestagent.tools.notes as notes_module
 from pentestagent.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
@@ -305,3 +306,104 @@ async def test_dispatcher_challenge_path_root_registry_entry_is_visible_in_sessi
     assert context["artifacts"][0]["title"] == "challenge_root_ctx"
     assert context["artifacts"][0]["path"] == str(challenge_dir)
     assert context["artifacts"][0]["location"] == str(challenge_dir)
+
+
+@pytest.mark.asyncio
+async def test_dispatcher_registers_extracted_challenge_root_from_local_archive(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+
+    archive_src = tmp_path / "archive_src" / "easy_login"
+    archive_src.mkdir(parents=True)
+    (archive_src / "docker-compose.yml").write_text(
+        "services:\n  app:\n    image: easy-login\n",
+        encoding="utf-8",
+    )
+
+    archive_path = tmp_path / "easy_login.zip"
+    with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.write(archive_src / "docker-compose.yml", arcname="easy_login/docker-compose.yml")
+
+    dispatcher = CTFTaskDispatcher(runtime=_ArtifactRegistryRuntime(), progress_callback=None)
+    dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag")
+    dispatcher._challenge_context = {"artifactPaths": [str(archive_path)]}
+    dispatcher._setup_session_ledger(
+        run_id="run-local-archive-derived-root",
+        ledger_root=tmp_path / "ledgers",
+    )
+    dispatcher._setup_artifact_registry(
+        run_id="run-local-archive-derived-root",
+        registry_root=tmp_path / "artifacts",
+    )
+
+    dispatcher._ingest_local_challenge_artifacts("http://ctf.local")
+
+    records = ArtifactRegistry(tmp_path / "artifacts").list_artifacts("run-local-archive-derived-root")
+
+    assert len(records) == 2
+    original = next(item for item in records if item["kind"] == "local_challenge_artifact")
+    derived = next(item for item in records if item["kind"] == "local_challenge_extracted_root")
+
+    assert original["path"] == str(archive_path)
+    assert derived["title"] == "easy_login"
+    assert derived["producer"] == "local_challenge_context"
+    assert derived["metadata"]["target"] == "ctf.local"
+    assert derived["metadata"]["kind"] == "extracted_challenge_root"
+    assert derived["metadata"]["source_artifact_path"] == str(archive_path)
+    assert derived["path"]
+    assert derived["location"] == derived["path"]
+
+
+@pytest.mark.asyncio
+async def test_dispatcher_extracted_challenge_root_from_local_archive_is_visible_in_session_context(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+
+    archive_src = tmp_path / "archive_ctx_src" / "easy_login_ctx"
+    archive_src.mkdir(parents=True)
+    (archive_src / "docker-compose.yml").write_text(
+        "services:\n  app:\n    image: easy-login\n",
+        encoding="utf-8",
+    )
+
+    archive_path = tmp_path / "easy_login_ctx.zip"
+    with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.write(
+            archive_src / "docker-compose.yml",
+            arcname="easy_login_ctx/docker-compose.yml",
+        )
+
+    dispatcher = CTFTaskDispatcher(runtime=_ArtifactRegistryRuntime(), progress_callback=None)
+    dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag")
+    dispatcher._challenge_context = {"artifactPaths": [str(archive_path)]}
+    dispatcher._setup_session_ledger(
+        run_id="run-local-archive-derived-root-context",
+        ledger_root=tmp_path / "ledgers",
+    )
+    dispatcher._setup_artifact_registry(
+        run_id="run-local-archive-derived-root-context",
+        registry_root=tmp_path / "artifacts",
+    )
+
+    dispatcher._ingest_local_challenge_artifacts("http://ctf.local")
+
+    context = SessionContextView(
+        ledger_root=tmp_path / "ledgers",
+        artifact_root=tmp_path / "artifacts",
+        checkpoint_root=tmp_path / "checkpoints",
+    ).build_run_context("run-local-archive-derived-root-context")
+
+    derived = next(item for item in context["artifacts"] if item["kind"] == "local_challenge_extracted_root")
+    assert derived["title"] == "easy_login_ctx"
+    assert derived["path"]
+    assert derived["location"] == derived["path"]
