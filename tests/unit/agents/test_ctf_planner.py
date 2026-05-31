@@ -12,6 +12,7 @@ from pentestagent.agents.pa_agent.ctf_planner import (
     get_ctf_quick_path,
 )
 from pentestagent.agents.pa_agent.pa_agent import PentestAgentAgent
+from pentestagent.harness.artifact_registry import ArtifactRegistry
 
 
 class _NoGenerateLLM:
@@ -277,3 +278,62 @@ OBJECTIVE: Find and capture the flag as fast as possible.
     assert "/admin" in runtime_block
     assert "/upload" not in runtime_block
     assert "Do not assume cross-origin DOM access" in runtime_block
+
+
+@pytest.mark.asyncio
+async def test_pa_agent_ctf_mode_runtime_context_includes_local_challenge_ground_truth(
+    monkeypatch,
+    tmp_path,
+):
+    async def _fake_notes(arguments, runtime=None):
+        return "ok"
+
+    monkeypatch.setattr("pentestagent.tools.notes.notes", _fake_notes)
+
+    run_id = "run-ctf-local-summary-context"
+    ArtifactRegistry(tmp_path / "loot" / "artifact_registry").register_artifact(
+        run_id=run_id,
+        kind="local_challenge_root_summary",
+        title="easy_login summary",
+        path=r"D:\webstudy\CTF\easy_login",
+        location=r"D:\webstudy\CTF\easy_login",
+        producer="local_challenge_context",
+        metadata={
+            "kind": "challenge_root_summary",
+            "root_name": "easy_login",
+            "has_compose": True,
+            "key_files": ["README.md", "app.py", "requirements.txt"],
+            "detected_stack": ["python"],
+            "file_count": 5,
+        },
+    )
+
+    runtime = _RuntimeWithGroundTruth()
+    agent = PentestAgentAgent(
+        llm=_NoGenerateLLM(),
+        tools=[SimpleNamespace(name="browser", enabled=True)],
+        runtime=runtime,
+        target="http://localhost:3000/",
+        scope=[],
+    )
+    agent.run_id = run_id
+    agent.project_root = tmp_path
+
+    task = """[CTF MODE] Target: http://localhost:3000/
+Challenge type: xss
+Hint: steal sid
+
+OBJECTIVE: Find and capture the flag as fast as possible.
+"""
+    agent.conversation_history.append(SimpleNamespace(role="user", content=task))
+
+    plan_msg = await agent._auto_generate_plan()
+
+    assert plan_msg is None
+    prompt = agent.get_system_prompt()
+    assert "## Runtime Ground Truth" in prompt
+    assert "## Local Challenge Ground Truth" in prompt
+    assert "- local_root=easy_login" in prompt
+    assert "- local_stack=python" in prompt
+    assert "- local_key_files=README.md, app.py, requirements.txt" in prompt
+    assert "- local_has_compose=true" in prompt
