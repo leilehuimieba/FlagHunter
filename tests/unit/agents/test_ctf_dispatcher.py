@@ -1355,6 +1355,63 @@ async def test_local_compose_log_pivot_prefers_registered_artifact_truth_over_mi
 
 
 @pytest.mark.asyncio
+async def test_recon_contract_ingests_registered_local_source_hints_from_key_files(
+    monkeypatch, tmp_path
+):
+    challenge_dir = tmp_path / "easy_login_sources"
+    challenge_dir.mkdir()
+    (challenge_dir / "README.md").write_text(
+        "# easy_login\nRun docker compose up first.\n",
+        encoding="utf-8",
+    )
+    (challenge_dir / "app.py").write_text(
+        "from flask import Flask\napp = Flask(__name__)\n@app.route('/admin')\ndef admin():\n    return 'flag?'\n",
+        encoding="utf-8",
+    )
+
+    async def _fake_phase_recon(target):
+        return {
+            "url": target,
+            "html": "",
+            "content": "",
+            "forms": [],
+            "endpoints": [],
+            "recon_missing_tools": [],
+        }
+
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://127.0.0.1:3000",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher._setup_artifact_registry(
+        run_id="run-local-source-hints",
+        registry_root=tmp_path / "loot" / "artifact_registry",
+    )
+    dispatcher._challenge_context = {"challengePath": str(challenge_dir)}
+    monkeypatch.setattr(dispatcher, "_phase_recon", _fake_phase_recon)
+
+    page_features, early_result = await dispatcher.coordinator._apply_recon_contract(
+        dispatcher,
+        target="http://127.0.0.1:3000",
+    )
+
+    assert early_result is None
+    assert page_features["url"] == "http://127.0.0.1:3000"
+    source_hints = [
+        obs for obs in dispatcher.state.observations if obs.kind == "local_challenge_source_hint"
+    ]
+    assert source_hints
+    assert any("README.md" in obs.value and "Run docker compose up first" in obs.value for obs in source_hints)
+    assert any("app.py" in obs.value and "@app.route('/admin')" in obs.value for obs in source_hints)
+
+
+@pytest.mark.asyncio
 async def test_ctf_dispatcher_solves_auth_form_sqli(monkeypatch, tmp_path):
     monkeypatch.setattr(
         "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
