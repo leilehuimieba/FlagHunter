@@ -252,7 +252,7 @@ async def test_dispatcher_registers_explicit_challenge_path_root_into_artifact_r
     events = SessionLedger(tmp_path / "ledgers").read_events("run-local-challenge-root")
 
     root_record = next(item for item in records if item["kind"] == "local_challenge_root")
-    assert len(records) == 2
+    assert len(records) == 3
     assert root_record["title"] == "easy_login"
     assert root_record["path"] == str(challenge_dir)
     assert root_record["location"] == str(challenge_dir)
@@ -261,6 +261,7 @@ async def test_dispatcher_registers_explicit_challenge_path_root_into_artifact_r
     assert root_record["metadata"]["kind"] == "challenge_path_root"
 
     assert [event["event_type"] for event in events] == [
+        "artifact_registered",
         "artifact_registered",
         "artifact_registered",
     ]
@@ -304,11 +305,11 @@ async def test_dispatcher_challenge_path_root_registry_entry_is_visible_in_sessi
         checkpoint_root=tmp_path / "checkpoints",
     ).build_run_context("run-local-challenge-root-context")
 
-    assert len(context["artifacts"]) == 1
-    assert context["artifacts"][0]["kind"] == "local_challenge_root"
-    assert context["artifacts"][0]["title"] == "challenge_root_ctx"
-    assert context["artifacts"][0]["path"] == str(challenge_dir)
-    assert context["artifacts"][0]["location"] == str(challenge_dir)
+    root_entry = next(item for item in context["artifacts"] if item["kind"] == "local_challenge_root")
+    assert len(context["artifacts"]) == 2
+    assert root_entry["title"] == "challenge_root_ctx"
+    assert root_entry["path"] == str(challenge_dir)
+    assert root_entry["location"] == str(challenge_dir)
 
 
 @pytest.mark.asyncio
@@ -348,7 +349,7 @@ async def test_dispatcher_registers_extracted_challenge_root_from_local_archive(
 
     records = ArtifactRegistry(tmp_path / "artifacts").list_artifacts("run-local-archive-derived-root")
 
-    assert len(records) == 3
+    assert len(records) == 4
     original = next(item for item in records if item["kind"] == "local_challenge_artifact")
     derived = next(item for item in records if item["kind"] == "local_challenge_extracted_root")
 
@@ -606,3 +607,98 @@ async def test_dispatcher_registers_whitelisted_key_files_from_extracted_challen
     assert {item["title"] for item in key_entries} == {"README.md", "package.json"}
     for item in key_entries:
         assert item["path"] == item["location"]
+
+
+@pytest.mark.asyncio
+async def test_dispatcher_registers_local_challenge_root_summary_for_explicit_root(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+
+    challenge_dir = tmp_path / "summary_root"
+    challenge_dir.mkdir()
+    (challenge_dir / "docker-compose.yml").write_text("services:\n  app:\n    image: summary\n", encoding="utf-8")
+    (challenge_dir / "README.md").write_text("# summary\n", encoding="utf-8")
+    (challenge_dir / "requirements.txt").write_text("flask==3.0.0\n", encoding="utf-8")
+    (challenge_dir / "app.py").write_text("print('ok')\n", encoding="utf-8")
+    (challenge_dir / "notes.txt").write_text("misc\n", encoding="utf-8")
+
+    dispatcher = CTFTaskDispatcher(runtime=_ArtifactRegistryRuntime(), progress_callback=None)
+    dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag")
+    dispatcher._challenge_context = {"challengePath": str(challenge_dir), "artifactPaths": []}
+    dispatcher._setup_session_ledger(
+        run_id="run-local-root-summary",
+        ledger_root=tmp_path / "ledgers",
+    )
+    dispatcher._setup_artifact_registry(
+        run_id="run-local-root-summary",
+        registry_root=tmp_path / "artifacts",
+    )
+
+    dispatcher._ingest_local_challenge_artifacts("http://ctf.local")
+
+    records = ArtifactRegistry(tmp_path / "artifacts").list_artifacts("run-local-root-summary")
+    summary_record = next(item for item in records if item["kind"] == "local_challenge_root_summary")
+
+    assert summary_record["title"] == "summary_root summary"
+    assert summary_record["path"] == str(challenge_dir)
+    assert summary_record["location"] == str(challenge_dir)
+    assert summary_record["metadata"]["target"] == "ctf.local"
+    assert summary_record["metadata"]["kind"] == "challenge_root_summary"
+    assert summary_record["metadata"]["root_name"] == "summary_root"
+    assert summary_record["metadata"]["has_compose"] is True
+    assert summary_record["metadata"]["key_files"] == ["README.md", "app.py", "requirements.txt"]
+    assert summary_record["metadata"]["detected_stack"] == ["python"]
+    assert summary_record["metadata"]["file_count"] >= 5
+
+
+@pytest.mark.asyncio
+async def test_dispatcher_registers_local_challenge_root_summary_for_extracted_root_in_session_context(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+
+    archive_src = tmp_path / "archive_summary_src" / "summary_ctx"
+    archive_src.mkdir(parents=True)
+    (archive_src / "docker-compose.yml").write_text("services:\n  app:\n    image: summary-ctx\n", encoding="utf-8")
+    (archive_src / "README.md").write_text("# summary ctx\n", encoding="utf-8")
+    (archive_src / "package.json").write_text('{"name":"summary_ctx"}\n', encoding="utf-8")
+
+    archive_path = tmp_path / "summary_ctx.zip"
+    with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.write(archive_src / "docker-compose.yml", arcname="summary_ctx/docker-compose.yml")
+        zf.write(archive_src / "README.md", arcname="summary_ctx/README.md")
+        zf.write(archive_src / "package.json", arcname="summary_ctx/package.json")
+
+    dispatcher = CTFTaskDispatcher(runtime=_ArtifactRegistryRuntime(), progress_callback=None)
+    dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag")
+    dispatcher._challenge_context = {"artifactPaths": [str(archive_path)]}
+    dispatcher._setup_session_ledger(
+        run_id="run-local-root-summary-extracted",
+        ledger_root=tmp_path / "ledgers",
+    )
+    dispatcher._setup_artifact_registry(
+        run_id="run-local-root-summary-extracted",
+        registry_root=tmp_path / "artifacts",
+    )
+
+    dispatcher._ingest_local_challenge_artifacts("http://ctf.local")
+
+    context = SessionContextView(
+        ledger_root=tmp_path / "ledgers",
+        artifact_root=tmp_path / "artifacts",
+        checkpoint_root=tmp_path / "checkpoints",
+    ).build_run_context("run-local-root-summary-extracted")
+
+    summary_entry = next(item for item in context["artifacts"] if item["kind"] == "local_challenge_root_summary")
+    assert summary_entry["title"] == "summary_ctx summary"
+    assert summary_entry["path"]
+    assert summary_entry["location"] == summary_entry["path"]
