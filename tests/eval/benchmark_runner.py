@@ -251,6 +251,7 @@ def _build_harness_summary_for_run(*, run_id: str, workspace_root: str | Path) -
             "artifact_count": 0,
             "artifact_titles": [],
             "artifact_kinds": [],
+            "artifact_locations_preview": [],
             "has_checkpoint": False,
             "latest_checkpoint_label": "",
             "latest_checkpoint_stop_reason": "",
@@ -281,8 +282,29 @@ def _build_harness_summary_for_run(*, run_id: str, workspace_root: str | Path) -
         for item in artifacts
         if isinstance(item, dict) and str(item.get("kind") or "").strip()
     ]
+    artifact_locations_preview = []
+    seen_artifact_location_keys: set[str] = set()
+    seen_artifact_preview_values: set[str] = set()
+    for item in artifacts:
+        if not isinstance(item, dict):
+            continue
+        title_key = str(item.get("title") or "").strip()
+        location_value = item.get("location")
+        path_value = item.get("path")
+        preview = str(location_value or path_value or "").strip()
+        location_key = title_key or preview
+        if (
+            preview
+            and location_key
+            and location_key not in seen_artifact_location_keys
+            and preview not in seen_artifact_preview_values
+        ):
+            seen_artifact_location_keys.add(location_key)
+            seen_artifact_preview_values.add(preview)
+            artifact_locations_preview.append(preview)
     artifact_titles = list(dict.fromkeys(artifact_titles))
     artifact_kinds = list(dict.fromkeys(artifact_kinds))
+    artifact_locations_preview = artifact_locations_preview[:3]
     return {
         "has_session_ledger": len(recent_events) > 0,
         "run_id": normalized_run_id,
@@ -292,6 +314,7 @@ def _build_harness_summary_for_run(*, run_id: str, workspace_root: str | Path) -
         "artifact_count": len([item for item in artifacts if isinstance(item, dict)]),
         "artifact_titles": artifact_titles,
         "artifact_kinds": artifact_kinds,
+        "artifact_locations_preview": artifact_locations_preview,
         "has_checkpoint": bool(latest_checkpoint),
         "latest_checkpoint_label": str(latest_checkpoint.get("label") or "").strip(),
         "latest_checkpoint_stop_reason": str(latest_checkpoint.get("stopReason") or "").strip(),

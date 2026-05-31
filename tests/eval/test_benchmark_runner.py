@@ -136,6 +136,22 @@ def test_build_harness_summary_for_run_reads_session_artifacts_and_checkpoint(tm
         producer="flag_verifier",
         metadata={"level": "verified"},
     )
+    ArtifactRegistry(root / "loot" / "artifact_registry").register_artifact(
+        run_id=run_id,
+        kind="artifact",
+        title="same_location_alias",
+        location="http://ctf.local/debug.txt",
+        producer="alias_writer",
+        metadata={"category": "alias"},
+    )
+    ArtifactRegistry(root / "loot" / "artifact_registry").register_artifact(
+        run_id=run_id,
+        kind="artifact",
+        title="local_dump",
+        path=str(root / "loot" / "response.txt"),
+        producer="file_writer",
+        metadata={"category": "dump"},
+    )
     state = CTFState(target="http://ctf.local", goal="拿到flag")
     state.stop_reason = "verifier_reject"
     CheckpointStore(root / "loot" / "checkpoints").save_checkpoint(
@@ -152,9 +168,19 @@ def test_build_harness_summary_for_run_reads_session_artifacts_and_checkpoint(tm
     assert summary["ledger_path"].endswith("benchmark-run-1.jsonl")
     assert "tool_called" in summary["event_types"]
     assert summary["tool_event_count"] == 1
-    assert summary["artifact_count"] == 3
-    assert summary["artifact_titles"] == ["response_dump", "ctf_flag"]
+    assert summary["artifact_count"] == 5
+    assert summary["artifact_titles"] == [
+        "response_dump",
+        "ctf_flag",
+        "same_location_alias",
+        "local_dump",
+    ]
     assert summary["artifact_kinds"] == ["artifact", "flag"]
+    assert summary["artifact_locations_preview"] == [
+        "http://ctf.local/debug.txt",
+        "notes://flags/verified",
+        str(root / "loot" / "response.txt"),
+    ]
     assert summary["has_checkpoint"] is True
     assert summary["latest_checkpoint_label"] == "task_finished"
     assert summary["latest_checkpoint_stop_reason"] == "verifier_reject"
@@ -187,6 +213,7 @@ async def test_run_benchmark_attaches_harness_summary_to_result_metadata(monkeyp
                 "artifact_count": 1,
                 "artifact_titles": ["response_dump"],
                 "artifact_kinds": ["artifact"],
+                "artifact_locations_preview": ["http://ctf.local/debug.txt"],
                 "has_checkpoint": True,
                 "latest_checkpoint_label": "task_finished",
                 "latest_checkpoint_stop_reason": "flag_verified",
@@ -211,6 +238,9 @@ async def test_run_benchmark_attaches_harness_summary_to_result_metadata(monkeyp
     assert report.results[0].metadata["harness"]["artifact_count"] == 1
     assert report.results[0].metadata["harness"]["artifact_titles"] == ["response_dump"]
     assert report.results[0].metadata["harness"]["artifact_kinds"] == ["artifact"]
+    assert report.results[0].metadata["harness"]["artifact_locations_preview"] == [
+        "http://ctf.local/debug.txt"
+    ]
     assert report.results[0].metadata["harness"]["tool_event_count"] == 1
     assert report.results[0].metadata["harness"]["has_checkpoint"] is True
     assert report.results[0].metadata["harness"]["latest_checkpoint_stop_reason"] == "flag_verified"
