@@ -337,3 +337,148 @@ OBJECTIVE: Find and capture the flag as fast as possible.
     assert "- local_stack=python" in prompt
     assert "- local_key_files=README.md, app.py, requirements.txt" in prompt
     assert "- local_has_compose=true" in prompt
+
+
+@pytest.mark.asyncio
+async def test_pa_agent_ctf_mode_adds_local_challenge_strategy_bias_for_python_compose(
+    tmp_path,
+):
+    run_id = "run-ctf-local-strategy-python"
+    ArtifactRegistry(tmp_path / "loot" / "artifact_registry").register_artifact(
+        run_id=run_id,
+        kind="local_challenge_root_summary",
+        title="easy_login summary",
+        path=r"D:\webstudy\CTF\easy_login",
+        location=r"D:\webstudy\CTF\easy_login",
+        producer="local_challenge_context",
+        metadata={
+            "kind": "challenge_root_summary",
+            "root_name": "easy_login",
+            "has_compose": True,
+            "key_files": ["README.md", "app.py", "requirements.txt"],
+            "detected_stack": ["python"],
+            "file_count": 5,
+        },
+    )
+
+    runtime = _DummyRuntime()
+    agent = PentestAgentAgent(
+        llm=_NoGenerateLLM(),
+        tools=[SimpleNamespace(name="browser", enabled=True)],
+        runtime=runtime,
+        target="http://localhost:3000/",
+        scope=[],
+    )
+    agent.run_id = run_id
+    agent.project_root = tmp_path
+
+    task = """[CTF MODE] Target: http://localhost:3000/
+Challenge type: web
+Hint: local challenge archive
+
+OBJECTIVE: Find and capture the flag as fast as possible.
+"""
+    agent.conversation_history.append(SimpleNamespace(role="user", content=task))
+
+    await agent._auto_generate_plan()
+
+    prompt = agent.get_system_prompt()
+    assert "## Local Challenge Strategy Bias" in prompt
+    assert "Prefer local compose logs" in prompt
+    assert "Prioritize README.md, app.py, requirements.txt" in prompt
+
+
+@pytest.mark.asyncio
+async def test_pa_agent_ctf_mode_adds_local_challenge_strategy_bias_for_php(
+    tmp_path,
+):
+    run_id = "run-ctf-local-strategy-php"
+    ArtifactRegistry(tmp_path / "loot" / "artifact_registry").register_artifact(
+        run_id=run_id,
+        kind="local_challenge_root_summary",
+        title="php challenge summary",
+        path=r"D:\webstudy\CTF\php_login",
+        location=r"D:\webstudy\CTF\php_login",
+        producer="local_challenge_context",
+        metadata={
+            "kind": "challenge_root_summary",
+            "root_name": "php_login",
+            "has_compose": False,
+            "key_files": ["README.md", "index.php"],
+            "detected_stack": ["php"],
+            "file_count": 2,
+        },
+    )
+
+    runtime = _DummyRuntime()
+    agent = PentestAgentAgent(
+        llm=_NoGenerateLLM(),
+        tools=[SimpleNamespace(name="browser", enabled=True)],
+        runtime=runtime,
+        target="http://localhost:8080/",
+        scope=[],
+    )
+    agent.run_id = run_id
+    agent.project_root = tmp_path
+
+    task = """[CTF MODE] Target: http://localhost:8080/
+Challenge type: web
+Hint: php source available
+
+OBJECTIVE: Find and capture the flag as fast as possible.
+"""
+    agent.conversation_history.append(SimpleNamespace(role="user", content=task))
+
+    await agent._auto_generate_plan()
+
+    prompt = agent.get_system_prompt()
+    assert "## Local Challenge Strategy Bias" in prompt
+    assert "Prioritize index.php" in prompt
+
+
+@pytest.mark.asyncio
+async def test_pa_agent_ctf_mode_adds_local_challenge_strategy_bias_for_node(
+    tmp_path,
+):
+    run_id = "run-ctf-local-strategy-node"
+    ArtifactRegistry(tmp_path / "loot" / "artifact_registry").register_artifact(
+        run_id=run_id,
+        kind="local_challenge_root_summary",
+        title="node challenge summary",
+        path=r"D:\webstudy\CTF\node_login",
+        location=r"D:\webstudy\CTF\node_login",
+        producer="local_challenge_context",
+        metadata={
+            "kind": "challenge_root_summary",
+            "root_name": "node_login",
+            "has_compose": False,
+            "key_files": ["README.md", "package.json"],
+            "detected_stack": ["node"],
+            "file_count": 2,
+        },
+    )
+
+    runtime = _DummyRuntime()
+    agent = PentestAgentAgent(
+        llm=_NoGenerateLLM(),
+        tools=[SimpleNamespace(name="browser", enabled=True)],
+        runtime=runtime,
+        target="http://localhost:4000/",
+        scope=[],
+    )
+    agent.run_id = run_id
+    agent.project_root = tmp_path
+
+    task = """[CTF MODE] Target: http://localhost:4000/
+Challenge type: web
+Hint: node service
+
+OBJECTIVE: Find and capture the flag as fast as possible.
+"""
+    agent.conversation_history.append(SimpleNamespace(role="user", content=task))
+
+    await agent._auto_generate_plan()
+
+    prompt = agent.get_system_prompt()
+    assert "## Local Challenge Strategy Bias" in prompt
+    assert "Prioritize package.json" in prompt
