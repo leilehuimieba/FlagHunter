@@ -554,3 +554,116 @@ OBJECTIVE: Find and capture the flag as fast as possible.
     assert r"D:\webstudy\CTF\easy_login\docker-compose.yml" in prompt
     assert r"D:\webstudy\CTF\easy_login\README.md" in prompt
     assert r"D:\webstudy\CTF\easy_login\app.py" in prompt
+
+
+@pytest.mark.asyncio
+async def test_pa_agent_ctf_mode_prepends_local_challenge_plan_steps_for_python_compose(
+    tmp_path,
+):
+    run_id = "run-ctf-local-plan-python"
+    registry = ArtifactRegistry(tmp_path / "loot" / "artifact_registry")
+    registry.register_artifact(
+        run_id=run_id,
+        kind="local_challenge_compose_file",
+        title="docker-compose.yml",
+        path=r"D:\webstudy\CTF\easy_login\docker-compose.yml",
+        location=r"D:\webstudy\CTF\easy_login\docker-compose.yml",
+        producer="local_challenge_context",
+        metadata={"kind": "challenge_compose_file"},
+    )
+    registry.register_artifact(
+        run_id=run_id,
+        kind="local_challenge_key_file",
+        title="README.md",
+        path=r"D:\webstudy\CTF\easy_login\README.md",
+        location=r"D:\webstudy\CTF\easy_login\README.md",
+        producer="local_challenge_context",
+        metadata={"kind": "challenge_key_file"},
+    )
+    registry.register_artifact(
+        run_id=run_id,
+        kind="local_challenge_key_file",
+        title="app.py",
+        path=r"D:\webstudy\CTF\easy_login\app.py",
+        location=r"D:\webstudy\CTF\easy_login\app.py",
+        producer="local_challenge_context",
+        metadata={"kind": "challenge_key_file"},
+    )
+    registry.register_artifact(
+        run_id=run_id,
+        kind="local_challenge_key_file",
+        title="requirements.txt",
+        path=r"D:\webstudy\CTF\easy_login\requirements.txt",
+        location=r"D:\webstudy\CTF\easy_login\requirements.txt",
+        producer="local_challenge_context",
+        metadata={"kind": "challenge_key_file"},
+    )
+
+    runtime = _DummyRuntime()
+    agent = PentestAgentAgent(
+        llm=_NoGenerateLLM(),
+        tools=[SimpleNamespace(name="browser", enabled=True)],
+        runtime=runtime,
+        target="http://localhost:3000/",
+        scope=[],
+    )
+    agent.run_id = run_id
+    agent.project_root = tmp_path
+
+    task = """[CTF MODE] Target: http://localhost:3000/
+Challenge type: web
+Hint: local files available
+
+OBJECTIVE: Find and capture the flag as fast as possible.
+"""
+    agent.conversation_history.append(SimpleNamespace(role="user", content=task))
+
+    await agent._auto_generate_plan()
+
+    step_descriptions = [step.description for step in agent._task_plan.steps[:4]]
+    assert r"README.md" in step_descriptions[0]
+    assert r"docker-compose.yml" in step_descriptions[1]
+    assert r"app.py" in step_descriptions[2]
+    assert get_ctf_quick_path("web")[0] in step_descriptions[3]
+
+
+@pytest.mark.asyncio
+async def test_pa_agent_ctf_mode_prepends_local_challenge_plan_steps_for_php(
+    tmp_path,
+):
+    run_id = "run-ctf-local-plan-php"
+    registry = ArtifactRegistry(tmp_path / "loot" / "artifact_registry")
+    registry.register_artifact(
+        run_id=run_id,
+        kind="local_challenge_key_file",
+        title="index.php",
+        path=r"D:\webstudy\CTF\php_login\index.php",
+        location=r"D:\webstudy\CTF\php_login\index.php",
+        producer="local_challenge_context",
+        metadata={"kind": "challenge_key_file"},
+    )
+
+    runtime = _DummyRuntime()
+    agent = PentestAgentAgent(
+        llm=_NoGenerateLLM(),
+        tools=[SimpleNamespace(name="browser", enabled=True)],
+        runtime=runtime,
+        target="http://localhost:8080/",
+        scope=[],
+    )
+    agent.run_id = run_id
+    agent.project_root = tmp_path
+
+    task = """[CTF MODE] Target: http://localhost:8080/
+Challenge type: web
+Hint: php source available
+
+OBJECTIVE: Find and capture the flag as fast as possible.
+"""
+    agent.conversation_history.append(SimpleNamespace(role="user", content=task))
+
+    await agent._auto_generate_plan()
+
+    step_descriptions = [step.description for step in agent._task_plan.steps[:2]]
+    assert r"index.php" in step_descriptions[0]
+    assert get_ctf_quick_path("web")[0] in step_descriptions[1]
