@@ -482,3 +482,75 @@ OBJECTIVE: Find and capture the flag as fast as possible.
     prompt = agent.get_system_prompt()
     assert "## Local Challenge Strategy Bias" in prompt
     assert "Prioritize package.json" in prompt
+
+
+@pytest.mark.asyncio
+async def test_pa_agent_ctf_mode_surfaces_local_challenge_entry_points(
+    tmp_path,
+):
+    run_id = "run-ctf-local-entry-points"
+    registry = ArtifactRegistry(tmp_path / "loot" / "artifact_registry")
+    registry.register_artifact(
+        run_id=run_id,
+        kind="local_challenge_root",
+        title="easy_login",
+        path=r"D:\webstudy\CTF\easy_login",
+        location=r"D:\webstudy\CTF\easy_login",
+        producer="local_challenge_context",
+        metadata={"kind": "challenge_root"},
+    )
+    registry.register_artifact(
+        run_id=run_id,
+        kind="local_challenge_compose_file",
+        title="docker-compose.yml",
+        path=r"D:\webstudy\CTF\easy_login\docker-compose.yml",
+        location=r"D:\webstudy\CTF\easy_login\docker-compose.yml",
+        producer="local_challenge_context",
+        metadata={"kind": "challenge_compose_file"},
+    )
+    registry.register_artifact(
+        run_id=run_id,
+        kind="local_challenge_key_file",
+        title="README.md",
+        path=r"D:\webstudy\CTF\easy_login\README.md",
+        location=r"D:\webstudy\CTF\easy_login\README.md",
+        producer="local_challenge_context",
+        metadata={"kind": "challenge_key_file"},
+    )
+    registry.register_artifact(
+        run_id=run_id,
+        kind="local_challenge_key_file",
+        title="app.py",
+        path=r"D:\webstudy\CTF\easy_login\app.py",
+        location=r"D:\webstudy\CTF\easy_login\app.py",
+        producer="local_challenge_context",
+        metadata={"kind": "challenge_key_file"},
+    )
+
+    runtime = _DummyRuntime()
+    agent = PentestAgentAgent(
+        llm=_NoGenerateLLM(),
+        tools=[SimpleNamespace(name="browser", enabled=True)],
+        runtime=runtime,
+        target="http://localhost:3000/",
+        scope=[],
+    )
+    agent.run_id = run_id
+    agent.project_root = tmp_path
+
+    task = """[CTF MODE] Target: http://localhost:3000/
+Challenge type: web
+Hint: local files available
+
+OBJECTIVE: Find and capture the flag as fast as possible.
+"""
+    agent.conversation_history.append(SimpleNamespace(role="user", content=task))
+
+    await agent._auto_generate_plan()
+
+    prompt = agent.get_system_prompt()
+    assert "## Local Challenge Entry Points" in prompt
+    assert r"D:\webstudy\CTF\easy_login" in prompt
+    assert r"D:\webstudy\CTF\easy_login\docker-compose.yml" in prompt
+    assert r"D:\webstudy\CTF\easy_login\README.md" in prompt
+    assert r"D:\webstudy\CTF\easy_login\app.py" in prompt
