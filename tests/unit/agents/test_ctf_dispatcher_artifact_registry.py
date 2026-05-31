@@ -251,16 +251,19 @@ async def test_dispatcher_registers_explicit_challenge_path_root_into_artifact_r
     records = ArtifactRegistry(tmp_path / "artifacts").list_artifacts("run-local-challenge-root")
     events = SessionLedger(tmp_path / "ledgers").read_events("run-local-challenge-root")
 
-    assert len(records) == 1
-    assert records[0]["kind"] == "local_challenge_root"
-    assert records[0]["title"] == "easy_login"
-    assert records[0]["path"] == str(challenge_dir)
-    assert records[0]["location"] == str(challenge_dir)
-    assert records[0]["producer"] == "local_challenge_context"
-    assert records[0]["metadata"]["target"] == "ctf.local"
-    assert records[0]["metadata"]["kind"] == "challenge_path_root"
+    root_record = next(item for item in records if item["kind"] == "local_challenge_root")
+    assert len(records) == 2
+    assert root_record["title"] == "easy_login"
+    assert root_record["path"] == str(challenge_dir)
+    assert root_record["location"] == str(challenge_dir)
+    assert root_record["producer"] == "local_challenge_context"
+    assert root_record["metadata"]["target"] == "ctf.local"
+    assert root_record["metadata"]["kind"] == "challenge_path_root"
 
-    assert [event["event_type"] for event in events] == ["artifact_registered"]
+    assert [event["event_type"] for event in events] == [
+        "artifact_registered",
+        "artifact_registered",
+    ]
     assert events[0]["payload"]["kind"] == "local_challenge_root"
     assert events[0]["payload"]["title"] == "easy_login"
 
@@ -345,7 +348,7 @@ async def test_dispatcher_registers_extracted_challenge_root_from_local_archive(
 
     records = ArtifactRegistry(tmp_path / "artifacts").list_artifacts("run-local-archive-derived-root")
 
-    assert len(records) == 2
+    assert len(records) == 3
     original = next(item for item in records if item["kind"] == "local_challenge_artifact")
     derived = next(item for item in records if item["kind"] == "local_challenge_extracted_root")
 
@@ -407,3 +410,100 @@ async def test_dispatcher_extracted_challenge_root_from_local_archive_is_visible
     assert derived["title"] == "easy_login_ctx"
     assert derived["path"]
     assert derived["location"] == derived["path"]
+
+
+@pytest.mark.asyncio
+async def test_dispatcher_registers_compose_file_from_explicit_challenge_root(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+
+    challenge_dir = tmp_path / "compose_root"
+    challenge_dir.mkdir()
+    compose_file = challenge_dir / "docker-compose.yml"
+    compose_file.write_text(
+        "services:\n  app:\n    image: easy-login\n",
+        encoding="utf-8",
+    )
+
+    dispatcher = CTFTaskDispatcher(runtime=_ArtifactRegistryRuntime(), progress_callback=None)
+    dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag")
+    dispatcher._challenge_context = {
+        "challengePath": str(challenge_dir),
+        "artifactPaths": [],
+    }
+    dispatcher._setup_session_ledger(
+        run_id="run-local-compose-explicit-root",
+        ledger_root=tmp_path / "ledgers",
+    )
+    dispatcher._setup_artifact_registry(
+        run_id="run-local-compose-explicit-root",
+        registry_root=tmp_path / "artifacts",
+    )
+
+    dispatcher._ingest_local_challenge_artifacts("http://ctf.local")
+
+    records = ArtifactRegistry(tmp_path / "artifacts").list_artifacts("run-local-compose-explicit-root")
+    compose_record = next(item for item in records if item["kind"] == "local_challenge_compose_file")
+
+    assert compose_record["title"] == "docker-compose.yml"
+    assert compose_record["path"] == str(compose_file)
+    assert compose_record["location"] == str(compose_file)
+    assert compose_record["producer"] == "local_challenge_context"
+    assert compose_record["metadata"]["target"] == "ctf.local"
+    assert compose_record["metadata"]["kind"] == "challenge_compose_file"
+    assert compose_record["metadata"]["source_root_path"] == str(challenge_dir)
+
+
+@pytest.mark.asyncio
+async def test_dispatcher_registers_compose_file_from_extracted_challenge_root_in_session_context(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+
+    archive_src = tmp_path / "archive_compose_src" / "compose_ctx"
+    archive_src.mkdir(parents=True)
+    compose_file = archive_src / "docker-compose.yml"
+    compose_file.write_text(
+        "services:\n  app:\n    image: easy-login\n",
+        encoding="utf-8",
+    )
+
+    archive_path = tmp_path / "compose_ctx.zip"
+    with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.write(compose_file, arcname="compose_ctx/docker-compose.yml")
+
+    dispatcher = CTFTaskDispatcher(runtime=_ArtifactRegistryRuntime(), progress_callback=None)
+    dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag")
+    dispatcher._challenge_context = {"artifactPaths": [str(archive_path)]}
+    dispatcher._setup_session_ledger(
+        run_id="run-local-compose-extracted-root",
+        ledger_root=tmp_path / "ledgers",
+    )
+    dispatcher._setup_artifact_registry(
+        run_id="run-local-compose-extracted-root",
+        registry_root=tmp_path / "artifacts",
+    )
+
+    dispatcher._ingest_local_challenge_artifacts("http://ctf.local")
+
+    context = SessionContextView(
+        ledger_root=tmp_path / "ledgers",
+        artifact_root=tmp_path / "artifacts",
+        checkpoint_root=tmp_path / "checkpoints",
+    ).build_run_context("run-local-compose-extracted-root")
+
+    compose_entry = next(
+        item for item in context["artifacts"] if item["kind"] == "local_challenge_compose_file"
+    )
+    assert compose_entry["title"] == "docker-compose.yml"
+    assert compose_entry["path"]
+    assert compose_entry["location"] == compose_entry["path"]
