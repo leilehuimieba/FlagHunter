@@ -14,6 +14,7 @@ import pytest
 
 import pentestagent.tools.notes as notes_module
 from pentestagent.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
+from pentestagent.harness.artifact_registry import ArtifactRegistry
 from pentestagent.runtime.runtime import LocalRuntime
 from pentestagent.tools.notes import set_notes_file
 
@@ -157,5 +158,14 @@ async def test_ctf_dispatcher_acceptance_misc_attachment_artifact_forensics(
         assert dispatcher.state.detected_type == "misc"
         assert any(item.value == FLAG_VALUE for item in dispatcher.state.verified_flags)
         assert any(entry["path"] == "/challenge.zip" for entry in misc_artifact_server["requests"])
+        records = ArtifactRegistry(tmp_path / "loot" / "artifact_registry").list_artifacts(
+            dispatcher._artifact_run_id
+        )
+        forensics_record = next(
+            record for record in records if record["title"] == "ctf_artifact_forensics"
+        )
+        assert forensics_record["producer"] == "artifact_forensics"
+        assert forensics_record["metadata"]["category"] == "artifact_forensics_summary"
+        assert forensics_record["metadata"]["note_category"] == "artifact"
     finally:
         await runtime.stop()
