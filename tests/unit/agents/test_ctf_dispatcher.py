@@ -1411,6 +1411,41 @@ async def test_recon_contract_ingests_registered_local_source_hints_from_key_fil
     assert any("app.py" in obs.value and "@app.route('/admin')" in obs.value for obs in source_hints)
 
 
+def test_select_primary_strategy_prefers_source_first_when_local_source_hints_exist():
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher.state.add_observation(
+        "local_challenge_source_hint",
+        "app.py: @app.route('/admin')\ndef admin(): ...",
+        source="local_challenge_context",
+        metadata={"path": r"D:\webstudy\CTF\easy_login\app.py"},
+    )
+
+    strategy = dispatcher._select_primary_strategy(
+        "web",
+        target="http://ctf.local",
+        page_features={
+            "content": "captcha proof-of-work challenge",
+            "html": "<form><input name='pow' /></form><script src='/static/pow.py'></script>",
+            "endpoints": [],
+            "raw_links": [],
+            "forms": [],
+        },
+        hint="",
+    )
+
+    assert strategy is not None
+    assert strategy.kind == "backup_source_leak"
+
+
 @pytest.mark.asyncio
 async def test_ctf_dispatcher_solves_auth_form_sqli(monkeypatch, tmp_path):
     monkeypatch.setattr(
