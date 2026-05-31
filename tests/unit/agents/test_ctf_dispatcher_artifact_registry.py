@@ -69,8 +69,9 @@ async def test_dispatcher_registers_artifact_note_into_artifact_registry(
     assert records[0]["kind"] == "artifact"
     assert records[0]["title"] == "ctf_backup_candidate"
     assert records[0]["location"] == "http://ctf.local/www.zip"
-    assert records[0]["producer"] == "notes"
-    assert records[0]["metadata"]["category"] == "artifact"
+    assert records[0]["producer"] == "backup_source_leak"
+    assert records[0]["metadata"]["category"] == "backup_candidate"
+    assert records[0]["metadata"]["note_category"] == "artifact"
     assert records[0]["metadata"]["content"] == "found backup/source candidate"
     assert records[0]["metadata"]["strategy_kind"] == "backup_source_leak"
     assert [event["event_type"] for event in events] == ["artifact_registered"]

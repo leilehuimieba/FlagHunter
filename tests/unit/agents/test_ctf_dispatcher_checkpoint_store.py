@@ -91,6 +91,9 @@ async def test_dispatcher_writes_start_and_finish_checkpoints(
     assert events[1]["payload"]["label"] == "dispatcher_started"
     artifact_event = next(event for event in events if event["event_type"] == "artifact_registered")
     assert artifact_event["payload"]["title"] == "ctf_flag"
+    assert artifact_event["payload"]["producer"] == "verifier"
+    assert artifact_event["payload"]["metadata"]["category"] == "flag_verified"
+    assert artifact_event["payload"]["metadata"]["note_category"] == "artifact"
     assert events[-1]["payload"]["label"] == "task_finished"
     restored = CTFState.from_snapshot(latest["state"])
     assert restored.target == "http://ctf.local"
