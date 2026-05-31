@@ -1274,6 +1274,87 @@ async def test_local_compose_log_pivot_prefers_discovered_login_endpoint_over_ro
 
 
 @pytest.mark.asyncio
+async def test_local_compose_log_pivot_prefers_registered_artifact_truth_over_missing_hint(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    challenge_dir = tmp_path / "easy_login_registry"
+    challenge_dir.mkdir()
+    compose_path = challenge_dir / "docker-compose.yml"
+    compose_path.write_text(
+        "services:\n  app:\n    image: easy_login-app\n",
+        encoding="utf-8",
+    )
+    set_notes_file(tmp_path / "notes_local_compose_registry_pivot.json")
+    notes_module._notes.clear()
+
+    runtime = _LocalChallengeLogPivotRuntime(expected_password="registry-admin-pass")
+    dispatcher = CTFTaskDispatcher(
+        runtime=runtime,
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://127.0.0.1:3000",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher._setup_artifact_registry(
+        run_id="run-registry-compose-pivot",
+        registry_root=tmp_path / "loot" / "artifact_registry",
+    )
+    assert dispatcher._artifact_registry is not None
+    dispatcher._artifact_registry.register_artifact(
+        run_id=dispatcher._artifact_run_id,
+        kind="local_challenge_root",
+        title="easy_login_registry",
+        path=str(challenge_dir),
+        location=str(challenge_dir),
+        producer="local_challenge_context",
+        metadata={"kind": "challenge_root"},
+    )
+    dispatcher._artifact_registry.register_artifact(
+        run_id=dispatcher._artifact_run_id,
+        kind="local_challenge_compose_file",
+        title="docker-compose.yml",
+        path=str(compose_path),
+        location=str(compose_path),
+        producer="local_challenge_context",
+        metadata={"kind": "challenge_compose_file"},
+    )
+
+    outcome = await dispatcher._attempt_local_challenge_log_pivot(
+        target="http://127.0.0.1:3000",
+        page_features={
+            "url": "http://127.0.0.1:3000/",
+            "endpoints": ["/admin"],
+            "forms": [
+                {
+                    "action": "http://127.0.0.1:3000/login",
+                    "method": "post",
+                    "inputs": [
+                        {"name": "username", "type": "text"},
+                        {"name": "password", "type": "password"},
+                    ],
+                }
+            ],
+        },
+        hint="",
+    )
+
+    assert outcome.flag == "flag{local_compose_log_pivot_ok}"
+    assert outcome.progress is True
+    assert any("docker compose" in command.lower() for command in runtime.commands)
+    assert any(str(challenge_dir) in command for command in runtime.commands)
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
 async def test_ctf_dispatcher_solves_auth_form_sqli(monkeypatch, tmp_path):
     monkeypatch.setattr(
         "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
