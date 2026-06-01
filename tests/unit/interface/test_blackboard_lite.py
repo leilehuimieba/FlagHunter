@@ -1,0 +1,222 @@
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+from pentestagent.agents.pa_agent.ctf_state import CTFState
+from pentestagent.interface.blackboard_lite import (
+    build_entry_blackboard_snapshot,
+    build_task_blackboard_snapshot,
+)
+from pentestagent.mcp.server.mcp_tools import TaskEntry
+
+
+def test_build_task_blackboard_snapshot_aggregates_ingress_decision_and_resume_facts() -> None:
+    state = CTFState(target="http://challenge.test", goal="拿到flag")
+    state.add_observation(
+        "resume_bootstrap_hint",
+        "continue from saved recon state",
+        source="ingress_handoff",
+        metadata={
+            "decision_kind": "resume_execute",
+            "next_action": "resume_from_checkpoint",
+            "run_id": "run-prev-1",
+            "checkpoint_id": "checkpoint-prev-1",
+        },
+    )
+    state.add_flag(
+        "flag{runtime_pending}",
+        level="runtime",
+        evidence_source="collector",
+        rationale="runtime hit",
+    )
+    state.add_flag(
+        "flag{verified_done}",
+        level="verified",
+        evidence_source="admin_page",
+        rationale="verified hit",
+    )
+    state.add_artifact(
+        "docker-compose.yml",
+        location=r"D:\webstudy\CTF6\CTF比赛题\easy_login\docker-compose.yml",
+        source="local_challenge_context",
+    )
+
+    task = {
+        "id": "task-1",
+        "controlDecision": {
+            "shouldRun": True,
+            "decisionKind": "resume_execute",
+            "reason": "resume context available",
+            "nextAction": "resume_from_checkpoint",
+            "facts": ["mode=ctf", "challengePath=D:/sample"],
+        },
+        "decisionRecords": [
+            {
+                "kind": "resume_execute",
+                "source": "web_ingress",
+                "nextAction": "resume_from_checkpoint",
+                "reason": "resume context available",
+            }
+        ],
+        "ingressHandoff": {
+            "decisionKind": "resume_execute",
+            "nextAction": "resume_from_checkpoint",
+            "challengeContext": {
+                "challengePath": r"D:\webstudy\CTF6\CTF比赛题\easy_login",
+                "artifactPaths": [
+                    r"D:\webstudy\CTF6\CTF比赛题\easy_login\docker-compose.yml"
+                ],
+            },
+            "resumeBootstrap": {
+                "runId": "run-prev-1",
+                "checkpointId": "checkpoint-prev-1",
+                "summary": "continue from saved recon state",
+            },
+        },
+        "ctfStateSnapshot": state.to_snapshot(),
+    }
+
+    snapshot = build_task_blackboard_snapshot(task)
+
+    assert snapshot["facts"]
+    assert snapshot["decisions"]
+    assert snapshot["pending_verifications"]
+    assert snapshot["hypotheses"] == []
+
+    fact_kinds = {(item["kind"], item.get("value")) for item in snapshot["facts"]}
+    assert ("control_decision", "resume_execute") in fact_kinds
+    assert ("next_action", "resume_from_checkpoint") in fact_kinds
+    assert ("challenge_path", r"D:\webstudy\CTF6\CTF比赛题\easy_login") in fact_kinds
+    assert ("resume_run_id", "run-prev-1") in fact_kinds
+    assert ("resume_checkpoint_id", "checkpoint-prev-1") in fact_kinds
+    assert ("resume_bootstrap_hint", "continue from saved recon state") in fact_kinds
+    assert ("verified_flag", "flag{verified_done}") in fact_kinds
+    assert ("artifact", r"D:\webstudy\CTF6\CTF比赛题\easy_login\docker-compose.yml") in fact_kinds
+
+    pending = snapshot["pending_verifications"]
+    assert pending == [
+        {
+            "kind": "runtime_flag",
+            "value": "flag{runtime_pending}",
+            "source": "collector",
+            "rationale": "runtime hit",
+        }
+    ]
+
+    assert snapshot["decisions"] == [
+        {
+            "kind": "resume_execute",
+            "source": "web_ingress",
+            "nextAction": "resume_from_checkpoint",
+            "reason": "resume context available",
+        }
+    ]
+
+
+def test_build_entry_blackboard_snapshot_matches_web_contract() -> None:
+    state = CTFState(target="http://challenge.test", goal="拿到flag")
+    state.add_observation(
+        "resume_bootstrap_hint",
+        "continue from saved recon state",
+        source="ingress_handoff",
+        metadata={
+            "decision_kind": "resume_execute",
+            "next_action": "resume_from_checkpoint",
+            "run_id": "run-prev-1",
+            "checkpoint_id": "checkpoint-prev-1",
+        },
+    )
+    state.add_flag(
+        "flag{runtime_pending}",
+        level="runtime",
+        evidence_source="collector",
+        rationale="runtime hit",
+    )
+    state.add_flag(
+        "flag{verified_done}",
+        level="verified",
+        evidence_source="admin_page",
+        rationale="verified hit",
+    )
+
+    entry = TaskEntry(
+        id="entry-1",
+        task="solve challenge",
+        status="done",
+        created_at="2026-06-02T00:00:00",
+        agent=SimpleNamespace(runtime=None, tools=[]),
+        controlDecision={
+            "shouldRun": True,
+            "decisionKind": "resume_execute",
+            "reason": "resume context available",
+            "nextAction": "resume_from_checkpoint",
+            "facts": ["mode=ctf"],
+        },
+        decisionRecords=[
+            {
+                "kind": "resume_execute",
+                "source": "mcp_ingress",
+                "nextAction": "resume_from_checkpoint",
+                "reason": "resume context available",
+            }
+        ],
+        ingressHandoff={
+            "decisionKind": "resume_execute",
+            "nextAction": "resume_from_checkpoint",
+            "challengeContext": {
+                "challengePath": r"D:\webstudy\CTF6\CTF比赛题\easy_login",
+                "artifactPaths": [
+                    r"D:\webstudy\CTF6\CTF比赛题\easy_login\docker-compose.yml"
+                ],
+            },
+            "resumeBootstrap": {
+                "runId": "run-prev-1",
+                "checkpointId": "checkpoint-prev-1",
+                "summary": "continue from saved recon state",
+            },
+        },
+    )
+    entry.ctfStateSnapshot = state.to_snapshot()
+
+    snapshot = build_entry_blackboard_snapshot(entry)
+
+    assert snapshot["hypotheses"] == []
+    fact_kinds = {(item["kind"], item.get("value")) for item in snapshot["facts"]}
+    assert ("control_decision", "resume_execute") in fact_kinds
+    assert ("challenge_path", r"D:\webstudy\CTF6\CTF比赛题\easy_login") in fact_kinds
+    assert ("resume_run_id", "run-prev-1") in fact_kinds
+    assert ("resume_bootstrap_hint", "continue from saved recon state") in fact_kinds
+    assert ("verified_flag", "flag{verified_done}") in fact_kinds
+    assert snapshot["pending_verifications"][0]["value"] == "flag{runtime_pending}"
+    assert snapshot["decisions"][0]["source"] == "mcp_ingress"
+
+
+def test_build_task_blackboard_snapshot_tolerates_missing_state_snapshot() -> None:
+    task = {
+        "controlDecision": {
+            "shouldRun": False,
+            "decisionKind": "blocked",
+            "reason": "target required",
+            "nextAction": "await_input",
+            "facts": [],
+        },
+        "decisionRecords": [],
+        "ingressHandoff": {
+            "decisionKind": "blocked",
+            "nextAction": "await_input",
+            "challengeContext": {},
+            "resumeBootstrap": None,
+        },
+    }
+
+    snapshot = build_task_blackboard_snapshot(task)
+
+    assert snapshot == {
+        "facts": [
+            {"kind": "control_decision", "value": "blocked"},
+            {"kind": "next_action", "value": "await_input"},
+        ],
+        "hypotheses": [],
+        "pending_verifications": [],
+        "decisions": [],
+    }
