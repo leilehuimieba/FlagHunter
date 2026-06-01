@@ -55,6 +55,38 @@ def test_hypothesis_engine_choose_chain_order_uses_ranked_hypotheses():
     assert "web" in chain_order
 
 
+def test_hypothesis_engine_generates_xss_hypothesis_from_local_source_hints():
+    state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="web")
+    state.add_observation(
+        "local_challenge_source_hint",
+        "app.py: @app.route('/visit')\n@app.route('/admin')\n@app.route('/login')\nusername password",
+        source="local_challenge_context",
+        metadata={"path": r"D:\webstudy\CTF\easy_login\app.py"},
+    )
+
+    engine = HypothesisEngine()
+    hypotheses = engine.generate(state)
+    kinds = [item.kind for item in hypotheses]
+
+    assert "xss_admin_bot_sid" in kinds
+
+
+def test_hypothesis_engine_choose_chain_order_prefers_xss_from_local_source_hints():
+    state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="web")
+    state.add_observation(
+        "local_challenge_source_hint",
+        "app.py: @app.route('/visit')\n@app.route('/admin')\n@app.route('/login')\nusername password",
+        source="local_challenge_context",
+        metadata={"path": r"D:\webstudy\CTF\easy_login\app.py"},
+    )
+
+    engine = HypothesisEngine()
+    chain_order = engine.choose_chain_order(state)
+
+    assert chain_order[0] == "xss"
+    assert "web" in chain_order
+
+
 def test_hypothesis_engine_feedback_updates_confidence_and_status():
     state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="sqli")
     engine = HypothesisEngine()
