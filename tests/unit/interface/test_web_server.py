@@ -948,6 +948,7 @@ async def test_task_detail_surfaces_minimal_decision_record(web_client: TestClie
     assert detail["decisionRecords"][0]["kind"] == "direct_execute"
     assert detail["decisionRecords"][0]["source"] == "web_ingress"
     assert detail["decisionRecords"][0]["nextAction"] == "bootstrap_local_assets"
+    assert detail["decisionRecords"][0]["driver"] == ""
 
 
 @pytest.mark.asyncio
@@ -2075,6 +2076,58 @@ def test_build_trace_payload_includes_ctf_dispatcher_truth_fields(
     assert payload["ctfChainUsed"] == ["recon", "auth_form_sqli"]
     assert payload["ctfMissingTools"] == ["browser"]
     assert payload["ctfNotes"] == ["phase1 done"]
+
+
+
+def test_build_trace_payload_surfaces_decision_record_driver(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    now = web_server._now_iso()
+    task = {
+        "id": "task_trace_decision_driver",
+        "title": "trace decision driver",
+        "target": "http://trace.test",
+        "goal": "trace truth",
+        "mode": "ctf",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
+        "status": "success",
+        "createdAt": now,
+        "startedAt": now,
+        "finishedAt": now,
+        "tokensUsed": 1,
+        "toolCalls": 0,
+        "finalFlag": "flag{done}",
+        "stopReason": None,
+        "currentRunId": "run_trace_driver",
+        "decisionRecords": [
+            {
+                "kind": "direct_execute",
+                "source": "web_ingress",
+                "nextAction": "verify_or_submit_flag",
+                "driver": "blackboard.verified_flag",
+            }
+        ],
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    monkeypatch.setattr(web_server, "_pick_metrics_for_task", lambda project_root, item: None)
+    monkeypatch.setattr(
+        web_server,
+        "_pick_session_snapshot",
+        lambda project_root, item: (
+            None,
+            None,
+            {"matchedBy": "none", "confidence": "none", "expectedSessionId": None, "blockedReason": None, "candidateScore": None},
+        ),
+    )
+
+    payload = web_server._build_trace_payload(tmp_path, task, include_timeline=False)
+
+    assert payload["decisionRecords"][0]["driver"] == "blackboard.verified_flag"
 
 
 def test_build_trace_payload_projects_tool_audit_events_from_session_context(
