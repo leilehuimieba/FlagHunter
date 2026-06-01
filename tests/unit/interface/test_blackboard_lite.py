@@ -191,6 +191,47 @@ def test_build_entry_blackboard_snapshot_matches_web_contract() -> None:
     assert snapshot["decisions"][0]["source"] == "mcp_ingress"
 
 
+
+def test_build_task_blackboard_snapshot_maps_high_value_observations_into_facts() -> None:
+    state = CTFState(target="http://challenge.test", goal="拿到flag")
+    state.add_observation(
+        "recon_url",
+        "http://challenge.test/admin",
+        source="recon",
+        metadata={"confidence": "high"},
+    )
+    state.add_observation(
+        "ssti_engine_identified",
+        "tornado",
+        source="ssti_identify",
+        metadata={"engine": "tornado"},
+    )
+    state.add_observation(
+        "cookie_secret_leaked",
+        "SECRET-123",
+        source="ssti_identify",
+        metadata={"method": "handler_settings_probe"},
+    )
+    state.add_observation(
+        "http_response",
+        "200:/admin page reachable",
+        source="http_request",
+        metadata={"status_code": 200},
+    )
+
+    snapshot = build_task_blackboard_snapshot(
+        {
+            "ctfStateSnapshot": state.to_snapshot(),
+        }
+    )
+
+    facts = {(item["kind"], item.get("value")) for item in snapshot["facts"]}
+    assert ("discovered_endpoint", "http://challenge.test/admin") in facts
+    assert ("identified_engine", "tornado") in facts
+    assert ("leaked_secret", "SECRET-123") in facts
+    assert ("recent_http_response", "200:/admin page reachable") in facts
+
+
 def test_build_task_blackboard_snapshot_tolerates_missing_state_snapshot() -> None:
     task = {
         "controlDecision": {
