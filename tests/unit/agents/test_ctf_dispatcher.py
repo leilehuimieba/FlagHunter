@@ -1447,6 +1447,58 @@ def test_select_primary_strategy_prefers_source_first_when_local_source_hints_ex
 
 
 @pytest.mark.asyncio
+async def test_execute_web_chain_runs_backup_source_before_contact_when_local_source_hints_exist(
+    monkeypatch,
+):
+    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher.state.add_observation(
+        "local_challenge_source_hint",
+        "README.md: docker compose up\napp.py: @app.route('/admin')",
+        source="local_challenge_context",
+        metadata={"path": r"D:\webstudy\CTF\easy_login\README.md"},
+    )
+
+    called_kinds: list[str] = []
+
+    async def _wrapped_execute(kind: str, context):
+        called_kinds.append(kind)
+        return _ChainOutcome(progress=False, reason=kind)
+
+    monkeypatch.setattr(dispatcher.strategy_registry, "execute", _wrapped_execute)
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+
+    await dispatcher._execute_web_chain(
+        "http://ctf.local/",
+        {
+            "content": "captcha proof-of-work challenge",
+            "html": "<form><input name='pow' /></form><script src='/static/pow.py'></script>",
+            "endpoints": [],
+            "raw_links": [],
+            "forms": [],
+        },
+        "",
+    )
+
+    assert "backup_source_leak" in called_kinds
+    assert "contact_report_chain" in called_kinds
+    assert called_kinds.index("backup_source_leak") < called_kinds.index("contact_report_chain")
+
+
+@pytest.mark.asyncio
 async def test_ctf_dispatcher_solves_auth_form_sqli(monkeypatch, tmp_path):
     monkeypatch.setattr(
         "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
