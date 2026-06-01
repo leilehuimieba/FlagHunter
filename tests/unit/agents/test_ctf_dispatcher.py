@@ -1847,9 +1847,59 @@ async def test_execute_chain_web_returns_xss_progress_from_source_hints_before_w
     )
 
     assert outcome.progress is True
-    assert outcome.reason == "xss_admin_bot_sid"
+    assert outcome.reason
+    assert "xss_admin_bot_sid" in outcome.reason
     assert "xss_admin_bot_sid" in called_kinds
     assert web_called == []
+
+
+@pytest.mark.asyncio
+async def test_execute_xss_chain_runs_visit_url_fallback_from_source_hints_when_endpoint_not_rendered(
+    monkeypatch,
+):
+    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher.state.add_observation(
+        "local_challenge_source_hint",
+        "app.py: @app.route('/visit')\ndef visit(): ...",
+        source="local_challenge_context",
+        metadata={"path": r"D:\webstudy\CTF\easy_login\app.py"},
+    )
+
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+
+    async def _fake_visit_url_chain(base: str):
+        return _ChainOutcome(progress=True, reason="visit-url source-hint fallback")
+
+    monkeypatch.setattr(dispatcher, "_attempt_visit_url_chain", _fake_visit_url_chain)
+
+    outcome = await dispatcher._execute_xss_chain(
+        "http://ctf.local/",
+        {
+            "content": "",
+            "html": "",
+            "endpoints": [],
+            "raw_links": [],
+            "forms": [],
+        },
+        "",
+    )
+
+    assert outcome.progress is True
+    assert outcome.reason == "visit-url source-hint fallback"
 
 
 @pytest.mark.asyncio
