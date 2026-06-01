@@ -117,3 +117,49 @@ def test_runtime_flag_in_blackboard_prefers_verify_runtime_signal() -> None:
     assert decision["shouldRun"] is True
     assert decision["decisionKind"] == "direct_execute"
     assert decision["nextAction"] == "verify_runtime_signal"
+
+
+
+def test_verified_flag_blackboard_decision_sets_driver() -> None:
+    payload = {
+        "mode": "ctf",
+        "target": "http://challenge.test",
+        "blackboardSnapshot": {
+            "facts": [
+                {
+                    "kind": "verified_flag",
+                    "value": "flag{done}",
+                    "source": "admin_page",
+                    "confidence": "high",
+                }
+            ],
+            "pendingVerifications": [],
+        },
+    }
+
+    decision = resolve_control_decision(payload)
+
+    assert decision["driver"] == "blackboard.verified_flag"
+
+
+
+def test_runtime_flag_blackboard_decision_sets_driver() -> None:
+    payload = {
+        "mode": "ctf",
+        "target": "http://challenge.test",
+        "blackboardSnapshot": {
+            "facts": [],
+            "pendingVerifications": [
+                {
+                    "kind": "runtime_flag",
+                    "value": "flag{runtime_candidate}",
+                    "source": "collector",
+                    "rationale": "runtime hit",
+                }
+            ],
+        },
+    }
+
+    decision = resolve_control_decision(payload)
+
+    assert decision["driver"] == "blackboard.runtime_flag"

@@ -813,6 +813,44 @@ async def test_mcp_task_inspection_exposes_blackboard_snapshot() -> None:
 
 
 @pytest.mark.asyncio
+async def test_mcp_task_inspection_surfaces_decision_record_driver() -> None:
+    entry = mcp_tools.TaskEntry(
+        id="decision-driver-1",
+        task="inspect driver",
+        status="done",
+        created_at="2026-05-29T00:00:00",
+        finished_at="2026-05-29T00:01:00",
+        agent=SimpleNamespace(runtime=None, tools=[]),
+        target="http://challenge.test",
+        scope=[],
+        result="flag{driver_truth}",
+        controlDecision={
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "reason": "verified flag already present in blackboard",
+            "nextAction": "verify_or_submit_flag",
+            "driver": "blackboard.verified_flag",
+            "facts": ["mode=ctf", "blackboard.verified_flag=present"],
+        },
+        decisionRecords=[
+            {
+                "kind": "direct_execute",
+                "source": "mcp_ingress",
+                "nextAction": "verify_or_submit_flag",
+                "driver": "blackboard.verified_flag",
+            }
+        ],
+    )
+    mcp_tools._tasks[entry.id] = entry
+
+    status_output = await mcp_tools.get_task_status({"task_id": entry.id})
+    result_output = await mcp_tools.get_task_result({"task_id": entry.id})
+
+    assert "decision_record_driver: blackboard.verified_flag" in status_output
+    assert "decision_record_driver: blackboard.verified_flag" in result_output
+
+
+@pytest.mark.asyncio
 async def test_mcp_task_inspection_and_result_expose_ctf_truth_fields() -> None:
     entry = mcp_tools.TaskEntry(
         id="ctf12345",
