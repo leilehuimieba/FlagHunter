@@ -1523,6 +1523,44 @@ def test_select_primary_strategy_prefers_hash_guarded_read_from_source_hints():
     assert strategy.kind == "hash_guarded_file_read"
 
 
+def test_select_primary_strategy_prefers_php_unserialize_strategy_from_source_hints():
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher.state.add_observation(
+        "local_challenge_source_hint",
+        (
+            "index.php: <?php class User { private $username; private $password; "
+            "function __destruct(){} } unserialize($_GET['data']); ?>"
+        ),
+        source="local_challenge_context",
+        metadata={"path": r"D:\webstudy\CTF\easy_php\index.php"},
+    )
+
+    strategy = dispatcher._select_primary_strategy(
+        "web",
+        target="http://ctf.local",
+        page_features={
+            "content": "",
+            "html": "",
+            "endpoints": [],
+            "raw_links": [],
+            "forms": [],
+        },
+        hint="",
+    )
+
+    assert strategy is not None
+    assert strategy.kind == "php_unserialize_magic_method"
+
+
 @pytest.mark.asyncio
 async def test_execute_web_chain_runs_backup_source_before_contact_when_local_source_hints_exist(
     monkeypatch,
@@ -1625,6 +1663,61 @@ async def test_execute_web_chain_runs_hash_guarded_before_backup_when_filehash_s
     assert "hash_guarded_file_read" in called_kinds
     assert "backup_source_leak" in called_kinds
     assert called_kinds.index("hash_guarded_file_read") < called_kinds.index("backup_source_leak")
+
+
+@pytest.mark.asyncio
+async def test_execute_web_chain_runs_php_unserialize_before_backup_when_source_hints_exist(
+    monkeypatch,
+):
+    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher.state.add_observation(
+        "local_challenge_source_hint",
+        (
+            "index.php: <?php class User { private $username; private $password; "
+            "function __destruct(){} } unserialize($_GET['data']); ?>"
+        ),
+        source="local_challenge_context",
+        metadata={"path": r"D:\webstudy\CTF\easy_php\index.php"},
+    )
+
+    called_kinds: list[str] = []
+
+    async def _wrapped_execute(kind: str, context):
+        called_kinds.append(kind)
+        return _ChainOutcome(progress=False, reason=kind)
+
+    monkeypatch.setattr(dispatcher.strategy_registry, "execute", _wrapped_execute)
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+
+    await dispatcher._execute_web_chain(
+        "http://ctf.local/",
+        {
+            "content": "",
+            "html": "",
+            "endpoints": [],
+            "raw_links": [],
+            "forms": [],
+        },
+        "",
+    )
+
+    assert "php_unserialize_magic_method" in called_kinds
+    assert "backup_source_leak" in called_kinds
+    assert called_kinds.index("php_unserialize_magic_method") < called_kinds.index("backup_source_leak")
 
 
 @pytest.mark.asyncio
