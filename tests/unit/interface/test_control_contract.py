@@ -67,3 +67,53 @@ def test_target_without_local_assets_defaults_to_explore_first() -> None:
     assert decision["shouldRun"] is True
     assert decision["decisionKind"] == "explore_first"
     assert decision["nextAction"] == "collect_initial_facts"
+
+
+
+def test_verified_flag_in_blackboard_prefers_verify_or_submit_flag() -> None:
+    payload = {
+        "mode": "ctf",
+        "target": "http://challenge.test",
+        "blackboardSnapshot": {
+            "facts": [
+                {
+                    "kind": "verified_flag",
+                    "value": "flag{done}",
+                    "source": "admin_page",
+                    "confidence": "high",
+                }
+            ],
+            "pendingVerifications": [],
+        },
+    }
+
+    decision = resolve_control_decision(payload)
+
+    assert decision["shouldRun"] is True
+    assert decision["decisionKind"] == "direct_execute"
+    assert decision["nextAction"] == "verify_or_submit_flag"
+
+
+
+def test_runtime_flag_in_blackboard_prefers_verify_runtime_signal() -> None:
+    payload = {
+        "mode": "ctf",
+        "target": "http://challenge.test",
+        "blackboardSnapshot": {
+            "facts": [],
+            "pendingVerifications": [
+                {
+                    "kind": "runtime_flag",
+                    "value": "flag{runtime_candidate}",
+                    "source": "collector",
+                    "rationale": "runtime hit",
+                }
+            ],
+        },
+    }
+
+    decision = resolve_control_decision(payload)
+
+    assert decision["shouldRun"] is True
+    assert decision["decisionKind"] == "direct_execute"
+    assert decision["nextAction"] == "verify_runtime_signal"
