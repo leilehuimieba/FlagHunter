@@ -203,6 +203,49 @@ class _LocalChallengeLogPivotRuntime:
         )
 
 
+class _LocalChallengeSessionCookiePivotRuntime:
+    def __init__(self, expected_password: str):
+        self.environment = SimpleNamespace(available_tools=["terminal", "http_request"])
+        self.expected_password = expected_password
+        self.commands: list[str] = []
+        self.requests: list[tuple[str, str, dict[str, object]]] = []
+
+    async def browser_action(self, action: str, **kwargs):
+        return {"error": f"unexpected action: {action}"}
+
+    async def proxy_action(self, action: str, **kwargs):
+        self.requests.append((action, str(kwargs.get("url") or ""), dict(kwargs)))
+        url = str(kwargs.get("url") or "")
+        method = str(kwargs.get("method") or "").upper()
+
+        if action == "request" and method == "POST" and url == "http://127.0.0.1:3000/login":
+            data = kwargs.get("data") or {}
+            if data.get("username") == "admin" and data.get("password") == self.expected_password:
+                return {
+                    "status_code": 200,
+                    "body": '{"ok":true}',
+                    "headers": {"set-cookie": "sessionid=django-admin-session; Path=/"},
+                    "final_url": "http://127.0.0.1:3000/",
+                }
+            return {"status_code": 401, "body": '{"error":"invalid credentials"}'}
+
+        if action == "request" and method == "GET" and url == "http://127.0.0.1:3000/admin":
+            cookie = str((kwargs.get("headers") or {}).get("Cookie") or "")
+            if "sessionid=django-admin-session" in cookie:
+                return {"status_code": 200, "body": "flag{session_cookie_pivot_ok}"}
+            return {"status_code": 403, "body": '{"error":"admin only"}'}
+
+        return {"status_code": 404, "body": ""}
+
+    async def execute_command(self, command: str, timeout: int = 180):
+        self.commands.append(command)
+        return SimpleNamespace(
+            exit_code=0,
+            stdout=f"[init] Admin password set to: {self.expected_password}\n",
+            stderr="",
+        )
+
+
 class _DispatcherSQLiRuntime:
     def __init__(self):
         self.environment = SimpleNamespace(available_tools=[])
@@ -1478,6 +1521,72 @@ async def test_local_compose_log_pivot_prefers_source_hint_login_route_over_root
     assert any(
         request[0] == "request"
         and request[1] == "http://127.0.0.1:3000/login"
+        for request in runtime.requests
+    )
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
+async def test_local_compose_log_pivot_replays_generic_session_cookie_from_login_response(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    challenge_dir = tmp_path / "easy_login_session_cookie"
+    challenge_dir.mkdir()
+    (challenge_dir / "docker-compose.yml").write_text(
+        "services:\n  app:\n    image: easy_login-app\n",
+        encoding="utf-8",
+    )
+    set_notes_file(tmp_path / "notes_local_compose_session_cookie.json")
+    notes_module._notes.clear()
+
+    runtime = _LocalChallengeSessionCookiePivotRuntime(expected_password="django-admin-pass")
+    dispatcher = CTFTaskDispatcher(
+        runtime=runtime,
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://127.0.0.1:3000",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher.state.add_observation(
+        "local_challenge_source_hint",
+        "views.py: request.session['is_admin']=True\n@app.route('/admin')\n@app.route('/login')",
+        source="local_challenge_context",
+        metadata={"path": r"D:\webstudy\CTF\easy_login\views.py"},
+    )
+
+    outcome = await dispatcher._attempt_local_challenge_log_pivot(
+        target="http://127.0.0.1:3000",
+        page_features={
+            "url": "http://127.0.0.1:3000/",
+            "endpoints": [],
+            "forms": [
+                {
+                    "action": "http://127.0.0.1:3000/login",
+                    "method": "post",
+                    "inputs": [
+                        {"name": "username", "type": "text"},
+                        {"name": "password", "type": "password"},
+                    ],
+                }
+            ],
+        },
+        hint=str(challenge_dir),
+    )
+
+    assert outcome.flag == "flag{session_cookie_pivot_ok}"
+    assert any(
+        request[0] == "request"
+        and request[1] == "http://127.0.0.1:3000/admin"
+        and str((request[2].get("headers") or {}).get("Cookie") or "") == "sessionid=django-admin-session"
         for request in runtime.requests
     )
     notes_module._notes.clear()
