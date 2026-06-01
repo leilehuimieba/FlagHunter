@@ -182,6 +182,108 @@ async def test_run_task_async_persists_and_reports_mode_contract(
 
 
 @pytest.mark.asyncio
+async def test_run_task_async_persists_control_decision_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_make_agent(target, scope):
+        return SimpleNamespace()
+
+    def fake_resolve_mode_contract(payload, *, source_task=None):
+        return {"mode": "ctf", "modeSubtype": "web", "goalStyle": "flag"}
+
+    monkeypatch.setattr(mcp_tools, "_make_agent", fake_make_agent)
+    monkeypatch.setattr(mcp_tools.asyncio, "create_task", _close_created_task)
+    monkeypatch.setattr(mcp_tools, "resolve_mode_contract", fake_resolve_mode_contract, raising=False)
+
+    await mcp_tools.run_task_async(
+        {
+            "task": "analyze challenge",
+            "target": "http://challenge.test",
+            "mode": "ctf",
+            "ctfType": "web",
+            "resumeContext": {
+                "runId": "run-prev-1",
+                "checkpointId": "checkpoint-prev-1",
+                "summary": "run_id=run-prev-1; stop_reason=wrong_flag_feedback",
+            },
+            "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+            "artifactPaths": [
+                r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+            ],
+        }
+    )
+
+    entry = next(iter(mcp_tools._tasks.values()))
+    assert getattr(entry, "controlDecision", None) is not None
+    assert entry.controlDecision["shouldRun"] is True
+    assert entry.controlDecision["decisionKind"] == "resume_execute"
+    assert entry.controlDecision["nextAction"] == "resume_from_checkpoint"
+
+
+@pytest.mark.asyncio
+async def test_run_task_async_reports_control_decision_in_text_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_make_agent(target, scope):
+        return SimpleNamespace()
+
+    def fake_resolve_mode_contract(payload, *, source_task=None):
+        return {"mode": "ctf", "modeSubtype": "web", "goalStyle": "flag"}
+
+    monkeypatch.setattr(mcp_tools, "_make_agent", fake_make_agent)
+    monkeypatch.setattr(mcp_tools.asyncio, "create_task", _close_created_task)
+    monkeypatch.setattr(mcp_tools, "resolve_mode_contract", fake_resolve_mode_contract, raising=False)
+
+    result = await mcp_tools.run_task_async(
+        {
+            "task": "analyze challenge",
+            "target": "http://challenge.test",
+            "mode": "ctf",
+            "ctfType": "web",
+            "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+            "artifactPaths": [
+                r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+            ],
+        }
+    )
+
+    assert "control_decision: direct_execute" in result
+
+
+@pytest.mark.asyncio
+async def test_run_task_async_persists_minimal_decision_record(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_make_agent(target, scope):
+        return SimpleNamespace()
+
+    def fake_resolve_mode_contract(payload, *, source_task=None):
+        return {"mode": "ctf", "modeSubtype": "web", "goalStyle": "flag"}
+
+    monkeypatch.setattr(mcp_tools, "_make_agent", fake_make_agent)
+    monkeypatch.setattr(mcp_tools.asyncio, "create_task", _close_created_task)
+    monkeypatch.setattr(mcp_tools, "resolve_mode_contract", fake_resolve_mode_contract, raising=False)
+
+    await mcp_tools.run_task_async(
+        {
+            "task": "analyze challenge",
+            "target": "http://challenge.test",
+            "mode": "ctf",
+            "ctfType": "web",
+            "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+            "artifactPaths": [
+                r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+            ],
+        }
+    )
+
+    entry = next(iter(mcp_tools._tasks.values()))
+    assert entry.decisionRecords[0]["kind"] == "direct_execute"
+    assert entry.decisionRecords[0]["source"] == "mcp_ingress"
+    assert entry.decisionRecords[0]["nextAction"] == "bootstrap_local_assets"
+
+
+@pytest.mark.asyncio
 async def test_get_server_status_exposes_model_readiness_reason(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
@@ -441,6 +543,55 @@ async def test_run_task_persists_ctf_dispatcher_truth_fields_for_followup_inspec
     assert getattr(entry, "ctfChainUsed", None) == ["xss", "admin_bot"]
     assert getattr(entry, "ctfMissingTools", None) == ["sqlmap"]
     assert getattr(entry, "ctfNotes", None) == ["reused admin sid", "collector hit /admin"]
+
+
+@pytest.mark.asyncio
+async def test_mcp_task_inspection_surfaces_control_decision_contract() -> None:
+    entry = mcp_tools.TaskEntry(
+        id="decision123",
+        task="inspect decision",
+        status="done",
+        created_at="2026-05-29T00:00:00",
+        finished_at="2026-05-29T00:01:00",
+        agent=SimpleNamespace(runtime=None, tools=[]),
+        target="http://challenge.test",
+        scope=[],
+        result="flag{decision_truth}",
+        mode="ctf",
+        modeSubtype="web",
+        goalStyle="flag",
+        challengePath=r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+        artifactPaths=[r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"],
+        controlDecision={
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "reason": "ctf local assets available",
+            "nextAction": "bootstrap_local_assets",
+            "facts": ["mode=ctf", "challengePath=D:/sample"],
+        },
+        decisionRecords=[
+            {
+                "kind": "direct_execute",
+                "source": "mcp_ingress",
+                "nextAction": "bootstrap_local_assets",
+            }
+        ],
+    )
+    mcp_tools._tasks[entry.id] = entry
+
+    list_output = await mcp_tools.list_tasks({"limit": 20})
+    status_output = await mcp_tools.get_task_status({"task_id": entry.id})
+    result_output = await mcp_tools.get_task_result({"task_id": entry.id})
+
+    assert "decision=direct_execute" in list_output
+    assert "control_decision: direct_execute" in status_output
+    assert "control_decision: direct_execute" in result_output
+    assert "decision_record_kind: direct_execute" in status_output
+    assert "decision_record_source: mcp_ingress" in status_output
+    assert "decision_record_next_action: bootstrap_local_assets" in status_output
+    assert "decision_record_kind: direct_execute" in result_output
+    assert "decision_record_source: mcp_ingress" in result_output
+    assert "decision_record_next_action: bootstrap_local_assets" in result_output
 
 
 @pytest.mark.asyncio

@@ -839,6 +839,60 @@ async def test_trace_replay_response_includes_resume_execute_control_decision(we
 
 
 @pytest.mark.asyncio
+async def test_post_task_persists_minimal_decision_record(web_client: TestClient):
+    created = await web_client.post(
+        "/api/tasks",
+        json={
+            "title": "decision-record-local-assets",
+            "target": "http://challenge.test",
+            "mode": "ctf",
+            "ctfType": "web",
+            "goal": "solve local challenge",
+            "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+            "artifactPaths": [
+                r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+            ],
+        },
+    )
+
+    assert created.status == 201
+    task = await created.json()
+
+    assert task["decisionRecords"][0]["kind"] == "direct_execute"
+    assert task["decisionRecords"][0]["source"] == "web_ingress"
+    assert task["decisionRecords"][0]["nextAction"] == "bootstrap_local_assets"
+
+
+@pytest.mark.asyncio
+async def test_task_detail_surfaces_minimal_decision_record(web_client: TestClient):
+    created = await web_client.post(
+        "/api/tasks",
+        json={
+            "title": "decision-record-detail",
+            "target": "http://challenge.test",
+            "mode": "ctf",
+            "ctfType": "web",
+            "goal": "solve local challenge",
+            "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+            "artifactPaths": [
+                r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+            ],
+        },
+    )
+
+    assert created.status == 201
+    task = await created.json()
+
+    detail_resp = await web_client.get(f"/api/tasks/{task['id']}")
+    assert detail_resp.status == 200
+    detail = await detail_resp.json()
+
+    assert detail["decisionRecords"][0]["kind"] == "direct_execute"
+    assert detail["decisionRecords"][0]["source"] == "web_ingress"
+    assert detail["decisionRecords"][0]["nextAction"] == "bootstrap_local_assets"
+
+
+@pytest.mark.asyncio
 async def test_post_task_persists_mode_aware_default_goal_when_goal_omitted(web_client: TestClient):
     created = await web_client.post(
         "/api/tasks",
