@@ -2367,6 +2367,42 @@ async def test_ctf_dispatcher_backup_source_leak_probes_django_static_confusion_
 
 
 @pytest.mark.asyncio
+async def test_ctf_dispatcher_backup_source_leak_prefers_app_py_candidates_from_local_source_hints(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_source_hint_backup.json")
+    notes_module._notes.clear()
+
+    runtime = _DispatcherSourceHintAwareBackupRuntime()
+    dispatcher = CTFTaskDispatcher(runtime=runtime, progress_callback=None)
+    dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="web")
+    dispatcher.state.add_observation(
+        "local_challenge_source_hint",
+        "app.py: @app.route('/admin')",
+        source="local_challenge_context",
+        metadata={"path": r"D:\webstudy\CTF\easy_login\app.py"},
+    )
+
+    outcome = await dispatcher._run_backup_source_leak_strategy(
+        "http://ctf.local/",
+        {},
+        "",
+    )
+
+    assert outcome.progress is True
+    assert runtime.requests
+    assert runtime.requests[0] == "http://ctf.local/app.py.bak"
+    assert "http://ctf.local/app.py.bak" in runtime.requests
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
 async def test_ctf_dispatcher_contact_report_chain_records_captcha_blocker(
     monkeypatch, tmp_path
 ):
@@ -4236,6 +4272,39 @@ class _DirectFlagPageRuntime:
         return {"error": f"unexpected action: {action}"}
 
     async def proxy_action(self, action: str, **kwargs):
+        return {"status_code": 404, "body": ""}
+
+    async def execute_command(self, command: str, timeout: int = 180):
+        return SimpleNamespace(exit_code=0, stdout="", stderr="")
+
+
+class _DispatcherSourceHintAwareBackupRuntime:
+    def __init__(self):
+        self.environment = SimpleNamespace(available_tools=[])
+        self.requests: list[str] = []
+
+    async def browser_action(self, action: str, **kwargs):
+        return {
+            "error": "Playwright not installed. Install with:\n  pip install playwright\n  playwright install chromium"
+        }
+
+    async def proxy_action(self, action: str, **kwargs):
+        if action != "get":
+            return {"status_code": 404, "body": ""}
+
+        url = kwargs.get("url", "")
+        self.requests.append(url)
+        if url == "http://ctf.local/app.py.bak":
+            return {
+                "status_code": 200,
+                "body": (
+                    "from flask import Flask\n"
+                    "app = Flask(__name__)\n"
+                    "@app.route('/admin')\n"
+                    "def admin():\n"
+                    "    return 'ok'\n"
+                ),
+            }
         return {"status_code": 404, "body": ""}
 
     async def execute_command(self, command: str, timeout: int = 180):
