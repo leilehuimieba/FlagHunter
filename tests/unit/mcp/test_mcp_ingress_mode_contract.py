@@ -472,6 +472,10 @@ async def test_run_task_routes_ctf_mode_into_dispatcher_with_explicit_challenge_
     assert captured["target"] == "http://challenge.test"
     assert captured["goal"] == "solve easy_login from MCP"
     assert captured["type"] == "web"
+    assert "[resume_bootstrap]" in str(captured["hint"])
+    assert "nextAction=resume_from_checkpoint" in str(captured["hint"])
+    assert "runId=run-prev-1" in str(captured["hint"])
+    assert "checkpointId=checkpoint-prev-1" in str(captured["hint"])
     assert captured["challenge_context"] == {
         "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
         "artifactPaths": [
@@ -550,6 +554,10 @@ async def test_run_task_async_background_ctf_path_uses_explicit_challenge_contex
     assert captured["goal"] == "solve easy_login from MCP async"
     assert captured["type"] == "web"
     assert str(captured["run_id"]).startswith("mcp-ctf-")
+    assert "[resume_bootstrap]" in str(captured["hint"])
+    assert "nextAction=resume_from_checkpoint" in str(captured["hint"])
+    assert "runId=run-prev-1" in str(captured["hint"])
+    assert "checkpointId=checkpoint-prev-1" in str(captured["hint"])
     assert captured["challenge_context"] == {
         "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
         "artifactPaths": [

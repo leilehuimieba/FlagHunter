@@ -171,6 +171,10 @@ def test_ctf_dispatcher_hint_and_context_include_resume_contract():
 
     assert "[local_ctf_assets]" in hint
     assert "[resume_context]" in hint
+    assert "[resume_bootstrap]" in hint
+    assert "nextAction=resume_from_checkpoint" in hint
+    assert "runId=run-prev-1" in hint
+    assert "checkpointId=checkpoint-prev-1" in hint
     assert "run_id=run-prev-1; stop_reason=wrong_flag_feedback" in hint
     assert challenge_context == {
         "challengePath": r"D:\webstudy\CTF\2026\easy_login",
