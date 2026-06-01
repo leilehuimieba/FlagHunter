@@ -1488,6 +1488,41 @@ def test_primary_capability_for_web_prefers_php_deserialization_from_unserialize
     assert dispatcher._primary_capability_for_chain("web") == "php_deserialization_test"
 
 
+def test_select_primary_strategy_prefers_hash_guarded_read_from_source_hints():
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher.state.add_observation(
+        "local_challenge_source_hint",
+        "app.py: filename + filehash + cookie_secret",
+        source="local_challenge_context",
+        metadata={"path": r"D:\webstudy\CTF\easy_tornado\app.py"},
+    )
+
+    strategy = dispatcher._select_primary_strategy(
+        "web",
+        target="http://ctf.local",
+        page_features={
+            "content": "",
+            "html": "",
+            "endpoints": [],
+            "raw_links": [],
+            "forms": [],
+        },
+        hint="",
+    )
+
+    assert strategy is not None
+    assert strategy.kind == "hash_guarded_file_read"
+
+
 @pytest.mark.asyncio
 async def test_execute_web_chain_runs_backup_source_before_contact_when_local_source_hints_exist(
     monkeypatch,
@@ -1538,6 +1573,58 @@ async def test_execute_web_chain_runs_backup_source_before_contact_when_local_so
     assert "backup_source_leak" in called_kinds
     assert "contact_report_chain" in called_kinds
     assert called_kinds.index("backup_source_leak") < called_kinds.index("contact_report_chain")
+
+
+@pytest.mark.asyncio
+async def test_execute_web_chain_runs_hash_guarded_before_backup_when_filehash_source_hints_exist(
+    monkeypatch,
+):
+    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher.state.add_observation(
+        "local_challenge_source_hint",
+        "app.py: filename=file&filehash=md5(cookie_secret+md5(filename))",
+        source="local_challenge_context",
+        metadata={"path": r"D:\webstudy\CTF\easy_tornado\app.py"},
+    )
+
+    called_kinds: list[str] = []
+
+    async def _wrapped_execute(kind: str, context):
+        called_kinds.append(kind)
+        return _ChainOutcome(progress=False, reason=kind)
+
+    monkeypatch.setattr(dispatcher.strategy_registry, "execute", _wrapped_execute)
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+
+    await dispatcher._execute_web_chain(
+        "http://ctf.local/",
+        {
+            "content": "",
+            "html": "",
+            "endpoints": [],
+            "raw_links": [],
+            "forms": [],
+        },
+        "",
+    )
+
+    assert "hash_guarded_file_read" in called_kinds
+    assert "backup_source_leak" in called_kinds
+    assert called_kinds.index("hash_guarded_file_read") < called_kinds.index("backup_source_leak")
 
 
 @pytest.mark.asyncio
