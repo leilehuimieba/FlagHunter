@@ -164,6 +164,29 @@ def test_ctf_dispatcher_hint_and_context_include_resume_contract():
                 "runtimeFlags": [],
             }
         },
+        "ingressHandoff": {
+            "decisionKind": "resume_execute",
+            "nextAction": "resume_from_checkpoint",
+            "challengeContext": {
+                "challengePath": r"D:\webstudy\CTF\2026\easy_login",
+                "artifactPaths": [r"D:\webstudy\CTF\2026\easy_login\docker-compose.yml"],
+                "resumeContext": {
+                    "runId": "run-prev-1",
+                    "checkpointId": "checkpoint-prev-1",
+                    "checkpointLabel": "task_failed",
+                    "stopReason": "wrong_flag_feedback",
+                    "summary": "run_id=run-prev-1; stop_reason=wrong_flag_feedback",
+                    "verifiedFlags": [],
+                    "runtimeFlags": [],
+                },
+            },
+            "resumeBootstrap": {
+                "nextAction": "resume_from_checkpoint",
+                "runId": "run-prev-1",
+                "checkpointId": "checkpoint-prev-1",
+                "summary": "run_id=run-prev-1; stop_reason=wrong_flag_feedback",
+            },
+        },
     }
 
     hint = web_server._ctf_dispatcher_hint(task)
@@ -866,6 +889,11 @@ async def test_trace_replay_response_includes_resume_execute_control_decision(we
     assert replayed_task["controlDecision"]["shouldRun"] is True
     assert replayed_task["controlDecision"]["decisionKind"] == "resume_execute"
     assert replayed_task["controlDecision"]["nextAction"] == "resume_from_checkpoint"
+    assert replayed_task["ingressHandoff"]["decisionKind"] == "resume_execute"
+    assert replayed_task["ingressHandoff"]["nextAction"] == "resume_from_checkpoint"
+    assert replayed_task["ingressHandoff"]["challengeContext"]["challengePath"] == r"D:\webstudy\CTF\2026\CTF比赛题\easy_login"
+    assert replayed_task["ingressHandoff"]["resumeBootstrap"]["runId"] == original_run_id
+    assert replayed_task["ingressHandoff"]["resumeBootstrap"]["checkpointId"] == "checkpoint-replay-1"
 
 
 @pytest.mark.asyncio
