@@ -599,7 +599,26 @@ async def test_run_task_persists_ctf_dispatcher_truth_fields_for_followup_inspec
 
     class _FakeDispatcher:
         def __init__(self, runtime, progress_callback=None, verification_callback=None):
-            pass
+            from pentestagent.agents.pa_agent.ctf_state import CTFState
+
+            self.state = CTFState(target="http://challenge.test", goal="solve from MCP truth fields")
+            self.state.add_observation(
+                "resume_bootstrap_hint",
+                "continue from saved recon state",
+                source="ingress_handoff",
+                metadata={
+                    "decision_kind": "explore_first",
+                    "next_action": "collect_initial_facts",
+                    "run_id": "run-prev-1",
+                    "checkpoint_id": "checkpoint-prev-1",
+                },
+            )
+            self.state.add_flag(
+                "flag{mcp_truth_ok}",
+                level="verified",
+                evidence_source="admin_page",
+                rationale="verified hit",
+            )
 
         async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None, run_id=None, ledger_root=None, checkpoint_root=None):
             return SimpleNamespace(
@@ -630,6 +649,9 @@ async def test_run_task_persists_ctf_dispatcher_truth_fields_for_followup_inspec
     assert getattr(entry, "ctfChainUsed", None) == ["xss", "admin_bot"]
     assert getattr(entry, "ctfMissingTools", None) == ["sqlmap"]
     assert getattr(entry, "ctfNotes", None) == ["reused admin sid", "collector hit /admin"]
+    assert isinstance(getattr(entry, "ctfStateSnapshot", None), dict)
+    assert entry.ctfStateSnapshot["observations"][0]["kind"] == "resume_bootstrap_hint"
+    assert entry.ctfStateSnapshot["verified_flags"][0]["value"] == "flag{mcp_truth_ok}"
 
 
 @pytest.mark.asyncio

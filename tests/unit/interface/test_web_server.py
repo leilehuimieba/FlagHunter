@@ -1878,8 +1878,28 @@ def test_run_agent_task_bridges_ctf_local_asset_contract_into_dispatcher_hint(
         calls: list[dict[str, object]] = []
 
         def __init__(self, runtime, progress_callback=None, **kwargs):
+            from pentestagent.agents.pa_agent.ctf_state import CTFState
+
             self.runtime = runtime
             self.progress_callback = progress_callback
+            self.state = CTFState(target="http://challenge.test", goal="")
+            self.state.add_observation(
+                "resume_bootstrap_hint",
+                "continue from saved recon state",
+                source="ingress_handoff",
+                metadata={
+                    "decision_kind": "direct_execute",
+                    "next_action": "bootstrap_local_assets",
+                    "run_id": "run-prev-1",
+                    "checkpoint_id": "checkpoint-prev-1",
+                },
+            )
+            self.state.add_flag(
+                "flag{bridge_truth}",
+                level="verified",
+                evidence_source="admin_page",
+                rationale="verified hit",
+            )
 
         async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None):
             self.__class__.calls.append(
@@ -1894,11 +1914,11 @@ def test_run_agent_task_bridges_ctf_local_asset_contract_into_dispatcher_hint(
             )
             return types.SimpleNamespace(
                 success=True,
-                flag="flag{dispatcher_local_assets}",
+                flag="flag{bridge_truth}",
                 reason="dispatcher solved",
-                notes=[],
-                chain_used=["recon"],
-                missing_tools=[],
+                notes=["phase1 done"],
+                chain_used=["recon", "auth_form_sqli"],
+                missing_tools=["browser"],
             )
 
     fake_pa_agent = types.ModuleType("pentestagent.agents.pa_agent")
@@ -2002,6 +2022,9 @@ def test_run_agent_task_bridges_ctf_local_asset_contract_into_dispatcher_hint(
     assert "focus on local artifacts" in hint
     assert r"D:\webstudy\CTF\2026\CTF比赛题\easy_login" in hint
     assert r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml" in hint
+    assert isinstance(web_server._tasks["task_ctf_local_asset_bridge"].get("ctfStateSnapshot"), dict)
+    assert web_server._tasks["task_ctf_local_asset_bridge"]["ctfStateSnapshot"]["observations"][0]["kind"] == "resume_bootstrap_hint"
+    assert web_server._tasks["task_ctf_local_asset_bridge"]["ctfStateSnapshot"]["verified_flags"][0]["value"] == "flag{bridge_truth}"
 
 
 def test_build_trace_payload_includes_ctf_dispatcher_truth_fields(
