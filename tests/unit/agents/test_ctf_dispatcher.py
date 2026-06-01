@@ -1721,6 +1721,138 @@ async def test_execute_web_chain_runs_php_unserialize_before_backup_when_source_
 
 
 @pytest.mark.asyncio
+async def test_execute_xss_chain_runs_stored_xss_when_source_hints_expose_visit_admin_routes(
+    monkeypatch,
+):
+    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher.state.add_observation(
+        "local_challenge_source_hint",
+        "app.py: @app.route('/visit')\n@app.route('/admin')\n@app.route('/login')",
+        source="local_challenge_context",
+        metadata={"path": r"D:\webstudy\CTF\easy_login\app.py"},
+    )
+
+    called_kinds: list[str] = []
+
+    async def _wrapped_execute(kind: str, context):
+        called_kinds.append(kind)
+        return _ChainOutcome(progress=False, reason=kind)
+
+    monkeypatch.setattr(dispatcher.strategy_registry, "execute", _wrapped_execute)
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+
+    await dispatcher._execute_xss_chain(
+        "http://ctf.local/",
+        {
+            "content": "",
+            "html": "",
+            "endpoints": ["/login"],
+            "raw_links": [],
+            "forms": [
+                {
+                    "action": "http://ctf.local/login",
+                    "method": "post",
+                    "inputs": [
+                        {"name": "username", "type": "text"},
+                        {"name": "password", "type": "password"},
+                        {"name": "message", "type": "text"},
+                    ],
+                }
+            ],
+        },
+        "",
+    )
+
+    assert "xss_admin_bot_sid" in called_kinds
+
+
+@pytest.mark.asyncio
+async def test_execute_chain_web_returns_xss_progress_from_source_hints_before_web_fallback(
+    monkeypatch,
+):
+    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher.state.add_observation(
+        "local_challenge_source_hint",
+        "app.py: @app.route('/visit')\n@app.route('/admin')\n@app.route('/login')",
+        source="local_challenge_context",
+        metadata={"path": r"D:\webstudy\CTF\easy_login\app.py"},
+    )
+
+    called_kinds: list[str] = []
+    web_called: list[bool] = []
+
+    async def _wrapped_execute(kind: str, context):
+        called_kinds.append(kind)
+        if kind == "xss_admin_bot_sid":
+            return _ChainOutcome(progress=True, reason="xss_admin_bot_sid")
+        return _ChainOutcome(progress=False, reason=kind)
+
+    async def _fake_web_chain(target: str, page_features: dict[str, object], hint: str):
+        web_called.append(True)
+        return _ChainOutcome(progress=False, reason="web fallback")
+
+    monkeypatch.setattr(dispatcher.strategy_registry, "execute", _wrapped_execute)
+    monkeypatch.setattr(dispatcher, "_execute_web_chain", _fake_web_chain)
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+
+    outcome = await dispatcher._execute_chain(
+        chain_name="web",
+        target="http://ctf.local/",
+        page_features={
+            "content": "",
+            "html": "",
+            "endpoints": ["/login"],
+            "raw_links": [],
+            "forms": [
+                {
+                    "action": "http://ctf.local/login",
+                    "method": "post",
+                    "inputs": [
+                        {"name": "username", "type": "text"},
+                        {"name": "password", "type": "password"},
+                        {"name": "message", "type": "text"},
+                    ],
+                }
+            ],
+        },
+        hint="",
+    )
+
+    assert outcome.progress is True
+    assert outcome.reason == "xss_admin_bot_sid"
+    assert "xss_admin_bot_sid" in called_kinds
+    assert web_called == []
+
+
+@pytest.mark.asyncio
 async def test_ctf_dispatcher_solves_auth_form_sqli(monkeypatch, tmp_path):
     monkeypatch.setattr(
         "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
