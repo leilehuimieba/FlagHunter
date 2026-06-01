@@ -89,12 +89,12 @@
 
 #### 典型项
 
-- `my.bin`
-- `myde.bin`
+- `tests/fixtures/samples/reverse/my.bin`
+- `tests/fixtures/samples/reverse/myde.bin`
 - `libcrackme2.so`
 - `pow.py`
 - `vpow.py`
-- `tax_cookie.txt`
+- `tests/fixtures/samples/web/tax_cookie.txt`
 - `tmp_tasks_1280.png`
 - `tmp_tasks_1366.png`
 - `tmp_tasks_1440.png`
@@ -103,7 +103,7 @@
 
 - 不建议直接删除
 - 但要明确它们是样本、不是主干代码
-- 如果后面形成了正式样本库，最好迁移到专门目录
+- 当前已将其中一部分归位到 `tests/fixtures/samples/`
 
 ---
 

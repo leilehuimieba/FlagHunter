@@ -74,12 +74,12 @@
 
 #### 样本 / 产物 / 外部材料
 
-- `my.bin`
-- `myde.bin`
+- `tests/fixtures/samples/reverse/my.bin`
+- `tests/fixtures/samples/reverse/myde.bin`
 - `libcrackme2.so`
 - `pow.py`
 - `vpow.py`
-- `tax_cookie.txt`
+- `tests/fixtures/samples/web/tax_cookie.txt`
 - `tmp_tasks_1280.png`
 - `tmp_tasks_1366.png`
 - `tmp_tasks_1440.png`
@@ -272,14 +272,14 @@
 这些文件更像“样本与分析产物”，不是核心代码：
 
 - `libcrackme2.so`
-- `my.bin`
-- `myde.bin`
+- `tests/fixtures/samples/reverse/my.bin`
+- `tests/fixtures/samples/reverse/myde.bin`
 - `pow.py`
 - `vpow.py`
 
 ### 6.2 本地题目 / 口令 / 附件类材料
 
-- `tax_cookie.txt`
+- `tests/fixtures/samples/web/tax_cookie.txt`
 - `tmp_tasks_1280.png`
 - `tmp_tasks_1366.png`
 - `tmp_tasks_1440.png`
