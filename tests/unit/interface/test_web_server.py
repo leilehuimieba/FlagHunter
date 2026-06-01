@@ -951,6 +951,97 @@ async def test_task_detail_surfaces_minimal_decision_record(web_client: TestClie
 
 
 @pytest.mark.asyncio
+async def test_task_detail_surfaces_blackboard_snapshot(web_client: TestClient):
+    created = await web_client.post(
+        "/api/tasks",
+        json={
+            "title": "blackboard-detail",
+            "target": "http://challenge.test",
+            "mode": "ctf",
+            "ctfType": "web",
+            "goal": "solve local challenge",
+            "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+            "artifactPaths": [
+                r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+            ],
+        },
+    )
+
+    assert created.status == 201
+    task = await created.json()
+    task_id = task["id"]
+    web_server._tasks[task_id]["ctfStateSnapshot"] = {
+        "target": "http://challenge.test",
+        "goal": "拿到flag",
+        "observations": [
+            {
+                "kind": "resume_bootstrap_hint",
+                "value": "continue from saved recon state",
+                "source": "ingress_handoff",
+                "metadata": {
+                    "decision_kind": "direct_execute",
+                    "next_action": "bootstrap_local_assets",
+                    "run_id": "run-prev-1",
+                    "checkpoint_id": "checkpoint-prev-1",
+                },
+            }
+        ],
+        "artifacts": [
+            {
+                "name": "docker-compose.yml",
+                "location": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+                "source": "local_challenge_context",
+                "metadata": {},
+            }
+        ],
+        "runtime_flags": [
+            {
+                "value": "flag{runtime_pending}",
+                "level": "runtime",
+                "evidence_source": "collector",
+                "rationale": "runtime hit",
+                "confidence": 0.0,
+                "requires_followup": False,
+                "proof": None,
+                "metadata": {},
+            }
+        ],
+        "verified_flags": [
+            {
+                "value": "flag{verified_done}",
+                "level": "verified",
+                "evidence_source": "admin_page",
+                "rationale": "verified hit",
+                "confidence": 0.0,
+                "requires_followup": False,
+                "proof": None,
+                "metadata": {},
+            }
+        ],
+    }
+
+    detail_resp = await web_client.get(f"/api/tasks/{task_id}")
+    assert detail_resp.status == 200
+    detail = await detail_resp.json()
+
+    assert "blackboardSnapshot" in detail
+    assert detail["blackboardSnapshot"]["facts"]
+    assert detail["blackboardSnapshot"]["pendingVerifications"] == [
+        {
+            "kind": "runtime_flag",
+            "value": "flag{runtime_pending}",
+            "source": "collector",
+            "rationale": "runtime hit",
+        }
+    ]
+    fact_pairs = {(item["kind"], item.get("value")) for item in detail["blackboardSnapshot"]["facts"]}
+    assert ("control_decision", "direct_execute") in fact_pairs
+    assert ("challenge_path", r"D:\webstudy\CTF\2026\CTF比赛题\easy_login") in fact_pairs
+    assert ("resume_bootstrap_hint", "continue from saved recon state") in fact_pairs
+    assert ("verified_flag", "flag{verified_done}") in fact_pairs
+
+
+@pytest.mark.asyncio
 async def test_post_task_persists_mode_aware_default_goal_when_goal_omitted(web_client: TestClient):
     created = await web_client.post(
         "/api/tasks",

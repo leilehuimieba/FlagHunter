@@ -682,6 +682,115 @@ async def test_mcp_task_inspection_surfaces_control_decision_contract() -> None:
 
 
 @pytest.mark.asyncio
+async def test_mcp_task_inspection_exposes_blackboard_snapshot() -> None:
+    entry = mcp_tools.TaskEntry(
+        id="bb12345",
+        task="solve challenge",
+        status="done",
+        created_at="2026-05-29T00:00:00",
+        finished_at="2026-05-29T00:01:00",
+        agent=SimpleNamespace(runtime=None, tools=[]),
+        target="http://challenge.test",
+        scope=[],
+        result="flag{inspection_truth}",
+        mode="ctf",
+        modeSubtype="web",
+        goalStyle="flag",
+        challengePath=r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+        artifactPaths=[r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"],
+        controlDecision={
+            "shouldRun": True,
+            "decisionKind": "resume_execute",
+            "reason": "resume context available",
+            "nextAction": "resume_from_checkpoint",
+            "facts": ["mode=ctf"],
+        },
+        decisionRecords=[
+            {
+                "kind": "resume_execute",
+                "source": "mcp_ingress",
+                "nextAction": "resume_from_checkpoint",
+                "reason": "resume context available",
+            }
+        ],
+        ingressHandoff={
+            "decisionKind": "resume_execute",
+            "nextAction": "resume_from_checkpoint",
+            "challengeContext": {
+                "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+                "artifactPaths": [
+                    r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
+                ],
+            },
+            "resumeBootstrap": {
+                "runId": "run-prev-1",
+                "checkpointId": "checkpoint-prev-1",
+                "summary": "continue from saved recon state",
+            },
+        },
+    )
+    entry.ctfStateSnapshot = {
+        "target": "http://challenge.test",
+        "goal": "拿到flag",
+        "observations": [
+            {
+                "kind": "resume_bootstrap_hint",
+                "value": "continue from saved recon state",
+                "source": "ingress_handoff",
+                "metadata": {
+                    "decision_kind": "resume_execute",
+                    "next_action": "resume_from_checkpoint",
+                    "run_id": "run-prev-1",
+                    "checkpoint_id": "checkpoint-prev-1",
+                },
+            }
+        ],
+        "artifacts": [],
+        "runtime_flags": [
+            {
+                "value": "flag{runtime_pending}",
+                "level": "runtime",
+                "evidence_source": "collector",
+                "rationale": "runtime hit",
+                "confidence": 0.0,
+                "requires_followup": False,
+                "proof": None,
+                "metadata": {},
+            }
+        ],
+        "verified_flags": [
+            {
+                "value": "flag{verified_done}",
+                "level": "verified",
+                "evidence_source": "admin_page",
+                "rationale": "verified hit",
+                "confidence": 0.0,
+                "requires_followup": False,
+                "proof": None,
+                "metadata": {},
+            }
+        ],
+    }
+    mcp_tools._tasks[entry.id] = entry
+
+    status_output = await mcp_tools.get_task_status({"task_id": entry.id})
+    result_output = await mcp_tools.get_task_result({"task_id": entry.id})
+
+    assert "[blackboard_facts]" in status_output
+    assert "control_decision=resume_execute" in status_output
+    assert r"challenge_path=D:\webstudy\CTF\2026\CTF比赛题\easy_login" in status_output
+    assert "resume_bootstrap_hint=continue from saved recon state" in status_output
+    assert "verified_flag=flag{verified_done}" in status_output
+    assert "[blackboard_pending_verifications]" in status_output
+    assert "runtime_flag=flag{runtime_pending}" in status_output
+
+    assert "[blackboard_facts]" in result_output
+    assert "control_decision=resume_execute" in result_output
+    assert "[blackboard_pending_verifications]" in result_output
+    assert "runtime_flag=flag{runtime_pending}" in result_output
+
+
+@pytest.mark.asyncio
 async def test_mcp_task_inspection_and_result_expose_ctf_truth_fields() -> None:
     entry = mcp_tools.TaskEntry(
         id="ctf12345",
