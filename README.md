@@ -28,6 +28,7 @@ FlagHunter 的目标不是做“只能聊天的安全助手”，而是把 **计
 - [文档入口](#文档入口)
 - [版本发布](#版本发布)
 - [Changelog](./CHANGELOG.md)
+- [文档总入口](./docs/README.md)
 - [Release Policy](./docs/release-policy.md)
 - [Release Checklist](./docs/release-checklist.md)
 - [Label Strategy](./docs/label-strategy.md)
@@ -189,6 +190,18 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
+> 说明：本仓库后续所有测试与验证，优先使用虚拟环境解释器：
+>
+> ```powershell
+> .\.venv\Scripts\python.exe
+> ```
+>
+> 如果不想激活环境，也可以直接用它执行脚本与测试，例如：
+>
+> ```powershell
+> .\.venv\Scripts\python.exe -m pytest
+> ```
+
 ### 配置环境变量
 
 ```bash
@@ -224,9 +237,10 @@ pentestagent
 如果你是第一次接手这个仓库，建议按下面顺序理解：
 
 1. 先读本页 `README`
-2. 再看 `D:\webstudy\FlagHunter\AGENTS.md`
-3. 然后看 `D:\webstudy\FlagHunter\docs\D1_M1M2_用户使用手册.md`
-4. 如果要继续开发，再看 `D:\webstudy\FlagHunter\docs\superpowers\plans\`
+2. 再看 `D:\webstudy\FlagHunter\docs\README.md`
+3. 然后看 `D:\webstudy\FlagHunter\AGENTS.md`
+4. 接着看 `D:\webstudy\FlagHunter\docs\web-console\FlagHunter_Web可视化控制台_当前可用性收口与使用边界_V1.md`
+5. 如果要继续开发，再看 `D:\webstudy\FlagHunter\docs\dev\FlagHunter_下一阶段主线_主控_BlackboardLite_调度收紧_V1.md`
 
 ---
 
@@ -319,3 +333,4 @@ FlagHunter 面向：
 ## License
 
 MIT License
+
