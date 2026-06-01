@@ -760,6 +760,85 @@ async def test_post_task_persists_ctf_local_asset_contract_fields(web_client: Te
 
 
 @pytest.mark.asyncio
+async def test_post_task_includes_explore_first_control_decision_with_target_only(web_client: TestClient):
+    created = await web_client.post(
+        "/api/tasks",
+        json={"title": "blocked-control", "target": "http://placeholder.test", "goal": "need target"},
+    )
+
+    assert created.status == 201
+    task = await created.json()
+
+    assert task["controlDecision"]["shouldRun"] is True
+    assert task["controlDecision"]["decisionKind"] == "explore_first"
+    assert task["controlDecision"]["nextAction"] == "collect_initial_facts"
+
+
+@pytest.mark.asyncio
+async def test_post_task_includes_direct_execute_control_decision_for_ctf_local_assets(web_client: TestClient):
+    created = await web_client.post(
+        "/api/tasks",
+        json={
+            "title": "ctf-control-assets",
+            "mode": "ctf",
+            "ctfType": "web",
+            "target": "http://challenge-assets.test",
+            "goal": "solve local challenge",
+            "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+            "artifactPaths": [
+                r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+            ],
+        },
+    )
+
+    assert created.status == 201
+    task = await created.json()
+
+    assert task["controlDecision"]["shouldRun"] is True
+    assert task["controlDecision"]["decisionKind"] == "direct_execute"
+    assert task["controlDecision"]["nextAction"] == "bootstrap_local_assets"
+
+
+@pytest.mark.asyncio
+async def test_trace_replay_response_includes_resume_execute_control_decision(web_client: TestClient):
+    created = await web_client.post(
+        "/api/tasks",
+        json={"title": "replay-control-source", "target": "http://replay-control.test", "goal": "re-run original task"},
+    )
+    assert created.status == 201
+    original_task = await created.json()
+    original_task_id = original_task["id"]
+    original_run_id = original_task["currentRunId"]
+
+    web_server._tasks[original_task_id]["status"] = "success"
+    web_server._tasks[original_task_id]["mode"] = "ctf"
+    web_server._tasks[original_task_id]["modeSubtype"] = "web"
+    web_server._tasks[original_task_id]["goalStyle"] = "flag"
+    web_server._tasks[original_task_id]["challengePath"] = r"D:\webstudy\CTF\2026\CTF比赛题\easy_login"
+    web_server._tasks[original_task_id]["artifactPaths"] = [
+        r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+    ]
+    web_server._tasks[original_task_id]["sessionContext"] = {
+        "resumeContext": {
+            "runId": original_run_id,
+            "checkpointId": "checkpoint-replay-1",
+            "summary": "run_id=run-1; stop_reason=flag_verified",
+        }
+    }
+    web_server._tasks[original_task_id]["resumeFromRunId"] = original_run_id
+    web_server._tasks[original_task_id]["resumeFromCheckpointId"] = "checkpoint-replay-1"
+    web_server._tasks[original_task_id]["resumeSummary"] = "run_id=run-1; stop_reason=flag_verified"
+
+    replay_resp = await web_client.post(f"/api/traces/{original_run_id}/replay")
+
+    assert replay_resp.status == 200
+    replayed_task = await replay_resp.json()
+    assert replayed_task["controlDecision"]["shouldRun"] is True
+    assert replayed_task["controlDecision"]["decisionKind"] == "resume_execute"
+    assert replayed_task["controlDecision"]["nextAction"] == "resume_from_checkpoint"
+
+
+@pytest.mark.asyncio
 async def test_post_task_persists_mode_aware_default_goal_when_goal_omitted(web_client: TestClient):
     created = await web_client.post(
         "/api/tasks",
