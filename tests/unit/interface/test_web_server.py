@@ -775,6 +775,32 @@ async def test_post_task_includes_explore_first_control_decision_with_target_onl
 
 
 @pytest.mark.asyncio
+async def test_post_task_blocked_control_decision_does_not_start_execution(web_client: TestClient):
+    created = await web_client.post(
+        "/api/tasks",
+        json={
+            "title": "blocked-control",
+            "target": "",
+            "goal": "need target or local assets",
+        },
+    )
+
+    assert created.status == 201
+    task = await created.json()
+
+    assert task["controlDecision"]["shouldRun"] is False
+    assert task["controlDecision"]["decisionKind"] == "blocked"
+    assert task["controlDecision"]["nextAction"] == "await_input"
+    assert task["status"] == "blocked"
+    assert task["startedAt"] is None
+    assert task["finishedAt"] is None
+    assert task["capabilities"]["stop"] is False
+    assert task["capabilities"]["retry"] is False
+    assert task["capabilities"]["continue"] is False
+    assert task["id"] not in web_server._task_threads
+
+
+@pytest.mark.asyncio
 async def test_post_task_includes_direct_execute_control_decision_for_ctf_local_assets(web_client: TestClient):
     created = await web_client.post(
         "/api/tasks",

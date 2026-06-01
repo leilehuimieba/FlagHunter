@@ -251,6 +251,70 @@ async def test_run_task_async_reports_control_decision_in_text_output(
 
 
 @pytest.mark.asyncio
+async def test_run_task_async_blocked_control_decision_does_not_schedule_execution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {"scheduled": False}
+
+    async def fake_make_agent(target, scope):
+        return SimpleNamespace()
+
+    def fake_create_task(coro):
+        captured["scheduled"] = True
+        coro.close()
+        return SimpleNamespace(done=lambda: False)
+
+    monkeypatch.setattr(mcp_tools, "_make_agent", fake_make_agent)
+    monkeypatch.setattr(mcp_tools.asyncio, "create_task", fake_create_task)
+
+    result = await mcp_tools.run_task_async(
+        {
+            "task": "need more input before execution",
+            "target": "",
+        }
+    )
+
+    entry = next(iter(mcp_tools._tasks.values()))
+    assert entry.controlDecision["shouldRun"] is False
+    assert entry.controlDecision["decisionKind"] == "blocked"
+    assert entry.status == "blocked"
+    assert captured["scheduled"] is False
+    assert "control_decision: blocked" in result
+    assert "status: blocked" in result
+
+
+@pytest.mark.asyncio
+async def test_run_task_blocked_control_decision_does_not_execute_agent_loop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {"drove": False}
+
+    async def fake_make_agent(target, scope):
+        return SimpleNamespace()
+
+    async def fake_drive_task(entry):
+        captured["drove"] = True
+
+    monkeypatch.setattr(mcp_tools, "_make_agent", fake_make_agent)
+    monkeypatch.setattr(mcp_tools, "_drive_task", fake_drive_task)
+
+    result = await mcp_tools.run_task(
+        {
+            "task": "need more input before execution",
+            "target": "",
+        }
+    )
+
+    entry = next(iter(mcp_tools._tasks.values()))
+    assert entry.controlDecision["shouldRun"] is False
+    assert entry.controlDecision["decisionKind"] == "blocked"
+    assert entry.status == "blocked"
+    assert captured["drove"] is False
+    assert "[control_decision] blocked" in result
+    assert "[status] blocked" in result
+
+
+@pytest.mark.asyncio
 async def test_run_task_async_persists_minimal_decision_record(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
