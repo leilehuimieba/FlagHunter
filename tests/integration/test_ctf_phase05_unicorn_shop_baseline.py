@@ -25,7 +25,12 @@ def _shared_repo_root(repo_root: Path) -> Path:
 
 def test_phase05_unicorn_shop_live_artifact_records_real_flag_proof():
     repo_root = Path(__file__).resolve().parents[2]
-    artifact_path = _shared_repo_root(repo_root) / "reports" / "ctf_phase05_unicorn_shop_live.clean.json"
+    artifact_path = (
+        _shared_repo_root(repo_root)
+        / "reports"
+        / "benchmarks"
+        / "ctf_phase05_unicorn_shop_live.clean.json"
+    )
 
     assert artifact_path.exists()
 

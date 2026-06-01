@@ -15,7 +15,7 @@ from pentestagent.agents.pa_agent.phase05_baseline import build_phase05_baseline
 
 
 def main() -> None:
-    out_path = ROOT / "reports" / "ctf_phase05_baseline.json"
+    out_path = ROOT / "reports" / "benchmarks" / "ctf_phase05_baseline.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(
         json.dumps(build_phase05_baseline(), indent=2, ensure_ascii=False),

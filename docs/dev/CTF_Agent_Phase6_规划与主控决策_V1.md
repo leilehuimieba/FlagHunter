@@ -136,7 +136,7 @@ class BenchmarkReport:
     hypothesis_exhaustion_rate: float
 ```
 
-报告写入 `reports/benchmark_<timestamp>.json`，不写入 git（加入 .gitignore）。
+报告写入 `reports/benchmarks/benchmark_<timestamp>.json`，不写入 git（加入 .gitignore）。
 
 ### 1.6 执行接口
 
@@ -155,7 +155,7 @@ CLI 接口：
 ```bash
 python -m tests.eval.benchmark_runner
 python -m tests.eval.benchmark_runner --challenges easy_tornado php_backup
-python -m tests.eval.benchmark_runner --report reports/baseline.json
+python -m tests.eval.benchmark_runner --report reports/benchmarks/baseline.json
 ```
 
 ### 1.7 完成标准（验收门禁）
@@ -164,7 +164,7 @@ python -m tests.eval.benchmark_runner --report reports/baseline.json
 2. 基线 `solve_rate >= 0.8`（5 道题至少 4 道 solved）
 3. `wrong_flag_rate < 0.2`
 4. `premature_stop_rate < 0.3`
-5. 每次运行输出 JSON 报告到 `reports/`
+5. 每次运行输出 JSON 报告到 `reports/benchmarks/`
 6. 有 1 个 pytest 测试用例验证 `BenchmarkReport` 数据结构可序列化
 
 **禁止行为：**
@@ -404,7 +404,7 @@ r"(?:cat|view|read)\s+([/][^\s<>\"']+)"
 
 | Phase | 完成标准（可机器验证） |
 |---|---|
-| Phase 6 | `tests/eval/benchmark_runner.py` 存在；5 道题 `solve_rate >= 0.8`；`wrong_flag_rate < 0.2`；`premature_stop_rate < 0.3`；JSON 报告可写入 `reports/` |
+| Phase 6 | `tests/eval/benchmark_runner.py` 存在；5 道题 `solve_rate >= 0.8`；`wrong_flag_rate < 0.2`；`premature_stop_rate < 0.3`；JSON 报告可写入 `reports/benchmarks/` |
 | Phase 6.5 | `FlagProof` 在 `ctf_state.py`；`source_only` + `submit_confidence < 0.5` 均拦截 auto_submit；benchmark `wrong_flag_rate` 不退步 |
 | Phase 6.8 | FailoverMonitor 软连接完成；`_collect_candidate_filenames` 能从中文提示中提取路径；`tornado_ssti` 无 silent skip |
 | 全部 Phase 6 系列 | 测试总数 ≥ 960（+13 新测试）；无任何回归 |

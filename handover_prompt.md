@@ -78,7 +78,7 @@
 - [x] `crypto_solve`：RSA small-e + base64 通过集成测试（Kali VM）
 - [x] `angr_solve`：简单 crackme 通过集成测试（Kali VM）
 - [x] `radare2`：`afl` / `iz` 通过集成测试（Kali VM）
-- [x] 验证结果已写入 `reports/ctf_tool_validation.md`
+- [x] 验证结果已写入 `reports/validation/ctf_tool_validation.md`
 
 ### 🟡 P1：继续优化 Quick Path
 - [x] 分析 sqli 类型 challenge 的失败案例，给 `CTF_QUICK_PATHS["sqli"]` 增加 blacklist bypass 指导

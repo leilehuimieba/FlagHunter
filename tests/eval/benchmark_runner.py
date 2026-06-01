@@ -544,7 +544,7 @@ def _normalize_challenge_ids(challenges: list[str] | None) -> list[str]:
 
 def _default_report_path() -> Path:
     repo_root = Path(__file__).resolve().parents[2]
-    return repo_root / "reports" / f"benchmark_{_compact_timestamp()}.json"
+    return repo_root / "reports" / "benchmarks" / f"benchmark_{_compact_timestamp()}.json"
 
 
 def _aggregate_report(
@@ -716,7 +716,7 @@ def _build_cli() -> argparse.ArgumentParser:
         "--report",
         dest="report_path",
         default=None,
-        help="Optional output JSON path. Defaults to reports/benchmark_<timestamp>.json",
+        help="Optional output JSON path. Defaults to reports/benchmarks/benchmark_<timestamp>.json",
     )
     return parser
 
