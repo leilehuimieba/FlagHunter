@@ -5186,6 +5186,81 @@ class _ExploitAuditRuntime:
 
 
 @pytest.mark.asyncio
+async def test_ctf_dispatcher_records_resume_bootstrap_hint_observation(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_resume_bootstrap_hint.json")
+    notes_module._notes.clear()
+
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DirectFlagPageRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+
+    result = await dispatcher.run(
+        target="http://ctf.local/",
+        goal="拿到flag",
+        type="web",
+        hint="",
+        ingress_handoff={
+            "decisionKind": "resume_execute",
+            "nextAction": "resume_from_checkpoint",
+            "resumeBootstrap": {
+                "runId": "run-prev-1",
+                "checkpointId": "checkpoint-prev-1",
+                "summary": "continue from saved recon state",
+            },
+        },
+    )
+
+    assert result.success is True
+    assert dispatcher.state is not None
+    observations = [
+        obs for obs in dispatcher.state.observations if obs.kind == "resume_bootstrap_hint"
+    ]
+    assert observations
+    observation = observations[-1]
+    assert observation.value == "continue from saved recon state"
+    assert observation.source == "ingress_handoff"
+    assert observation.metadata["decision_kind"] == "resume_execute"
+    assert observation.metadata["next_action"] == "resume_from_checkpoint"
+    assert observation.metadata["run_id"] == "run-prev-1"
+    assert observation.metadata["checkpoint_id"] == "checkpoint-prev-1"
+
+
+@pytest.mark.asyncio
+async def test_ctf_dispatcher_does_not_record_resume_bootstrap_hint_without_handoff(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_no_resume_bootstrap_hint.json")
+    notes_module._notes.clear()
+
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DirectFlagPageRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+
+    result = await dispatcher.run(
+        target="http://ctf.local/",
+        goal="拿到flag",
+        type="web",
+        hint="",
+    )
+
+    assert result.success is True
+    assert dispatcher.state is not None
+    assert not any(
+        obs.kind == "resume_bootstrap_hint" for obs in dispatcher.state.observations
+    )
+
+
+@pytest.mark.asyncio
 async def test_dispatcher_writes_session_ledger_events_for_verified_flag(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
