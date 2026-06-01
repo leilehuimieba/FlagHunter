@@ -1446,6 +1446,48 @@ def test_select_primary_strategy_prefers_source_first_when_local_source_hints_ex
     assert strategy.kind == "backup_source_leak"
 
 
+def test_primary_capability_for_web_prefers_http_requests_from_app_route_source_hints():
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher.state.add_observation(
+        "local_challenge_source_hint",
+        "app.py: @app.route('/login')\n@app.route('/admin')",
+        source="local_challenge_context",
+        metadata={"path": r"D:\webstudy\CTF\easy_login\app.py"},
+    )
+
+    assert dispatcher._primary_capability_for_chain("web") == "http_request_basic"
+
+
+def test_primary_capability_for_web_prefers_php_deserialization_from_unserialize_source_hints():
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher.state.add_observation(
+        "local_challenge_source_hint",
+        "index.php: <?php unserialize($_GET['data']); ?>",
+        source="local_challenge_context",
+        metadata={"path": r"D:\webstudy\CTF\easy_php\index.php"},
+    )
+
+    assert dispatcher._primary_capability_for_chain("web") == "php_deserialization_test"
+
+
 @pytest.mark.asyncio
 async def test_execute_web_chain_runs_backup_source_before_contact_when_local_source_hints_exist(
     monkeypatch,
