@@ -441,12 +441,13 @@ async def test_run_task_routes_ctf_mode_into_dispatcher_with_explicit_challenge_
         def __init__(self, runtime, progress_callback=None, verification_callback=None):
             captured["runtime"] = runtime
 
-        async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None, run_id=None, ledger_root=None, checkpoint_root=None):
+        async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None, ingress_handoff=None, run_id=None, ledger_root=None, checkpoint_root=None):
             captured["target"] = target
             captured["goal"] = goal
             captured["type"] = type
             captured["hint"] = hint
             captured["challenge_context"] = challenge_context
+            captured["ingress_handoff"] = ingress_handoff
             return SimpleNamespace(flag="flag{mcp_ctf_ok}", reason="ok", chain_used=["xss"], missing_tools=[], notes=[])
 
     fake_dispatcher_module = types.ModuleType("pentestagent.agents.pa_agent.ctf_dispatcher")
@@ -481,6 +482,10 @@ async def test_run_task_routes_ctf_mode_into_dispatcher_with_explicit_challenge_
     assert "nextAction=resume_from_checkpoint" in str(captured["hint"])
     assert "runId=run-prev-1" in str(captured["hint"])
     assert "checkpointId=checkpoint-prev-1" in str(captured["hint"])
+    assert captured["ingress_handoff"]["decisionKind"] == "resume_execute"
+    assert captured["ingress_handoff"]["nextAction"] == "resume_from_checkpoint"
+    assert captured["ingress_handoff"]["resumeBootstrap"]["runId"] == "run-prev-1"
+    assert captured["ingress_handoff"]["resumeBootstrap"]["checkpointId"] == "checkpoint-prev-1"
     assert captured["challenge_context"] == {
         "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
         "artifactPaths": [
@@ -512,12 +517,13 @@ async def test_run_task_async_background_ctf_path_uses_explicit_challenge_contex
         def __init__(self, runtime, progress_callback=None, verification_callback=None):
             captured["runtime"] = runtime
 
-        async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None, run_id=None, ledger_root=None, checkpoint_root=None):
+        async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None, ingress_handoff=None, run_id=None, ledger_root=None, checkpoint_root=None):
             captured["target"] = target
             captured["goal"] = goal
             captured["type"] = type
             captured["hint"] = hint
             captured["challenge_context"] = challenge_context
+            captured["ingress_handoff"] = ingress_handoff
             captured["run_id"] = run_id
             return SimpleNamespace(flag="flag{mcp_async_ctf_ok}", reason="ok", chain_used=["xss"], missing_tools=[], notes=[])
 
@@ -563,6 +569,10 @@ async def test_run_task_async_background_ctf_path_uses_explicit_challenge_contex
     assert "nextAction=resume_from_checkpoint" in str(captured["hint"])
     assert "runId=run-prev-1" in str(captured["hint"])
     assert "checkpointId=checkpoint-prev-1" in str(captured["hint"])
+    assert captured["ingress_handoff"]["decisionKind"] == "resume_execute"
+    assert captured["ingress_handoff"]["nextAction"] == "resume_from_checkpoint"
+    assert captured["ingress_handoff"]["resumeBootstrap"]["runId"] == "run-prev-1"
+    assert captured["ingress_handoff"]["resumeBootstrap"]["checkpointId"] == "checkpoint-prev-1"
     assert captured["challenge_context"] == {
         "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
         "artifactPaths": [

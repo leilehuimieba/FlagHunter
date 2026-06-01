@@ -1221,7 +1221,7 @@ def test_run_agent_task_routes_ctf_mode_to_ctf_dispatcher(
             self.runtime = runtime
             self.progress_callback = progress_callback
 
-        async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None):
+        async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None, ingress_handoff=None):
             self.__class__.calls.append(
                 {
                     "target": target,
@@ -1230,6 +1230,7 @@ def test_run_agent_task_routes_ctf_mode_to_ctf_dispatcher(
                     "hint": hint,
                     "submit_profile": submit_profile,
                     "challenge_context": challenge_context,
+                    "ingress_handoff": ingress_handoff,
                 }
             )
             return types.SimpleNamespace(
@@ -1322,6 +1323,8 @@ def test_run_agent_task_routes_ctf_mode_to_ctf_dispatcher(
     assert _FakeDispatcher.calls
     assert _FakeDispatcher.calls[0]["type"] == "web"
     assert "capture the flag" in str(_FakeDispatcher.calls[0]["goal"]).lower()
+    assert _FakeDispatcher.calls[0]["ingress_handoff"]["decisionKind"] == "explore_first"
+    assert _FakeDispatcher.calls[0]["ingress_handoff"]["nextAction"] == "collect_initial_facts"
     assert web_server._tasks["task_ctf_route"]["status"] == "success"
     assert web_server._tasks["task_ctf_route"]["finalFlag"] == "flag{dispatcher_route}"
 
