@@ -87,6 +87,22 @@ def test_hypothesis_engine_choose_chain_order_prefers_xss_from_local_source_hint
     assert "web" in chain_order
 
 
+def test_hypothesis_engine_generates_jwt_hypothesis_from_local_source_hints():
+    state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="web")
+    state.add_observation(
+        "local_challenge_source_hint",
+        "settings.py: JWT_SECRET = 'ultra-signing-key'\nAuthorization: Bearer <token>\nrole=admin",
+        source="local_challenge_context",
+        metadata={"path": r"D:\webstudy\CTF\jwt_demo\settings.py"},
+    )
+
+    engine = HypothesisEngine()
+    hypotheses = engine.generate(state)
+    kinds = [item.kind for item in hypotheses]
+
+    assert "jwt_manipulation" in kinds
+
+
 def test_hypothesis_engine_feedback_updates_confidence_and_status():
     state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="sqli")
     engine = HypothesisEngine()

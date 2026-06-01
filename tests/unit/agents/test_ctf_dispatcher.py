@@ -4751,6 +4751,59 @@ async def test_p3_jwt_manipulation_strategy_escalates_seed_token_to_runtime_flag
     )
 
 
+@pytest.mark.asyncio
+async def test_jwt_manipulation_strategy_uses_source_hint_secret_candidates(
+    monkeypatch, tmp_path
+):
+    from pentestagent.agents.pa_agent.ctf_dispatcher import _jwt_encode
+
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_jwt_source_hint.json")
+    notes_module._notes.clear()
+
+    signing_secret = "ultra-signing-key"
+    seed_token = _jwt_encode({"role": "user", "uid": 7}, signing_secret, "HS256")
+    runtime = _JWTSourceHintSecretRuntime(str(seed_token), signing_secret)
+    dispatcher = CTFTaskDispatcher(
+        runtime=runtime,
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local/",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher.state.add_observation(
+        "local_challenge_source_hint",
+        "settings.py: JWT_SECRET = 'ultra-signing-key'\nAuthorization: Bearer <token>\nrole=admin",
+        source="local_challenge_context",
+        metadata={"path": r"D:\webstudy\CTF\jwt_demo\settings.py"},
+    )
+
+    outcome = await dispatcher._run_jwt_manipulation_strategy(
+        "http://ctf.local/",
+        {
+            "content": f"Authorization: Bearer {seed_token}",
+            "html": "",
+            "headers": {"Authorization": f"Bearer {seed_token}"},
+            "cookies": "",
+        },
+    )
+
+    assert outcome.flag == "flag{jwt_source_hint_secret_ok}"
+    assert any(
+        str((request.get("headers") or {}).get("Authorization") or "").startswith("Bearer ")
+        for request in runtime.requests
+    )
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
 def test_extract_local_challenge_root_from_context_prefers_explicit_challenge_path(tmp_path) -> None:
     challenge_dir = tmp_path / "easy_login_context"
     challenge_dir.mkdir()
@@ -4917,6 +4970,43 @@ class _DirectFlagPageRuntime:
 
     async def proxy_action(self, action: str, **kwargs):
         return {"status_code": 404, "body": ""}
+
+    async def execute_command(self, command: str, timeout: int = 180):
+        return SimpleNamespace(exit_code=0, stdout="", stderr="")
+
+
+class _JWTSourceHintSecretRuntime:
+    def __init__(self, seed_token: str, signing_secret: str):
+        self.environment = SimpleNamespace(available_tools=[])
+        self.seed_token = seed_token
+        self.signing_secret = signing_secret
+        self.requests: list[dict[str, object]] = []
+
+    async def browser_action(self, action: str, **kwargs):
+        return {"error": "no browser"}
+
+    async def proxy_action(self, action: str, **kwargs):
+        headers = kwargs.get("headers", {}) or {}
+        url = kwargs.get("url", "")
+        self.requests.append({"action": action, "url": url, "headers": dict(headers)})
+        auth = str(headers.get("Authorization") or "")
+        token = ""
+        if auth.lower().startswith("bearer "):
+            token = auth.split(" ", 1)[1].strip()
+        if token:
+            from pentestagent.agents.pa_agent.ctf_dispatcher import _jwt_decode_verified
+
+            try:
+                payload = _jwt_decode_verified(
+                    token,
+                    self.signing_secret,
+                    ["HS256", "HS512"],
+                )
+                if payload.get("role") == "admin" or payload.get("is_admin") is True:
+                    return {"status_code": 200, "body": "flag{jwt_source_hint_secret_ok}"}
+            except Exception:
+                pass
+        return {"status_code": 403, "body": "forbidden"}
 
     async def execute_command(self, command: str, timeout: int = 180):
         return SimpleNamespace(exit_code=0, stdout="", stderr="")
