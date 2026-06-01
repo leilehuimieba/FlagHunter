@@ -1355,6 +1355,137 @@ async def test_local_compose_log_pivot_prefers_registered_artifact_truth_over_mi
 
 
 @pytest.mark.asyncio
+async def test_local_compose_log_pivot_uses_source_hint_admin_route_when_endpoint_not_rendered(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    challenge_dir = tmp_path / "easy_login_source_admin"
+    challenge_dir.mkdir()
+    (challenge_dir / "docker-compose.yml").write_text(
+        "services:\n  app:\n    image: easy_login-app\n",
+        encoding="utf-8",
+    )
+    set_notes_file(tmp_path / "notes_local_compose_source_admin.json")
+    notes_module._notes.clear()
+
+    runtime = _LocalChallengeLogPivotRuntime(expected_password="source-admin-pass")
+    dispatcher = CTFTaskDispatcher(
+        runtime=runtime,
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://127.0.0.1:3000",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher.state.add_observation(
+        "local_challenge_source_hint",
+        "app.py: @app.route('/admin')\n@app.route('/login')",
+        source="local_challenge_context",
+        metadata={"path": r"D:\webstudy\CTF\easy_login\app.py"},
+    )
+
+    outcome = await dispatcher._attempt_local_challenge_log_pivot(
+        target="http://127.0.0.1:3000",
+        page_features={
+            "url": "http://127.0.0.1:3000/",
+            "endpoints": [],
+            "forms": [
+                {
+                    "action": "http://127.0.0.1:3000/login",
+                    "method": "post",
+                    "inputs": [
+                        {"name": "username", "type": "text"},
+                        {"name": "password", "type": "password"},
+                    ],
+                }
+            ],
+        },
+        hint=str(challenge_dir),
+    )
+
+    assert outcome.flag == "flag{local_compose_log_pivot_ok}"
+    assert any(
+        request[0] == "request"
+        and request[1] == "http://127.0.0.1:3000/login"
+        and request[2].get("data") == {"username": "admin", "password": "source-admin-pass"}
+        for request in runtime.requests
+    )
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
+async def test_local_compose_log_pivot_prefers_source_hint_login_route_over_root_action(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    challenge_dir = tmp_path / "easy_login_source_login"
+    challenge_dir.mkdir()
+    (challenge_dir / "docker-compose.yml").write_text(
+        "services:\n  app:\n    image: easy_login-app\n",
+        encoding="utf-8",
+    )
+    set_notes_file(tmp_path / "notes_local_compose_source_login.json")
+    notes_module._notes.clear()
+
+    runtime = _LocalChallengeLogPivotRuntime(expected_password="source-login-pass")
+    dispatcher = CTFTaskDispatcher(
+        runtime=runtime,
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://127.0.0.1:3000",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher.state.add_observation(
+        "local_challenge_source_hint",
+        "app.py: @app.route('/admin')\n@app.route('/login')",
+        source="local_challenge_context",
+        metadata={"path": r"D:\webstudy\CTF\easy_login\app.py"},
+    )
+
+    outcome = await dispatcher._attempt_local_challenge_log_pivot(
+        target="http://127.0.0.1:3000",
+        page_features={
+            "url": "http://127.0.0.1:3000/",
+            "endpoints": ["/admin"],
+            "forms": [
+                {
+                    "action": "http://localhost:3000/",
+                    "method": "get",
+                    "inputs": [
+                        {"name": "username", "type": "text"},
+                        {"name": "password", "type": "password"},
+                    ],
+                }
+            ],
+        },
+        hint=str(challenge_dir),
+    )
+
+    assert outcome.flag == "flag{local_compose_log_pivot_ok}"
+    assert any(
+        request[0] == "request"
+        and request[1] == "http://127.0.0.1:3000/login"
+        for request in runtime.requests
+    )
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
 async def test_recon_contract_ingests_registered_local_source_hints_from_key_files(
     monkeypatch, tmp_path
 ):
