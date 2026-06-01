@@ -232,6 +232,39 @@ def test_build_task_blackboard_snapshot_maps_high_value_observations_into_facts(
     assert ("recent_http_response", "200:/admin page reachable") in facts
 
 
+
+def test_build_task_blackboard_snapshot_fact_includes_source_and_confidence() -> None:
+    state = CTFState(target="http://challenge.test", goal="拿到flag")
+    state.add_observation(
+        "recon_url",
+        "http://challenge.test/admin",
+        source="recon",
+        metadata={"confidence": "high"},
+    )
+    state.add_observation(
+        "cookie_secret_leaked",
+        "SECRET-123",
+        source="ssti_identify",
+        metadata={"method": "handler_settings_probe"},
+    )
+    state.add_flag(
+        "flag{verified_done}",
+        level="verified",
+        evidence_source="admin_page",
+        rationale="verified hit",
+    )
+
+    snapshot = build_task_blackboard_snapshot({"ctfStateSnapshot": state.to_snapshot()})
+
+    fact_map = {item["kind"]: item for item in snapshot["facts"]}
+    assert fact_map["discovered_endpoint"]["source"] == "recon"
+    assert fact_map["discovered_endpoint"]["confidence"] == "high"
+    assert fact_map["leaked_secret"]["source"] == "ssti_identify"
+    assert fact_map["leaked_secret"]["confidence"] == "medium"
+    assert fact_map["verified_flag"]["source"] == "admin_page"
+    assert fact_map["verified_flag"]["confidence"] == "high"
+
+
 def test_build_task_blackboard_snapshot_tolerates_missing_state_snapshot() -> None:
     task = {
         "controlDecision": {
