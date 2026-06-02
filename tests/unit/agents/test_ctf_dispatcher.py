@@ -1807,6 +1807,47 @@ def test_select_primary_strategy_prefers_hash_guarded_read_from_source_hints():
     assert strategy.kind == "hash_guarded_file_read"
 
 
+def test_select_primary_strategy_prefers_ssti_exploit_when_control_decision_requests_engine_exploit():
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher.state.add_observation(
+        "ssti_engine_identified",
+        "tornado",
+        source="ssti_identify",
+        metadata={"engine": "tornado"},
+    )
+
+    strategy = dispatcher._select_primary_strategy(
+        "web",
+        target="http://ctf.local",
+        page_features={
+            "content": "",
+            "html": "",
+            "endpoints": ["/error?msg=test"],
+            "raw_links": ["http://ctf.local/error?msg=test"],
+            "forms": [],
+        },
+        hint=(
+            "[control_decision]\n"
+            "decisionKind=direct_execute\n"
+            "nextAction=exploit_identified_engine\n"
+            "driver=blackboard.identified_engine\n"
+            "reason=identified engine present in blackboard"
+        ),
+    )
+
+    assert strategy is not None
+    assert strategy.kind == "ssti_exploit"
+
+
 def test_select_primary_strategy_prefers_php_unserialize_strategy_from_source_hints():
     dispatcher = CTFTaskDispatcher(
         runtime=_DispatcherRuntime(),
