@@ -2530,6 +2530,92 @@ def test_build_trace_payload_surfaces_derived_target_detail_source(
     assert payload["detailSource"]["derivedTargetOrigin"] == "inherited_lineage"
 
 
+def test_build_trace_payload_projects_control_decision_into_timeline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    now = web_server._now_iso()
+    task = {
+        "id": "task_trace_decision_timeline",
+        "title": "trace decision timeline",
+        "target": "",
+        "goal": "trace truth",
+        "mode": "ctf",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
+        "status": "queued",
+        "createdAt": now,
+        "startedAt": now,
+        "finishedAt": None,
+        "tokensUsed": 0,
+        "toolCalls": 0,
+        "currentRunId": "run_trace_decision_timeline",
+        "controlDecision": {
+            "shouldRun": True,
+            "decisionKind": "explore_first",
+            "reason": "derived target available for initial fact collection",
+            "nextAction": "collect_initial_facts",
+            "driver": "blackboard.derived_target.runtime_derived",
+            "facts": [
+                "mode=ctf",
+                "target=http://127.0.0.1:3000",
+                "blackboard.derived_target=present",
+                "derivedTargetOrigin=runtime_derived",
+            ],
+        },
+        "decisionRecords": [
+            {
+                "kind": "explore_first",
+                "source": "web_ingress",
+                "nextAction": "collect_initial_facts",
+                "driver": "blackboard.derived_target.runtime_derived",
+                "facts": [
+                    "mode=ctf",
+                    "target=http://127.0.0.1:3000",
+                    "derivedTargetOrigin=runtime_derived",
+                ],
+            }
+        ],
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    monkeypatch.setattr(web_server, "_pick_metrics_for_task", lambda project_root, item: None)
+    monkeypatch.setattr(
+        web_server,
+        "_pick_session_snapshot",
+        lambda project_root, item: (
+            None,
+            None,
+            {"matchedBy": "none", "confidence": "none", "expectedSessionId": None, "blockedReason": None, "candidateScore": None},
+        ),
+    )
+    monkeypatch.setattr(
+        web_server,
+        "_build_run_session_context",
+        lambda project_root, run_id: {
+            "runId": run_id,
+            "recentEvents": [],
+            "artifacts": [],
+            "latestCheckpoint": None,
+            "resumeContext": None,
+        },
+    )
+
+    payload = web_server._build_trace_payload(tmp_path, task, include_timeline=True)
+
+    decision_events = [event for event in payload["timeline"] if event["type"] == "decision"]
+    assert decision_events
+    event = decision_events[0]
+    assert event["kind"] == "decision.explore_first"
+    assert event["summary"] == "collect_initial_facts"
+    assert event["driver"] == "blackboard.derived_target.runtime_derived"
+    assert "derivedTargetOrigin=runtime_derived" in event["input"]["facts"]
+
+
 def test_build_trace_payload_projects_tool_audit_events_from_session_context(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
@@ -3432,6 +3518,7 @@ async def test_trace_replay_allows_derived_target_when_source_target_missing(web
     assert replayed_task["controlDecision"]["decisionKind"] == "resume_execute"
     assert "derivedTargetOrigin=inherited_lineage" in replayed_task["controlDecision"]["facts"]
     assert "derivedTargetSource=docker_compose_port_mapping" in replayed_task["controlDecision"]["facts"]
+    assert "derivedTargetOrigin=inherited_lineage" in replayed_task["decisionRecords"][0]["facts"]
 
 
 @pytest.mark.asyncio
@@ -3469,6 +3556,7 @@ async def test_task_retry_allows_derived_target_when_source_target_missing(web_c
     assert retried_task["controlDecision"]["decisionKind"] == "resume_execute"
     assert "derivedTargetOrigin=inherited_lineage" in retried_task["controlDecision"]["facts"]
     assert "derivedTargetSource=docker_compose_port_mapping" in retried_task["controlDecision"]["facts"]
+    assert "derivedTargetOrigin=inherited_lineage" in retried_task["decisionRecords"][0]["facts"]
 
 
 @pytest.mark.asyncio
