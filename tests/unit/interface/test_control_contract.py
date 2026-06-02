@@ -213,3 +213,28 @@ def test_identified_engine_in_blackboard_prefers_engine_direct_execute() -> None
     assert decision["decisionKind"] == "direct_execute"
     assert decision["nextAction"] == "exploit_identified_engine"
     assert decision["driver"] == "blackboard.identified_engine"
+
+
+def test_discovered_endpoint_in_blackboard_prefers_endpoint_probe() -> None:
+    payload = {
+        "mode": "ctf",
+        "target": "http://challenge.test",
+        "blackboardSnapshot": {
+            "facts": [
+                {
+                    "kind": "discovered_endpoint",
+                    "value": "http://challenge.test/admin",
+                    "source": "recon",
+                    "confidence": "high",
+                }
+            ],
+            "pendingVerifications": [],
+        },
+    }
+
+    decision = resolve_control_decision(payload)
+
+    assert decision["shouldRun"] is True
+    assert decision["decisionKind"] == "direct_execute"
+    assert decision["nextAction"] == "probe_discovered_endpoint"
+    assert decision["driver"] == "blackboard.discovered_endpoint"
