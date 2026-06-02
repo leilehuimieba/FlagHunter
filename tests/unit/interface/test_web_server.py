@@ -215,6 +215,27 @@ def test_ctf_dispatcher_hint_and_context_include_resume_contract():
     }
 
 
+def test_ctf_dispatcher_hint_includes_control_decision_block():
+    task = {
+        "hints": [{"text": "focus on the admin flow"}],
+        "controlDecision": {
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "reason": "verified flag already present in blackboard",
+            "nextAction": "verify_or_submit_flag",
+            "driver": "blackboard.verified_flag",
+        },
+    }
+
+    hint = web_server._ctf_dispatcher_hint(task)
+
+    assert "[control_decision]" in hint
+    assert "decisionKind=direct_execute" in hint
+    assert "nextAction=verify_or_submit_flag" in hint
+    assert "driver=blackboard.verified_flag" in hint
+    assert "reason=verified flag already present in blackboard" in hint
+
+
 @pytest.mark.asyncio
 async def test_dashboard_summary_uses_truthful_empty_defaults(web_client: TestClient):
     resp = await web_client.get("/api/dashboard/summary")

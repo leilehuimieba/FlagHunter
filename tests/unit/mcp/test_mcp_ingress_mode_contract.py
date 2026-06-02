@@ -462,10 +462,16 @@ async def test_run_task_routes_ctf_mode_into_dispatcher_with_explicit_challenge_
             "target": "http://challenge.test",
             "mode": "ctf",
             "ctfType": "web",
-            "resumeContext": {
-                "runId": "run-prev-1",
-                "checkpointId": "checkpoint-prev-1",
-                "summary": "run_id=run-prev-1; stop_reason=wrong_flag_feedback",
+            "blackboardSnapshot": {
+                "facts": [
+                    {
+                        "kind": "identified_engine",
+                        "value": "tornado",
+                        "source": "ssti_identify",
+                        "confidence": "high",
+                    }
+                ],
+                "pendingVerifications": [],
             },
             "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
             "artifactPaths": [
@@ -478,25 +484,17 @@ async def test_run_task_routes_ctf_mode_into_dispatcher_with_explicit_challenge_
     assert captured["target"] == "http://challenge.test"
     assert captured["goal"] == "solve easy_login from MCP"
     assert captured["type"] == "web"
-    assert "[resume_bootstrap]" in str(captured["hint"])
-    assert "nextAction=resume_from_checkpoint" in str(captured["hint"])
-    assert "runId=run-prev-1" in str(captured["hint"])
-    assert "checkpointId=checkpoint-prev-1" in str(captured["hint"])
-    assert captured["ingress_handoff"]["decisionKind"] == "resume_execute"
-    assert captured["ingress_handoff"]["nextAction"] == "resume_from_checkpoint"
-    assert captured["ingress_handoff"]["resumeBootstrap"]["runId"] == "run-prev-1"
-    assert captured["ingress_handoff"]["resumeBootstrap"]["checkpointId"] == "checkpoint-prev-1"
+    assert "[control_decision]" in str(captured["hint"])
+    assert "decisionKind=direct_execute" in str(captured["hint"])
+    assert "nextAction=bootstrap_local_assets" in str(captured["hint"])
+    assert captured["ingress_handoff"]["decisionKind"] == "direct_execute"
+    assert captured["ingress_handoff"]["nextAction"] == "bootstrap_local_assets"
     assert captured["challenge_context"] == {
         "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
         "artifactPaths": [
             r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
             r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\README.md",
         ],
-        "resumeContext": {
-            "runId": "run-prev-1",
-            "checkpointId": "checkpoint-prev-1",
-            "summary": "run_id=run-prev-1; stop_reason=wrong_flag_feedback",
-        },
     }
     assert "flag{mcp_ctf_ok}" in result
 
