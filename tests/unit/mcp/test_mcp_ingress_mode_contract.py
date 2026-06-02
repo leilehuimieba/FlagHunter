@@ -303,6 +303,45 @@ async def test_run_task_async_persists_control_decision_contract(
     assert entry.ingressHandoff["resumeBootstrap"]["checkpointId"] == "checkpoint-prev-1"
 
 
+def test_sync_runtime_challenge_context_persists_derived_target_fields() -> None:
+    entry = mcp_tools.TaskEntry(
+        id="entry-derived-target-1",
+        task="solve challenge",
+        status="running",
+        created_at="2026-06-02T00:00:00",
+        agent=SimpleNamespace(runtime=None, tools=[]),
+        target=None,
+        ingressHandoff={
+            "decisionKind": "direct_execute",
+            "nextAction": "bootstrap_local_assets",
+            "challengeContext": {
+                "challengePath": r"D:\webstudy\CTF\2026\easy_login",
+                "artifactPaths": [r"D:\webstudy\CTF\2026\easy_login\docker-compose.yml"],
+            },
+        },
+    )
+    dispatcher = SimpleNamespace(
+        _challenge_context={
+            "challengePath": r"D:\webstudy\CTF\2026\easy_login",
+            "artifactPaths": [r"D:\webstudy\CTF\2026\easy_login\docker-compose.yml"],
+            "derivedTarget": "http://127.0.0.1:3000",
+            "derivedTargetSource": "docker_compose_port_mapping",
+            "derivedTargetComposePath": r"D:\webstudy\CTF\2026\easy_login\docker-compose.yml",
+        }
+    )
+
+    mcp_tools._sync_runtime_challenge_context(entry, dispatcher)
+
+    assert entry.target == "http://127.0.0.1:3000"
+    challenge_context = entry.ingressHandoff["challengeContext"]
+    assert challenge_context["derivedTarget"] == "http://127.0.0.1:3000"
+    assert challenge_context["derivedTargetSource"] == "docker_compose_port_mapping"
+    assert (
+        challenge_context["derivedTargetComposePath"]
+        == r"D:\webstudy\CTF\2026\easy_login\docker-compose.yml"
+    )
+
+
 @pytest.mark.asyncio
 async def test_run_task_async_reports_control_decision_in_text_output(
     monkeypatch: pytest.MonkeyPatch,
@@ -819,6 +858,9 @@ async def test_mcp_task_inspection_exposes_blackboard_snapshot() -> None:
                 "artifactPaths": [
                     r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
                 ],
+                "derivedTarget": "http://127.0.0.1:3000",
+                "derivedTargetSource": "docker_compose_port_mapping",
+                "derivedTargetComposePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
             },
             "resumeBootstrap": {
                 "runId": "run-prev-1",
@@ -881,11 +923,23 @@ async def test_mcp_task_inspection_exposes_blackboard_snapshot() -> None:
     assert "verified_flag=flag{verified_done}" in status_output
     assert "[blackboard_pending_verifications]" in status_output
     assert "runtime_flag=flag{runtime_pending}" in status_output
+    assert "derived_target: http://127.0.0.1:3000" in status_output
+    assert "derived_target_source: docker_compose_port_mapping" in status_output
+    assert (
+        r"derived_target_compose_path: D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
+        in status_output
+    )
 
     assert "[blackboard_facts]" in result_output
     assert "control_decision=resume_execute" in result_output
     assert "[blackboard_pending_verifications]" in result_output
     assert "runtime_flag=flag{runtime_pending}" in result_output
+    assert "derived_target: http://127.0.0.1:3000" in result_output
+    assert "derived_target_source: docker_compose_port_mapping" in result_output
+    assert (
+        r"derived_target_compose_path: D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
+        in result_output
+    )
 
 
 @pytest.mark.asyncio

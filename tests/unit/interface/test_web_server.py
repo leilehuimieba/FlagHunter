@@ -5,6 +5,7 @@ import json
 import sys
 import types
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from aiohttp import FormData
@@ -213,6 +214,39 @@ def test_ctf_dispatcher_hint_and_context_include_resume_contract():
             "runtimeFlags": [],
         },
     }
+
+
+def test_sync_runtime_challenge_context_persists_derived_target_fields():
+    task = {
+        "ingressHandoff": {
+            "decisionKind": "direct_execute",
+            "nextAction": "bootstrap_local_assets",
+            "challengeContext": {
+                "challengePath": r"D:\webstudy\CTF\2026\easy_login",
+                "artifactPaths": [r"D:\webstudy\CTF\2026\easy_login\docker-compose.yml"],
+            },
+        }
+    }
+    dispatcher = SimpleNamespace(
+        _challenge_context={
+            "challengePath": r"D:\webstudy\CTF\2026\easy_login",
+            "artifactPaths": [r"D:\webstudy\CTF\2026\easy_login\docker-compose.yml"],
+            "derivedTarget": "http://127.0.0.1:3000",
+            "derivedTargetSource": "docker_compose_port_mapping",
+            "derivedTargetComposePath": r"D:\webstudy\CTF\2026\easy_login\docker-compose.yml",
+        }
+    )
+
+    web_server._sync_runtime_challenge_context(task, dispatcher)
+
+    assert task["target"] == "http://127.0.0.1:3000"
+    challenge_context = task["ingressHandoff"]["challengeContext"]
+    assert challenge_context["derivedTarget"] == "http://127.0.0.1:3000"
+    assert challenge_context["derivedTargetSource"] == "docker_compose_port_mapping"
+    assert (
+        challenge_context["derivedTargetComposePath"]
+        == r"D:\webstudy\CTF\2026\easy_login\docker-compose.yml"
+    )
 
 
 def test_ctf_dispatcher_hint_includes_control_decision_block():
