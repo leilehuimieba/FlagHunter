@@ -155,3 +155,132 @@ async def test_dispatcher_persists_resume_ingress_into_start_event_and_checkpoin
     assert events[1]["payload"]["metadata"]["has_resume_context"] is True
     assert events[1]["payload"]["metadata"]["resume_run_id"] == "run-prev-1"
     assert events[1]["payload"]["metadata"]["resume_checkpoint_id"] == "checkpoint-prev-1"
+
+
+def test_restore_context_hydrates_state_from_resume_checkpoint(tmp_path) -> None:
+    previous_state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    previous_state.add_observation(
+        "ssti_engine_identified",
+        "tornado",
+        source="resume-checkpoint",
+        metadata={"engine": "tornado"},
+    )
+    previous_state.add_flag(
+        "flag{runtime_from_checkpoint}",
+        level="runtime",
+        evidence_source="runtime-http",
+        rationale="carried from previous run",
+    )
+    previous_state.add_flag(
+        "flag{rejected_from_checkpoint}",
+        level="rejected",
+        evidence_source="user-confirm",
+        rationale="wrong flag from previous run",
+    )
+
+    store = CheckpointStore(tmp_path / "checkpoints")
+    record = store.save_checkpoint(
+        run_id="run-prev-1",
+        label="task_failed",
+        state_snapshot=previous_state.to_snapshot(),
+        metadata={"reason": "wrong_flag_feedback"},
+    )
+
+    dispatcher = CTFTaskDispatcher(
+        runtime=_CheckpointRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(target="http://ctf.local", goal="继续拿到flag")
+    dispatcher._challenge_context = {
+        "resumeContext": {
+            "runId": "run-prev-1",
+            "checkpointId": record["checkpoint_id"],
+            "summary": "resume from prior checkpoint",
+        }
+    }
+    dispatcher._setup_checkpoint_store(
+        run_id="run-current-1",
+        checkpoint_root=tmp_path / "checkpoints",
+    )
+
+    dispatcher._restore_context()
+
+    assert dispatcher.state is not None
+    assert dispatcher.state.goal == "继续拿到flag"
+    assert dispatcher.state.target == "http://ctf.local"
+    assert dispatcher.state.detected_type == "web"
+    assert any(
+        obs.kind == "ssti_engine_identified" and obs.value == "tornado"
+        for obs in dispatcher.state.observations
+    )
+    assert dispatcher.state.has_flag("flag{runtime_from_checkpoint}", level="runtime")
+    assert dispatcher.state.has_flag("flag{rejected_from_checkpoint}", level="rejected")
+
+
+def test_restored_checkpoint_state_can_change_followup_strategy_choice(tmp_path) -> None:
+    previous_state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    previous_state.add_observation(
+        "ssti_engine_identified",
+        "tornado",
+        source="resume-checkpoint",
+        metadata={"engine": "tornado"},
+    )
+
+    store = CheckpointStore(tmp_path / "checkpoints")
+    record = store.save_checkpoint(
+        run_id="run-prev-2",
+        label="task_failed",
+        state_snapshot=previous_state.to_snapshot(),
+        metadata={"reason": "resume for engine exploit"},
+    )
+
+    dispatcher = CTFTaskDispatcher(
+        runtime=_CheckpointRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(target="http://ctf.local", goal="继续拿到flag")
+    dispatcher._challenge_context = {
+        "resumeContext": {
+            "runId": "run-prev-2",
+            "checkpointId": record["checkpoint_id"],
+            "summary": "resume from engine checkpoint",
+        }
+    }
+    dispatcher._setup_checkpoint_store(
+        run_id="run-current-2",
+        checkpoint_root=tmp_path / "checkpoints",
+    )
+
+    dispatcher._restore_context()
+
+    strategy = dispatcher._select_primary_strategy(
+        "web",
+        target="http://ctf.local",
+        page_features={
+            "content": "",
+            "html": "",
+            "endpoints": ["/error?msg=test"],
+            "raw_links": ["http://ctf.local/error?msg=test"],
+            "forms": [],
+        },
+        hint=(
+            "[control_decision]\n"
+            "decisionKind=direct_execute\n"
+            "nextAction=exploit_identified_engine\n"
+            "driver=blackboard.identified_engine\n"
+            "reason=identified engine present in blackboard"
+        ),
+    )
+
+    assert strategy is not None
+    assert strategy.kind == "ssti_exploit"
