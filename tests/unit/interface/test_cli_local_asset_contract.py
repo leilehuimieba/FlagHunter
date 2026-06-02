@@ -52,6 +52,74 @@ def test_parse_arguments_accepts_cli_local_asset_contract(monkeypatch) -> None:
     ]
 
 
+def test_cli_ctf_dispatcher_hint_includes_control_decision_for_bootstrap_local_assets() -> None:
+    hint = interface_cli._ctf_dispatcher_hint(
+        challenge_path=r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+        artifact_paths=[
+            r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+            r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\README.md",
+        ],
+        control_decision={
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "reason": "ctf local assets available",
+            "nextAction": "bootstrap_local_assets",
+        },
+    )
+
+    assert "[local_ctf_assets]" in hint
+    assert "[control_decision]" in hint
+    assert "decisionKind=direct_execute" in hint
+    assert "nextAction=bootstrap_local_assets" in hint
+
+
+def test_cli_ctf_dispatcher_hint_includes_endpoint_verified_and_runtime_signal_fields() -> None:
+    blackboard_snapshot = {
+        "facts": [
+            {"kind": "discovered_endpoint", "value": "http://challenge.test/admin"},
+            {"kind": "verified_flag", "value": "flag{verified_candidate}"},
+        ],
+        "pending_verifications": [
+            {"kind": "runtime_flag", "value": "flag{runtime_candidate}"},
+        ],
+    }
+
+    endpoint_hint = interface_cli._ctf_dispatcher_hint(
+        control_decision={
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "reason": "discovered endpoint present in blackboard",
+            "nextAction": "probe_discovered_endpoint",
+            "driver": "blackboard.discovered_endpoint",
+        },
+        blackboard_snapshot=blackboard_snapshot,
+    )
+    verified_hint = interface_cli._ctf_dispatcher_hint(
+        control_decision={
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "reason": "verified flag already present in blackboard",
+            "nextAction": "verify_or_submit_flag",
+            "driver": "blackboard.verified_flag",
+        },
+        blackboard_snapshot=blackboard_snapshot,
+    )
+    runtime_hint = interface_cli._ctf_dispatcher_hint(
+        control_decision={
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "reason": "runtime flag pending verification in blackboard",
+            "nextAction": "verify_runtime_signal",
+            "driver": "blackboard.runtime_flag",
+        },
+        blackboard_snapshot=blackboard_snapshot,
+    )
+
+    assert "endpoint=http://challenge.test/admin" in endpoint_hint
+    assert "verifiedFlag=flag{verified_candidate}" in verified_hint
+    assert "runtimeFlag=flag{runtime_candidate}" in runtime_hint
+
+
 @pytest.mark.asyncio
 async def test_run_cli_routes_ctf_mode_into_dispatcher_with_local_asset_hint(monkeypatch, _mute_cli_console) -> None:
     captured = {}
@@ -111,6 +179,8 @@ async def test_run_cli_routes_ctf_mode_into_dispatcher_with_local_asset_hint(mon
         ],
     }
     assert "[local_ctf_assets]" in captured["hint"]
+    assert "[control_decision]" in captured["hint"]
+    assert "nextAction=bootstrap_local_assets" in captured["hint"]
     assert r"D:\webstudy\CTF\2026\CTF比赛题\easy_login" in captured["hint"]
     assert r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml" in captured["hint"]
 
