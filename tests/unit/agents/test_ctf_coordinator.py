@@ -262,6 +262,16 @@ async def test_coordinator_derives_target_from_challenge_path_compose_when_targe
     assert result is sentinel
     assert dispatcher._captured["target"] == "http://127.0.0.1:3000"
     assert dispatcher._captured["challenge_context"]["challengePath"] == str(challenge_dir)
+    assert dispatcher.state is not None
+    derived_target_observations = [
+        obs for obs in dispatcher.state.observations if obs.kind == "derived_target"
+    ]
+    assert derived_target_observations
+    latest = derived_target_observations[-1]
+    assert latest.value == "http://127.0.0.1:3000"
+    assert latest.source == "challenge_context"
+    assert latest.metadata["compose_path"] == str(challenge_dir / "docker-compose.yml")
+    assert latest.metadata["derivation"] == "docker_compose_port_mapping"
 
 
 @pytest.mark.asyncio

@@ -218,6 +218,12 @@ def test_build_task_blackboard_snapshot_maps_high_value_observations_into_facts(
         source="http_request",
         metadata={"status_code": 200},
     )
+    state.add_observation(
+        "derived_target",
+        "http://127.0.0.1:3000",
+        source="challenge_context",
+        metadata={"compose_path": r"D:\webstudy\CTF\easy_login\docker-compose.yml"},
+    )
 
     snapshot = build_task_blackboard_snapshot(
         {
@@ -230,6 +236,7 @@ def test_build_task_blackboard_snapshot_maps_high_value_observations_into_facts(
     assert ("identified_engine", "tornado") in facts
     assert ("leaked_secret", "SECRET-123") in facts
     assert ("recent_http_response", "200:/admin page reachable") in facts
+    assert ("derived_target", "http://127.0.0.1:3000") in facts
 
 
 

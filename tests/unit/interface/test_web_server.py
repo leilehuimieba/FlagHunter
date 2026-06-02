@@ -1103,7 +1103,16 @@ async def test_task_detail_surfaces_blackboard_snapshot(web_client: TestClient):
                     "run_id": "run-prev-1",
                     "checkpoint_id": "checkpoint-prev-1",
                 },
-            }
+            },
+            {
+                "kind": "derived_target",
+                "value": "http://127.0.0.1:3000",
+                "source": "challenge_context",
+                "metadata": {
+                    "compose_path": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+                    "derivation": "docker_compose_port_mapping",
+                },
+            },
         ],
         "artifacts": [
             {
@@ -1158,6 +1167,7 @@ async def test_task_detail_surfaces_blackboard_snapshot(web_client: TestClient):
     assert ("challenge_path", r"D:\webstudy\CTF\2026\CTF比赛题\easy_login") in fact_pairs
     assert ("resume_bootstrap_hint", "continue from saved recon state") in fact_pairs
     assert ("verified_flag", "flag{verified_done}") in fact_pairs
+    assert ("derived_target", "http://127.0.0.1:3000") in fact_pairs
 
 
 @pytest.mark.asyncio
