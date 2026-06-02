@@ -236,6 +236,38 @@ def test_ctf_dispatcher_hint_includes_control_decision_block():
     assert "reason=verified flag already present in blackboard" in hint
 
 
+def test_ctf_dispatcher_hint_includes_discovered_endpoint_for_probe_action():
+    task = {
+        "hints": [{"text": "focus on the admin flow"}],
+        "controlDecision": {
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "reason": "discovered endpoint present in blackboard",
+            "nextAction": "probe_discovered_endpoint",
+            "driver": "blackboard.discovered_endpoint",
+        },
+        "ctfStateSnapshot": {
+            "observations": [
+                {
+                    "kind": "recon_url",
+                    "value": "http://challenge.test/admin",
+                    "source": "recon",
+                    "metadata": {"confidence": "high"},
+                }
+            ],
+            "artifacts": [],
+            "runtime_flags": [],
+            "verified_flags": [],
+        },
+    }
+
+    hint = web_server._ctf_dispatcher_hint(task)
+
+    assert "[control_decision]" in hint
+    assert "nextAction=probe_discovered_endpoint" in hint
+    assert "endpoint=http://challenge.test/admin" in hint
+
+
 @pytest.mark.asyncio
 async def test_dashboard_summary_uses_truthful_empty_defaults(web_client: TestClient):
     resp = await web_client.get("/api/dashboard/summary")

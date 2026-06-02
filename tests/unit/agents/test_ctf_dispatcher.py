@@ -1651,6 +1651,50 @@ async def test_recon_contract_ingests_registered_local_source_hints_from_key_fil
     assert any("app.py" in obs.value and "@app.route('/admin')" in obs.value for obs in source_hints)
 
 
+@pytest.mark.asyncio
+async def test_recon_contract_prefers_discovered_endpoint_from_control_decision_hint(monkeypatch):
+    captured: dict[str, object] = {}
+
+    async def _fake_phase_recon(target):
+        captured["recon_target"] = target
+        return {
+            "url": target,
+            "html": "",
+            "content": "",
+            "forms": [],
+            "endpoints": [],
+            "recon_missing_tools": [],
+        }
+
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://challenge.test",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    monkeypatch.setattr(dispatcher, "_phase_recon", _fake_phase_recon)
+
+    page_features, early_result = await dispatcher.coordinator._apply_recon_contract(
+        dispatcher,
+        target="http://challenge.test",
+        hint=(
+            "[control_decision]\n"
+            "decisionKind=direct_execute\n"
+            "nextAction=probe_discovered_endpoint\n"
+            "driver=blackboard.discovered_endpoint\n"
+            "endpoint=http://challenge.test/admin"
+        ),
+    )
+
+    assert early_result is None
+    assert captured["recon_target"] == "http://challenge.test/admin"
+    assert page_features["url"] == "http://challenge.test/admin"
+
+
 def test_select_primary_strategy_prefers_source_first_when_local_source_hints_exist():
     dispatcher = CTFTaskDispatcher(
         runtime=_DispatcherRuntime(),
