@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -79,6 +80,9 @@ class _BootstrapCapableDispatcher:
         }
 
     def _ingest_local_challenge_artifacts(self, target: str):
+        return None
+
+    def _ingest_registered_local_source_hints(self):
         return None
 
     async def run(self, **kwargs):
@@ -222,6 +226,83 @@ async def test_coordinator_normalizes_public_run_inputs_before_dispatch():
             "runtimeFlags": ["candidate{1}"],
         },
     }
+
+
+@pytest.mark.asyncio
+async def test_coordinator_derives_target_from_challenge_path_compose_when_target_missing(
+    tmp_path: Path,
+):
+    coordinator = CTFCoordinator()
+    sentinel = SolveResult(success=False, reason="derived-target")
+    dispatcher = _BootstrapCapableDispatcher(sentinel)
+
+    challenge_dir = tmp_path / "easy_login"
+    challenge_dir.mkdir()
+    (challenge_dir / "docker-compose.yml").write_text(
+        'services:\n  app:\n    image: easy-login\n    ports:\n      - "3000:3000"\n',
+        encoding="utf-8",
+    )
+
+    result = await coordinator.execute(
+        dispatcher,
+        target="",
+        goal="goal",
+        type="web",
+        hint="",
+        submit_profile=None,
+        challenge_context={
+            "challengePath": str(challenge_dir),
+            "artifactPaths": [],
+        },
+        run_id="run-derived-target-path",
+        ledger_root=None,
+        checkpoint_root=None,
+    )
+
+    assert result is sentinel
+    assert dispatcher._captured["target"] == "http://127.0.0.1:3000"
+    assert dispatcher._captured["challenge_context"]["challengePath"] == str(challenge_dir)
+
+
+@pytest.mark.asyncio
+async def test_coordinator_derives_target_from_local_archive_when_target_missing(
+    tmp_path: Path,
+):
+    coordinator = CTFCoordinator()
+    sentinel = SolveResult(success=False, reason="derived-target-archive")
+    dispatcher = _BootstrapCapableDispatcher(sentinel)
+
+    archive_src = tmp_path / "archive_src" / "easy_login_zip"
+    archive_src.mkdir(parents=True)
+    (archive_src / "docker-compose.yml").write_text(
+        'services:\n  app:\n    image: easy-login\n    ports:\n      - "8080:80"\n',
+        encoding="utf-8",
+    )
+    archive_path = tmp_path / "easy_login.zip"
+    with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.write(
+            archive_src / "docker-compose.yml",
+            arcname="easy_login_zip/docker-compose.yml",
+        )
+
+    result = await coordinator.execute(
+        dispatcher,
+        target="",
+        goal="goal",
+        type="web",
+        hint="",
+        submit_profile=None,
+        challenge_context={
+            "artifactPaths": [str(archive_path)],
+        },
+        run_id="run-derived-target-archive",
+        ledger_root=None,
+        checkpoint_root=None,
+    )
+
+    assert result is sentinel
+    assert dispatcher._captured["target"] == "http://127.0.0.1:8080"
+    assert dispatcher._captured["challenge_context"]["artifactPaths"] == [str(archive_path)]
 
 
 @pytest.mark.asyncio
