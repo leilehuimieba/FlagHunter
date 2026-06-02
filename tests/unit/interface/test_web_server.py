@@ -3250,6 +3250,32 @@ async def test_trace_replay_creates_new_task_from_existing_run(web_client: TestC
     web_server._tasks[original_task_id]["artifactPaths"] = [
         r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
     ]
+    web_server._tasks[original_task_id]["ingressHandoff"] = {
+        "decisionKind": "direct_execute",
+        "nextAction": "bootstrap_local_assets",
+        "challengeContext": {
+            "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+            "artifactPaths": [
+                r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
+            ],
+            "derivedTarget": "http://127.0.0.1:3000",
+            "derivedTargetSource": "docker_compose_port_mapping",
+            "derivedTargetComposePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+        },
+    }
+    web_server._tasks[original_task_id]["ingressHandoff"] = {
+        "decisionKind": "direct_execute",
+        "nextAction": "bootstrap_local_assets",
+        "challengeContext": {
+            "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+            "artifactPaths": [
+                r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
+            ],
+            "derivedTarget": "http://127.0.0.1:3000",
+            "derivedTargetSource": "docker_compose_port_mapping",
+            "derivedTargetComposePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+        },
+    }
 
     replay_resp = await web_client.post(f"/api/traces/{original_run_id}/replay")
 
@@ -3267,6 +3293,12 @@ async def test_trace_replay_creates_new_task_from_existing_run(web_client: TestC
     assert replayed_task["artifactPaths"] == [
         r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
     ]
+    assert replayed_task["ingressHandoff"]["challengeContext"]["derivedTarget"] == "http://127.0.0.1:3000"
+    assert replayed_task["ingressHandoff"]["challengeContext"]["derivedTargetSource"] == "docker_compose_port_mapping"
+    assert (
+        replayed_task["ingressHandoff"]["challengeContext"]["derivedTargetComposePath"]
+        == r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
+    )
     assert replayed_task["status"] == "queued"
     assert replayed_task["capabilities"] == {
         "hint": True,
@@ -3350,6 +3382,19 @@ async def test_task_retry_creates_new_task_from_finished_task(web_client: TestCl
     web_server._tasks[original_task_id]["artifactPaths"] = [
         r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
     ]
+    web_server._tasks[original_task_id]["ingressHandoff"] = {
+        "decisionKind": "direct_execute",
+        "nextAction": "bootstrap_local_assets",
+        "challengeContext": {
+            "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+            "artifactPaths": [
+                r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
+            ],
+            "derivedTarget": "http://127.0.0.1:3000",
+            "derivedTargetSource": "docker_compose_port_mapping",
+            "derivedTargetComposePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+        },
+    }
 
     stopped = await web_client.post(f"/api/tasks/{original_task_id}/stop")
     assert stopped.status == 200
@@ -3371,6 +3416,12 @@ async def test_task_retry_creates_new_task_from_finished_task(web_client: TestCl
     assert retried_task["artifactPaths"] == [
         r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
     ]
+    assert retried_task["ingressHandoff"]["challengeContext"]["derivedTarget"] == "http://127.0.0.1:3000"
+    assert retried_task["ingressHandoff"]["challengeContext"]["derivedTargetSource"] == "docker_compose_port_mapping"
+    assert (
+        retried_task["ingressHandoff"]["challengeContext"]["derivedTargetComposePath"]
+        == r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
+    )
     assert "detectedType" not in retried_task
     assert retried_task["status"] == "queued"
     assert retried_task["capabilities"] == {
@@ -3474,6 +3525,19 @@ async def test_task_continue_accepts_running_task_without_creating_new_task(
     web_server._tasks[task_id]["goalStyle"] = "flag"
     web_server._tasks[task_id]["status"] = "running"
     web_server._tasks[task_id]["startedAt"] = web_server._now_iso()
+    web_server._tasks[task_id]["ingressHandoff"] = {
+        "decisionKind": "direct_execute",
+        "nextAction": "bootstrap_local_assets",
+        "challengeContext": {
+            "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+            "artifactPaths": [
+                r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
+            ],
+            "derivedTarget": "http://127.0.0.1:3000",
+            "derivedTargetSource": "docker_compose_port_mapping",
+            "derivedTargetComposePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+        },
+    }
 
     from pentestagent.agents.pa_agent.ctf_state import CTFState
     from pentestagent.harness.checkpoint_store import CheckpointStore
@@ -3503,12 +3567,23 @@ async def test_task_continue_accepts_running_task_without_creating_new_task(
     assert continue_result["accepted"] is True
     assert continue_result["sessionContext"]["resumeContext"]["runId"] == run_id
     assert continue_result["resumeFromCheckpointId"] == checkpoint["checkpoint_id"]
+    assert continue_result["challengeContext"]["derivedTarget"] == "http://127.0.0.1:3000"
+    assert continue_result["challengeContext"]["derivedTargetSource"] == "docker_compose_port_mapping"
+    assert (
+        continue_result["challengeContext"]["derivedTargetComposePath"]
+        == r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
+    )
     assert set(web_server._tasks.keys()) == {task_id}
     assert web_server._tasks[task_id]["status"] == "running"
     assert web_server._tasks[task_id]["mode"] == "ctf"
     assert web_server._tasks[task_id]["modeSubtype"] == "web"
     assert web_server._tasks[task_id]["goalStyle"] == "flag"
     assert web_server._tasks[task_id]["hints"][-1]["text"] == "__continue__"
+
+    detail_resp = await web_client.get(f"/api/tasks/{task_id}")
+    assert detail_resp.status == 200
+    detail = await detail_resp.json()
+    assert detail["ingressHandoff"]["challengeContext"]["derivedTarget"] == "http://127.0.0.1:3000"
 
 
 @pytest.mark.asyncio
