@@ -925,6 +925,7 @@ async def test_mcp_task_inspection_exposes_blackboard_snapshot() -> None:
     assert "runtime_flag=flag{runtime_pending}" in status_output
     assert "derived_target: http://127.0.0.1:3000" in status_output
     assert "derived_target_source: docker_compose_port_mapping" in status_output
+    assert "derived_target_origin: inherited_lineage" in status_output
     assert (
         r"derived_target_compose_path: D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
         in status_output
@@ -936,10 +937,49 @@ async def test_mcp_task_inspection_exposes_blackboard_snapshot() -> None:
     assert "runtime_flag=flag{runtime_pending}" in result_output
     assert "derived_target: http://127.0.0.1:3000" in result_output
     assert "derived_target_source: docker_compose_port_mapping" in result_output
+    assert "derived_target_origin: inherited_lineage" in result_output
     assert (
         r"derived_target_compose_path: D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
         in result_output
     )
+
+
+@pytest.mark.asyncio
+async def test_mcp_task_inspection_surfaces_runtime_derived_origin() -> None:
+    entry = mcp_tools.TaskEntry(
+        id="runtime-derived-1",
+        task="inspect runtime derived target",
+        status="done",
+        created_at="2026-06-02T00:00:00",
+        finished_at="2026-06-02T00:01:00",
+        agent=SimpleNamespace(runtime=None, tools=[]),
+        target=None,
+        scope=[],
+        result="flag{runtime_derived}",
+        mode="ctf",
+        modeSubtype="web",
+        goalStyle="flag",
+        ingressHandoff={
+            "decisionKind": "direct_execute",
+            "nextAction": "bootstrap_local_assets",
+            "challengeContext": {
+                "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+                "artifactPaths": [
+                    r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
+                ],
+                "derivedTarget": "http://127.0.0.1:3000",
+                "derivedTargetSource": "docker_compose_port_mapping",
+                "derivedTargetComposePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+            },
+        },
+    )
+    mcp_tools._tasks[entry.id] = entry
+
+    status_output = await mcp_tools.get_task_status({"task_id": entry.id})
+    result_output = await mcp_tools.get_task_result({"task_id": entry.id})
+
+    assert "derived_target_origin: runtime_derived" in status_output
+    assert "derived_target_origin: runtime_derived" in result_output
 
 
 @pytest.mark.asyncio
