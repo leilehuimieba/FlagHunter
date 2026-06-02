@@ -10,6 +10,7 @@ import pytest
 from aiohttp import FormData
 from aiohttp.test_utils import TestClient, TestServer
 
+from pentestagent.agents.pa_agent.ctf_state import CTFState
 from pentestagent.interface import web_server
 import pentestagent.config.settings as settings_module
 import pentestagent.knowledge as knowledge_module
@@ -2128,6 +2129,79 @@ def test_build_trace_payload_surfaces_decision_record_driver(tmp_path: Path, mon
     payload = web_server._build_trace_payload(tmp_path, task, include_timeline=False)
 
     assert payload["decisionRecords"][0]["driver"] == "blackboard.verified_flag"
+
+
+def test_build_trace_payload_surfaces_blackboard_snapshot(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    now = web_server._now_iso()
+    state = CTFState(target="http://trace.test", goal="trace truth")
+    state.add_flag(
+        "flag{done}",
+        level="verified",
+        evidence_source="dispatcher",
+        rationale="dispatcher verified the flag",
+        confidence=1.0,
+        metadata={"source_chain": "auth_form_sqli"},
+    )
+    task = {
+        "id": "task_trace_blackboard_snapshot",
+        "title": "trace blackboard snapshot",
+        "target": "http://trace.test",
+        "goal": "trace truth",
+        "mode": "ctf",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
+        "status": "success",
+        "createdAt": now,
+        "startedAt": now,
+        "finishedAt": now,
+        "tokensUsed": 1,
+        "toolCalls": 0,
+        "finalFlag": "flag{done}",
+        "stopReason": None,
+        "currentRunId": "run_trace_blackboard",
+        "controlDecision": {
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "reason": "verified flag already present in blackboard",
+            "nextAction": "verify_or_submit_flag",
+            "driver": "blackboard.verified_flag",
+            "facts": ["mode=ctf", "blackboard.verified_flag=present"],
+        },
+        "decisionRecords": [
+            {
+                "kind": "direct_execute",
+                "source": "web_ingress",
+                "nextAction": "verify_or_submit_flag",
+                "driver": "blackboard.verified_flag",
+            }
+        ],
+        "ctfStateSnapshot": state.to_snapshot(),
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    monkeypatch.setattr(web_server, "_pick_metrics_for_task", lambda project_root, item: None)
+    monkeypatch.setattr(
+        web_server,
+        "_pick_session_snapshot",
+        lambda project_root, item: (
+            None,
+            None,
+            {"matchedBy": "none", "confidence": "none", "expectedSessionId": None, "blockedReason": None, "candidateScore": None},
+        ),
+    )
+
+    payload = web_server._build_trace_payload(tmp_path, task, include_timeline=False)
+
+    assert "blackboardSnapshot" in payload
+    assert any(
+        fact["kind"] == "verified_flag" and fact["value"] == "flag{done}"
+        for fact in payload["blackboardSnapshot"]["facts"]
+    )
 
 
 def test_build_trace_payload_projects_tool_audit_events_from_session_context(
