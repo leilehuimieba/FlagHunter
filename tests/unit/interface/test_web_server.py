@@ -3398,6 +3398,80 @@ async def test_trace_replay_creates_new_task_from_existing_run(web_client: TestC
 
 
 @pytest.mark.asyncio
+async def test_trace_replay_allows_derived_target_when_source_target_missing(web_client: TestClient):
+    created = await web_client.post(
+        "/api/tasks",
+        json={"title": "replay-derived-target", "target": "http://placeholder.test", "goal": "re-run original task"},
+    )
+    assert created.status == 201
+    original_task = await created.json()
+    original_task_id = original_task["id"]
+    original_run_id = original_task["currentRunId"]
+    web_server._tasks[original_task_id]["target"] = ""
+    web_server._tasks[original_task_id]["mode"] = "ctf"
+    web_server._tasks[original_task_id]["modeSubtype"] = "web"
+    web_server._tasks[original_task_id]["goalStyle"] = "flag"
+    web_server._tasks[original_task_id]["challengePath"] = r"D:\webstudy\CTF\2026\CTF比赛题\easy_login"
+    web_server._tasks[original_task_id]["artifactPaths"] = []
+    web_server._tasks[original_task_id]["ingressHandoff"] = {
+        "decisionKind": "direct_execute",
+        "nextAction": "bootstrap_local_assets",
+        "challengeContext": {
+            "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+            "artifactPaths": [],
+            "derivedTarget": "http://127.0.0.1:3000",
+            "derivedTargetSource": "docker_compose_port_mapping",
+            "derivedTargetComposePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+        },
+    }
+
+    replay_resp = await web_client.post(f"/api/traces/{original_run_id}/replay")
+
+    assert replay_resp.status == 200
+    replayed_task = await replay_resp.json()
+    assert replayed_task["controlDecision"]["decisionKind"] == "resume_execute"
+    assert "derivedTargetOrigin=inherited_lineage" in replayed_task["controlDecision"]["facts"]
+    assert "derivedTargetSource=docker_compose_port_mapping" in replayed_task["controlDecision"]["facts"]
+
+
+@pytest.mark.asyncio
+async def test_task_retry_allows_derived_target_when_source_target_missing(web_client: TestClient):
+    created = await web_client.post(
+        "/api/tasks",
+        json={"title": "retry-derived-target", "target": "http://placeholder.test", "goal": "retry original task"},
+    )
+    assert created.status == 201
+    original_task = await created.json()
+    original_task_id = original_task["id"]
+    web_server._tasks[original_task_id]["target"] = ""
+    web_server._tasks[original_task_id]["mode"] = "ctf"
+    web_server._tasks[original_task_id]["modeSubtype"] = "web"
+    web_server._tasks[original_task_id]["goalStyle"] = "flag"
+    web_server._tasks[original_task_id]["status"] = "failed"
+    web_server._tasks[original_task_id]["challengePath"] = r"D:\webstudy\CTF\2026\CTF比赛题\easy_login"
+    web_server._tasks[original_task_id]["artifactPaths"] = []
+    web_server._tasks[original_task_id]["ingressHandoff"] = {
+        "decisionKind": "direct_execute",
+        "nextAction": "bootstrap_local_assets",
+        "challengeContext": {
+            "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+            "artifactPaths": [],
+            "derivedTarget": "http://127.0.0.1:3000",
+            "derivedTargetSource": "docker_compose_port_mapping",
+            "derivedTargetComposePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+        },
+    }
+
+    retry_resp = await web_client.post(f"/api/tasks/{original_task_id}/retry")
+
+    assert retry_resp.status == 200
+    retried_task = await retry_resp.json()
+    assert retried_task["controlDecision"]["decisionKind"] == "resume_execute"
+    assert "derivedTargetOrigin=inherited_lineage" in retried_task["controlDecision"]["facts"]
+    assert "derivedTargetSource=docker_compose_port_mapping" in retried_task["controlDecision"]["facts"]
+
+
+@pytest.mark.asyncio
 async def test_trace_replay_inherits_resume_context_lineage_and_detail_seed(
     web_client: TestClient, tmp_path: Path
 ):

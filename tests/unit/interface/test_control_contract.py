@@ -96,6 +96,9 @@ def test_derived_target_in_blackboard_unblocks_missing_target_flow() -> None:
     assert decision["nextAction"] == "collect_initial_facts"
     assert "blackboard.derived_target=present" in decision["facts"]
     assert "target=http://127.0.0.1:3000" in decision["facts"]
+    assert "derivedTargetOrigin=runtime_derived" in decision["facts"]
+    assert decision["driver"] == "blackboard.derived_target.runtime_derived"
+    assert decision["reason"] == "derived target available for initial fact collection"
 
 
 def test_explicit_target_prevents_blackboard_derived_target_override() -> None:
@@ -124,6 +127,28 @@ def test_explicit_target_prevents_blackboard_derived_target_override() -> None:
     assert decision["decisionKind"] == "explore_first"
     assert "target=http://challenge.test" in decision["facts"]
     assert "target=http://127.0.0.1:3000" not in decision["facts"]
+
+
+def test_direct_derived_target_fields_set_inherited_lineage_driver() -> None:
+    payload = {
+        "mode": "ctf",
+        "goal": "solve challenge",
+        "target": "",
+        "challengePath": None,
+        "artifactPaths": [],
+        "sourceRunId": "run-prev-1",
+        "derivedTarget": "http://127.0.0.1:3000",
+        "derivedTargetSource": "docker_compose_port_mapping",
+    }
+
+    decision = resolve_control_decision(payload)
+
+    assert decision["shouldRun"] is True
+    assert decision["decisionKind"] == "explore_first"
+    assert decision["nextAction"] == "collect_initial_facts"
+    assert decision["driver"] == "task.derived_target.inherited_lineage"
+    assert "derivedTargetOrigin=inherited_lineage" in decision["facts"]
+    assert "derivedTargetSource=docker_compose_port_mapping" in decision["facts"]
 
 
 
