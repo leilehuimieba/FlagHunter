@@ -238,3 +238,28 @@ def test_discovered_endpoint_in_blackboard_prefers_endpoint_probe() -> None:
     assert decision["decisionKind"] == "direct_execute"
     assert decision["nextAction"] == "probe_discovered_endpoint"
     assert decision["driver"] == "blackboard.discovered_endpoint"
+
+
+def test_leaked_secret_in_blackboard_prefers_secret_validation() -> None:
+    payload = {
+        "mode": "ctf",
+        "target": "http://challenge.test",
+        "blackboardSnapshot": {
+            "facts": [
+                {
+                    "kind": "leaked_secret",
+                    "value": "SECRET-123",
+                    "source": "ssti_identify",
+                    "confidence": "medium",
+                }
+            ],
+            "pendingVerifications": [],
+        },
+    }
+
+    decision = resolve_control_decision(payload)
+
+    assert decision["shouldRun"] is True
+    assert decision["decisionKind"] == "direct_execute"
+    assert decision["nextAction"] == "validate_leaked_secret"
+    assert decision["driver"] == "blackboard.leaked_secret"
