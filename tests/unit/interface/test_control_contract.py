@@ -69,6 +69,63 @@ def test_target_without_local_assets_defaults_to_explore_first() -> None:
     assert decision["nextAction"] == "collect_initial_facts"
 
 
+def test_derived_target_in_blackboard_unblocks_missing_target_flow() -> None:
+    payload = {
+        "mode": "ctf",
+        "goal": "solve challenge",
+        "target": "",
+        "challengePath": None,
+        "artifactPaths": [],
+        "blackboardSnapshot": {
+            "facts": [
+                {
+                    "kind": "derived_target",
+                    "value": "http://127.0.0.1:3000",
+                    "source": "challenge_context",
+                    "confidence": "high",
+                }
+            ],
+            "pendingVerifications": [],
+        },
+    }
+
+    decision = resolve_control_decision(payload)
+
+    assert decision["shouldRun"] is True
+    assert decision["decisionKind"] == "explore_first"
+    assert decision["nextAction"] == "collect_initial_facts"
+    assert "blackboard.derived_target=present" in decision["facts"]
+    assert "target=http://127.0.0.1:3000" in decision["facts"]
+
+
+def test_explicit_target_prevents_blackboard_derived_target_override() -> None:
+    payload = {
+        "mode": "ctf",
+        "goal": "solve challenge",
+        "target": "http://challenge.test",
+        "challengePath": None,
+        "artifactPaths": [],
+        "blackboardSnapshot": {
+            "facts": [
+                {
+                    "kind": "derived_target",
+                    "value": "http://127.0.0.1:3000",
+                    "source": "challenge_context",
+                    "confidence": "high",
+                }
+            ],
+            "pendingVerifications": [],
+        },
+    }
+
+    decision = resolve_control_decision(payload)
+
+    assert decision["shouldRun"] is True
+    assert decision["decisionKind"] == "explore_first"
+    assert "target=http://challenge.test" in decision["facts"]
+    assert "target=http://127.0.0.1:3000" not in decision["facts"]
+
+
 
 def test_verified_flag_in_blackboard_prefers_verify_or_submit_flag() -> None:
     payload = {
