@@ -188,3 +188,28 @@ def test_resume_bootstrap_hint_in_blackboard_prefers_resume_execute() -> None:
     assert decision["decisionKind"] == "resume_execute"
     assert decision["nextAction"] == "resume_from_checkpoint"
     assert decision["driver"] == "blackboard.resume_bootstrap_hint"
+
+
+def test_identified_engine_in_blackboard_prefers_engine_direct_execute() -> None:
+    payload = {
+        "mode": "ctf",
+        "target": "http://challenge.test",
+        "blackboardSnapshot": {
+            "facts": [
+                {
+                    "kind": "identified_engine",
+                    "value": "tornado",
+                    "source": "ssti_identify",
+                    "confidence": "high",
+                }
+            ],
+            "pendingVerifications": [],
+        },
+    }
+
+    decision = resolve_control_decision(payload)
+
+    assert decision["shouldRun"] is True
+    assert decision["decisionKind"] == "direct_execute"
+    assert decision["nextAction"] == "exploit_identified_engine"
+    assert decision["driver"] == "blackboard.identified_engine"
