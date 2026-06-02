@@ -1123,6 +1123,11 @@ async def test_task_detail_surfaces_blackboard_snapshot(web_client: TestClient):
     assert created.status == 201
     task = await created.json()
     task_id = task["id"]
+    web_server._tasks[task_id]["ingressHandoff"]["challengeContext"]["derivedTarget"] = "http://127.0.0.1:3000"
+    web_server._tasks[task_id]["ingressHandoff"]["challengeContext"]["derivedTargetSource"] = "docker_compose_port_mapping"
+    web_server._tasks[task_id]["ingressHandoff"]["challengeContext"]["derivedTargetComposePath"] = (
+        r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
+    )
     web_server._tasks[task_id]["ctfStateSnapshot"] = {
         "target": "http://challenge.test",
         "goal": "拿到flag",
@@ -1202,6 +1207,13 @@ async def test_task_detail_surfaces_blackboard_snapshot(web_client: TestClient):
     assert ("resume_bootstrap_hint", "continue from saved recon state") in fact_pairs
     assert ("verified_flag", "flag{verified_done}") in fact_pairs
     assert ("derived_target", "http://127.0.0.1:3000") in fact_pairs
+    assert detail["detailSource"]["derivedTarget"] == "http://127.0.0.1:3000"
+    assert detail["detailSource"]["derivedTargetSource"] == "docker_compose_port_mapping"
+    assert (
+        detail["detailSource"]["derivedTargetComposePath"]
+        == r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
+    )
+    assert detail["detailSource"]["derivedTargetOrigin"] == "runtime_derived"
 
 
 @pytest.mark.asyncio
@@ -2456,6 +2468,68 @@ def test_build_trace_payload_surfaces_control_decision_driver(tmp_path: Path, mo
     assert payload["controlDecision"]["driver"] == "blackboard.verified_flag"
 
 
+def test_build_trace_payload_surfaces_derived_target_detail_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    now = web_server._now_iso()
+    task = {
+        "id": "task_trace_derived_target",
+        "title": "trace derived target",
+        "target": "",
+        "goal": "trace truth",
+        "mode": "ctf",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
+        "status": "queued",
+        "createdAt": now,
+        "startedAt": None,
+        "finishedAt": None,
+        "tokensUsed": 0,
+        "toolCalls": 0,
+        "currentRunId": "run_trace_derived_target",
+        "sourceRunId": "run-origin-1",
+        "resumeFromRunId": "run-origin-1",
+        "ingressHandoff": {
+            "challengeContext": {
+                "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+                "artifactPaths": [
+                    r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
+                ],
+                "derivedTarget": "http://127.0.0.1:3000",
+                "derivedTargetSource": "docker_compose_port_mapping",
+                "derivedTargetComposePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+            }
+        },
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    monkeypatch.setattr(web_server, "_pick_metrics_for_task", lambda project_root, item: None)
+    monkeypatch.setattr(
+        web_server,
+        "_pick_session_snapshot",
+        lambda project_root, item: (
+            None,
+            None,
+            {"matchedBy": "none", "confidence": "none", "expectedSessionId": None, "blockedReason": None, "candidateScore": None},
+        ),
+    )
+
+    payload = web_server._build_trace_payload(tmp_path, task, include_timeline=False)
+
+    assert payload["detailSource"]["derivedTarget"] == "http://127.0.0.1:3000"
+    assert payload["detailSource"]["derivedTargetSource"] == "docker_compose_port_mapping"
+    assert (
+        payload["detailSource"]["derivedTargetComposePath"]
+        == r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
+    )
+    assert payload["detailSource"]["derivedTargetOrigin"] == "inherited_lineage"
+
+
 def test_build_trace_payload_projects_tool_audit_events_from_session_context(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
@@ -3276,6 +3350,19 @@ async def test_trace_replay_creates_new_task_from_existing_run(web_client: TestC
             "derivedTargetComposePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
         },
     }
+    web_server._tasks[original_task_id]["ingressHandoff"] = {
+        "decisionKind": "direct_execute",
+        "nextAction": "bootstrap_local_assets",
+        "challengeContext": {
+            "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+            "artifactPaths": [
+                r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
+            ],
+            "derivedTarget": "http://127.0.0.1:3000",
+            "derivedTargetSource": "docker_compose_port_mapping",
+            "derivedTargetComposePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+        },
+    }
 
     replay_resp = await web_client.post(f"/api/traces/{original_run_id}/replay")
 
@@ -3333,6 +3420,19 @@ async def test_trace_replay_inherits_resume_context_lineage_and_detail_seed(
     web_server._tasks[original_task_id]["artifactPaths"] = [
         r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
     ]
+    web_server._tasks[original_task_id]["ingressHandoff"] = {
+        "decisionKind": "direct_execute",
+        "nextAction": "bootstrap_local_assets",
+        "challengeContext": {
+            "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+            "artifactPaths": [
+                r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
+            ],
+            "derivedTarget": "http://127.0.0.1:3000",
+            "derivedTargetSource": "docker_compose_port_mapping",
+            "derivedTargetComposePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+        },
+    }
 
     SessionLedger(tmp_path / "loot" / "session_ledgers").append_event(
         original_run_id,
@@ -3363,6 +3463,9 @@ async def test_trace_replay_inherits_resume_context_lineage_and_detail_seed(
     detail = await detail_resp.json()
     assert detail["detailSource"]["sessionContext"] == "inherited_resume"
     assert detail["sessionContext"]["resumeContext"]["runId"] == original_run_id
+    assert detail["detailSource"]["derivedTarget"] == "http://127.0.0.1:3000"
+    assert detail["detailSource"]["derivedTargetSource"] == "docker_compose_port_mapping"
+    assert detail["detailSource"]["derivedTargetOrigin"] == "inherited_lineage"
 
 
 @pytest.mark.asyncio
