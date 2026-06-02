@@ -120,6 +120,35 @@ def test_cli_ctf_dispatcher_hint_includes_endpoint_verified_and_runtime_signal_f
     assert "runtimeFlag=flag{runtime_candidate}" in runtime_hint
 
 
+def test_sync_runtime_challenge_context_persists_derived_target_fields() -> None:
+    challenge_context = {
+        "challengePath": r"D:\webstudy\CTF\2026\easy_login",
+        "artifactPaths": [r"D:\webstudy\CTF\2026\easy_login\docker-compose.yml"],
+    }
+    dispatcher = SimpleNamespace(
+        _challenge_context={
+            "challengePath": r"D:\webstudy\CTF\2026\easy_login",
+            "artifactPaths": [r"D:\webstudy\CTF\2026\easy_login\docker-compose.yml"],
+            "derivedTarget": "http://127.0.0.1:3000",
+            "derivedTargetSource": "docker_compose_port_mapping",
+            "derivedTargetComposePath": r"D:\webstudy\CTF\2026\easy_login\docker-compose.yml",
+        }
+    )
+
+    derived_target = interface_cli._sync_runtime_challenge_context(
+        challenge_context,
+        dispatcher,
+    )
+
+    assert derived_target == "http://127.0.0.1:3000"
+    assert challenge_context["derivedTarget"] == "http://127.0.0.1:3000"
+    assert challenge_context["derivedTargetSource"] == "docker_compose_port_mapping"
+    assert (
+        challenge_context["derivedTargetComposePath"]
+        == r"D:\webstudy\CTF\2026\easy_login\docker-compose.yml"
+    )
+
+
 @pytest.mark.asyncio
 async def test_run_cli_routes_ctf_mode_into_dispatcher_with_local_asset_hint(monkeypatch, _mute_cli_console) -> None:
     captured = {}
@@ -183,6 +212,82 @@ async def test_run_cli_routes_ctf_mode_into_dispatcher_with_local_asset_hint(mon
     assert "nextAction=bootstrap_local_assets" in captured["hint"]
     assert r"D:\webstudy\CTF\2026\CTF比赛题\easy_login" in captured["hint"]
     assert r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml" in captured["hint"]
+
+
+@pytest.mark.asyncio
+async def test_run_cli_syncs_derived_target_into_challenge_context_when_target_missing(
+    monkeypatch,
+    _mute_cli_console,
+) -> None:
+    captured = {}
+
+    monkeypatch.setattr(
+        interface_cli,
+        "resolve_mode_contract",
+        lambda payload, source_task=None: {"mode": "ctf", "modeSubtype": "web", "goalStyle": "flag"},
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "pentestagent.interface.initializer.activate_workspace_for_target",
+        lambda *args, **kwargs: None,
+    )
+
+    async def _fake_build_runtime(**kwargs):
+        return _FakeRuntime(), {"label": "Local", "status_text": "ok"}
+
+    monkeypatch.setattr("pentestagent.interface.initializer.build_runtime", _fake_build_runtime)
+    monkeypatch.setattr("pentestagent.interface.initializer.has_ssh_runtime_config", lambda: False)
+    monkeypatch.setattr("pentestagent.interface.cli.Path.exists", lambda self: False)
+    monkeypatch.setattr("pentestagent.interface.cli.get_all_tools", lambda: [], raising=False)
+
+    class _FakeDispatcher:
+        def __init__(self, runtime, progress_callback=None, verification_callback=None):
+            self._challenge_context = {}
+
+        async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None):
+            captured["target"] = target
+            captured["challenge_context"] = challenge_context
+            self._challenge_context = {
+                "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+                "artifactPaths": [
+                    r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+                ],
+                "derivedTarget": "http://127.0.0.1:3000",
+                "derivedTargetSource": "docker_compose_port_mapping",
+                "derivedTargetComposePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+            }
+            return SimpleNamespace(flag="flag{cli_ctf_ok}", reason="ok", chain_used=["xss"], missing_tools=[], notes=[])
+
+    class _ForbiddenAgent:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("PentestAgentAgent should not be constructed for CLI CTF mode")
+
+    monkeypatch.setattr("pentestagent.agents.pa_agent.PentestAgentAgent", _ForbiddenAgent)
+    monkeypatch.setattr("pentestagent.agents.pa_agent.ctf_dispatcher.CTFTaskDispatcher", _FakeDispatcher)
+    monkeypatch.setattr("pentestagent.interface.cli.CTFTaskDispatcher", _FakeDispatcher, raising=False)
+
+    await interface_cli.run_cli(
+        target="",
+        model="gpt-5",
+        task="solve the challenge",
+        mode="ctf",
+        ctf_type="web",
+        challenge_path=r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+        artifact_paths=[
+            r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+        ],
+    )
+
+    assert captured["target"] == ""
+    assert captured["challenge_context"]["derivedTarget"] == "http://127.0.0.1:3000"
+    assert (
+        captured["challenge_context"]["derivedTargetSource"]
+        == "docker_compose_port_mapping"
+    )
+    assert (
+        captured["challenge_context"]["derivedTargetComposePath"]
+        == r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
+    )
 
 
 @pytest.mark.asyncio
