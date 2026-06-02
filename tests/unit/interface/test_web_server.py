@@ -236,6 +236,38 @@ def test_ctf_dispatcher_hint_includes_control_decision_block():
     assert "reason=verified flag already present in blackboard" in hint
 
 
+def test_ctf_dispatcher_hint_includes_verified_flag_for_verify_or_submit_action():
+    task = {
+        "hints": [{"text": "focus on verified flag handoff"}],
+        "controlDecision": {
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "reason": "verified flag already present in blackboard",
+            "nextAction": "verify_or_submit_flag",
+            "driver": "blackboard.verified_flag",
+        },
+        "ctfStateSnapshot": {
+            "observations": [],
+            "artifacts": [],
+            "runtime_flags": [],
+            "verified_flags": [
+                {
+                    "value": "flag{verified_candidate}",
+                    "level": "verified",
+                    "evidence_source": "platform-accept",
+                    "rationale": "accepted by prior verification",
+                }
+            ],
+        },
+    }
+
+    hint = web_server._ctf_dispatcher_hint(task)
+
+    assert "[control_decision]" in hint
+    assert "nextAction=verify_or_submit_flag" in hint
+    assert "verifiedFlag=flag{verified_candidate}" in hint
+
+
 def test_ctf_dispatcher_hint_includes_discovered_endpoint_for_probe_action():
     task = {
         "hints": [{"text": "focus on the admin flow"}],

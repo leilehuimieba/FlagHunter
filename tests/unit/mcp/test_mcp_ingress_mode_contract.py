@@ -103,6 +103,45 @@ def test_mcp_ctf_dispatcher_hint_includes_runtime_flag_for_verify_runtime_signal
     assert "runtimeFlag=flag{runtime_candidate}" in hint
 
 
+def test_mcp_ctf_dispatcher_hint_includes_verified_flag_for_verify_or_submit_action() -> None:
+    entry = mcp_tools.TaskEntry(
+        id="task-vf-1",
+        task="verify or submit flag",
+        status="pending",
+        created_at="2026-06-02T00:00:00",
+        agent=SimpleNamespace(),
+        target="http://challenge.test",
+        mode="ctf",
+        modeSubtype="web",
+        controlDecision={
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "reason": "verified flag already present in blackboard",
+            "nextAction": "verify_or_submit_flag",
+            "driver": "blackboard.verified_flag",
+        },
+        ctfStateSnapshot={
+            "observations": [],
+            "artifacts": [],
+            "runtime_flags": [],
+            "verified_flags": [
+                {
+                    "value": "flag{verified_candidate}",
+                    "level": "verified",
+                    "evidence_source": "platform-accept",
+                    "rationale": "accepted by prior verification",
+                }
+            ],
+        },
+    )
+
+    hint = mcp_tools._ctf_dispatcher_hint(entry)
+
+    assert "[control_decision]" in hint
+    assert "nextAction=verify_or_submit_flag" in hint
+    assert "verifiedFlag=flag{verified_candidate}" in hint
+
+
 @pytest.mark.asyncio
 async def test_run_task_async_resolves_mode_contract_before_task_creation(
     monkeypatch: pytest.MonkeyPatch,

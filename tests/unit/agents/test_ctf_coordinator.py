@@ -1437,6 +1437,119 @@ async def test_coordinator_verifies_runtime_signal_before_recon_when_hint_reques
 
 
 @pytest.mark.asyncio
+async def test_coordinator_returns_verified_flag_from_hint_before_recon(
+    tmp_path: Path,
+):
+    coordinator = CTFCoordinator()
+
+    class _CapabilityRegistry:
+        async def full_check(self):
+            return None
+
+        def to_dict(self):
+            return {}
+
+    class _Dispatcher:
+        def __init__(self):
+            self._notes_log = []
+            self._challenge_context = None
+            self._ledger_run_id = None
+            self._current_fingerprint = None
+            self._memory_match_ids = []
+            self._pending_wrong_flag_feedback = []
+            self._exhausted_visit_url_targets = set()
+            self.reasoning_layer = SimpleNamespace(degradation_events=[])
+            self.state = None
+            self.capability_registry = _CapabilityRegistry()
+            self.run_called = False
+            self.phase_recon_called = False
+            self.finalized_results: list[SolveResult] = []
+
+        def _setup_session_ledger(self, *, run_id=None, ledger_root=None):
+            self._ledger_run_id = run_id
+
+        def _setup_artifact_registry(self, *, run_id=None, registry_root=None):
+            return None
+
+        def _setup_checkpoint_store(self, *, run_id=None, checkpoint_root=None):
+            return None
+
+        def _apply_submit_profile(self, submit_profile):
+            return None
+
+        async def _start_failover_monitor_if_available(self):
+            return None
+
+        def _record_session_event(self, event_type: str, payload: dict[str, object]):
+            return None
+
+        def _write_checkpoint(self, label: str, payload: dict[str, object]):
+            return None
+
+        def _load_rejected_flags(self):
+            return None
+
+        async def _snapshot_platform_context(self, target: str):
+            return None
+
+        async def _phase_recon(self, target: str):
+            self.phase_recon_called = True
+            return {
+                "html": "<html></html>",
+                "content": "portal",
+                "forms": [],
+                "endpoints": ["/"],
+                "recon_missing_tools": [],
+            }
+
+        def _ingest_local_challenge_artifacts(self, target: str):
+            return None
+
+        def _emit(self, message: str):
+            return None
+
+        async def _finalize_solve_result(self, result: SolveResult):
+            self.finalized_results.append(result)
+            return result
+
+        async def run(self, **kwargs):
+            self.run_called = True
+            return SolveResult(success=False, reason="should-not-run")
+
+    dispatcher = _Dispatcher()
+
+    result = await coordinator.execute(
+        dispatcher,
+        target="127.0.0.1:3000",
+        goal="goal",
+        type="web",
+        hint=(
+            "[control_decision]\n"
+            "decisionKind=direct_execute\n"
+            "nextAction=verify_or_submit_flag\n"
+            "driver=blackboard.verified_flag\n"
+            "verifiedFlag=flag{verified_from_blackboard}"
+        ),
+        submit_profile=None,
+        challenge_context={"artifactPaths": []},
+        run_id="run-verified-flag",
+        ledger_root=tmp_path / "ledgers",
+        checkpoint_root=tmp_path / "checkpoints",
+    )
+
+    assert dispatcher.run_called is False
+    assert dispatcher.phase_recon_called is False
+    assert dispatcher.finalized_results
+    assert result.success is True
+    assert result.flag == "flag{verified_from_blackboard}"
+    assert result.chain_used == ["verified_flag"]
+    assert result.reason == "blackboard 已有 verified flag"
+    assert result.notes == []
+    assert dispatcher.state is not None
+    assert dispatcher.state.stop_reason == "blackboard 已有 verified flag"
+
+
+@pytest.mark.asyncio
 async def test_coordinator_applies_strategy_memory_contract_before_inner_run(
     tmp_path: Path,
 ):
