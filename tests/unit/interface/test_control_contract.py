@@ -163,3 +163,28 @@ def test_runtime_flag_blackboard_decision_sets_driver() -> None:
     decision = resolve_control_decision(payload)
 
     assert decision["driver"] == "blackboard.runtime_flag"
+
+
+def test_resume_bootstrap_hint_in_blackboard_prefers_resume_execute() -> None:
+    payload = {
+        "mode": "ctf",
+        "target": "http://challenge.test",
+        "blackboardSnapshot": {
+            "facts": [
+                {
+                    "kind": "resume_bootstrap_hint",
+                    "value": "runId=run-prev-1 checkpointId=cp-prev-1",
+                    "source": "ingress_handoff",
+                    "confidence": "high",
+                }
+            ],
+            "pendingVerifications": [],
+        },
+    }
+
+    decision = resolve_control_decision(payload)
+
+    assert decision["shouldRun"] is True
+    assert decision["decisionKind"] == "resume_execute"
+    assert decision["nextAction"] == "resume_from_checkpoint"
+    assert decision["driver"] == "blackboard.resume_bootstrap_hint"
