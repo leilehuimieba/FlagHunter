@@ -1848,6 +1848,47 @@ def test_select_primary_strategy_prefers_ssti_exploit_when_control_decision_requ
     assert strategy.kind == "ssti_exploit"
 
 
+def test_select_primary_strategy_prefers_hash_guarded_read_when_control_decision_requests_secret_validation():
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher.state.add_observation(
+        "cookie_secret_leaked",
+        "SECRET-123",
+        source="ssti_identify",
+        metadata={"method": "handler_settings_probe"},
+    )
+
+    strategy = dispatcher._select_primary_strategy(
+        "web",
+        target="http://ctf.local",
+        page_features={
+            "content": "",
+            "html": "",
+            "endpoints": ["/file?filename=/flag.txt&filehash=x"],
+            "raw_links": ["http://ctf.local/file?filename=/flag.txt&filehash=x"],
+            "forms": [],
+        },
+        hint=(
+            "[control_decision]\n"
+            "decisionKind=direct_execute\n"
+            "nextAction=validate_leaked_secret\n"
+            "driver=blackboard.leaked_secret\n"
+            "reason=leaked secret present in blackboard"
+        ),
+    )
+
+    assert strategy is not None
+    assert strategy.kind == "hash_guarded_file_read"
+
+
 def test_select_primary_strategy_prefers_php_unserialize_strategy_from_source_hints():
     dispatcher = CTFTaskDispatcher(
         runtime=_DispatcherRuntime(),
