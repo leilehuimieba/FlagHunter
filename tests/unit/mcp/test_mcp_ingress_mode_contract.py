@@ -64,6 +64,45 @@ def test_run_task_async_schema_accepts_mode_and_ctf_type() -> None:
     assert "artifactPaths" in schema["properties"]
 
 
+def test_mcp_ctf_dispatcher_hint_includes_runtime_flag_for_verify_runtime_signal() -> None:
+    entry = mcp_tools.TaskEntry(
+        id="task-rt-1",
+        task="verify runtime signal",
+        status="pending",
+        created_at="2026-06-02T00:00:00",
+        agent=SimpleNamespace(),
+        target="http://challenge.test",
+        mode="ctf",
+        modeSubtype="web",
+        controlDecision={
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "reason": "runtime flag present in blackboard",
+            "nextAction": "verify_runtime_signal",
+            "driver": "blackboard.runtime_flag",
+        },
+        ctfStateSnapshot={
+            "observations": [],
+            "artifacts": [],
+            "runtime_flags": [
+                {
+                    "value": "flag{runtime_candidate}",
+                    "level": "runtime",
+                    "evidence_source": "runtime-http",
+                    "rationale": "reflected in runtime response",
+                }
+            ],
+            "verified_flags": [],
+        },
+    )
+
+    hint = mcp_tools._ctf_dispatcher_hint(entry)
+
+    assert "[control_decision]" in hint
+    assert "nextAction=verify_runtime_signal" in hint
+    assert "runtimeFlag=flag{runtime_candidate}" in hint
+
+
 @pytest.mark.asyncio
 async def test_run_task_async_resolves_mode_contract_before_task_creation(
     monkeypatch: pytest.MonkeyPatch,

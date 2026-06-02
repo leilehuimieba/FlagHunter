@@ -268,6 +268,38 @@ def test_ctf_dispatcher_hint_includes_discovered_endpoint_for_probe_action():
     assert "endpoint=http://challenge.test/admin" in hint
 
 
+def test_ctf_dispatcher_hint_includes_runtime_flag_for_verify_runtime_signal():
+    task = {
+        "hints": [{"text": "focus on runtime verification"}],
+        "controlDecision": {
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "reason": "runtime flag present in blackboard",
+            "nextAction": "verify_runtime_signal",
+            "driver": "blackboard.runtime_flag",
+        },
+        "ctfStateSnapshot": {
+            "observations": [],
+            "artifacts": [],
+            "runtime_flags": [
+                {
+                    "value": "flag{runtime_candidate}",
+                    "level": "runtime",
+                    "evidence_source": "runtime-http",
+                    "rationale": "reflected in runtime response",
+                }
+            ],
+            "verified_flags": [],
+        },
+    }
+
+    hint = web_server._ctf_dispatcher_hint(task)
+
+    assert "[control_decision]" in hint
+    assert "nextAction=verify_runtime_signal" in hint
+    assert "runtimeFlag=flag{runtime_candidate}" in hint
+
+
 @pytest.mark.asyncio
 async def test_dashboard_summary_uses_truthful_empty_defaults(web_client: TestClient):
     resp = await web_client.get("/api/dashboard/summary")
