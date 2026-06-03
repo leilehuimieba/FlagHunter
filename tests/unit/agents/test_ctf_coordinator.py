@@ -1399,9 +1399,15 @@ async def test_coordinator_verifies_runtime_signal_before_recon_when_hint_reques
 ):
     coordinator = CTFCoordinator()
     observed: list[tuple[str, str, str, str]] = []
+    captured = {
+        "load_rejected_flags": 0,
+        "snapshot_platform_context": 0,
+        "capability_full_check": 0,
+    }
 
     class _CapabilityRegistry:
         async def full_check(self):
+            captured["capability_full_check"] += 1
             return None
 
         def to_dict(self):
@@ -1445,9 +1451,11 @@ async def test_coordinator_verifies_runtime_signal_before_recon_when_hint_reques
             return None
 
         def _load_rejected_flags(self):
+            captured["load_rejected_flags"] += 1
             return None
 
         async def _snapshot_platform_context(self, target: str):
+            captured["snapshot_platform_context"] += 1
             return None
 
         async def _phase_recon(self, target: str):
@@ -1525,6 +1533,9 @@ async def test_coordinator_verifies_runtime_signal_before_recon_when_hint_reques
     ]
     assert dispatcher.state is not None
     assert dispatcher.state.stop_reason == "runtime 信号优先验证命中旗帜"
+    assert captured["load_rejected_flags"] == 0
+    assert captured["snapshot_platform_context"] == 0
+    assert captured["capability_full_check"] == 0
 
 
 @pytest.mark.asyncio
@@ -1722,9 +1733,15 @@ async def test_coordinator_returns_verified_flag_from_hint_before_recon(
     tmp_path: Path,
 ):
     coordinator = CTFCoordinator()
+    captured = {
+        "load_rejected_flags": 0,
+        "snapshot_platform_context": 0,
+        "capability_full_check": 0,
+    }
 
     class _CapabilityRegistry:
         async def full_check(self):
+            captured["capability_full_check"] += 1
             return None
 
         def to_dict(self):
@@ -1768,9 +1785,11 @@ async def test_coordinator_returns_verified_flag_from_hint_before_recon(
             return None
 
         def _load_rejected_flags(self):
+            captured["load_rejected_flags"] += 1
             return None
 
         async def _snapshot_platform_context(self, target: str):
+            captured["snapshot_platform_context"] += 1
             return None
 
         async def _phase_recon(self, target: str):
@@ -1828,6 +1847,9 @@ async def test_coordinator_returns_verified_flag_from_hint_before_recon(
     assert result.notes == []
     assert dispatcher.state is not None
     assert dispatcher.state.stop_reason == "blackboard 已有 verified flag"
+    assert captured["load_rejected_flags"] == 0
+    assert captured["snapshot_platform_context"] == 0
+    assert captured["capability_full_check"] == 0
 
 
 @pytest.mark.asyncio
