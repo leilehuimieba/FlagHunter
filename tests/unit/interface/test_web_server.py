@@ -1041,6 +1041,8 @@ async def test_trace_replay_response_includes_resume_execute_control_decision(we
     assert replayed_task["controlDecision"]["shouldRun"] is True
     assert replayed_task["controlDecision"]["decisionKind"] == "resume_execute"
     assert replayed_task["controlDecision"]["nextAction"] == "resume_from_checkpoint"
+    assert replayed_task["controlDecision"]["driver"] == "task.resume_context"
+    assert replayed_task["decisionRecords"][0]["driver"] == "task.resume_context"
     assert replayed_task["ingressHandoff"]["decisionKind"] == "resume_execute"
     assert replayed_task["ingressHandoff"]["nextAction"] == "resume_from_checkpoint"
     assert replayed_task["ingressHandoff"]["challengeContext"]["challengePath"] == r"D:\webstudy\CTF\2026\CTF比赛题\easy_login"

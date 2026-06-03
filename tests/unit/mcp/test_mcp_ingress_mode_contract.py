@@ -296,6 +296,8 @@ async def test_run_task_async_persists_control_decision_contract(
     assert entry.controlDecision["shouldRun"] is True
     assert entry.controlDecision["decisionKind"] == "resume_execute"
     assert entry.controlDecision["nextAction"] == "resume_from_checkpoint"
+    assert entry.controlDecision["driver"] == "task.resume_context"
+    assert entry.decisionRecords[0]["driver"] == "task.resume_context"
     assert entry.ingressHandoff["decisionKind"] == "resume_execute"
     assert entry.ingressHandoff["nextAction"] == "resume_from_checkpoint"
     assert entry.ingressHandoff["challengeContext"]["challengePath"] == r"D:\webstudy\CTF\2026\CTF比赛题\easy_login"
