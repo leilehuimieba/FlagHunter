@@ -936,34 +936,32 @@ async def test_coordinator_records_control_decision_in_run_start_event_and_check
     )
 
     assert result is sentinel
-    assert captured["recorded_events"] == [
-        (
-            "dispatcher_started",
-            {
-                "target": "http://127.0.0.1:3000",
-                "goal": "goal",
-                "requested_type": "web",
-                "local_challenge_auto_verify": True,
-                "has_challenge_context": True,
-                "decision_kind": "direct_execute",
-                "next_action": "bootstrap_local_assets",
-                "decision_driver": "task.local_assets",
-            },
-        )
-    ]
-    assert captured["written_checkpoints"] == [
-        (
-            "dispatcher_started",
-            {
-                "target": "http://127.0.0.1:3000",
-                "goal": "goal",
-                "requested_type": "web",
-                "decision_kind": "direct_execute",
-                "next_action": "bootstrap_local_assets",
-                "decision_driver": "task.local_assets",
-            },
-        )
-    ]
+    assert captured["recorded_events"][0] == (
+        "dispatcher_started",
+        {
+            "target": "http://127.0.0.1:3000",
+            "goal": "goal",
+            "requested_type": "web",
+            "local_challenge_auto_verify": True,
+            "has_challenge_context": True,
+            "decision_kind": "direct_execute",
+            "next_action": "bootstrap_local_assets",
+            "decision_driver": "task.local_assets",
+        },
+    )
+    assert captured["written_checkpoints"][0] == (
+        "dispatcher_started",
+        {
+            "target": "http://127.0.0.1:3000",
+            "goal": "goal",
+            "requested_type": "web",
+            "decision_kind": "direct_execute",
+            "next_action": "bootstrap_local_assets",
+            "decision_driver": "task.local_assets",
+        },
+    )
+    assert any(event_type == "control_action_started" for event_type, _ in captured["recorded_events"])
+    assert any(event_type == "control_action_completed" for event_type, _ in captured["recorded_events"])
 
 
 @pytest.mark.asyncio

@@ -8,10 +8,13 @@ from types import SimpleNamespace
 
 import pytest
 
+from pentestagent.agents.pa_agent.ctf_state import CTFState
+from pentestagent.harness.artifact_registry import ArtifactRegistry
 from pentestagent.harness.audit_events import (
     build_control_action_completed_event,
     build_control_action_started_event,
 )
+from pentestagent.harness.checkpoint_store import CheckpointStore
 from pentestagent.harness.session_ledger import SessionLedger
 from pentestagent.mcp.server import mcp_tools
 
@@ -1334,6 +1337,103 @@ async def test_mcp_task_inspection_exposes_recommended_action_and_action_results
     assert "action=collect_initial_facts" in result_output
     assert "[blackboard_action_results]" in result_output
     assert "result=failed" in result_output
+
+
+@pytest.mark.asyncio
+async def test_mcp_task_inspection_exposes_latest_checkpoint_summary() -> None:
+    state = CTFState(target="http://challenge.test", goal="拿到flag")
+    state.stop_reason = "wrong_flag_feedback"
+    state.add_flag(
+        "flag{checkpoint_verified}",
+        level="verified",
+        evidence_source="platform-accept",
+        rationale="accepted before checkpoint",
+    )
+    checkpoint = CheckpointStore("loot/checkpoints").save_checkpoint(
+        run_id="mcp-ctf-checkpoint-1",
+        label="control_action_completed",
+        state_snapshot=state.to_snapshot(),
+        metadata={"decision_kind": "direct_execute"},
+    )
+
+    entry = mcp_tools.TaskEntry(
+        id="checkpoint-1",
+        task="inspect checkpoint summary",
+        status="done",
+        created_at="2026-06-03T00:00:00",
+        finished_at="2026-06-03T00:01:00",
+        agent=SimpleNamespace(runtime=None, tools=[]),
+        target="http://challenge.test",
+        scope=[],
+        result="flag{checkpoint_verified}",
+        mode="ctf",
+        modeSubtype="web",
+        goalStyle="flag",
+        runId="mcp-ctf-checkpoint-1",
+        ledgerPath="loot/session_ledgers/mcp-ctf-checkpoint-1.jsonl",
+        checkpointPath="loot/checkpoints/mcp-ctf-checkpoint-1.jsonl",
+    )
+    mcp_tools._tasks[entry.id] = entry
+
+    status_output = await mcp_tools.get_task_status({"task_id": entry.id})
+    result_output = await mcp_tools.get_task_result({"task_id": entry.id})
+
+    assert "[latest_checkpoint]" in status_output
+    assert f"checkpointId={checkpoint['checkpoint_id']}" in status_output
+    assert "label=control_action_completed" in status_output
+    assert "stopReason=wrong_flag_feedback" in status_output
+    assert "verifiedFlags=flag{checkpoint_verified}" in status_output
+
+    assert "[latest_checkpoint]" in result_output
+    assert f"checkpointId={checkpoint['checkpoint_id']}" in result_output
+    assert "stopReason=wrong_flag_feedback" in result_output
+
+
+@pytest.mark.asyncio
+async def test_mcp_task_inspection_exposes_registered_artifacts_summary() -> None:
+    artifact = ArtifactRegistry("loot/artifacts").register_artifact(
+        run_id="mcp-ctf-artifacts-1",
+        kind="log_capture",
+        title="nginx error log",
+        location=r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\logs\error.log",
+        producer="exploit_identified_engine",
+        metadata={"action": "collect_runtime_evidence"},
+    )
+
+    entry = mcp_tools.TaskEntry(
+        id="artifacts-1",
+        task="inspect artifacts summary",
+        status="done",
+        created_at="2026-06-03T00:00:00",
+        finished_at="2026-06-03T00:01:00",
+        agent=SimpleNamespace(runtime=None, tools=[]),
+        target="http://challenge.test",
+        scope=[],
+        result="artifact captured",
+        mode="ctf",
+        modeSubtype="web",
+        goalStyle="flag",
+        runId="mcp-ctf-artifacts-1",
+        ledgerPath="loot/session_ledgers/mcp-ctf-artifacts-1.jsonl",
+        checkpointPath="loot/checkpoints/mcp-ctf-artifacts-1.jsonl",
+    )
+    mcp_tools._tasks[entry.id] = entry
+
+    status_output = await mcp_tools.get_task_status({"task_id": entry.id})
+    result_output = await mcp_tools.get_task_result({"task_id": entry.id})
+
+    assert "[registered_artifacts]" in status_output
+    assert f"artifactId={artifact['artifact_id']}" in status_output
+    assert "kind=log_capture" in status_output
+    assert "title=nginx error log" in status_output
+    assert (
+        r"location=D:\webstudy\CTF\2026\CTF比赛题\easy_login\logs\error.log"
+        in status_output
+    )
+
+    assert "[registered_artifacts]" in result_output
+    assert f"artifactId={artifact['artifact_id']}" in result_output
+    assert "title=nginx error log" in result_output
 
 
 @pytest.mark.asyncio
