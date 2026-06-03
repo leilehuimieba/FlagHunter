@@ -305,6 +305,110 @@ async def test_run_task_async_persists_control_decision_contract(
     assert entry.ingressHandoff["resumeBootstrap"]["checkpointId"] == "checkpoint-prev-1"
 
 
+@pytest.mark.asyncio
+async def test_run_task_async_prioritizes_verified_flag_over_resume_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_make_agent(target, scope):
+        return SimpleNamespace()
+
+    def fake_resolve_mode_contract(payload, *, source_task=None):
+        return {"mode": "ctf", "modeSubtype": "web", "goalStyle": "flag"}
+
+    monkeypatch.setattr(mcp_tools, "_make_agent", fake_make_agent)
+    monkeypatch.setattr(mcp_tools.asyncio, "create_task", _close_created_task)
+    monkeypatch.setattr(mcp_tools, "resolve_mode_contract", fake_resolve_mode_contract, raising=False)
+
+    await mcp_tools.run_task_async(
+        {
+            "task": "verify flagged replay",
+            "target": "http://challenge.test",
+            "mode": "ctf",
+            "ctfType": "web",
+            "resumeContext": {
+                "runId": "run-prev-verified-1",
+                "checkpointId": "checkpoint-prev-verified-1",
+                "summary": "run_id=run-prev-verified-1; stop_reason=flag_verified",
+            },
+            "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+            "artifactPaths": [
+                r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+            ],
+            "blackboardSnapshot": {
+                "facts": [
+                    {
+                        "kind": "verified_flag",
+                        "value": "flag{mcp_verified_priority}",
+                        "source": "platform-accept",
+                    }
+                ],
+                "pendingVerifications": [],
+            },
+        }
+    )
+
+    entry = next(iter(mcp_tools._tasks.values()))
+    assert entry.controlDecision["decisionKind"] == "direct_execute"
+    assert entry.controlDecision["nextAction"] == "verify_or_submit_flag"
+    assert entry.controlDecision["driver"] == "blackboard.verified_flag"
+    assert entry.decisionRecords[0]["driver"] == "blackboard.verified_flag"
+    assert entry.ingressHandoff["decisionKind"] == "direct_execute"
+    assert entry.ingressHandoff["nextAction"] == "verify_or_submit_flag"
+    assert entry.ingressHandoff["resumeBootstrap"] is None
+
+
+@pytest.mark.asyncio
+async def test_run_task_async_prioritizes_runtime_flag_over_resume_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_make_agent(target, scope):
+        return SimpleNamespace()
+
+    def fake_resolve_mode_contract(payload, *, source_task=None):
+        return {"mode": "ctf", "modeSubtype": "web", "goalStyle": "flag"}
+
+    monkeypatch.setattr(mcp_tools, "_make_agent", fake_make_agent)
+    monkeypatch.setattr(mcp_tools.asyncio, "create_task", _close_created_task)
+    monkeypatch.setattr(mcp_tools, "resolve_mode_contract", fake_resolve_mode_contract, raising=False)
+
+    await mcp_tools.run_task_async(
+        {
+            "task": "verify runtime signal replay",
+            "target": "http://challenge.test",
+            "mode": "ctf",
+            "ctfType": "web",
+            "resumeContext": {
+                "runId": "run-prev-runtime-1",
+                "checkpointId": "checkpoint-prev-runtime-1",
+                "summary": "run_id=run-prev-runtime-1; stop_reason=runtime_flag_pending",
+            },
+            "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+            "artifactPaths": [
+                r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+            ],
+            "blackboardSnapshot": {
+                "facts": [],
+                "pendingVerifications": [
+                    {
+                        "kind": "runtime_flag",
+                        "value": "flag{mcp_runtime_priority}",
+                        "source": "runtime-http",
+                    }
+                ],
+            },
+        }
+    )
+
+    entry = next(iter(mcp_tools._tasks.values()))
+    assert entry.controlDecision["decisionKind"] == "direct_execute"
+    assert entry.controlDecision["nextAction"] == "verify_runtime_signal"
+    assert entry.controlDecision["driver"] == "blackboard.runtime_flag"
+    assert entry.decisionRecords[0]["driver"] == "blackboard.runtime_flag"
+    assert entry.ingressHandoff["decisionKind"] == "direct_execute"
+    assert entry.ingressHandoff["nextAction"] == "verify_runtime_signal"
+    assert entry.ingressHandoff["resumeBootstrap"] is None
+
+
 def test_sync_runtime_challenge_context_persists_derived_target_fields() -> None:
     entry = mcp_tools.TaskEntry(
         id="entry-derived-target-1",

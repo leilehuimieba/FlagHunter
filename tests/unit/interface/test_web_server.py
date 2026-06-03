@@ -1051,6 +1051,62 @@ async def test_trace_replay_response_includes_resume_execute_control_decision(we
 
 
 @pytest.mark.asyncio
+async def test_trace_replay_prioritizes_verified_flag_over_resume_context(web_client: TestClient):
+    created = await web_client.post(
+        "/api/tasks",
+        json={"title": "replay-verified-flag-priority", "target": "http://replay-flag.test", "goal": "re-run original task"},
+    )
+    assert created.status == 201
+    original_task = await created.json()
+    original_task_id = original_task["id"]
+    original_run_id = original_task["currentRunId"]
+
+    web_server._tasks[original_task_id]["status"] = "success"
+    web_server._tasks[original_task_id]["mode"] = "ctf"
+    web_server._tasks[original_task_id]["modeSubtype"] = "web"
+    web_server._tasks[original_task_id]["goalStyle"] = "flag"
+    web_server._tasks[original_task_id]["challengePath"] = r"D:\webstudy\CTF\2026\CTF比赛题\easy_login"
+    web_server._tasks[original_task_id]["artifactPaths"] = [
+        r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+    ]
+    web_server._tasks[original_task_id]["sessionContext"] = {
+        "resumeContext": {
+            "runId": original_run_id,
+            "checkpointId": "checkpoint-replay-verified-1",
+            "summary": "run_id=run-flag-1; stop_reason=flag_verified",
+        }
+    }
+    web_server._tasks[original_task_id]["resumeFromRunId"] = original_run_id
+    web_server._tasks[original_task_id]["resumeFromCheckpointId"] = "checkpoint-replay-verified-1"
+    web_server._tasks[original_task_id]["resumeSummary"] = "run_id=run-flag-1; stop_reason=flag_verified"
+    web_server._tasks[original_task_id]["ctfStateSnapshot"] = {
+        "observations": [],
+        "artifacts": [],
+        "runtime_flags": [],
+        "verified_flags": [
+            {
+                "value": "flag{replay_verified_priority}",
+                "level": "verified",
+                "evidence_source": "platform-accept",
+                "rationale": "accepted before replay",
+            }
+        ],
+    }
+
+    replay_resp = await web_client.post(f"/api/traces/{original_run_id}/replay")
+
+    assert replay_resp.status == 200
+    replayed_task = await replay_resp.json()
+    assert replayed_task["controlDecision"]["decisionKind"] == "direct_execute"
+    assert replayed_task["controlDecision"]["nextAction"] == "verify_or_submit_flag"
+    assert replayed_task["controlDecision"]["driver"] == "blackboard.verified_flag"
+    assert replayed_task["decisionRecords"][0]["driver"] == "blackboard.verified_flag"
+    assert replayed_task["ingressHandoff"]["decisionKind"] == "direct_execute"
+    assert replayed_task["ingressHandoff"]["nextAction"] == "verify_or_submit_flag"
+    assert replayed_task["ingressHandoff"]["resumeBootstrap"] is None
+
+
+@pytest.mark.asyncio
 async def test_post_task_persists_minimal_decision_record(web_client: TestClient):
     created = await web_client.post(
         "/api/tasks",
@@ -3943,6 +3999,62 @@ async def test_task_retry_inherits_resume_context_lineage_and_detail_seed(
     detail = await detail_resp.json()
     assert detail["detailSource"]["sessionContext"] == "inherited_resume"
     assert detail["sessionContext"]["resumeContext"]["runId"] == original_run_id
+
+
+@pytest.mark.asyncio
+async def test_task_retry_prioritizes_runtime_flag_over_resume_context(web_client: TestClient):
+    created = await web_client.post(
+        "/api/tasks",
+        json={"title": "retry-runtime-flag-priority", "target": "http://retry-flag.test", "goal": "retry task"},
+    )
+    assert created.status == 201
+    original_task = await created.json()
+    original_task_id = original_task["id"]
+    original_run_id = original_task["currentRunId"]
+
+    web_server._tasks[original_task_id]["status"] = "failed"
+    web_server._tasks[original_task_id]["mode"] = "ctf"
+    web_server._tasks[original_task_id]["modeSubtype"] = "web"
+    web_server._tasks[original_task_id]["goalStyle"] = "flag"
+    web_server._tasks[original_task_id]["challengePath"] = r"D:\webstudy\CTF\2026\CTF比赛题\easy_login"
+    web_server._tasks[original_task_id]["artifactPaths"] = [
+        r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml",
+    ]
+    web_server._tasks[original_task_id]["sessionContext"] = {
+        "resumeContext": {
+            "runId": original_run_id,
+            "checkpointId": "checkpoint-retry-runtime-1",
+            "summary": "run_id=run-runtime-1; stop_reason=runtime_flag_pending",
+        }
+    }
+    web_server._tasks[original_task_id]["resumeFromRunId"] = original_run_id
+    web_server._tasks[original_task_id]["resumeFromCheckpointId"] = "checkpoint-retry-runtime-1"
+    web_server._tasks[original_task_id]["resumeSummary"] = "run_id=run-runtime-1; stop_reason=runtime_flag_pending"
+    web_server._tasks[original_task_id]["ctfStateSnapshot"] = {
+        "observations": [],
+        "artifacts": [],
+        "runtime_flags": [
+            {
+                "value": "flag{retry_runtime_priority}",
+                "level": "runtime",
+                "evidence_source": "runtime-http",
+                "rationale": "pending verification before retry",
+            }
+        ],
+        "verified_flags": [],
+    }
+
+    retry_resp = await web_client.post(f"/api/tasks/{original_task_id}/retry")
+
+    assert retry_resp.status == 200
+    retried_task = await retry_resp.json()
+    assert retried_task["controlDecision"]["decisionKind"] == "direct_execute"
+    assert retried_task["controlDecision"]["nextAction"] == "verify_runtime_signal"
+    assert retried_task["controlDecision"]["driver"] == "blackboard.runtime_flag"
+    assert retried_task["decisionRecords"][0]["driver"] == "blackboard.runtime_flag"
+    assert retried_task["ingressHandoff"]["decisionKind"] == "direct_execute"
+    assert retried_task["ingressHandoff"]["nextAction"] == "verify_runtime_signal"
+    assert retried_task["ingressHandoff"]["resumeBootstrap"] is None
 
 
 @pytest.mark.asyncio
