@@ -337,6 +337,29 @@ async def test_run_benchmark_supports_local_easy_login_runtime_only_case(tmp_pat
     }
 
 
+@pytest.mark.asyncio
+async def test_run_benchmark_supports_local_backup_node_app_zip_case(tmp_path: Path):
+    report = await benchmark_runner.run_benchmark(
+        challenges=["local_backup_node_app_zip"],
+        report_path=str(tmp_path / "local_backup_node_app_zip.json"),
+    )
+
+    assert report.total_challenges == 1
+    assert report.results[0].challenge_id == "local_backup_node_app_zip"
+    assert report.results[0].solved is False
+    assert report.results[0].flag is None
+    assert report.results[0].metadata["eval_contract"] == {
+        "sample_key": "backup_node_app",
+        "variant": "zip",
+        "expected_outcome": "candidate_only_honesty",
+    }
+    assert report.results[0].metadata["eval_verdict"] == {
+        "expected_outcome": "candidate_only_honesty",
+        "observed_outcome": "candidate_only_honesty",
+        "matched": True,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Phase 7: failure taxonomy tests (P7-EVAL-01 to P7-EVAL-04)
 # ---------------------------------------------------------------------------
