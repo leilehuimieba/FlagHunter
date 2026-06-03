@@ -126,6 +126,120 @@ class _FakeCoordinator:
         return self.result
 
 
+class _FirstActionMatrixDispatcher:
+    def __init__(self, result: SolveResult, *, runtime_flag_verifies: bool = True):
+        self._result = result
+        self._notes_log: list[str] = []
+        self._challenge_context = None
+        self._ledger_run_id = None
+        self._current_fingerprint = None
+        self._memory_match_ids: list[str] = []
+        self._pending_wrong_flag_feedback: list[str] = []
+        self._exhausted_visit_url_targets: set[str] = set()
+        self.reasoning_layer = SimpleNamespace(degradation_events=[])
+        self.state = None
+        self.call_order: list[str] = []
+        self.runtime_flag_verifies = runtime_flag_verifies
+        self.finalized_results: list[SolveResult] = []
+        self.capability_registry = SimpleNamespace(
+            full_check=self._capability_full_check,
+            to_dict=lambda: {},
+        )
+        self.run_called = False
+        self.phase_recon_called = False
+        self._restored_resume_checkpoint_id = None
+
+    def _setup_session_ledger(self, *, run_id=None, ledger_root=None):
+        self._ledger_run_id = run_id
+
+    def _setup_artifact_registry(self, *, run_id=None, registry_root=None):
+        return None
+
+    def _setup_checkpoint_store(self, *, run_id=None, checkpoint_root=None):
+        return None
+
+    def _apply_submit_profile(self, submit_profile):
+        return None
+
+    async def _start_failover_monitor_if_available(self):
+        return None
+
+    def _record_session_event(self, event_type: str, payload: dict[str, object]):
+        return None
+
+    def _write_checkpoint(self, label: str, payload: dict[str, object]):
+        return None
+
+    def _restore_context(self):
+        self.call_order.append("restore_context")
+        self._restored_resume_checkpoint_id = "checkpoint-prev-matrix-1"
+        if self.state is not None:
+            self.state.detected_type = "reverse"
+
+    def _load_rejected_flags(self):
+        self.call_order.append("load_rejected_flags")
+
+    async def _snapshot_platform_context(self, target: str):
+        self.call_order.append("snapshot_platform_context")
+        if self.state is not None and any(
+            obs.kind == "initial_fact_collection_requested"
+            for obs in list(self.state.observations)
+        ):
+            self.call_order.append("initial_fact_observed_before_snapshot")
+        if getattr(self, "_restored_resume_checkpoint_id", None):
+            self.call_order.append("resume_restored_before_snapshot")
+
+    async def _capability_full_check(self):
+        self.call_order.append("capability_full_check")
+
+    async def _phase_recon(self, target: str):
+        self.phase_recon_called = True
+        self.call_order.append("phase_recon")
+        return {
+            "html": "<html></html>",
+            "content": "portal",
+            "forms": [],
+            "endpoints": ["/login"],
+            "recon_missing_tools": [],
+        }
+
+    def _ingest_local_challenge_artifacts(self, target: str):
+        self.call_order.append("ingest_local_challenge_artifacts")
+        return None
+
+    def _ingest_registered_local_source_hints(self):
+        self.call_order.append("ingest_registered_local_source_hints")
+        return None
+
+    async def _observe_flag(
+        self,
+        flag: str,
+        target: str,
+        *,
+        evidence_source: str,
+        rationale: str,
+    ):
+        self.call_order.append("observe_flag")
+        self._notes_log.append("runtime-note")
+        return SimpleNamespace(
+            decision="verified" if self.runtime_flag_verifies else "candidate",
+            flag=flag,
+        )
+
+    def _emit(self, message: str):
+        return None
+
+    async def _finalize_solve_result(self, result: SolveResult):
+        self.call_order.append("finalize_result")
+        self.finalized_results.append(result)
+        return result
+
+    async def run(self, **kwargs):
+        self.run_called = True
+        self.call_order.append("run")
+        return self._result
+
+
 @pytest.mark.asyncio
 async def test_dispatcher_run_delegates_to_coordinator_execute():
     dispatcher = CTFTaskDispatcher(runtime=_Runtime(), progress_callback=None)
@@ -1955,6 +2069,142 @@ async def test_coordinator_returns_verified_flag_from_hint_before_recon(
     assert captured["load_rejected_flags"] == 0
     assert captured["snapshot_platform_context"] == 0
     assert captured["capability_full_check"] == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("case_name", "hint", "challenge_context", "assertions"),
+    [
+        (
+            "verified_flag",
+            (
+                "[control_decision]\n"
+                "decisionKind=direct_execute\n"
+                "nextAction=verify_or_submit_flag\n"
+                "driver=blackboard.verified_flag\n"
+                "verifiedFlag=flag{matrix_verified}"
+            ),
+            {"artifactPaths": []},
+            lambda dispatcher, result: (
+                result.flag == "flag{matrix_verified}"
+                and dispatcher.call_order == ["finalize_result"]
+                and dispatcher.run_called is False
+                and dispatcher.phase_recon_called is False
+            ),
+        ),
+        (
+            "runtime_flag",
+            (
+                "[control_decision]\n"
+                "decisionKind=direct_execute\n"
+                "nextAction=verify_runtime_signal\n"
+                "driver=blackboard.runtime_flag\n"
+                "runtimeFlag=flag{matrix_runtime}"
+            ),
+            {"artifactPaths": []},
+            lambda dispatcher, result: (
+                result.flag == "flag{matrix_runtime}"
+                and dispatcher.call_order == ["observe_flag", "finalize_result"]
+                and dispatcher.run_called is False
+                and dispatcher.phase_recon_called is False
+            ),
+        ),
+        (
+            "resume_execute",
+            (
+                "[control_decision]\n"
+                "decisionKind=resume_execute\n"
+                "nextAction=resume_from_checkpoint\n"
+                "driver=task.resume_context"
+            ),
+            {
+                "artifactPaths": [],
+                "resumeContext": {
+                    "runId": "run-prev-matrix-1",
+                    "checkpointId": "checkpoint-prev-matrix-1",
+                },
+            },
+            lambda dispatcher, result: (
+                dispatcher.call_order.index("restore_context")
+                < dispatcher.call_order.index("snapshot_platform_context")
+                and "resume_restored_before_snapshot" in dispatcher.call_order
+                and dispatcher.phase_recon_called is True
+                and dispatcher.run_called is True
+            ),
+        ),
+        (
+            "collect_initial_facts",
+            (
+                "[control_decision]\n"
+                "decisionKind=explore_first\n"
+                "nextAction=collect_initial_facts\n"
+                "driver=blackboard.derived_target.runtime_derived\n"
+                "reason=derived target available for initial fact collection"
+            ),
+            {"artifactPaths": []},
+            lambda dispatcher, result: (
+                "initial_fact_observed_before_snapshot" in dispatcher.call_order
+                and dispatcher.call_order.index("snapshot_platform_context")
+                < dispatcher.call_order.index("phase_recon")
+                and dispatcher.run_called is True
+            ),
+        ),
+        (
+            "bootstrap_local_assets",
+            (
+                "[control_decision]\n"
+                "decisionKind=direct_execute\n"
+                "nextAction=bootstrap_local_assets\n"
+                "driver=task.local_assets\n"
+                "reason=ctf local assets available"
+            ),
+            {"artifactPaths": [r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"]},
+            lambda dispatcher, result: (
+                dispatcher.call_order.index("ingest_local_challenge_artifacts")
+                < dispatcher.call_order.index("snapshot_platform_context")
+                and dispatcher.call_order.index("ingest_registered_local_source_hints")
+                < dispatcher.call_order.index("capability_full_check")
+                and dispatcher.run_called is True
+            ),
+        ),
+    ],
+    ids=[
+        "verified_flag",
+        "runtime_flag",
+        "resume_execute",
+        "collect_initial_facts",
+        "bootstrap_local_assets",
+    ],
+)
+async def test_coordinator_first_action_matrix(
+    case_name: str,
+    hint: str,
+    challenge_context: dict[str, object],
+    assertions,
+):
+    coordinator = CTFCoordinator()
+    sentinel = SolveResult(success=False, reason=f"matrix-{case_name}")
+    dispatcher = _FirstActionMatrixDispatcher(sentinel)
+
+    result = await coordinator.execute(
+        dispatcher,
+        target="127.0.0.1:3000",
+        goal="goal",
+        type="web",
+        hint=hint,
+        submit_profile=None,
+        challenge_context=challenge_context,
+        run_id=f"run-matrix-{case_name}",
+        ledger_root=None,
+        checkpoint_root=None,
+    )
+
+    assert assertions(dispatcher, result), (
+        case_name,
+        dispatcher.call_order,
+        getattr(result, "reason", None),
+        getattr(result, "flag", None),
+    )
 
 
 @pytest.mark.asyncio
