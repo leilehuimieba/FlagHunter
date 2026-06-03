@@ -195,6 +195,16 @@ def test_build_entry_blackboard_snapshot_matches_web_contract() -> None:
 def test_build_task_blackboard_snapshot_maps_high_value_observations_into_facts() -> None:
     state = CTFState(target="http://challenge.test", goal="拿到flag")
     state.add_observation(
+        "initial_fact_collection_requested",
+        "http://challenge.test",
+        source="control_decision",
+        metadata={
+            "driver": "blackboard.derived_target.runtime_derived",
+            "reason": "derived target available for initial fact collection",
+            "next_action": "collect_initial_facts",
+        },
+    )
+    state.add_observation(
         "recon_url",
         "http://challenge.test/admin",
         source="recon",
@@ -232,6 +242,7 @@ def test_build_task_blackboard_snapshot_maps_high_value_observations_into_facts(
     )
 
     facts = {(item["kind"], item.get("value")) for item in snapshot["facts"]}
+    assert ("initial_fact_collection_requested", "http://challenge.test") in facts
     assert ("discovered_endpoint", "http://challenge.test/admin") in facts
     assert ("identified_engine", "tornado") in facts
     assert ("leaked_secret", "SECRET-123") in facts

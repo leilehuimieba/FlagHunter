@@ -2616,6 +2616,102 @@ def test_build_trace_payload_projects_control_decision_into_timeline(
     assert "derivedTargetOrigin=runtime_derived" in event["input"]["facts"]
 
 
+def test_build_trace_payload_projects_initial_fact_collection_observation_into_timeline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    now = web_server._now_iso()
+    task = {
+        "id": "task_trace_initial_fact_observation",
+        "title": "trace initial fact observation",
+        "target": "http://127.0.0.1:3000",
+        "goal": "trace truth",
+        "mode": "ctf",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
+        "status": "queued",
+        "createdAt": now,
+        "startedAt": now,
+        "finishedAt": None,
+        "tokensUsed": 0,
+        "toolCalls": 0,
+        "currentRunId": "run_trace_initial_fact_observation",
+        "controlDecision": {
+            "shouldRun": True,
+            "decisionKind": "explore_first",
+            "reason": "derived target available for initial fact collection",
+            "nextAction": "collect_initial_facts",
+            "driver": "blackboard.derived_target.runtime_derived",
+            "facts": [
+                "mode=ctf",
+                "target=http://127.0.0.1:3000",
+                "derivedTargetOrigin=runtime_derived",
+            ],
+        },
+        "ctfStateSnapshot": {
+            "target": "http://127.0.0.1:3000",
+            "goal": "拿到flag",
+            "detected_type": "web",
+            "observations": [
+                {
+                    "kind": "initial_fact_collection_requested",
+                    "value": "http://127.0.0.1:3000",
+                    "source": "control_decision",
+                    "metadata": {
+                        "driver": "blackboard.derived_target.runtime_derived",
+                        "reason": "derived target available for initial fact collection",
+                        "next_action": "collect_initial_facts",
+                    },
+                }
+            ],
+            "artifacts": [],
+            "verified_flags": [],
+            "runtime_flags": [],
+            "meta_reasonings": [],
+            "hypotheses": [],
+        },
+        "decisionRecords": [],
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    monkeypatch.setattr(web_server, "_pick_metrics_for_task", lambda project_root, item: None)
+    monkeypatch.setattr(
+        web_server,
+        "_pick_session_snapshot",
+        lambda project_root, item: (
+            None,
+            None,
+            {"matchedBy": "none", "confidence": "none", "expectedSessionId": None, "blockedReason": None, "candidateScore": None},
+        ),
+    )
+    monkeypatch.setattr(
+        web_server,
+        "_build_run_session_context",
+        lambda project_root, run_id: {
+            "runId": run_id,
+            "recentEvents": [],
+            "artifacts": [],
+            "latestCheckpoint": None,
+            "resumeContext": None,
+        },
+    )
+
+    payload = web_server._build_trace_payload(tmp_path, task, include_timeline=True)
+
+    observation_events = [event for event in payload["timeline"] if event["type"] == "observation"]
+    assert observation_events
+    event = observation_events[0]
+    assert event["kind"] == "observation.initial_fact_collection_requested"
+    assert event["summary"] == "http://127.0.0.1:3000"
+    assert event["driver"] == "blackboard.derived_target.runtime_derived"
+    assert event["input"]["nextAction"] == "collect_initial_facts"
+    assert event["input"]["reason"] == "derived target available for initial fact collection"
+
+
 def test_build_trace_payload_projects_tool_audit_events_from_session_context(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
