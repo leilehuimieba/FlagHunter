@@ -53,6 +53,28 @@ def test_local_challenge_catalog_builds_easy_login_directory_and_zip_contexts(tm
     assert Path(zip_context["artifactPaths"][0]).exists()
 
 
+def test_local_challenge_catalog_builds_empty_context_for_none_and_runtime_only_variants() -> None:
+    easy_login = get_local_challenge_sample("easy_login")
+    backup = get_local_challenge_sample("backup_node_app")
+
+    easy_none_context = build_challenge_context(easy_login, variant="none")
+    easy_runtime_only_context = build_challenge_context(easy_login, variant="runtime_only")
+    backup_none_context = build_challenge_context(backup, variant="none")
+
+    assert easy_none_context == {
+        "challengePath": None,
+        "artifactPaths": [],
+    }
+    assert easy_runtime_only_context == {
+        "challengePath": None,
+        "artifactPaths": [],
+    }
+    assert backup_none_context == {
+        "challengePath": None,
+        "artifactPaths": [],
+    }
+
+
 def test_local_challenge_catalog_exposes_supported_variants_as_runner_contract() -> None:
     easy_login = get_local_challenge_sample("easy_login")
     backup = get_local_challenge_sample("backup_node_app")

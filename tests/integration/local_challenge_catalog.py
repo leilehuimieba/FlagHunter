@@ -101,6 +101,11 @@ def build_challenge_context(
             "challengePath": str(sample.challenge_path),
             "artifactPaths": [],
         }
+    if normalized_variant in {"none", "runtime_only"}:
+        return {
+            "challengePath": None,
+            "artifactPaths": [],
+        }
     if normalized_variant == "zip":
         if sample.challenge_path.is_file() and sample.challenge_path.suffix.lower() == ".zip":
             return {
