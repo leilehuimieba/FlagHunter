@@ -6,15 +6,25 @@ from types import SimpleNamespace
 
 import pytest
 
+import pentestagent.tools.notes as notes_module
 from pentestagent.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher, SolveResult
 from pentestagent.agents.pa_agent.coordinator import CTFCoordinator
 from pentestagent.agents.pa_agent.ctf_state import Hypothesis
 from pentestagent.agents.pa_agent.recovery import RecoveryDecision
+from pentestagent.agents.pa_agent.ctf_state import CTFState
+from pentestagent.harness.checkpoint_store import CheckpointStore
+from pentestagent.harness.session_ledger import SessionLedger
+from pentestagent.tools.notes import set_notes_file
 
 
 class _Runtime:
     def __init__(self):
         self.environment = SimpleNamespace(available_tools=[])
+
+
+def _clear_test_notes(path: Path) -> None:
+    set_notes_file(path)
+    notes_module._notes.clear()
 
 
 class _BootstrapCapableDispatcher:
@@ -2131,14 +2141,172 @@ async def test_coordinator_records_control_action_events_for_verified_flag(tmp_p
     assert result.success is True
     assert dispatcher.run_called is False
     event_types = [event_type for event_type, _ in dispatcher.recorded_events]
-    assert event_types[:3] == [
+    assert event_types[:4] == [
         "dispatcher_started",
         "control_action_started",
+        "verification_decision",
         "control_action_completed",
     ]
     assert dispatcher.recorded_events[1][1]["action"] == "verify_or_submit_flag"
-    assert dispatcher.recorded_events[2][1]["action"] == "verify_or_submit_flag"
-    assert dispatcher.recorded_events[2][1]["result"] == "ok"
+    assert dispatcher.recorded_events[2][1]["decision"] == "verified"
+    assert dispatcher.recorded_events[2][1]["flag"] == "flag{verified_from_blackboard}"
+    assert dispatcher.recorded_events[3][1]["action"] == "verify_or_submit_flag"
+    assert dispatcher.recorded_events[3][1]["result"] == "ok"
+
+
+class _CoordinatorEarlyFinishRuntime:
+    def __init__(self):
+        self.environment = SimpleNamespace(available_tools=[])
+
+    async def browser_action(self, action: str, **kwargs):
+        if action == "navigate":
+            return {"url": "http://ctf.local/", "title": "coordinator-home"}
+        if action == "get_content":
+            return {
+                "content": "welcome",
+                "html": "<html><body>welcome</body></html>",
+            }
+        if action == "get_forms":
+            return {"forms": []}
+        return {"error": f"unexpected action: {action}"}
+
+    async def proxy_action(self, action: str, **kwargs):
+        return {"status_code": 404, "body": ""}
+
+    async def execute_command(self, command: str, timeout: int = 180):
+        return SimpleNamespace(exit_code=0, stdout="", stderr="")
+
+
+@pytest.mark.asyncio
+async def test_coordinator_verified_flag_early_finish_emits_verification_and_aligned_finish_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    _clear_test_notes(tmp_path / "notes_coordinator_verified_early.json")
+
+    dispatcher = CTFTaskDispatcher(
+        runtime=_CoordinatorEarlyFinishRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+
+    result = await dispatcher.run(
+        target="127.0.0.1:3000",
+        goal="拿到flag",
+        type="web",
+        hint=(
+            "[control_decision]\n"
+            "decisionKind=direct_execute\n"
+            "nextAction=verify_or_submit_flag\n"
+            "driver=blackboard.verified_flag\n"
+            "verifiedFlag=flag{coordinator_verified_early}"
+        ),
+        run_id="run-coordinator-verified-early",
+        ledger_root=tmp_path / "ledgers",
+        checkpoint_root=tmp_path / "checkpoints",
+    )
+
+    events = SessionLedger(tmp_path / "ledgers").read_events("run-coordinator-verified-early")
+    checkpoints = CheckpointStore(tmp_path / "checkpoints").list_checkpoints(
+        "run-coordinator-verified-early"
+    )
+    latest = CheckpointStore(tmp_path / "checkpoints").latest_checkpoint(
+        "run-coordinator-verified-early"
+    )
+
+    assert result.success is True
+    assert result.flag == "flag{coordinator_verified_early}"
+    assert result.reason == "blackboard 已有 verified flag"
+    assert latest is not None
+    event_types = [event["event_type"] for event in events]
+    assert "verification_decision" in event_types
+    assert event_types.index("control_action_started") < event_types.index("verification_decision")
+    assert event_types.index("verification_decision") < event_types.index("task_finished")
+    assert event_types.index("control_action_completed") < event_types.index("task_finished")
+    verification_event = next(event for event in events if event["event_type"] == "verification_decision")
+    task_finished_event = next(event for event in events if event["event_type"] == "task_finished")
+    assert verification_event["payload"]["decision"] == "verified"
+    assert verification_event["payload"]["flag"] == "flag{coordinator_verified_early}"
+    assert task_finished_event["payload"]["reason"] == "blackboard 已有 verified flag"
+    assert checkpoints[-1]["label"] == "task_finished"
+    assert checkpoints[-1]["metadata"]["reason"] == "blackboard 已有 verified flag"
+    assert checkpoints[-1]["metadata"]["flag"] == "flag{coordinator_verified_early}"
+    restored = CTFState.from_snapshot(latest["state"])
+    assert restored.stop_reason == "blackboard 已有 verified flag"
+    assert any(
+        record.value == "flag{coordinator_verified_early}"
+        for record in restored.verified_flags
+    )
+
+
+@pytest.mark.asyncio
+async def test_coordinator_runtime_flag_early_finish_keeps_verification_and_final_checkpoint_aligned(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    _clear_test_notes(tmp_path / "notes_coordinator_runtime_early.json")
+
+    dispatcher = CTFTaskDispatcher(
+        runtime=_CoordinatorEarlyFinishRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+
+    result = await dispatcher.run(
+        target="127.0.0.1:3000",
+        goal="拿到flag",
+        type="web",
+        hint=(
+            "[control_decision]\n"
+            "decisionKind=direct_execute\n"
+            "nextAction=verify_runtime_signal\n"
+            "driver=blackboard.runtime_flag\n"
+            "runtimeFlag=flag{coordinator_runtime_early}"
+        ),
+        run_id="run-coordinator-runtime-early",
+        ledger_root=tmp_path / "ledgers",
+        checkpoint_root=tmp_path / "checkpoints",
+    )
+
+    events = SessionLedger(tmp_path / "ledgers").read_events("run-coordinator-runtime-early")
+    checkpoints = CheckpointStore(tmp_path / "checkpoints").list_checkpoints(
+        "run-coordinator-runtime-early"
+    )
+    latest = CheckpointStore(tmp_path / "checkpoints").latest_checkpoint(
+        "run-coordinator-runtime-early"
+    )
+
+    assert result.success is True
+    assert result.flag == "flag{coordinator_runtime_early}"
+    assert result.reason == "runtime 信号优先验证命中旗帜"
+    assert latest is not None
+    event_types = [event["event_type"] for event in events]
+    assert "verification_decision" in event_types
+    assert event_types.index("control_action_started") < event_types.index("verification_decision")
+    assert event_types.index("verification_decision") < event_types.index("task_finished")
+    assert event_types.index("control_action_completed") < event_types.index("task_finished")
+    verification_event = next(event for event in events if event["event_type"] == "verification_decision")
+    task_finished_event = next(event for event in events if event["event_type"] == "task_finished")
+    assert verification_event["payload"]["decision"] == "verified"
+    assert verification_event["payload"]["flag"] == "flag{coordinator_runtime_early}"
+    assert task_finished_event["payload"]["reason"] == "runtime 信号优先验证命中旗帜"
+    assert checkpoints[-1]["label"] == "task_finished"
+    assert checkpoints[-1]["metadata"]["reason"] == "runtime 信号优先验证命中旗帜"
+    assert checkpoints[-1]["metadata"]["flag"] == "flag{coordinator_runtime_early}"
+    restored = CTFState.from_snapshot(latest["state"])
+    assert restored.stop_reason == "runtime 信号优先验证命中旗帜"
+    assert any(
+        record.value == "flag{coordinator_runtime_early}"
+        for record in restored.verified_flags
+    )
 
 
 @pytest.mark.asyncio
