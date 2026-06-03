@@ -1390,6 +1390,76 @@ async def test_task_detail_surfaces_suppressed_recommended_action(web_client: Te
 
 
 @pytest.mark.asyncio
+async def test_task_detail_blackboard_snapshot_surfaces_first_action_alignment(
+    web_client: TestClient,
+):
+    created = await web_client.post(
+        "/api/tasks",
+        json={
+            "title": "alignment-detail",
+            "target": "http://challenge.test",
+            "mode": "ctf",
+            "ctfType": "web",
+            "goal": "capture the flag",
+        },
+    )
+
+    assert created.status == 201
+    task = await created.json()
+    task_id = task["id"]
+    web_server._tasks[task_id]["sessionContext"] = {
+        "recentEvents": [
+            {
+                "type": "control_action_started",
+                "t": "2026-06-03T10:00:01+00:00",
+                "payload": {
+                    "action": "verify_runtime_signal",
+                    "expected_action": "collect_initial_facts",
+                    "alignment": "mismatched",
+                    "alignment_reason": "runtime verification preempted planned first action",
+                    "driver": "blackboard.runtime_flag",
+                },
+            },
+            {
+                "type": "control_action_completed",
+                "t": "2026-06-03T10:00:02+00:00",
+                "payload": {
+                    "action": "verify_runtime_signal",
+                    "driver": "blackboard.runtime_flag",
+                    "result": "ok",
+                    "details": {"verified": True},
+                },
+            },
+        ],
+        "artifacts": [],
+        "latestCheckpoint": None,
+        "resumeContext": None,
+    }
+    web_server._tasks[task_id]["controlDecision"] = {
+        "shouldRun": True,
+        "decisionKind": "explore_first",
+        "reason": "derived target available for initial fact collection",
+        "nextAction": "collect_initial_facts",
+        "driver": "blackboard.derived_target.runtime_derived",
+        "facts": ["mode=ctf"],
+    }
+
+    detail_resp = await web_client.get(f"/api/tasks/{task_id}")
+    assert detail_resp.status == 200
+    detail = await detail_resp.json()
+
+    assert detail["blackboardSnapshot"]["activeDecision"]["nextAction"] == "collect_initial_facts"
+    assert detail["blackboardSnapshot"]["activeDecision"]["observedAction"] == "verify_runtime_signal"
+    assert detail["blackboardSnapshot"]["activeDecision"]["alignment"] == "mismatched"
+    assert (
+        detail["blackboardSnapshot"]["activeDecision"]["alignmentReason"]
+        == "runtime verification preempted planned first action"
+    )
+    assert detail["blackboardSnapshot"]["actionResults"][0]["expectedAction"] == "collect_initial_facts"
+    assert detail["blackboardSnapshot"]["actionResults"][0]["alignment"] == "mismatched"
+
+
+@pytest.mark.asyncio
 async def test_post_task_persists_mode_aware_default_goal_when_goal_omitted(web_client: TestClient):
     created = await web_client.post(
         "/api/tasks",

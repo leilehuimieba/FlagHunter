@@ -486,3 +486,75 @@ def test_build_task_blackboard_snapshot_recommends_next_best_action_after_select
     assert recommended["recommended"] is True
     failed_selected = [item for item in snapshot["candidates"] if item["action"] == "collect_initial_facts"][0]
     assert failed_selected["lastResult"] == "failed"
+
+
+def test_build_task_blackboard_snapshot_projects_first_action_alignment_into_active_decision_and_action_results() -> None:
+    state = CTFState(target="http://challenge.test", goal="拿到flag")
+    state.add_observation(
+        "derived_target",
+        "http://127.0.0.1:3000",
+        source="challenge_context",
+        metadata={"compose_path": r"D:\webstudy\CTF\easy_login\docker-compose.yml"},
+    )
+
+    snapshot = build_task_blackboard_snapshot(
+        {
+            "controlDecision": {
+                "shouldRun": True,
+                "decisionKind": "explore_first",
+                "reason": "derived target available for initial fact collection",
+                "nextAction": "collect_initial_facts",
+                "driver": "blackboard.derived_target.runtime_derived",
+                "facts": ["mode=ctf"],
+            },
+            "ctfStateSnapshot": state.to_snapshot(),
+        },
+        session_context={
+            "recentEvents": [
+                {
+                    "type": "control_action_started",
+                    "t": "2026-06-03T10:00:01+00:00",
+                    "payload": {
+                        "action": "verify_runtime_signal",
+                        "expected_action": "collect_initial_facts",
+                        "alignment": "mismatched",
+                        "alignment_reason": "runtime verification preempted planned first action",
+                        "driver": "blackboard.runtime_flag",
+                    },
+                },
+                {
+                    "type": "control_action_completed",
+                    "t": "2026-06-03T10:00:02+00:00",
+                    "payload": {
+                        "action": "verify_runtime_signal",
+                        "driver": "blackboard.runtime_flag",
+                        "result": "ok",
+                        "details": {"verified": True},
+                    },
+                },
+            ]
+        },
+    )
+
+    assert snapshot["active_decision"] == {
+        "decisionKind": "explore_first",
+        "nextAction": "collect_initial_facts",
+        "driver": "blackboard.derived_target.runtime_derived",
+        "reason": "derived target available for initial fact collection",
+        "expectedAction": "collect_initial_facts",
+        "observedAction": "verify_runtime_signal",
+        "alignment": "mismatched",
+        "alignmentReason": "runtime verification preempted planned first action",
+    }
+    assert snapshot["action_results"] == [
+        {
+            "action": "verify_runtime_signal",
+            "driver": "blackboard.runtime_flag",
+            "result": "ok",
+            "t": "2026-06-03T10:00:02+00:00",
+            "details": {"verified": True},
+            "expectedAction": "collect_initial_facts",
+            "alignment": "mismatched",
+            "alignmentReason": "runtime verification preempted planned first action",
+        }
+    ]
