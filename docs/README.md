@@ -15,7 +15,8 @@
 3. `D:\webstudy\FlagHunter\AGENTS.md`
 4. `D:\webstudy\FlagHunter\docs\web-console\FlagHunter_Web可视化控制台_当前可用性收口与使用边界_V1.md`
 5. `D:\webstudy\FlagHunter\docs\dev\FlagHunter_下一阶段主线_主控_BlackboardLite_调度收紧_V1.md`
-6. `D:\webstudy\FlagHunter\docs\dev\local_challenge_sample_matrix.md`
+6. `D:\webstudy\FlagHunter\docs\dev\FlagHunter_下一阶段执行方案_主控_BlackboardLite_Eval三线合并_V1.md`
+7. `D:\webstudy\FlagHunter\docs\dev\local_challenge_sample_matrix.md`
 
 ---
 
@@ -35,6 +36,7 @@
 - `docs/dev/FlagHunter_项目级source-of-truth状态卡_2026-06-01_V1.md`
 - `docs/dev/FlagHunter_项目状态核对与下一步讨论底稿_2026-06-01.md`
 - `docs/dev/FlagHunter_下一阶段主线_主控_BlackboardLite_调度收紧_V1.md`
+- `docs/dev/FlagHunter_下一阶段执行方案_主控_BlackboardLite_Eval三线合并_V1.md`
 - `docs/dev/local_challenge_sample_matrix.md`
 
 ### 2.2 背景分析层
@@ -61,6 +63,10 @@
 当前主线已明确收缩为：
 
 > **主控 / Blackboard-lite / 调度收紧**
+
+当前进一步落实后的下一阶段执行判断是：
+
+> **先做主控 / Blackboard-lite / 调度收紧，再用最小 Eval Harness 验证，最后再扩知识与上下文编排。**
 
 这条主线的优先顺序是：
 
@@ -132,7 +138,8 @@
 6. `docs/dev/FlagHunter_交接文档_当前主线与第一批任务_2026-06-01_V1.md`
 7. `docs/dev/FlagHunter_项目级source-of-truth状态卡_2026-06-01_V1.md`
 8. `docs/dev/FlagHunter_下一阶段主线_主控_BlackboardLite_调度收紧_V1.md`
-9. `docs/dev/local_challenge_sample_matrix.md`
+9. `docs/dev/FlagHunter_下一阶段执行方案_主控_BlackboardLite_Eval三线合并_V1.md`
+10. `docs/dev/local_challenge_sample_matrix.md`
 
 这套组合的目标是：
 

@@ -186,6 +186,34 @@ Blackboard-lite 的目标不是“看起来像智能板”，而是让主控和 
 
 ---
 
+## 8.1 当前已经打下的执行底座
+
+截至当前阶段，下面这些链路已经收口到代码与测试里：
+
+1. `controlDecision` 入口优先级链
+   - 已覆盖 Web / MCP ingress
+   - 已覆盖 replay / retry / continue 衍生链
+
+2. coordinator 首动作链
+   - `verify_or_submit_flag`
+   - `verify_runtime_signal`
+   - `resume_from_checkpoint`
+   - `collect_initial_facts`
+   - `bootstrap_local_assets`
+
+3. run-start 事件链
+   - `dispatcher_started`
+   - 起始 checkpoint metadata
+   - Web Trace `outcomeEvents`
+
+这意味着下一步不该再回头做“入口显式化”这一类工作，而应继续推进：
+
+- `control_action_started / completed`
+- Blackboard-lite candidate queue
+- 最小 Eval Harness
+
+---
+
 ## 9. 一句话收口
 
 > **下一阶段不是继续堆界面，而是把系统的判断能力、事实层和调度链路收紧，让“会判断”先成立，“会跑”再变成自然结果。**

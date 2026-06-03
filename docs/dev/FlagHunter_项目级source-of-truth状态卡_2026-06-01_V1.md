@@ -10,7 +10,7 @@
 
 ## 1. 当前一句话结论
 
-> **FlagHunter 已经完成了 Web Console 真值化收口、Mode Router 入口合同接入、Harness 基础壳层建立，并开始进入“主控 / Blackboard-lite / 调度收紧”的下一阶段。**
+> **FlagHunter 已经完成了 Web Console 真值化收口、Mode Router 入口合同接入、Harness 基础壳层建立，并把 control decision / first action 的运行时证据开始落到了 trace、checkpoint、session ledger。**
 
 这意味着：
 
@@ -118,6 +118,16 @@
 
 这条线是下一阶段最重要的实战牵引之一。
 
+### 3.5 control decision 运行时证据链已开始稳定
+
+当前已经可以确认：
+
+1. `controlDecision` 不是只存在于入口 payload
+2. coordinator 首动作不是只存在于代码意图
+3. `dispatcher_started` / checkpoint / Web Trace 已经开始能承接这条链
+
+这意味着当前项目正在从“可解释”走向“可证明”。
+
 ---
 
 ## 4. 当前已经稳定的 source of truth 组合
@@ -184,10 +194,11 @@
 如果只看当前阶段，最值得做的是：
 
 1. **主控判断能力收紧**
-2. **Blackboard-lite 事实分层**
-3. **调度链路收短**
-4. **继续用本地 challenge / artifact 样本逼出真实缺口**
-5. **保持文档与代码真相同步**
+2. **control action 事件闭环**
+3. **Blackboard-lite 候选动作池**
+4. **最小 Eval Harness**
+5. **继续用本地 challenge / artifact 样本逼出真实缺口**
+6. **保持文档与代码真相同步**
 
 ---
 
@@ -224,5 +235,4 @@
 
 ## 10. 一句话收口
 
-> **当前项目已经不是“再补页面”的阶段，而是进入了“先判断、再执行、再扩张”的主控收紧阶段。**
-
+> **当前项目已经不是“再补页面”的阶段，而是进入了“先判断、再证明判断真的被执行、再扩张”的主控收紧阶段。**

@@ -21,7 +21,7 @@
 
 ## 2. 当前一句话状态
 
-> **FlagHunter 已经完成 Web Console 真值化收口、Mode Router 入口合同接入、Harness 基础壳层建立，下一阶段主线已经收缩为“主控 / Blackboard-lite / 调度收紧”。**
+> **FlagHunter 已经完成 Web Console 真值化收口、Mode Router 入口合同接入、Harness 基础壳层建立，并把 control decision → first action → run-start event 链接到了 trace / checkpoint / session ledger。**
 
 这意味着当前阶段不应该继续把重点放在：
 
@@ -59,6 +59,18 @@
 - 跑什么
 - 为什么跑这个
 - 跑完之后怎么判断结果
+
+### 3.4 下一阶段执行顺序
+
+下一阶段按下面顺序推进：
+
+1. **主控 / Blackboard-lite / 调度收紧**
+2. **最小 Eval Harness**
+3. **知识与上下文编排**
+
+对应文档：
+
+- `D:\webstudy\FlagHunter\docs\dev\FlagHunter_下一阶段执行方案_主控_BlackboardLite_Eval三线合并_V1.md`
 
 ---
 
@@ -223,6 +235,27 @@
 - `runtime-only`
 - `zip / source / docker-compose / 日志`
 
+### 5.5 control decision 主链已进入“可回放”状态
+
+当前已经稳定的真实链路包括：
+
+1. **入口优先级**
+   - `verified_flag > runtime_flag > resume_context > resume_bootstrap_hint > initial_fact_collection_requested > local_assets`
+
+2. **coordinator 首动作合同**
+   - `verify_or_submit_flag`
+   - `verify_runtime_signal`
+   - `resume_from_checkpoint`
+   - `collect_initial_facts`
+   - `bootstrap_local_assets`
+
+3. **运行时证据回放**
+   - `dispatcher_started` 事件
+   - 起始 checkpoint metadata
+   - Web Trace `outcomeEvents`
+
+这说明当前主线已经从“判断是什么”推进到了“如何证明判断真的被执行”。
+
 ---
 
 ## 6. 当前明确不做
@@ -309,4 +342,4 @@
 
 ## 9. 一句话交接摘要
 
-> **当前项目已从“Web 真值化收口”进入“主控判断收紧 + Blackboard-lite 落地 + 调度收短”的下一阶段；下一批任务先做判断、再做事实分层、再做样本验证。**
+> **当前项目已从“Web 真值化收口”进入“主控判断收紧 + Blackboard-lite 落地 + 调度收短”的下一阶段；下一批任务优先做主控动作事件闭环、候选动作池和最小 Eval Harness。**
