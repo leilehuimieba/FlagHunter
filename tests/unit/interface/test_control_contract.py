@@ -81,6 +81,69 @@ def test_runtime_flag_outranks_resume_context() -> None:
     assert decision["driver"] == "blackboard.runtime_flag"
 
 
+def test_verified_flag_outranks_resume_bootstrap_hint() -> None:
+    payload = {
+        "mode": "ctf",
+        "target": "http://challenge.test",
+        "blackboardSnapshot": {
+            "facts": [
+                {
+                    "kind": "resume_bootstrap_hint",
+                    "value": "continue from saved recon state",
+                    "source": "ingress_handoff",
+                    "confidence": "high",
+                },
+                {
+                    "kind": "verified_flag",
+                    "value": "flag{done}",
+                    "source": "admin_page",
+                    "confidence": "high",
+                },
+            ],
+            "pendingVerifications": [],
+        },
+    }
+
+    decision = resolve_control_decision(payload)
+
+    assert decision["shouldRun"] is True
+    assert decision["decisionKind"] == "direct_execute"
+    assert decision["nextAction"] == "verify_or_submit_flag"
+    assert decision["driver"] == "blackboard.verified_flag"
+
+
+def test_runtime_flag_outranks_resume_bootstrap_hint() -> None:
+    payload = {
+        "mode": "ctf",
+        "target": "http://challenge.test",
+        "blackboardSnapshot": {
+            "facts": [
+                {
+                    "kind": "resume_bootstrap_hint",
+                    "value": "continue from saved recon state",
+                    "source": "ingress_handoff",
+                    "confidence": "high",
+                }
+            ],
+            "pendingVerifications": [
+                {
+                    "kind": "runtime_flag",
+                    "value": "flag{runtime_candidate}",
+                    "source": "collector",
+                    "rationale": "runtime hit",
+                }
+            ],
+        },
+    }
+
+    decision = resolve_control_decision(payload)
+
+    assert decision["shouldRun"] is True
+    assert decision["decisionKind"] == "direct_execute"
+    assert decision["nextAction"] == "verify_runtime_signal"
+    assert decision["driver"] == "blackboard.runtime_flag"
+
+
 def test_ctf_local_assets_prefers_direct_execute() -> None:
     payload = {
         "mode": "ctf",
