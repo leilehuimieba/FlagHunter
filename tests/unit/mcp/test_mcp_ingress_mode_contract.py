@@ -8,6 +8,11 @@ from types import SimpleNamespace
 
 import pytest
 
+from pentestagent.harness.audit_events import (
+    build_control_action_completed_event,
+    build_control_action_started_event,
+)
+from pentestagent.harness.session_ledger import SessionLedger
 from pentestagent.mcp.server import mcp_tools
 
 
@@ -709,9 +714,9 @@ async def test_run_task_routes_ctf_mode_into_dispatcher_with_explicit_challenge_
     assert captured["type"] == "web"
     assert "[control_decision]" in str(captured["hint"])
     assert "decisionKind=direct_execute" in str(captured["hint"])
-    assert "nextAction=bootstrap_local_assets" in str(captured["hint"])
+    assert "nextAction=exploit_identified_engine" in str(captured["hint"])
     assert captured["ingress_handoff"]["decisionKind"] == "direct_execute"
-    assert captured["ingress_handoff"]["nextAction"] == "bootstrap_local_assets"
+    assert captured["ingress_handoff"]["nextAction"] == "exploit_identified_engine"
     assert captured["challenge_context"] == {
         "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
         "artifactPaths": [
@@ -1088,6 +1093,35 @@ async def test_mcp_task_inspection_surfaces_runtime_derived_origin() -> None:
     assert "derived_target_origin: runtime_derived" in result_output
 
 
+def test_mcp_entry_blackboard_snapshot_for_decision_normalizes_extended_shape() -> None:
+    entry = mcp_tools.TaskEntry(
+        id="bb-normalize-1",
+        task="normalize explicit blackboard",
+        status="pending",
+        created_at="2026-06-03T00:00:00",
+        agent=SimpleNamespace(runtime=None, tools=[]),
+    )
+
+    snapshot = mcp_tools._entry_blackboard_snapshot_for_decision(
+        entry,
+        {
+            "facts": [{"kind": "derived_target", "value": "http://127.0.0.1:3000"}],
+            "pending_verifications": [{"kind": "runtime_flag", "value": "flag{runtime_pending}"}],
+            "candidates": [{"action": "collect_initial_facts"}],
+            "active_decision": {"nextAction": "collect_initial_facts"},
+            "action_results": [{"action": "bootstrap_local_assets", "result": "failed"}],
+            "recommended_action": {"action": "collect_initial_facts"},
+        },
+    )
+
+    assert snapshot["facts"] == [{"kind": "derived_target", "value": "http://127.0.0.1:3000"}]
+    assert snapshot["pendingVerifications"] == [{"kind": "runtime_flag", "value": "flag{runtime_pending}"}]
+    assert snapshot["candidates"] == [{"action": "collect_initial_facts"}]
+    assert snapshot["activeDecision"] == {"nextAction": "collect_initial_facts"}
+    assert snapshot["actionResults"] == [{"action": "bootstrap_local_assets", "result": "failed"}]
+    assert snapshot["recommendedAction"] == {"action": "collect_initial_facts"}
+
+
 @pytest.mark.asyncio
 async def test_mcp_task_inspection_surfaces_decision_record_driver() -> None:
     entry = mcp_tools.TaskEntry(
@@ -1124,6 +1158,182 @@ async def test_mcp_task_inspection_surfaces_decision_record_driver() -> None:
 
     assert "decision_record_driver: blackboard.verified_flag" in status_output
     assert "decision_record_driver: blackboard.verified_flag" in result_output
+
+
+@pytest.mark.asyncio
+async def test_mcp_task_inspection_exposes_active_decision_alignment_and_suppression() -> None:
+    ledger = SessionLedger("loot/session_ledgers")
+    started = build_control_action_started_event(
+        action="probe_discovered_endpoint",
+        decision_kind="direct_execute",
+        driver="blackboard.discovered_endpoint",
+        expected_action="collect_initial_facts",
+        alignment="mismatch",
+        alignment_reason="coordinator escalated to higher-value discovered endpoint",
+    )
+    ledger.append_event(
+        "mcp-ctf-active-decision-1",
+        str(started.get("event_type") or "control_action_started"),
+        dict(started.get("payload") or {}),
+    )
+
+    entry = mcp_tools.TaskEntry(
+        id="active-decision-1",
+        task="inspect active decision",
+        status="done",
+        created_at="2026-06-03T00:00:00",
+        finished_at="2026-06-03T00:01:00",
+        agent=SimpleNamespace(runtime=None, tools=[]),
+        target="http://challenge.test",
+        scope=[],
+        result="flag{active_decision_truth}",
+        mode="ctf",
+        modeSubtype="web",
+        goalStyle="flag",
+        controlDecision={
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "reason": "derived target available for initial fact collection",
+            "nextAction": "collect_initial_facts",
+            "driver": "blackboard.derived_target",
+            "suppressedRecommendation": {
+                "action": "resume_from_checkpoint",
+                "driver": "blackboard.resume_context",
+                "reason": "resume context or resume hint available",
+                "suppressedBy": "blackboard.derived_target",
+            },
+        },
+        ingressHandoff={
+            "decisionKind": "direct_execute",
+            "nextAction": "collect_initial_facts",
+            "challengeContext": {
+                "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+                "artifactPaths": [
+                    r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
+                ],
+                "derivedTarget": "http://127.0.0.1:3000",
+            },
+        },
+        runId="mcp-ctf-active-decision-1",
+        ledgerPath="loot/session_ledgers/mcp-ctf-active-decision-1.jsonl",
+    )
+    mcp_tools._tasks[entry.id] = entry
+
+    status_output = await mcp_tools.get_task_status({"task_id": entry.id})
+    result_output = await mcp_tools.get_task_result({"task_id": entry.id})
+
+    assert "[blackboard_active_decision]" in status_output
+    assert "expectedAction=collect_initial_facts" in status_output
+    assert "observedAction=probe_discovered_endpoint" in status_output
+    assert "alignment=mismatch" in status_output
+    assert "alignmentReason=coordinator escalated to higher-value discovered endpoint" in status_output
+    assert "suppressedRecommendation.action=resume_from_checkpoint" in status_output
+    assert "suppressedRecommendation.driver=blackboard.resume_context" in status_output
+    assert "suppressedRecommendation.reason=resume context or resume hint available" in status_output
+    assert "suppressedRecommendation.suppressedBy=blackboard.derived_target" in status_output
+
+    assert "[blackboard_active_decision]" in result_output
+    assert "observedAction=probe_discovered_endpoint" in result_output
+    assert "suppressedRecommendation.suppressedBy=blackboard.derived_target" in result_output
+
+
+@pytest.mark.asyncio
+async def test_mcp_task_inspection_exposes_recommended_action_and_action_results() -> None:
+    ledger = SessionLedger("loot/session_ledgers")
+    started = build_control_action_started_event(
+        action="bootstrap_local_assets",
+        decision_kind="direct_execute",
+        driver="task.local_assets",
+        expected_action="bootstrap_local_assets",
+        alignment="aligned",
+        alignment_reason="coordinator followed ingress action",
+    )
+    completed = build_control_action_completed_event(
+        action="bootstrap_local_assets",
+        result="failed",
+        decision_kind="direct_execute",
+        driver="task.local_assets",
+        details={"reason": "compose parsing failed"},
+    )
+    ledger.append_event(
+        "mcp-ctf-recommended-1",
+        str(started.get("event_type") or "control_action_started"),
+        dict(started.get("payload") or {}),
+    )
+    ledger.append_event(
+        "mcp-ctf-recommended-1",
+        str(completed.get("event_type") or "control_action_completed"),
+        dict(completed.get("payload") or {}),
+    )
+
+    entry = mcp_tools.TaskEntry(
+        id="recommended-1",
+        task="inspect recommended action",
+        status="done",
+        created_at="2026-06-03T00:00:00",
+        finished_at="2026-06-03T00:01:00",
+        agent=SimpleNamespace(runtime=None, tools=[]),
+        target="http://challenge.test",
+        scope=[],
+        result="bootstrap failed, switched candidate",
+        mode="ctf",
+        modeSubtype="web",
+        goalStyle="flag",
+        controlDecision={
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "reason": "local challenge assets available",
+            "nextAction": "bootstrap_local_assets",
+            "driver": "task.local_assets",
+        },
+        ingressHandoff={
+            "decisionKind": "direct_execute",
+            "nextAction": "bootstrap_local_assets",
+            "challengeContext": {
+                "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+                "artifactPaths": [
+                    r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
+                ],
+                "derivedTarget": "http://127.0.0.1:3000",
+            },
+        },
+        ctfStateSnapshot={
+            "target": "http://challenge.test",
+            "goal": "拿到flag",
+            "observations": [
+                {
+                    "kind": "derived_target",
+                    "value": "http://127.0.0.1:3000",
+                    "source": "challenge_context",
+                    "metadata": {"compose_path": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"},
+                }
+            ],
+            "artifacts": [],
+            "runtime_flags": [],
+            "verified_flags": [],
+        },
+        runId="mcp-ctf-recommended-1",
+        ledgerPath="loot/session_ledgers/mcp-ctf-recommended-1.jsonl",
+    )
+    mcp_tools._tasks[entry.id] = entry
+
+    status_output = await mcp_tools.get_task_status({"task_id": entry.id})
+    result_output = await mcp_tools.get_task_result({"task_id": entry.id})
+
+    assert "[blackboard_recommended_action]" in status_output
+    assert "action=collect_initial_facts" in status_output
+    assert "driver=blackboard.derived_target" in status_output
+    assert "reason=selected action failed; switch to next best candidate" in status_output
+    assert "[blackboard_action_results]" in status_output
+    assert "action=bootstrap_local_assets" in status_output
+    assert "result=failed" in status_output
+    assert "alignment=aligned" in status_output
+    assert "alignmentReason=coordinator followed ingress action" in status_output
+
+    assert "[blackboard_recommended_action]" in result_output
+    assert "action=collect_initial_facts" in result_output
+    assert "[blackboard_action_results]" in result_output
+    assert "result=failed" in result_output
 
 
 @pytest.mark.asyncio
