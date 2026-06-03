@@ -4409,6 +4409,149 @@ async def test_task_continue_rejects_finished_task(web_client: TestClient):
 
 
 @pytest.mark.asyncio
+async def test_trace_replay_consumes_inherited_recommended_action_over_local_assets(
+    web_client: TestClient,
+):
+    created = await web_client.post(
+        "/api/tasks",
+        json={"title": "replay-recommended", "target": "http://replay-recommended.test", "goal": "re-run original task"},
+    )
+    assert created.status == 201
+    original_task = await created.json()
+    original_task_id = original_task["id"]
+    original_run_id = original_task["currentRunId"]
+
+    web_server._tasks[original_task_id]["mode"] = "ctf"
+    web_server._tasks[original_task_id]["modeSubtype"] = "web"
+    web_server._tasks[original_task_id]["goalStyle"] = "flag"
+    web_server._tasks[original_task_id]["challengePath"] = r"D:\webstudy\CTF\2026\CTF比赛题\easy_login"
+    web_server._tasks[original_task_id]["artifactPaths"] = [
+        r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
+    ]
+    web_server._tasks[original_task_id]["blackboardSnapshot"] = {
+        "facts": [],
+        "pendingVerifications": [],
+        "recommendedAction": {
+            "action": "collect_initial_facts",
+            "driver": "blackboard.recommended_action",
+            "reason": "switch to next best action after failed exploit",
+        },
+    }
+
+    replay_resp = await web_client.post(f"/api/traces/{original_run_id}/replay")
+
+    assert replay_resp.status == 200
+    replayed_task = await replay_resp.json()
+    assert replayed_task["controlDecision"]["decisionKind"] == "resume_execute"
+    assert replayed_task["controlDecision"]["nextAction"] == "resume_from_checkpoint"
+    assert replayed_task["controlDecision"]["driver"] == "task.resume_context"
+    assert replayed_task["blackboardSnapshot"]["recommendedAction"]["action"] == "collect_initial_facts"
+    assert replayed_task["blackboardSnapshot"]["recommendedAction"]["driver"] == "blackboard.recommended_action"
+
+
+@pytest.mark.asyncio
+async def test_task_retry_consumes_inherited_recommended_action_over_local_assets(
+    web_client: TestClient,
+):
+    created = await web_client.post(
+        "/api/tasks",
+        json={"title": "retry-recommended", "target": "http://retry-recommended.test", "goal": "retry original task"},
+    )
+    assert created.status == 201
+    original_task = await created.json()
+    original_task_id = original_task["id"]
+
+    web_server._tasks[original_task_id]["mode"] = "ctf"
+    web_server._tasks[original_task_id]["modeSubtype"] = "web"
+    web_server._tasks[original_task_id]["goalStyle"] = "flag"
+    web_server._tasks[original_task_id]["status"] = "stopped"
+    web_server._tasks[original_task_id]["challengePath"] = r"D:\webstudy\CTF\2026\CTF比赛题\easy_login"
+    web_server._tasks[original_task_id]["artifactPaths"] = [
+        r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
+    ]
+    web_server._tasks[original_task_id]["blackboardSnapshot"] = {
+        "facts": [],
+        "pendingVerifications": [],
+        "recommendedAction": {
+            "action": "collect_initial_facts",
+            "driver": "blackboard.recommended_action",
+            "reason": "switch to next best action after failed exploit",
+        },
+    }
+
+    retry_resp = await web_client.post(f"/api/tasks/{original_task_id}/retry")
+
+    assert retry_resp.status == 200
+    retried_task = await retry_resp.json()
+    assert retried_task["controlDecision"]["decisionKind"] == "resume_execute"
+    assert retried_task["controlDecision"]["nextAction"] == "resume_from_checkpoint"
+    assert retried_task["controlDecision"]["driver"] == "task.resume_context"
+    assert retried_task["blackboardSnapshot"]["recommendedAction"]["action"] == "collect_initial_facts"
+    assert retried_task["blackboardSnapshot"]["recommendedAction"]["driver"] == "blackboard.recommended_action"
+
+
+@pytest.mark.asyncio
+async def test_task_continue_refreshes_control_decision_from_recommended_action(
+    web_client: TestClient,
+):
+    created = await web_client.post(
+        "/api/tasks",
+        json={"title": "continue-recommended", "target": "http://continue-recommended.test", "goal": "continue original task"},
+    )
+    assert created.status == 201
+    task = await created.json()
+    task_id = task["id"]
+
+    web_server._tasks[task_id]["mode"] = "ctf"
+    web_server._tasks[task_id]["modeSubtype"] = "web"
+    web_server._tasks[task_id]["goalStyle"] = "flag"
+    web_server._tasks[task_id]["status"] = "running"
+    web_server._tasks[task_id]["startedAt"] = web_server._now_iso()
+    web_server._tasks[task_id]["challengePath"] = r"D:\webstudy\CTF\2026\CTF比赛题\easy_login"
+    web_server._tasks[task_id]["artifactPaths"] = [
+        r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
+    ]
+    web_server._tasks[task_id]["controlDecision"] = {
+        "shouldRun": True,
+        "decisionKind": "direct_execute",
+        "reason": "local assets available",
+        "nextAction": "bootstrap_local_assets",
+        "driver": "task.local_assets",
+        "facts": ["mode=ctf"],
+    }
+    web_server._tasks[task_id]["blackboardSnapshot"] = {
+        "facts": [],
+        "pendingVerifications": [],
+        "recommendedAction": {
+            "action": "collect_initial_facts",
+            "driver": "blackboard.recommended_action",
+            "reason": "switch to next best action after failed exploit",
+        },
+    }
+    web_server._tasks[task_id]["ingressHandoff"] = {
+        "decisionKind": "direct_execute",
+        "nextAction": "bootstrap_local_assets",
+        "challengeContext": {
+            "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+            "artifactPaths": [
+                r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
+            ],
+        },
+    }
+
+    continue_resp = await web_client.post(f"/api/tasks/{task_id}/continue")
+
+    assert continue_resp.status == 200
+    detail_resp = await web_client.get(f"/api/tasks/{task_id}")
+    assert detail_resp.status == 200
+    detail = await detail_resp.json()
+    assert detail["controlDecision"]["decisionKind"] == "direct_execute"
+    assert detail["controlDecision"]["nextAction"] == "bootstrap_local_assets"
+    assert detail["blackboardSnapshot"]["recommendedAction"]["action"] == "collect_initial_facts"
+    assert detail["blackboardSnapshot"]["recommendedAction"]["driver"] == "blackboard.recommended_action"
+
+
+@pytest.mark.asyncio
 async def test_knowledge_reindex_returns_summary_shape(
     web_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
