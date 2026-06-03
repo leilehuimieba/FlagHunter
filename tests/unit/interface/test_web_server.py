@@ -3052,6 +3052,80 @@ def test_build_trace_payload_projects_artifacts_checkpoint_and_outcomes_from_ses
     assert any(event["kind"] == "task_finished" for event in payload["outcomeEvents"])
 
 
+def test_build_trace_payload_projects_dispatcher_started_outcome_event(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    task = {
+        "id": "task_trace_dispatcher_started_outcome",
+        "title": "trace dispatcher started outcome",
+        "target": "http://trace.test",
+        "goal": "trace start contract",
+        "mode": "ctf",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
+        "status": "stopped",
+        "createdAt": web_server._now_iso(),
+        "startedAt": web_server._now_iso(),
+        "finishedAt": web_server._now_iso(),
+        "tokensUsed": 0,
+        "toolCalls": 0,
+        "currentRunId": "run-trace-dispatcher-started-outcome",
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    monkeypatch.setattr(web_server, "_pick_metrics_for_task", lambda project_root, item: None)
+    monkeypatch.setattr(
+        web_server,
+        "_pick_session_snapshot",
+        lambda project_root, item: (
+            None,
+            None,
+            {"matchedBy": "none", "confidence": "none", "expectedSessionId": None, "blockedReason": None, "candidateScore": None},
+        ),
+    )
+    monkeypatch.setattr(
+        web_server,
+        "_build_run_session_context",
+        lambda project_root, run_id: {
+            "runId": run_id,
+            "recentEvents": [
+                {
+                    "type": "dispatcher_started",
+                    "t": "2026-05-29T10:00:00+00:00",
+                    "payload": {
+                        "target": "http://trace.test",
+                        "goal": "trace start contract",
+                        "requested_type": "web",
+                        "local_challenge_auto_verify": True,
+                        "has_challenge_context": True,
+                        "decision_kind": "direct_execute",
+                        "next_action": "bootstrap_local_assets",
+                        "decision_driver": "task.local_assets",
+                    },
+                }
+            ],
+            "artifacts": [],
+            "latestCheckpoint": None,
+            "resumeContext": None,
+        },
+    )
+
+    payload = web_server._build_trace_payload(tmp_path, task, include_timeline=True)
+
+    dispatcher_events = [event for event in payload["outcomeEvents"] if event["kind"] == "dispatcher_started"]
+    assert dispatcher_events
+    event = dispatcher_events[0]
+    assert event["title"] == "dispatcher started"
+    assert "bootstrap_local_assets" in event["summary"]
+    assert "direct_execute" in event["summary"]
+    assert "task.local_assets" in event["summary"]
+
+
 def test_task_detail_payload_re_normalizes_dirty_derived_collections(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):

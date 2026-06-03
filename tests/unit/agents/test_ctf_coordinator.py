@@ -839,6 +839,134 @@ async def test_coordinator_records_resume_ingress_in_run_start_contract(tmp_path
 
 
 @pytest.mark.asyncio
+async def test_coordinator_records_control_decision_in_run_start_event_and_checkpoint(tmp_path: Path):
+    coordinator = CTFCoordinator()
+    sentinel = SolveResult(success=False, reason="run-start-control-decision")
+    challenge_dir = tmp_path / "challenge_control"
+    challenge_dir.mkdir()
+    captured: dict[str, object] = {}
+
+    class _Dispatcher:
+        def __init__(self):
+            self._notes_log = []
+            self._challenge_context = None
+            self._ledger_run_id = None
+            self._current_fingerprint = None
+            self._memory_match_ids = []
+            self._pending_wrong_flag_feedback = []
+            self._exhausted_visit_url_targets = set()
+            self.reasoning_layer = SimpleNamespace(degradation_events=[])
+            self.state = None
+            self.recorded_events: list[tuple[str, dict[str, object]]] = []
+            self.written_checkpoints: list[tuple[str, dict[str, object]]] = []
+            self.capability_registry = SimpleNamespace(
+                full_check=self._capability_full_check,
+                to_dict=lambda: {"http_request_basic": "available"},
+            )
+
+        def _setup_session_ledger(self, *, run_id=None, ledger_root=None):
+            self._ledger_run_id = run_id
+
+        def _setup_artifact_registry(self, *, run_id=None, registry_root=None):
+            return None
+
+        def _setup_checkpoint_store(self, *, run_id=None, checkpoint_root=None):
+            return None
+
+        def _apply_submit_profile(self, submit_profile):
+            return None
+
+        async def _start_failover_monitor_if_available(self):
+            return None
+
+        def _record_session_event(self, event_type: str, payload: dict[str, object]):
+            self.recorded_events.append((event_type, dict(payload)))
+
+        def _write_checkpoint(self, label: str, payload: dict[str, object]):
+            self.written_checkpoints.append((label, dict(payload)))
+
+        def _load_rejected_flags(self):
+            return None
+
+        async def _snapshot_platform_context(self, target: str):
+            return None
+
+        async def _capability_full_check(self):
+            return None
+
+        async def _phase_recon(self, target: str):
+            return {
+                "html": "<html></html>",
+                "content": "portal",
+                "forms": [],
+                "endpoints": ["/login"],
+                "recon_missing_tools": [],
+            }
+
+        def _ingest_local_challenge_artifacts(self, target: str):
+            return None
+
+        def _ingest_registered_local_source_hints(self):
+            return None
+
+        async def run(self, **kwargs):
+            captured["recorded_events"] = list(self.recorded_events)
+            captured["written_checkpoints"] = list(self.written_checkpoints)
+            return sentinel
+
+    dispatcher = _Dispatcher()
+
+    result = await coordinator.execute(
+        dispatcher,
+        target="127.0.0.1:3000",
+        goal="goal",
+        type="web",
+        hint=(
+            "[control_decision]\n"
+            "decisionKind=direct_execute\n"
+            "nextAction=bootstrap_local_assets\n"
+            "driver=task.local_assets\n"
+            "reason=ctf local assets available"
+        ),
+        submit_profile=None,
+        challenge_context={"challengePath": str(challenge_dir), "artifactPaths": []},
+        run_id="run-start-control",
+        ledger_root=tmp_path / "ledgers",
+        checkpoint_root=tmp_path / "checkpoints",
+    )
+
+    assert result is sentinel
+    assert captured["recorded_events"] == [
+        (
+            "dispatcher_started",
+            {
+                "target": "http://127.0.0.1:3000",
+                "goal": "goal",
+                "requested_type": "web",
+                "local_challenge_auto_verify": True,
+                "has_challenge_context": True,
+                "decision_kind": "direct_execute",
+                "next_action": "bootstrap_local_assets",
+                "decision_driver": "task.local_assets",
+            },
+        )
+    ]
+    assert captured["written_checkpoints"] == [
+        (
+            "dispatcher_started",
+            {
+                "target": "http://127.0.0.1:3000",
+                "goal": "goal",
+                "requested_type": "web",
+                "decision_kind": "direct_execute",
+                "next_action": "bootstrap_local_assets",
+                "decision_driver": "task.local_assets",
+            },
+        )
+    ]
+
+
+@pytest.mark.asyncio
 async def test_coordinator_applies_pre_recon_contract_before_inner_run(tmp_path: Path):
     coordinator = CTFCoordinator()
     sentinel = SolveResult(success=False, reason="pre-recon-ready")
