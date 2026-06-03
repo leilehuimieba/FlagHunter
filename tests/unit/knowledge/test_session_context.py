@@ -4,7 +4,10 @@ from pentestagent.agents.pa_agent.ctf_state import CTFState
 from pentestagent.harness.artifact_registry import ArtifactRegistry
 from pentestagent.harness.checkpoint_store import CheckpointStore
 from pentestagent.harness.session_ledger import SessionLedger
-from pentestagent.knowledge.session_context import SessionContextView
+from pentestagent.knowledge.session_context import (
+    SessionContextView,
+    build_workspace_run_context,
+)
 
 
 def test_session_context_view_builds_recent_events_artifacts_and_latest_checkpoint(tmp_path) -> None:
@@ -144,3 +147,45 @@ def test_session_context_view_projects_resume_ingress_from_dispatcher_started_ev
         "checkpointId": "checkpoint-prev-1",
         "sourceEvent": "dispatcher_started",
     }
+
+
+def test_build_workspace_run_context_merges_artifacts_from_legacy_and_new_roots(
+    tmp_path,
+) -> None:
+    run_id = "run-session-context-artifact-roots"
+
+    SessionLedger(tmp_path / "loot" / "session_ledgers").append_event(
+        run_id,
+        "task_finished",
+        {"success": True},
+    )
+    ArtifactRegistry(tmp_path / "loot" / "artifact_registry").register_artifact(
+        run_id=run_id,
+        kind="artifact",
+        title="legacy artifact",
+        location="file:///legacy.txt",
+        producer="notes",
+    )
+    ArtifactRegistry(tmp_path / "loot" / "artifacts").register_artifact(
+        run_id=run_id,
+        kind="log_capture",
+        title="new artifact",
+        location="file:///new.log",
+        producer="exploit",
+    )
+
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    state.stop_reason = "done"
+    CheckpointStore(tmp_path / "loot" / "checkpoints").save_checkpoint(
+        run_id=run_id,
+        label="task_finished",
+        state_snapshot=state.to_snapshot(),
+        metadata={"success": True},
+    )
+
+    context = build_workspace_run_context(tmp_path, run_id)
+
+    titles = [item["title"] for item in context["artifacts"]]
+    assert titles == ["legacy artifact", "new artifact"]
+    assert context["latestCheckpoint"]["label"] == "task_finished"
+    assert "artifacts=legacy artifact, new artifact" in context["resumeContext"]["summary"]
