@@ -6,6 +6,7 @@ from pentestagent.agents.pa_agent.ctf_state import CTFState
 from pentestagent.interface.blackboard_lite import (
     build_entry_blackboard_snapshot,
     build_task_blackboard_snapshot,
+    format_blackboard_snapshot_lines,
     normalize_blackboard_snapshot,
     serialize_blackboard_snapshot,
 )
@@ -535,6 +536,58 @@ def test_serialize_blackboard_snapshot_projects_public_contract() -> None:
         "recommendedAction": {"action": "verify_or_submit_flag"},
         "activeDecision": {"nextAction": "verify_runtime_signal"},
     }
+
+
+def test_format_blackboard_snapshot_lines_projects_shared_sections() -> None:
+    lines = format_blackboard_snapshot_lines(
+        {
+            "facts": [{"kind": "verified_flag", "value": "flag{ok}"}],
+            "pending_verifications": [{"kind": "runtime_flag", "value": "flag{runtime}"}],
+            "active_decision": {
+                "decisionKind": "direct_execute",
+                "nextAction": "verify_runtime_signal",
+                "driver": "blackboard.runtime_flag",
+                "reason": "runtime flag pending verification in blackboard",
+                "expectedAction": "verify_runtime_signal",
+                "observedAction": "verify_runtime_signal",
+                "alignment": "aligned",
+                "alignmentReason": "coordinator followed ingress action",
+                "suppressedRecommendation": {
+                    "action": "resume_from_checkpoint",
+                    "driver": "blackboard.resume_context",
+                    "reason": "resume context available",
+                    "suppressedBy": "blackboard.runtime_flag",
+                },
+            },
+            "recommended_action": {
+                "action": "verify_or_submit_flag",
+                "driver": "blackboard.verified_flag",
+                "reason": "selected action failed; switch to next best candidate",
+            },
+            "action_results": [
+                {
+                    "action": "verify_runtime_signal",
+                    "driver": "blackboard.runtime_flag",
+                    "result": "failed",
+                    "expectedAction": "verify_runtime_signal",
+                    "alignment": "aligned",
+                    "alignmentReason": "coordinator followed ingress action",
+                }
+            ],
+        }
+    )
+
+    assert "[blackboard_facts]" in lines
+    assert "verified_flag=flag{ok}" in lines
+    assert "[blackboard_pending_verifications]" in lines
+    assert "runtime_flag=flag{runtime}" in lines
+    assert "[blackboard_active_decision]" in lines
+    assert "decisionKind=direct_execute" in lines
+    assert "suppressedRecommendation.suppressedBy=blackboard.runtime_flag" in lines
+    assert "[blackboard_recommended_action]" in lines
+    assert "action=verify_or_submit_flag" in lines
+    assert "[blackboard_action_results]" in lines
+    assert "result=failed" in lines
 
 
 def test_build_task_blackboard_snapshot_projects_first_action_alignment_into_active_decision_and_action_results() -> None:
