@@ -360,6 +360,29 @@ async def test_run_benchmark_supports_local_backup_node_app_zip_case(tmp_path: P
     }
 
 
+@pytest.mark.asyncio
+async def test_run_benchmark_supports_local_easy_login_none_case(tmp_path: Path):
+    report = await benchmark_runner.run_benchmark(
+        challenges=["local_easy_login_none"],
+        report_path=str(tmp_path / "local_easy_login_none.json"),
+    )
+
+    assert report.total_challenges == 1
+    assert report.results[0].challenge_id == "local_easy_login_none"
+    assert report.results[0].solved is False
+    assert report.results[0].flag is None
+    assert report.results[0].metadata["eval_contract"] == {
+        "sample_key": "easy_login",
+        "variant": "none",
+        "expected_outcome": "honest_no_flag",
+    }
+    assert report.results[0].metadata["eval_verdict"] == {
+        "expected_outcome": "honest_no_flag",
+        "observed_outcome": "honest_no_flag",
+        "matched": True,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Phase 7: failure taxonomy tests (P7-EVAL-01 to P7-EVAL-04)
 # ---------------------------------------------------------------------------
@@ -649,6 +672,32 @@ def test_aggregate_report_includes_local_sample_summary_metrics() -> None:
             },
         ),
         ChallengeResult(
+            challenge_id="local_easy_login_none",
+            solved=False,
+            expected_solved=False,
+            wrong_flag_count=0,
+            flag_submit_attempts=0,
+            chain_iterations=1,
+            stop_reason="no progress",
+            stop_reason_class="give_up",
+            has_source_only_stop=False,
+            hypothesis_exhausted_count=0,
+            hypothesis_total_count=1,
+            wall_time_seconds=0.15,
+            metadata={
+                "eval_contract": {
+                    "sample_key": "easy_login",
+                    "variant": "none",
+                    "expected_outcome": "honest_no_flag",
+                },
+                "eval_verdict": {
+                    "expected_outcome": "honest_no_flag",
+                    "observed_outcome": "honest_no_flag",
+                    "matched": True,
+                },
+            },
+        ),
+        ChallengeResult(
             challenge_id="local_backup_node_app_zip",
             solved=False,
             expected_solved=False,
@@ -704,7 +753,7 @@ def test_aggregate_report_includes_local_sample_summary_metrics() -> None:
         results=results,
     )
 
-    assert report.metadata["local_eval_case_count"] == 2
+    assert report.metadata["local_eval_case_count"] == 3
     assert report.metadata["local_eval_match_rate"] == 1.0
     assert report.metadata["local_eval_mismatch_ids"] == []
     assert report.metadata["local_eval_sample_keys"] == ["easy_login", "backup_node_app"]

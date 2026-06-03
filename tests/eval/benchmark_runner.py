@@ -608,6 +608,40 @@ async def _run_local_easy_login_runtime_only(
                     return result, dispatcher.state, harness_summary
 
 
+async def _run_local_easy_login_none(
+    verification_callback: Callable[[str], Any] | None = None,
+) -> tuple[SolveResult, CTFState | None, dict[str, Any]]:
+    sample = local_challenge_catalog_module.get_local_challenge_sample("easy_login")
+    with _benchmark_runtime_env():
+        with tempfile.TemporaryDirectory(prefix="benchmark_local_easy_login_none_") as temp_dir:
+            tmp_path = Path(temp_dir)
+            with _temporary_cwd(tmp_path), _isolated_notes(tmp_path):
+                with patch(
+                    "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+                    lambda self, tools: {},
+                ):
+                    runtime = local_challenge_runner_module._EasyLoginLocalAssetRuntime(
+                        enable_local_pivot=False
+                    )
+                    dispatcher = CTFTaskDispatcher(
+                        runtime=runtime,
+                        progress_callback=None,
+                        verification_callback=verification_callback,
+                    )
+                    result = await dispatcher.run(
+                        target=sample.target,
+                        goal=sample.minimal_prompt,
+                        type=sample.mode_subtype,
+                        hint="",
+                    )
+                    run_id = str(getattr(dispatcher, "_ledger_run_id", "") or "").strip()
+                    harness_summary = _build_harness_summary_for_run(
+                        run_id=run_id,
+                        workspace_root=tmp_path,
+                    )
+                    return result, dispatcher.state, harness_summary
+
+
 async def _run_local_backup_node_app_zip(
     verification_callback: Callable[[str], Any] | None = None,
 ) -> tuple[SolveResult, CTFState | None, dict[str, Any]]:
@@ -683,6 +717,17 @@ _CHALLENGE_CATALOG: dict[str, _ChallengeSpec] = {
             "sample_key": "easy_login",
             "variant": "runtime_only",
             "expected_outcome": "verified_flag",
+        },
+    ),
+    "local_easy_login_none": _ChallengeSpec(
+        challenge_id="local_easy_login_none",
+        expected_solved=False,
+        source="tests/integration/local_challenge_runner.py::easy_login:none",
+        runner=_run_local_easy_login_none,
+        eval_contract={
+            "sample_key": "easy_login",
+            "variant": "none",
+            "expected_outcome": "honest_no_flag",
         },
     ),
     "local_backup_node_app_zip": _ChallengeSpec(
