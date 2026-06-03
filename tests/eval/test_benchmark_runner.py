@@ -314,6 +314,29 @@ async def test_run_benchmark_attaches_eval_contract_metadata(monkeypatch, tmp_pa
     }
 
 
+@pytest.mark.asyncio
+async def test_run_benchmark_supports_local_easy_login_runtime_only_case(tmp_path: Path):
+    report = await benchmark_runner.run_benchmark(
+        challenges=["local_easy_login_runtime_only"],
+        report_path=str(tmp_path / "local_easy_login_runtime_only.json"),
+    )
+
+    assert report.total_challenges == 1
+    assert report.results[0].challenge_id == "local_easy_login_runtime_only"
+    assert report.results[0].solved is True
+    assert report.results[0].flag == "flag{dummy_flag_for_testing}"
+    assert report.results[0].metadata["eval_contract"] == {
+        "sample_key": "easy_login",
+        "variant": "runtime_only",
+        "expected_outcome": "verified_flag",
+    }
+    assert report.results[0].metadata["eval_verdict"] == {
+        "expected_outcome": "verified_flag",
+        "observed_outcome": "verified_flag",
+        "matched": True,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Phase 7: failure taxonomy tests (P7-EVAL-01 to P7-EVAL-04)
 # ---------------------------------------------------------------------------

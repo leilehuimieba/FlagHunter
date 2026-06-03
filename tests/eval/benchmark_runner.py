@@ -25,6 +25,12 @@ from tests.eval.benchmark_result import BenchmarkReport, ChallengeResult
 from tests.integration import test_ctf_dispatcher_acceptance as auth_sqli_module
 from tests.integration import test_ctf_dispatcher_backup_acceptance as backup_module
 from tests.integration import (
+    local_challenge_catalog as local_challenge_catalog_module,
+)
+from tests.integration import (
+    local_challenge_runner as local_challenge_runner_module,
+)
+from tests.integration import (
     test_ctf_dispatcher_easy_tornado_acceptance as easy_tornado_module,
 )
 from tests.integration import (
@@ -529,6 +535,37 @@ async def _run_llm_unknown_web(
                 )
 
 
+async def _run_local_easy_login_runtime_only(
+    verification_callback: Callable[[str], Any] | None = None,
+) -> tuple[SolveResult, CTFState | None, dict[str, Any]]:
+    sample = local_challenge_catalog_module.get_local_challenge_sample("easy_login")
+    with tempfile.TemporaryDirectory(prefix="benchmark_local_easy_login_runtime_only_") as temp_dir:
+        tmp_path = Path(temp_dir)
+        with _temporary_cwd(tmp_path), _isolated_notes(tmp_path):
+            with patch(
+                "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+                lambda self, tools: {},
+            ):
+                runtime = local_challenge_runner_module._EasyLoginRuntimeOnlyFallbackRuntime()
+                dispatcher = CTFTaskDispatcher(
+                    runtime=runtime,
+                    progress_callback=None,
+                    verification_callback=verification_callback,
+                )
+                result = await dispatcher.run(
+                    target=sample.target,
+                    goal=sample.minimal_prompt,
+                    type=sample.mode_subtype,
+                    hint="",
+                )
+                run_id = str(getattr(dispatcher, "_ledger_run_id", "") or "").strip()
+                harness_summary = _build_harness_summary_for_run(
+                    run_id=run_id,
+                    workspace_root=tmp_path,
+                )
+                return result, dispatcher.state, harness_summary
+
+
 _CHALLENGE_CATALOG: dict[str, _ChallengeSpec] = {
     "easy_tornado": _ChallengeSpec(
         challenge_id="easy_tornado",
@@ -559,6 +596,17 @@ _CHALLENGE_CATALOG: dict[str, _ChallengeSpec] = {
         expected_solved=True,
         source="tests/integration/test_ctf_dispatcher_llm_fallback_acceptance.py::unknown_web_server",
         runner=_run_llm_unknown_web,
+    ),
+    "local_easy_login_runtime_only": _ChallengeSpec(
+        challenge_id="local_easy_login_runtime_only",
+        expected_solved=True,
+        source="tests/integration/local_challenge_runner.py::easy_login:runtime_only",
+        runner=_run_local_easy_login_runtime_only,
+        eval_contract={
+            "sample_key": "easy_login",
+            "variant": "runtime_only",
+            "expected_outcome": "verified_flag",
+        },
     ),
 }
 
