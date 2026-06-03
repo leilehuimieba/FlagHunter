@@ -307,6 +307,11 @@ async def test_run_benchmark_attaches_eval_contract_metadata(monkeypatch, tmp_pa
         "variant": "runtime_only",
         "expected_outcome": "verified_flag",
     }
+    assert report.results[0].metadata["eval_verdict"] == {
+        "expected_outcome": "verified_flag",
+        "observed_outcome": "verified_flag",
+        "matched": True,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -507,3 +512,62 @@ def test_aggregate_report_includes_harness_coverage_metrics() -> None:
     assert report.metadata["harness_checkpoint_coverage"] == 0.5
     assert report.metadata["harness_artifact_coverage"] == 0.5
     assert report.metadata["harness_tool_event_coverage"] == 0.5
+
+
+def test_aggregate_report_includes_eval_expectation_match_metrics() -> None:
+    results = [
+        ChallengeResult(
+            challenge_id="easy_login_runtime_only",
+            solved=True,
+            expected_solved=True,
+            wrong_flag_count=0,
+            flag_submit_attempts=0,
+            chain_iterations=1,
+            stop_reason="ok",
+            stop_reason_class="flag_verified",
+            has_source_only_stop=False,
+            hypothesis_exhausted_count=0,
+            hypothesis_total_count=1,
+            wall_time_seconds=0.1,
+            verified_flag_count=1,
+            metadata={
+                "eval_verdict": {
+                    "expected_outcome": "verified_flag",
+                    "observed_outcome": "verified_flag",
+                    "matched": True,
+                }
+            },
+        ),
+        ChallengeResult(
+            challenge_id="easy_login_none",
+            solved=True,
+            expected_solved=False,
+            wrong_flag_count=0,
+            flag_submit_attempts=0,
+            chain_iterations=1,
+            stop_reason="false positive",
+            stop_reason_class="flag_verified",
+            has_source_only_stop=False,
+            hypothesis_exhausted_count=0,
+            hypothesis_total_count=1,
+            wall_time_seconds=0.2,
+            verified_flag_count=1,
+            metadata={
+                "eval_verdict": {
+                    "expected_outcome": "honest_no_flag",
+                    "observed_outcome": "verified_flag",
+                    "matched": False,
+                }
+            },
+        ),
+    ]
+
+    report = benchmark_runner._aggregate_report(
+        run_id="benchmark_eval_match",
+        timestamp="2026-06-03T00:00:00+00:00",
+        git_sha="deadbeef",
+        results=results,
+    )
+
+    assert report.metadata["eval_expectation_match_rate"] == 0.5
+    assert report.metadata["eval_expectation_mismatch_ids"] == ["easy_login_none"]
