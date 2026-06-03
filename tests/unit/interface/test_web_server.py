@@ -118,6 +118,109 @@ def test_task_capabilities_toggle_retry_by_status():
     assert web_server._task_capabilities({"status": "stopped"})["retry"] is True
 
 
+def test_resolve_task_session_context_prefers_harness_over_inherited_resume() -> None:
+    harness_context = {
+        "runId": "run-harness",
+        "recentEvents": [{"type": "task_finished", "payload": {}}],
+        "artifacts": [],
+        "latestCheckpoint": None,
+        "resumeContext": None,
+    }
+    inherited_context = {
+        "runId": "run-inherited",
+        "recentEvents": [],
+        "artifacts": [],
+        "latestCheckpoint": None,
+        "resumeContext": {"runId": "run-prev-1"},
+    }
+
+    resolved, mode = web_server._resolve_task_session_context(
+        harness_context,
+        inherited_context,
+    )
+
+    assert resolved == harness_context
+    assert mode == "harness"
+
+
+def test_build_task_projection_fields_returns_shared_detail_source_and_blackboard() -> None:
+    item = {
+        "id": "task-projection-1",
+        "target": "http://challenge.test",
+        "sessionId": "task-session-1",
+        "controlDecision": {
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "nextAction": "verify_runtime_signal",
+            "driver": "blackboard.runtime_flag",
+            "reason": "runtime flag pending verification in blackboard",
+        },
+        "ctfStateSnapshot": {
+            "target": "http://challenge.test",
+            "goal": "拿到flag",
+            "observations": [],
+            "artifacts": [],
+            "runtime_flags": [
+                {
+                    "value": "flag{runtime_pending}",
+                    "level": "runtime",
+                    "evidence_source": "collector",
+                    "rationale": "runtime hit",
+                    "confidence": 0.0,
+                    "requires_followup": False,
+                    "proof": None,
+                    "metadata": {},
+                }
+            ],
+            "verified_flags": [],
+        },
+    }
+    session_context = {
+        "runId": "run-harness",
+        "recentEvents": [],
+        "artifacts": [],
+        "latestCheckpoint": None,
+        "resumeContext": None,
+    }
+    session_meta = {
+        "matchedBy": "explicit_session_id",
+        "confidence": "high",
+        "expectedSessionId": "task-session-1",
+        "blockedReason": None,
+        "candidateScore": None,
+    }
+
+    projection = web_server._build_task_projection_fields(
+        project_root=Path("D:/webstudy/FlagHunter"),
+        item=item,
+        session_context=session_context,
+        session_context_mode="harness",
+        session_meta=session_meta,
+        metrics_session_id="metrics-session-1",
+        task_session_id="task-session-1",
+        notes_sources=[],
+        messages_mode="session_snapshot",
+        plan=[],
+        notes=[],
+        knowledge_mode="unobserved",
+        snapshot_path=None,
+    )
+
+    assert projection["detailSource"]["sessionContext"] == "harness"
+    assert projection["detailSource"]["sessionMatchedBy"] == "explicit_session_id"
+    assert projection["detailSource"]["metricsSessionId"] == "metrics-session-1"
+    assert projection["detailSource"]["taskSessionId"] == "task-session-1"
+    assert projection["blackboardSnapshot"]["pendingVerifications"] == [
+        {
+            "kind": "runtime_flag",
+            "value": "flag{runtime_pending}",
+            "source": "collector",
+            "rationale": "runtime hit",
+        }
+    ]
+    assert projection["blackboardSnapshot"]["activeDecision"]["nextAction"] == "verify_runtime_signal"
+
+
 def test_serialize_task_normalizes_dirty_collections():
     task = {
         "id": "task_dirty",
