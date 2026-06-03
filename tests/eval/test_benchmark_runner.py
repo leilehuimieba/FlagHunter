@@ -571,3 +571,70 @@ def test_aggregate_report_includes_eval_expectation_match_metrics() -> None:
 
     assert report.metadata["eval_expectation_match_rate"] == 0.5
     assert report.metadata["eval_expectation_mismatch_ids"] == ["easy_login_none"]
+
+
+def test_build_challenge_result_classifies_wrong_flag_feedback_as_unexpected_failure() -> None:
+    from pentestagent.agents.pa_agent.ctf_dispatcher import SolveResult
+    from pentestagent.agents.pa_agent.ctf_state import CTFState
+
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    state.stop_reason = "wrong_flag_feedback"
+    state.stop_report = {"reason": "wrong_flag_feedback"}
+    state.add_flag(
+        "flag{wrong_one}",
+        level="rejected",
+        evidence_source="platform",
+        rationale="platform rejected",
+        confidence=1.0,
+    )
+    result = SolveResult(success=False, reason="wrong_flag_feedback", chain_used=["web"])
+
+    challenge_result = benchmark_runner._build_challenge_result(
+        challenge_id="wrong_flag_case",
+        expected_solved=False,
+        source="test",
+        result=result,
+        state=state,
+        wall_time_seconds=0.1,
+        eval_contract={
+            "sample_key": "easy_login",
+            "variant": "none",
+            "expected_outcome": "honest_no_flag",
+        },
+    )
+
+    assert challenge_result.metadata["eval_verdict"] == {
+        "expected_outcome": "honest_no_flag",
+        "observed_outcome": "unexpected_failure",
+        "matched": False,
+    }
+
+
+def test_build_challenge_result_keeps_no_progress_without_flags_as_honest_no_flag() -> None:
+    from pentestagent.agents.pa_agent.ctf_dispatcher import SolveResult
+    from pentestagent.agents.pa_agent.ctf_state import CTFState
+
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    state.stop_reason = "no progress"
+    state.stop_report = {"reason": "all_hypotheses_exhausted"}
+    result = SolveResult(success=False, reason="no progress", chain_used=["web"])
+
+    challenge_result = benchmark_runner._build_challenge_result(
+        challenge_id="honest_no_flag_case",
+        expected_solved=False,
+        source="test",
+        result=result,
+        state=state,
+        wall_time_seconds=0.1,
+        eval_contract={
+            "sample_key": "easy_login",
+            "variant": "none",
+            "expected_outcome": "honest_no_flag",
+        },
+    )
+
+    assert challenge_result.metadata["eval_verdict"] == {
+        "expected_outcome": "honest_no_flag",
+        "observed_outcome": "honest_no_flag",
+        "matched": True,
+    }
