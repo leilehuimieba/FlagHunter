@@ -67,6 +67,7 @@
 
 - `blackboardSnapshot.candidates`
 - `blackboardSnapshot.activeDecision`
+- `blackboardSnapshot.actionResults` / candidate `lastResult`
 
 下一步目标：
 

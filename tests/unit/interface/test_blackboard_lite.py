@@ -327,6 +327,7 @@ def test_build_task_blackboard_snapshot_tolerates_missing_state_snapshot() -> No
         "pending_verifications": [],
         "decisions": [],
         "candidates": [],
+        "action_results": [],
         "active_decision": {
             "decisionKind": "blocked",
             "nextAction": "await_input",
@@ -378,3 +379,53 @@ def test_build_task_blackboard_snapshot_projects_selected_and_backup_candidates(
     backup = [item for item in candidates if item["action"] == "probe_discovered_endpoint"]
     assert backup
     assert backup[0]["selected"] is False
+
+
+def test_build_task_blackboard_snapshot_projects_action_results_and_candidate_last_result() -> None:
+    state = CTFState(target="http://challenge.test", goal="拿到flag")
+    state.add_observation(
+        "derived_target",
+        "http://127.0.0.1:3000",
+        source="challenge_context",
+        metadata={"compose_path": r"D:\webstudy\CTF\easy_login\docker-compose.yml"},
+    )
+
+    snapshot = build_task_blackboard_snapshot(
+        {
+            "controlDecision": {
+                "shouldRun": True,
+                "decisionKind": "explore_first",
+                "reason": "derived target available for initial fact collection",
+                "nextAction": "collect_initial_facts",
+                "driver": "blackboard.derived_target.runtime_derived",
+                "facts": ["mode=ctf"],
+            },
+            "ctfStateSnapshot": state.to_snapshot(),
+        },
+        session_context={
+            "recentEvents": [
+                {
+                    "type": "control_action_completed",
+                    "t": "2026-06-03T10:00:02+00:00",
+                    "payload": {
+                        "action": "collect_initial_facts",
+                        "driver": "blackboard.derived_target.runtime_derived",
+                        "result": "ok",
+                        "details": {"facts_collected": 3},
+                    },
+                }
+            ]
+        },
+    )
+
+    assert snapshot["action_results"] == [
+        {
+            "action": "collect_initial_facts",
+            "driver": "blackboard.derived_target.runtime_derived",
+            "result": "ok",
+            "t": "2026-06-03T10:00:02+00:00",
+            "details": {"facts_collected": 3},
+        }
+    ]
+    selected = [item for item in snapshot["candidates"] if item["action"] == "collect_initial_facts"][0]
+    assert selected["lastResult"] == "ok"

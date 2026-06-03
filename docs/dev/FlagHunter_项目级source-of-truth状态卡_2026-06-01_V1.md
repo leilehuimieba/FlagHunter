@@ -133,7 +133,7 @@
 - pending verifications
 - candidate actions
 - active decision
-- action results
+- action results（已开始从 `control_action_completed` 事件真值投影）
 
 ### 4.2 控制链还缺“执行证据”第二段
 

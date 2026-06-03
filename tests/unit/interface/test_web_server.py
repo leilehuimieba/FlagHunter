@@ -1186,6 +1186,23 @@ async def test_task_detail_surfaces_blackboard_snapshot(web_client: TestClient):
     web_server._tasks[task_id]["ingressHandoff"]["challengeContext"]["derivedTargetComposePath"] = (
         r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
     )
+    web_server._tasks[task_id]["sessionContext"] = {
+        "recentEvents": [
+            {
+                "type": "control_action_completed",
+                "t": "2026-06-03T10:00:02+00:00",
+                "payload": {
+                    "action": "bootstrap_local_assets",
+                    "driver": "task.local_assets",
+                    "result": "ok",
+                    "details": {"ingested": 2},
+                },
+            }
+        ],
+        "artifacts": [],
+        "latestCheckpoint": None,
+        "resumeContext": None,
+    }
     web_server._tasks[task_id]["ctfStateSnapshot"] = {
         "target": "http://challenge.test",
         "goal": "拿到flag",
@@ -1269,6 +1286,21 @@ async def test_task_detail_surfaces_blackboard_snapshot(web_client: TestClient):
     candidate_actions = {item["action"] for item in detail["blackboardSnapshot"]["candidates"]}
     assert "verify_or_submit_flag" in candidate_actions
     assert "resume_from_checkpoint" in candidate_actions
+    assert detail["blackboardSnapshot"]["actionResults"] == [
+        {
+            "action": "bootstrap_local_assets",
+            "driver": "task.local_assets",
+            "result": "ok",
+            "t": "2026-06-03T10:00:02+00:00",
+            "details": {"ingested": 2},
+        }
+    ]
+    selected_candidate = [
+        item
+        for item in detail["blackboardSnapshot"]["candidates"]
+        if item["action"] == "bootstrap_local_assets"
+    ][0]
+    assert selected_candidate["lastResult"] == "ok"
     assert detail["detailSource"]["derivedTarget"] == "http://127.0.0.1:3000"
     assert detail["detailSource"]["derivedTargetSource"] == "docker_compose_port_mapping"
     assert (

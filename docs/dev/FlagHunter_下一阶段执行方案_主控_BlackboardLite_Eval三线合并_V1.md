@@ -110,7 +110,8 @@
 #### 下一步最小切口
 
 - 让 candidates 从“投影视图”继续收紧到“可被调度消费的最小队列”
-- 补 action results 与候选优先级变更依据
+- `action_results` 已开始从 `control_action_completed` 事件投影
+- 下一步再补候选优先级变更依据
 
 #### 目标
 
