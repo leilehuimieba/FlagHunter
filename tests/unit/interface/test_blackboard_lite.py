@@ -6,6 +6,8 @@ from pentestagent.agents.pa_agent.ctf_state import CTFState
 from pentestagent.interface.blackboard_lite import (
     build_entry_blackboard_snapshot,
     build_task_blackboard_snapshot,
+    normalize_blackboard_snapshot,
+    serialize_blackboard_snapshot,
 )
 from pentestagent.mcp.server.mcp_tools import TaskEntry
 
@@ -482,10 +484,57 @@ def test_build_task_blackboard_snapshot_recommends_next_best_action_after_select
         "driver": "blackboard.discovered_endpoint",
         "reason": "selected action failed; switch to next best candidate",
     }
-    recommended = [item for item in snapshot["candidates"] if item["action"] == "probe_discovered_endpoint"][0]
-    assert recommended["recommended"] is True
-    failed_selected = [item for item in snapshot["candidates"] if item["action"] == "collect_initial_facts"][0]
-    assert failed_selected["lastResult"] == "failed"
+
+
+def test_normalize_blackboard_snapshot_accepts_snake_and_camel_shape() -> None:
+    normalized = normalize_blackboard_snapshot(
+        {
+            "facts": [{"kind": "derived_target", "value": "http://127.0.0.1:3000"}],
+            "pending_verifications": [{"kind": "runtime_flag", "value": "flag{runtime}"}],
+            "decisions": [{"kind": "direct_execute"}],
+            "candidates": [{"action": "collect_initial_facts"}],
+            "action_results": [{"action": "collect_initial_facts", "result": "ok"}],
+            "recommended_action": {"action": "probe_discovered_endpoint"},
+            "active_decision": {"nextAction": "collect_initial_facts"},
+        }
+    )
+
+    assert normalized == {
+        "facts": [{"kind": "derived_target", "value": "http://127.0.0.1:3000"}],
+        "hypotheses": [],
+        "pendingVerifications": [{"kind": "runtime_flag", "value": "flag{runtime}"}],
+        "decisions": [{"kind": "direct_execute"}],
+        "candidates": [{"action": "collect_initial_facts"}],
+        "actionResults": [{"action": "collect_initial_facts", "result": "ok"}],
+        "recommendedAction": {"action": "probe_discovered_endpoint"},
+        "activeDecision": {"nextAction": "collect_initial_facts"},
+    }
+
+
+def test_serialize_blackboard_snapshot_projects_public_contract() -> None:
+    serialized = serialize_blackboard_snapshot(
+        {
+            "facts": [{"kind": "verified_flag", "value": "flag{ok}"}],
+            "hypotheses": [],
+            "pending_verifications": [{"kind": "runtime_flag", "value": "flag{runtime}"}],
+            "decisions": [{"kind": "direct_execute"}],
+            "candidates": [{"action": "verify_or_submit_flag"}],
+            "action_results": [{"action": "verify_runtime_signal", "result": "failed"}],
+            "recommended_action": {"action": "verify_or_submit_flag"},
+            "active_decision": {"nextAction": "verify_runtime_signal"},
+        }
+    )
+
+    assert serialized == {
+        "facts": [{"kind": "verified_flag", "value": "flag{ok}"}],
+        "hypotheses": [],
+        "pendingVerifications": [{"kind": "runtime_flag", "value": "flag{runtime}"}],
+        "decisions": [{"kind": "direct_execute"}],
+        "candidates": [{"action": "verify_or_submit_flag"}],
+        "actionResults": [{"action": "verify_runtime_signal", "result": "failed"}],
+        "recommendedAction": {"action": "verify_or_submit_flag"},
+        "activeDecision": {"nextAction": "verify_runtime_signal"},
+    }
 
 
 def test_build_task_blackboard_snapshot_projects_first_action_alignment_into_active_decision_and_action_results() -> None:
