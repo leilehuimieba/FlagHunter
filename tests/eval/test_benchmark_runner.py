@@ -619,6 +619,97 @@ def test_aggregate_report_includes_eval_expectation_match_metrics() -> None:
     assert report.metadata["eval_expectation_mismatch_ids"] == ["easy_login_none"]
 
 
+def test_aggregate_report_includes_local_sample_summary_metrics() -> None:
+    results = [
+        ChallengeResult(
+            challenge_id="local_easy_login_runtime_only",
+            solved=True,
+            expected_solved=True,
+            wrong_flag_count=0,
+            flag_submit_attempts=0,
+            chain_iterations=1,
+            stop_reason="ok",
+            stop_reason_class="flag_verified",
+            has_source_only_stop=False,
+            hypothesis_exhausted_count=0,
+            hypothesis_total_count=1,
+            wall_time_seconds=0.1,
+            verified_flag_count=1,
+            metadata={
+                "eval_contract": {
+                    "sample_key": "easy_login",
+                    "variant": "runtime_only",
+                    "expected_outcome": "verified_flag",
+                },
+                "eval_verdict": {
+                    "expected_outcome": "verified_flag",
+                    "observed_outcome": "verified_flag",
+                    "matched": True,
+                },
+            },
+        ),
+        ChallengeResult(
+            challenge_id="local_backup_node_app_zip",
+            solved=False,
+            expected_solved=False,
+            wrong_flag_count=0,
+            flag_submit_attempts=0,
+            chain_iterations=2,
+            stop_reason="source-only honesty",
+            stop_reason_class="stopped",
+            has_source_only_stop=False,
+            hypothesis_exhausted_count=0,
+            hypothesis_total_count=1,
+            wall_time_seconds=0.2,
+            metadata={
+                "eval_contract": {
+                    "sample_key": "backup_node_app",
+                    "variant": "zip",
+                    "expected_outcome": "candidate_only_honesty",
+                },
+                "eval_verdict": {
+                    "expected_outcome": "candidate_only_honesty",
+                    "observed_outcome": "candidate_only_honesty",
+                    "matched": True,
+                },
+            },
+        ),
+        ChallengeResult(
+            challenge_id="fixture_unsolved",
+            solved=False,
+            expected_solved=False,
+            wrong_flag_count=0,
+            flag_submit_attempts=0,
+            chain_iterations=1,
+            stop_reason="fixture stop",
+            stop_reason_class="give_up",
+            has_source_only_stop=False,
+            hypothesis_exhausted_count=0,
+            hypothesis_total_count=1,
+            wall_time_seconds=0.3,
+            metadata={
+                "eval_verdict": {
+                    "expected_outcome": "",
+                    "observed_outcome": "honest_no_flag",
+                    "matched": False,
+                }
+            },
+        ),
+    ]
+
+    report = benchmark_runner._aggregate_report(
+        run_id="benchmark_local_samples",
+        timestamp="2026-06-03T00:00:00+00:00",
+        git_sha="deadbeef",
+        results=results,
+    )
+
+    assert report.metadata["local_eval_case_count"] == 2
+    assert report.metadata["local_eval_match_rate"] == 1.0
+    assert report.metadata["local_eval_mismatch_ids"] == []
+    assert report.metadata["local_eval_sample_keys"] == ["easy_login", "backup_node_app"]
+
+
 def test_build_challenge_result_classifies_wrong_flag_feedback_as_unexpected_failure() -> None:
     from pentestagent.agents.pa_agent.ctf_dispatcher import SolveResult
     from pentestagent.agents.pa_agent.ctf_state import CTFState

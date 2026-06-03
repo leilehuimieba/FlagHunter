@@ -771,6 +771,32 @@ def _aggregate_report(
         if isinstance(item.metadata.get("eval_verdict"), dict)
         and item.metadata["eval_verdict"].get("matched") is False
     ]
+    local_eval_results = [
+        item
+        for item in results
+        if isinstance(item.metadata.get("eval_contract"), dict)
+        and str(item.metadata["eval_contract"].get("sample_key") or "").strip()
+    ]
+    local_eval_matches = sum(
+        1
+        for item in local_eval_results
+        if isinstance(item.metadata.get("eval_verdict"), dict)
+        and bool(item.metadata["eval_verdict"].get("matched"))
+    )
+    local_eval_mismatch_ids = [
+        item.challenge_id
+        for item in local_eval_results
+        if isinstance(item.metadata.get("eval_verdict"), dict)
+        and item.metadata["eval_verdict"].get("matched") is False
+    ]
+    local_eval_sample_keys = list(
+        dict.fromkeys(
+            str(item.metadata["eval_contract"].get("sample_key") or "").strip()
+            for item in local_eval_results
+            if isinstance(item.metadata.get("eval_contract"), dict)
+            and str(item.metadata["eval_contract"].get("sample_key") or "").strip()
+        )
+    )
 
     # Phase 7: failure taxonomy distribution
     failure_distribution: dict[str, int] = {}
@@ -827,6 +853,12 @@ def _aggregate_report(
             if eval_verdicts
             else 0.0,
             "eval_expectation_mismatch_ids": eval_expectation_mismatch_ids,
+            "local_eval_case_count": len(local_eval_results),
+            "local_eval_match_rate": round(local_eval_matches / len(local_eval_results), 4)
+            if local_eval_results
+            else 0.0,
+            "local_eval_mismatch_ids": local_eval_mismatch_ids,
+            "local_eval_sample_keys": local_eval_sample_keys,
         },
     )
 
