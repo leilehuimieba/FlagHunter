@@ -302,6 +302,40 @@ def test_resume_bootstrap_hint_in_blackboard_prefers_resume_execute() -> None:
     assert decision["driver"] == "blackboard.resume_bootstrap_hint"
 
 
+def test_resume_bootstrap_hint_outranks_initial_fact_collection_observation() -> None:
+    payload = {
+        "mode": "ctf",
+        "target": "http://127.0.0.1:3000",
+        "challengePath": r"D:\webstudy\CTF\2026\sample",
+        "artifactPaths": [r"D:\webstudy\CTF\2026\sample\docker-compose.yml"],
+        "blackboardSnapshot": {
+            "facts": [
+                {
+                    "kind": "initial_fact_collection_requested",
+                    "value": "http://127.0.0.1:3000",
+                    "source": "control_decision",
+                    "confidence": "high",
+                },
+                {
+                    "kind": "resume_bootstrap_hint",
+                    "value": "continue from saved recon state",
+                    "source": "ingress_handoff",
+                    "confidence": "high",
+                },
+            ],
+            "pendingVerifications": [],
+        },
+    }
+
+    decision = resolve_control_decision(payload)
+
+    assert decision["shouldRun"] is True
+    assert decision["decisionKind"] == "resume_execute"
+    assert decision["nextAction"] == "resume_from_checkpoint"
+    assert decision["driver"] == "blackboard.resume_bootstrap_hint"
+    assert "blackboard.resume_bootstrap_hint=present" in decision["facts"]
+
+
 def test_identified_engine_in_blackboard_prefers_engine_direct_execute() -> None:
     payload = {
         "mode": "ctf",

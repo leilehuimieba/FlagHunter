@@ -2714,6 +2714,102 @@ def test_build_trace_payload_projects_initial_fact_collection_observation_into_t
     assert event["input"]["reason"] == "derived target available for initial fact collection"
 
 
+def test_build_trace_payload_projects_resume_bootstrap_observation_into_timeline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    now = web_server._now_iso()
+    task = {
+        "id": "task_trace_resume_bootstrap_observation",
+        "title": "trace resume bootstrap observation",
+        "target": "http://127.0.0.1:3000",
+        "goal": "trace resume bootstrap",
+        "mode": "ctf",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
+        "status": "queued",
+        "createdAt": now,
+        "startedAt": now,
+        "finishedAt": None,
+        "tokensUsed": 0,
+        "toolCalls": 0,
+        "currentRunId": "run_trace_resume_bootstrap_observation",
+        "controlDecision": {
+            "shouldRun": True,
+            "decisionKind": "resume_execute",
+            "reason": "resume bootstrap hint present in blackboard",
+            "nextAction": "resume_from_checkpoint",
+            "driver": "blackboard.resume_bootstrap_hint",
+            "facts": [
+                "mode=ctf",
+                "target=http://127.0.0.1:3000",
+                "blackboard.resume_bootstrap_hint=present",
+            ],
+        },
+        "ctfStateSnapshot": {
+            "target": "http://127.0.0.1:3000",
+            "goal": "拿到flag",
+            "detected_type": "web",
+            "observations": [
+                {
+                    "kind": "resume_bootstrap_hint",
+                    "value": "continue from saved recon state",
+                    "source": "ingress_handoff",
+                    "metadata": {
+                        "decision_kind": "resume_execute",
+                        "next_action": "resume_from_checkpoint",
+                        "run_id": "run-prev-1",
+                        "checkpoint_id": "checkpoint-prev-1",
+                    },
+                }
+            ],
+            "artifacts": [],
+            "verified_flags": [],
+            "runtime_flags": [],
+            "meta_reasonings": [],
+            "hypotheses": [],
+        },
+        "decisionRecords": [],
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    monkeypatch.setattr(web_server, "_pick_metrics_for_task", lambda project_root, item: None)
+    monkeypatch.setattr(
+        web_server,
+        "_pick_session_snapshot",
+        lambda project_root, item: (
+            None,
+            None,
+            {"matchedBy": "none", "confidence": "none", "expectedSessionId": None, "blockedReason": None, "candidateScore": None},
+        ),
+    )
+    monkeypatch.setattr(
+        web_server,
+        "_build_run_session_context",
+        lambda project_root, run_id: {
+            "runId": run_id,
+            "recentEvents": [],
+            "artifacts": [],
+            "latestCheckpoint": None,
+            "resumeContext": None,
+        },
+    )
+
+    payload = web_server._build_trace_payload(tmp_path, task, include_timeline=True)
+
+    observation_events = [event for event in payload["timeline"] if event["type"] == "observation"]
+    assert observation_events
+    event = observation_events[0]
+    assert event["kind"] == "observation.resume_bootstrap_hint"
+    assert event["summary"] == "continue from saved recon state"
+    assert event["driver"] == "blackboard.resume_bootstrap_hint"
+    assert event["input"]["nextAction"] == "resume_from_checkpoint"
+
+
 def test_build_trace_payload_projects_tool_audit_events_from_session_context(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
