@@ -68,6 +68,7 @@
 - `blackboardSnapshot.candidates`
 - `blackboardSnapshot.activeDecision`
 - `blackboardSnapshot.actionResults` / candidate `lastResult`
+- `blackboardSnapshot.recommendedAction` / candidate `recommended`
 
 下一步目标：
 

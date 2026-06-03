@@ -111,7 +111,8 @@
 
 - 让 candidates 从“投影视图”继续收紧到“可被调度消费的最小队列”
 - `action_results` 已开始从 `control_action_completed` 事件投影
-- 下一步再补候选优先级变更依据
+- `recommendedAction` 已开始根据失败/跳过结果给出 next-best 提示
+- 下一步再补候选优先级变更依据与真正的切换消费链
 
 #### 目标
 

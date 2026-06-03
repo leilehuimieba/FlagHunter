@@ -1301,6 +1301,7 @@ async def test_task_detail_surfaces_blackboard_snapshot(web_client: TestClient):
         if item["action"] == "bootstrap_local_assets"
     ][0]
     assert selected_candidate["lastResult"] == "ok"
+    assert detail["blackboardSnapshot"]["recommendedAction"] == {}
     assert detail["detailSource"]["derivedTarget"] == "http://127.0.0.1:3000"
     assert detail["detailSource"]["derivedTargetSource"] == "docker_compose_port_mapping"
     assert (

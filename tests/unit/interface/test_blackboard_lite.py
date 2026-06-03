@@ -328,6 +328,7 @@ def test_build_task_blackboard_snapshot_tolerates_missing_state_snapshot() -> No
         "decisions": [],
         "candidates": [],
         "action_results": [],
+        "recommended_action": {},
         "active_decision": {
             "decisionKind": "blocked",
             "nextAction": "await_input",
@@ -429,3 +430,59 @@ def test_build_task_blackboard_snapshot_projects_action_results_and_candidate_la
     ]
     selected = [item for item in snapshot["candidates"] if item["action"] == "collect_initial_facts"][0]
     assert selected["lastResult"] == "ok"
+    assert snapshot["recommended_action"] == {}
+
+
+def test_build_task_blackboard_snapshot_recommends_next_best_action_after_selected_failure() -> None:
+    state = CTFState(target="http://challenge.test", goal="拿到flag")
+    state.add_observation(
+        "derived_target",
+        "http://127.0.0.1:3000",
+        source="challenge_context",
+        metadata={"compose_path": r"D:\webstudy\CTF\easy_login\docker-compose.yml"},
+    )
+    state.add_observation(
+        "recon_url",
+        "http://challenge.test/admin",
+        source="recon",
+        metadata={"confidence": "high"},
+    )
+
+    snapshot = build_task_blackboard_snapshot(
+        {
+            "controlDecision": {
+                "shouldRun": True,
+                "decisionKind": "explore_first",
+                "reason": "derived target available for initial fact collection",
+                "nextAction": "collect_initial_facts",
+                "driver": "blackboard.derived_target.runtime_derived",
+                "facts": ["mode=ctf"],
+            },
+            "ctfStateSnapshot": state.to_snapshot(),
+        },
+        session_context={
+            "recentEvents": [
+                {
+                    "type": "control_action_completed",
+                    "t": "2026-06-03T10:00:02+00:00",
+                    "payload": {
+                        "action": "collect_initial_facts",
+                        "driver": "blackboard.derived_target.runtime_derived",
+                        "result": "failed",
+                        "details": {"reason": "no new facts"},
+                    },
+                }
+            ]
+        },
+    )
+
+    assert snapshot["active_decision"]["nextAction"] == "collect_initial_facts"
+    assert snapshot["recommended_action"] == {
+        "action": "probe_discovered_endpoint",
+        "driver": "blackboard.discovered_endpoint",
+        "reason": "selected action failed; switch to next best candidate",
+    }
+    recommended = [item for item in snapshot["candidates"] if item["action"] == "probe_discovered_endpoint"][0]
+    assert recommended["recommended"] is True
+    failed_selected = [item for item in snapshot["candidates"] if item["action"] == "collect_initial_facts"][0]
+    assert failed_selected["lastResult"] == "failed"
