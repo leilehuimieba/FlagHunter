@@ -43,6 +43,8 @@ def test_build_control_action_events_keep_driver_and_result_contract() -> None:
         decision_kind="direct_execute",
         driver="task.local_assets",
         target="http://ctf.local",
+        expected_action="bootstrap_local_assets",
+        alignment="matched",
     )
     completed = build_control_action_completed_event(
         action="bootstrap_local_assets",
@@ -60,6 +62,8 @@ def test_build_control_action_events_keep_driver_and_result_contract() -> None:
             "decision_kind": "direct_execute",
             "driver": "task.local_assets",
             "target": "http://ctf.local",
+            "expected_action": "bootstrap_local_assets",
+            "alignment": "matched",
         },
     }
     assert completed == {
@@ -73,6 +77,25 @@ def test_build_control_action_events_keep_driver_and_result_contract() -> None:
             "details": {"ingested": 2},
         },
     }
+
+
+def test_build_control_action_started_event_keeps_alignment_reason_for_mismatch() -> None:
+    started = build_control_action_started_event(
+        action="verify_runtime_signal",
+        decision_kind="direct_execute",
+        driver="blackboard.runtime_flag",
+        target="http://ctf.local",
+        expected_action="collect_initial_facts",
+        alignment="mismatched",
+        alignment_reason="runtime verification preempted planned first action",
+    )
+
+    assert started["payload"]["expected_action"] == "collect_initial_facts"
+    assert started["payload"]["alignment"] == "mismatched"
+    assert (
+        started["payload"]["alignment_reason"]
+        == "runtime verification preempted planned first action"
+    )
 
 
 def test_build_verification_decision_event_exposes_strategy_and_hypothesis() -> None:

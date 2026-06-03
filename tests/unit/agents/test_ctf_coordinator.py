@@ -1073,6 +1073,8 @@ async def test_coordinator_records_control_action_events_for_bootstrap_local_ass
     action_started = captured["recorded_events"][1][1]
     action_completed = captured["recorded_events"][2][1]
     assert action_started["action"] == "bootstrap_local_assets"
+    assert action_started["expected_action"] == "bootstrap_local_assets"
+    assert action_started["alignment"] == "matched"
     assert action_started["decision_kind"] == "direct_execute"
     assert action_started["driver"] == "task.local_assets"
     assert action_completed["action"] == "bootstrap_local_assets"

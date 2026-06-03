@@ -3335,6 +3335,9 @@ def test_build_trace_payload_projects_control_action_outcome_events(
                     "t": "2026-06-03T10:00:01+00:00",
                     "payload": {
                         "action": "bootstrap_local_assets",
+                        "expected_action": "collect_initial_facts",
+                        "alignment": "mismatched",
+                        "alignment_reason": "runtime verification preempted planned first action",
                         "decision_kind": "direct_execute",
                         "driver": "task.local_assets",
                         "target": "http://trace.test",
@@ -3364,7 +3367,9 @@ def test_build_trace_payload_projects_control_action_outcome_events(
     kinds = [event["kind"] for event in payload["outcomeEvents"]]
     assert "control_action_started" in kinds
     assert "control_action_completed" in kinds
+    started = [event for event in payload["outcomeEvents"] if event["kind"] == "control_action_started"][0]
     completed = [event for event in payload["outcomeEvents"] if event["kind"] == "control_action_completed"][0]
+    assert "mismatched" in started["summary"]
     assert "bootstrap_local_assets" in completed["summary"]
     assert "ok" in completed["summary"]
 
