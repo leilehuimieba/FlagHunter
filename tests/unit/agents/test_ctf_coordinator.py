@@ -1658,6 +1658,66 @@ async def test_coordinator_restores_resume_checkpoint_before_pre_recon_when_requ
 
 
 @pytest.mark.asyncio
+async def test_coordinator_records_initial_fact_collection_observation_before_recon():
+    coordinator = CTFCoordinator()
+    sentinel = SolveResult(success=False, reason="initial-facts")
+    dispatcher = _BootstrapCapableDispatcher(sentinel)
+    captured: dict[str, object] = {}
+
+    async def _fake_phase_recon(target: str):
+        captured["recon_target"] = target
+        captured["pre_recon_observations"] = [
+            (
+                obs.kind,
+                obs.value,
+                obs.source,
+                dict(obs.metadata or {}),
+            )
+            for obs in list(dispatcher.state.observations)
+        ]
+        return {
+            "url": target,
+            "html": "<html></html>",
+            "content": "portal",
+            "forms": [],
+            "endpoints": ["/login"],
+            "recon_missing_tools": [],
+        }
+
+    dispatcher._phase_recon = _fake_phase_recon  # type: ignore[method-assign]
+
+    result = await coordinator.execute(
+        dispatcher,
+        target="127.0.0.1:3000",
+        goal="goal",
+        type="web",
+        hint=(
+            "[control_decision]\n"
+            "decisionKind=explore_first\n"
+            "nextAction=collect_initial_facts\n"
+            "driver=blackboard.derived_target.runtime_derived\n"
+            "reason=derived target available for initial fact collection"
+        ),
+        submit_profile=None,
+        challenge_context={"artifactPaths": []},
+        run_id="run-initial-facts",
+        ledger_root=None,
+        checkpoint_root=None,
+    )
+
+    assert result is sentinel
+    observations = list(captured.get("pre_recon_observations") or [])
+    requested = [item for item in observations if item[0] == "initial_fact_collection_requested"]
+    assert requested
+    latest = requested[-1]
+    assert latest[1] == "http://127.0.0.1:3000"
+    assert latest[2] == "control_decision"
+    assert latest[3]["driver"] == "blackboard.derived_target.runtime_derived"
+    assert latest[3]["reason"] == "derived target available for initial fact collection"
+    assert latest[3]["next_action"] == "collect_initial_facts"
+
+
+@pytest.mark.asyncio
 async def test_coordinator_returns_verified_flag_from_hint_before_recon(
     tmp_path: Path,
 ):
