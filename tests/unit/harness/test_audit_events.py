@@ -4,6 +4,8 @@ from types import SimpleNamespace
 
 from pentestagent.harness.audit_events import (
     build_artifact_registered_event,
+    build_control_action_completed_event,
+    build_control_action_started_event,
     build_checkpoint_written_event,
     build_dispatcher_started_event,
     build_missing_tools_recorded_event,
@@ -33,6 +35,44 @@ def test_build_dispatcher_started_event_keeps_resume_contract() -> None:
     assert event["payload"]["has_resume_context"] is True
     assert event["payload"]["resume_run_id"] == "run-prev-1"
     assert event["payload"]["resume_checkpoint_id"] == "checkpoint-prev-1"
+
+
+def test_build_control_action_events_keep_driver_and_result_contract() -> None:
+    started = build_control_action_started_event(
+        action="bootstrap_local_assets",
+        decision_kind="direct_execute",
+        driver="task.local_assets",
+        target="http://ctf.local",
+    )
+    completed = build_control_action_completed_event(
+        action="bootstrap_local_assets",
+        decision_kind="direct_execute",
+        driver="task.local_assets",
+        result="ok",
+        target="http://ctf.local",
+        details={"ingested": 2},
+    )
+
+    assert started == {
+        "event_type": "control_action_started",
+        "payload": {
+            "action": "bootstrap_local_assets",
+            "decision_kind": "direct_execute",
+            "driver": "task.local_assets",
+            "target": "http://ctf.local",
+        },
+    }
+    assert completed == {
+        "event_type": "control_action_completed",
+        "payload": {
+            "action": "bootstrap_local_assets",
+            "decision_kind": "direct_execute",
+            "driver": "task.local_assets",
+            "result": "ok",
+            "target": "http://ctf.local",
+            "details": {"ingested": 2},
+        },
+    }
 
 
 def test_build_verification_decision_event_exposes_strategy_and_hypothesis() -> None:

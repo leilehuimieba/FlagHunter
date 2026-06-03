@@ -1265,6 +1265,10 @@ async def test_task_detail_surfaces_blackboard_snapshot(web_client: TestClient):
     assert ("resume_bootstrap_hint", "continue from saved recon state") in fact_pairs
     assert ("verified_flag", "flag{verified_done}") in fact_pairs
     assert ("derived_target", "http://127.0.0.1:3000") in fact_pairs
+    assert detail["blackboardSnapshot"]["activeDecision"]["nextAction"] == "bootstrap_local_assets"
+    candidate_actions = {item["action"] for item in detail["blackboardSnapshot"]["candidates"]}
+    assert "verify_or_submit_flag" in candidate_actions
+    assert "resume_from_checkpoint" in candidate_actions
     assert detail["detailSource"]["derivedTarget"] == "http://127.0.0.1:3000"
     assert detail["detailSource"]["derivedTargetSource"] == "docker_compose_port_mapping"
     assert (
@@ -3124,6 +3128,87 @@ def test_build_trace_payload_projects_dispatcher_started_outcome_event(
     assert "bootstrap_local_assets" in event["summary"]
     assert "direct_execute" in event["summary"]
     assert "task.local_assets" in event["summary"]
+
+
+def test_build_trace_payload_projects_control_action_outcome_events(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    task = {
+        "id": "task_trace_control_action_outcome",
+        "title": "trace control action outcome",
+        "target": "http://trace.test",
+        "goal": "trace control action contract",
+        "mode": "ctf",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
+        "status": "stopped",
+        "createdAt": web_server._now_iso(),
+        "startedAt": web_server._now_iso(),
+        "finishedAt": web_server._now_iso(),
+        "tokensUsed": 0,
+        "toolCalls": 0,
+        "currentRunId": "run-trace-control-action-outcome",
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    monkeypatch.setattr(web_server, "_pick_metrics_for_task", lambda project_root, item: None)
+    monkeypatch.setattr(
+        web_server,
+        "_pick_session_snapshot",
+        lambda project_root, item: (
+            None,
+            None,
+            {"matchedBy": "none", "confidence": "none", "expectedSessionId": None, "blockedReason": None, "candidateScore": None},
+        ),
+    )
+    monkeypatch.setattr(
+        web_server,
+        "_build_run_session_context",
+        lambda project_root, run_id: {
+            "runId": run_id,
+            "recentEvents": [
+                {
+                    "type": "control_action_started",
+                    "t": "2026-06-03T10:00:01+00:00",
+                    "payload": {
+                        "action": "bootstrap_local_assets",
+                        "decision_kind": "direct_execute",
+                        "driver": "task.local_assets",
+                        "target": "http://trace.test",
+                    },
+                },
+                {
+                    "type": "control_action_completed",
+                    "t": "2026-06-03T10:00:02+00:00",
+                    "payload": {
+                        "action": "bootstrap_local_assets",
+                        "decision_kind": "direct_execute",
+                        "driver": "task.local_assets",
+                        "result": "ok",
+                        "target": "http://trace.test",
+                        "details": {"ingested": 2},
+                    },
+                },
+            ],
+            "artifacts": [],
+            "latestCheckpoint": None,
+            "resumeContext": None,
+        },
+    )
+
+    payload = web_server._build_trace_payload(tmp_path, task, include_timeline=True)
+
+    kinds = [event["kind"] for event in payload["outcomeEvents"]]
+    assert "control_action_started" in kinds
+    assert "control_action_completed" in kinds
+    completed = [event for event in payload["outcomeEvents"] if event["kind"] == "control_action_completed"][0]
+    assert "bootstrap_local_assets" in completed["summary"]
+    assert "ok" in completed["summary"]
 
 
 def test_task_detail_payload_re_normalizes_dirty_derived_collections(

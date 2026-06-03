@@ -111,6 +111,16 @@ def test_build_task_blackboard_snapshot_aggregates_ingress_decision_and_resume_f
             "reason": "resume context available",
         }
     ]
+    assert snapshot["active_decision"] == {
+        "decisionKind": "resume_execute",
+        "nextAction": "resume_from_checkpoint",
+        "driver": "",
+        "reason": "resume context available",
+    }
+    resume_candidates = [item for item in snapshot["candidates"] if item["action"] == "resume_from_checkpoint"]
+    assert resume_candidates
+    assert resume_candidates[0]["selected"] is True
+    assert resume_candidates[0]["priority"] == 0
 
 
 def test_build_entry_blackboard_snapshot_matches_web_contract() -> None:
@@ -248,6 +258,11 @@ def test_build_task_blackboard_snapshot_maps_high_value_observations_into_facts(
     assert ("leaked_secret", "SECRET-123") in facts
     assert ("recent_http_response", "200:/admin page reachable") in facts
     assert ("derived_target", "http://127.0.0.1:3000") in facts
+    candidate_actions = {item["action"] for item in snapshot["candidates"]}
+    assert "collect_initial_facts" in candidate_actions
+    assert "probe_discovered_endpoint" in candidate_actions
+    assert "exploit_identified_engine" in candidate_actions
+    assert "validate_leaked_secret" in candidate_actions
 
 
 
@@ -311,4 +326,55 @@ def test_build_task_blackboard_snapshot_tolerates_missing_state_snapshot() -> No
         "hypotheses": [],
         "pending_verifications": [],
         "decisions": [],
+        "candidates": [],
+        "active_decision": {
+            "decisionKind": "blocked",
+            "nextAction": "await_input",
+            "driver": "",
+            "reason": "target required",
+        },
     }
+
+
+def test_build_task_blackboard_snapshot_projects_selected_and_backup_candidates() -> None:
+    state = CTFState(target="http://challenge.test", goal="拿到flag")
+    state.add_observation(
+        "derived_target",
+        "http://127.0.0.1:3000",
+        source="challenge_context",
+        metadata={"compose_path": r"D:\webstudy\CTF\easy_login\docker-compose.yml"},
+    )
+    state.add_observation(
+        "recon_url",
+        "http://challenge.test/admin",
+        source="recon",
+        metadata={"confidence": "high"},
+    )
+
+    snapshot = build_task_blackboard_snapshot(
+        {
+            "controlDecision": {
+                "shouldRun": True,
+                "decisionKind": "explore_first",
+                "reason": "derived target available for initial fact collection",
+                "nextAction": "collect_initial_facts",
+                "driver": "blackboard.derived_target.runtime_derived",
+                "facts": ["mode=ctf"],
+            },
+            "ctfStateSnapshot": state.to_snapshot(),
+        }
+    )
+
+    assert snapshot["active_decision"] == {
+        "decisionKind": "explore_first",
+        "nextAction": "collect_initial_facts",
+        "driver": "blackboard.derived_target.runtime_derived",
+        "reason": "derived target available for initial fact collection",
+    }
+    candidates = snapshot["candidates"]
+    selected = [item for item in candidates if item["selected"] is True]
+    assert selected
+    assert selected[0]["action"] == "collect_initial_facts"
+    backup = [item for item in candidates if item["action"] == "probe_discovered_endpoint"]
+    assert backup
+    assert backup[0]["selected"] is False
