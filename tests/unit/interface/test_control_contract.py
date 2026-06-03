@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from pentestagent.interface.control_contract import resolve_control_decision
+from pentestagent.interface.control_contract import build_decision_record, resolve_control_decision
 
 
 def test_resume_context_prefers_resume_execute() -> None:
@@ -597,6 +597,40 @@ def test_verified_flag_still_outranks_recommended_action() -> None:
     assert decision["decisionKind"] == "direct_execute"
     assert decision["nextAction"] == "verify_or_submit_flag"
     assert decision["driver"] == "blackboard.verified_flag"
+    assert decision["suppressedRecommendation"] == {
+        "action": "collect_initial_facts",
+        "driver": "blackboard.derived_target.runtime_derived",
+        "reason": "selected action failed; switch to next best candidate",
+        "suppressedBy": "blackboard.verified_flag",
+    }
+    assert "blackboard.recommended_action=suppressed" in decision["facts"]
+    assert "recommendedActionSuppressedBy=blackboard.verified_flag" in decision["facts"]
+
+
+def test_build_decision_record_preserves_suppressed_recommendation() -> None:
+    record = build_decision_record(
+        {
+            "decisionKind": "direct_execute",
+            "reason": "verified flag already present in blackboard",
+            "nextAction": "verify_or_submit_flag",
+            "driver": "blackboard.verified_flag",
+            "facts": ["mode=ctf"],
+            "suppressedRecommendation": {
+                "action": "collect_initial_facts",
+                "driver": "blackboard.derived_target.runtime_derived",
+                "reason": "selected action failed; switch to next best candidate",
+                "suppressedBy": "blackboard.verified_flag",
+            },
+        },
+        source="web_ingress",
+    )
+
+    assert record["suppressedRecommendation"] == {
+        "action": "collect_initial_facts",
+        "driver": "blackboard.derived_target.runtime_derived",
+        "reason": "selected action failed; switch to next best candidate",
+        "suppressedBy": "blackboard.verified_flag",
+    }
 
 
 @pytest.mark.parametrize(

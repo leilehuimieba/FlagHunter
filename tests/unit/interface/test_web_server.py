@@ -1344,6 +1344,52 @@ async def test_task_detail_surfaces_control_decision_driver(web_client: TestClie
 
 
 @pytest.mark.asyncio
+async def test_task_detail_surfaces_suppressed_recommended_action(web_client: TestClient):
+    created = await web_client.post(
+        "/api/tasks",
+        json={
+            "title": "suppressed-recommendation-detail",
+            "target": "http://challenge.test",
+            "mode": "ctf",
+            "ctfType": "web",
+            "goal": "capture the flag",
+            "blackboardSnapshot": {
+                "facts": [
+                    {
+                        "kind": "verified_flag",
+                        "value": "flag{done}",
+                        "source": "admin_page",
+                        "confidence": "high",
+                    }
+                ],
+                "pendingVerifications": [],
+                "recommendedAction": {
+                    "action": "collect_initial_facts",
+                    "driver": "blackboard.derived_target.runtime_derived",
+                    "reason": "selected action failed; switch to next best candidate",
+                },
+            },
+        },
+    )
+
+    assert created.status == 201
+    task = await created.json()
+    task_id = task["id"]
+
+    detail_resp = await web_client.get(f"/api/tasks/{task_id}")
+    assert detail_resp.status == 200
+    detail = await detail_resp.json()
+
+    assert detail["controlDecision"]["driver"] == "blackboard.verified_flag"
+    assert detail["controlDecision"]["suppressedRecommendation"]["action"] == "collect_initial_facts"
+    assert detail["controlDecision"]["suppressedRecommendation"]["suppressedBy"] == "blackboard.verified_flag"
+    assert (
+        detail["decisionRecords"][0]["suppressedRecommendation"]["driver"]
+        == "blackboard.derived_target.runtime_derived"
+    )
+
+
+@pytest.mark.asyncio
 async def test_post_task_persists_mode_aware_default_goal_when_goal_omitted(web_client: TestClient):
     created = await web_client.post(
         "/api/tasks",
@@ -2561,6 +2607,85 @@ def test_build_trace_payload_surfaces_control_decision_driver(tmp_path: Path, mo
     payload = web_server._build_trace_payload(tmp_path, task, include_timeline=False)
 
     assert payload["controlDecision"]["driver"] == "blackboard.verified_flag"
+
+
+def test_build_trace_payload_surfaces_suppressed_recommended_action(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    now = web_server._now_iso()
+    task = {
+        "id": "task_trace_suppressed_recommendation",
+        "title": "trace suppressed recommendation",
+        "target": "http://trace.test",
+        "goal": "trace truth",
+        "mode": "ctf",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
+        "status": "success",
+        "createdAt": now,
+        "startedAt": now,
+        "finishedAt": now,
+        "tokensUsed": 1,
+        "toolCalls": 0,
+        "finalFlag": "flag{done}",
+        "stopReason": None,
+        "currentRunId": "run_trace_suppressed_recommendation",
+        "controlDecision": {
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "reason": "verified flag already present in blackboard",
+            "nextAction": "verify_or_submit_flag",
+            "driver": "blackboard.verified_flag",
+            "facts": [
+                "mode=ctf",
+                "blackboard.verified_flag=present",
+                "blackboard.recommended_action=suppressed",
+            ],
+            "suppressedRecommendation": {
+                "action": "collect_initial_facts",
+                "driver": "blackboard.derived_target.runtime_derived",
+                "reason": "selected action failed; switch to next best candidate",
+                "suppressedBy": "blackboard.verified_flag",
+            },
+        },
+        "decisionRecords": [
+            {
+                "kind": "direct_execute",
+                "source": "web_ingress",
+                "nextAction": "verify_or_submit_flag",
+                "driver": "blackboard.verified_flag",
+                "suppressedRecommendation": {
+                    "action": "collect_initial_facts",
+                    "driver": "blackboard.derived_target.runtime_derived",
+                    "reason": "selected action failed; switch to next best candidate",
+                    "suppressedBy": "blackboard.verified_flag",
+                },
+            }
+        ],
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    monkeypatch.setattr(web_server, "_pick_metrics_for_task", lambda project_root, item: None)
+    monkeypatch.setattr(
+        web_server,
+        "_pick_session_snapshot",
+        lambda project_root, item: (
+            None,
+            None,
+            {"matchedBy": "none", "confidence": "none", "expectedSessionId": None, "blockedReason": None, "candidateScore": None},
+        ),
+    )
+
+    payload = web_server._build_trace_payload(tmp_path, task, include_timeline=False)
+
+    assert payload["controlDecision"]["suppressedRecommendation"]["action"] == "collect_initial_facts"
+    assert payload["controlDecision"]["suppressedRecommendation"]["suppressedBy"] == "blackboard.verified_flag"
+    assert payload["decisionRecords"][0]["suppressedRecommendation"]["driver"] == "blackboard.derived_target.runtime_derived"
 
 
 def test_build_trace_payload_surfaces_derived_target_detail_source(
