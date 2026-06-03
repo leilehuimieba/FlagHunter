@@ -484,6 +484,63 @@ def test_build_task_blackboard_snapshot_recommends_next_best_action_after_select
         "action": "probe_discovered_endpoint",
         "driver": "blackboard.discovered_endpoint",
         "reason": "selected action failed; switch to next best candidate",
+        "switchedFrom": "collect_initial_facts",
+        "triggerResult": "failed",
+        "triggerReason": "no new facts",
+    }
+
+
+def test_build_task_blackboard_snapshot_recommends_next_best_action_after_selected_skip() -> None:
+    state = CTFState(target="http://challenge.test", goal="拿到flag")
+    state.add_observation(
+        "derived_target",
+        "http://127.0.0.1:3000",
+        source="challenge_context",
+        metadata={"compose_path": r"D:\webstudy\CTF\easy_login\docker-compose.yml"},
+    )
+    state.add_observation(
+        "recon_url",
+        "http://challenge.test/admin",
+        source="recon",
+        metadata={"confidence": "high"},
+    )
+
+    snapshot = build_task_blackboard_snapshot(
+        {
+            "controlDecision": {
+                "shouldRun": True,
+                "decisionKind": "explore_first",
+                "reason": "derived target available for initial fact collection",
+                "nextAction": "collect_initial_facts",
+                "driver": "blackboard.derived_target.runtime_derived",
+                "facts": ["mode=ctf"],
+            },
+            "ctfStateSnapshot": state.to_snapshot(),
+        },
+        session_context={
+            "recentEvents": [
+                {
+                    "type": "control_action_completed",
+                    "t": "2026-06-03T10:00:02+00:00",
+                    "payload": {
+                        "action": "collect_initial_facts",
+                        "driver": "blackboard.derived_target.runtime_derived",
+                        "result": "skipped",
+                        "details": {"reason": "already explored from inherited trace"},
+                    },
+                }
+            ]
+        },
+    )
+
+    assert snapshot["active_decision"]["nextAction"] == "collect_initial_facts"
+    assert snapshot["recommended_action"] == {
+        "action": "probe_discovered_endpoint",
+        "driver": "blackboard.discovered_endpoint",
+        "reason": "selected action failed; switch to next best candidate",
+        "switchedFrom": "collect_initial_facts",
+        "triggerResult": "skipped",
+        "triggerReason": "already explored from inherited trace",
     }
 
 
