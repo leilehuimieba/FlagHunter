@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from pentestagent.agents.pa_agent.ctf_state import CTFState
+from pentestagent.agents.pa_agent.ctf_state import CTFState, Hypothesis
 from pentestagent.interface.blackboard_lite import (
     build_entry_blackboard_snapshot,
     build_task_blackboard_snapshot,
@@ -267,6 +267,64 @@ def test_build_task_blackboard_snapshot_maps_high_value_observations_into_facts(
     assert "exploit_identified_engine" in candidate_actions
     assert "validate_leaked_secret" in candidate_actions
 
+
+def test_build_task_blackboard_snapshot_projects_state_hypotheses_separately_from_facts() -> None:
+    state = CTFState(target="http://challenge.test", goal="拿到flag")
+    state.hypotheses = [
+        Hypothesis(
+            id="hyp-1",
+            kind="auth_form_sqli",
+            description="login form may be injectable",
+            confidence=0.78,
+            status="supported",
+            supporting_observations=["recon_url:/login", "form:username,password"],
+            next_experiments=["try auth bypass payloads"],
+        ),
+        Hypothesis(
+            id="hyp-2",
+            kind="generic_web_recon",
+            description="continue low-cost endpoint mapping",
+            confidence=0.42,
+            status="active",
+            supporting_observations=["root page lists admin and visit"],
+            counter_evidence=["no obvious debug endpoint yet"],
+            next_experiments=["fetch app.js"],
+        ),
+    ]
+    state.add_observation(
+        "recon_url",
+        "http://challenge.test/admin",
+        source="recon",
+        metadata={"confidence": "high"},
+    )
+
+    snapshot = build_task_blackboard_snapshot({"ctfStateSnapshot": state.to_snapshot()})
+
+    assert ("discovered_endpoint", "http://challenge.test/admin") in {
+        (item["kind"], item.get("value")) for item in snapshot["facts"]
+    }
+    assert snapshot["hypotheses"] == [
+        {
+            "id": "hyp-1",
+            "kind": "auth_form_sqli",
+            "description": "login form may be injectable",
+            "confidence": 0.78,
+            "status": "supported",
+            "supportingObservations": ["recon_url:/login", "form:username,password"],
+            "counterEvidence": [],
+            "nextExperiments": ["try auth bypass payloads"],
+        },
+        {
+            "id": "hyp-2",
+            "kind": "generic_web_recon",
+            "description": "continue low-cost endpoint mapping",
+            "confidence": 0.42,
+            "status": "active",
+            "supportingObservations": ["root page lists admin and visit"],
+            "counterEvidence": ["no obvious debug endpoint yet"],
+            "nextExperiments": ["fetch app.js"],
+        },
+    ]
 
 
 def test_build_task_blackboard_snapshot_fact_includes_source_and_confidence() -> None:
@@ -599,6 +657,14 @@ def test_format_blackboard_snapshot_lines_projects_shared_sections() -> None:
     lines = format_blackboard_snapshot_lines(
         {
             "facts": [{"kind": "verified_flag", "value": "flag{ok}"}],
+            "hypotheses": [
+                {
+                    "id": "hyp-1",
+                    "kind": "auth_form_sqli",
+                    "confidence": 0.78,
+                    "status": "supported",
+                }
+            ],
             "pending_verifications": [{"kind": "runtime_flag", "value": "flag{runtime}"}],
             "active_decision": {
                 "decisionKind": "direct_execute",
@@ -639,6 +705,8 @@ def test_format_blackboard_snapshot_lines_projects_shared_sections() -> None:
 
     assert "[blackboard_facts]" in lines
     assert "verified_flag=flag{ok}" in lines
+    assert "[blackboard_hypotheses]" in lines
+    assert "hyp-1:auth_form_sqli [supported/0.78]" in lines
     assert "[blackboard_pending_verifications]" in lines
     assert "runtime_flag=flag{runtime}" in lines
     assert "[blackboard_active_decision]" in lines
