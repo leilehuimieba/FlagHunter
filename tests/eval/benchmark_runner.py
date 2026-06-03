@@ -100,6 +100,24 @@ def _temporary_cwd(path: Path) -> Iterator[None]:
 
 
 @contextmanager
+def _benchmark_runtime_env() -> Iterator[None]:
+    previous = {
+        "CPA_M1_API_HUB": os.environ.get("CPA_M1_API_HUB"),
+        "LITELLM_LOCAL_MODEL_COST_MAP": os.environ.get("LITELLM_LOCAL_MODEL_COST_MAP"),
+    }
+    os.environ["CPA_M1_API_HUB"] = "false"
+    os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "true"
+    try:
+        yield
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
+@contextmanager
 def _isolated_notes(path: Path) -> Iterator[Path]:
     previous_custom = notes_module._custom_notes_file
     previous_loaded = notes_module._loaded_notes_file
@@ -435,30 +453,31 @@ async def _execute_dispatcher(
     llm: Any | None = None,
     verification_callback: Callable[[str], Any] | None = None,
 ) -> tuple[SolveResult, CTFState | None, dict[str, Any]]:
-    runtime = LocalRuntime()
-    await runtime.start()
-    try:
-        runtime.browser_action = _browser_missing  # type: ignore[method-assign]
-        dispatcher = CTFTaskDispatcher(
-            runtime=runtime,
-            progress_callback=None,
-            verification_callback=verification_callback,
-            llm=llm,
-        )
-        result = await dispatcher.run(
-            target=target,
-            goal=goal,
-            type=challenge_type,
-            hint=hint,
-        )
-        run_id = str(getattr(dispatcher, "_ledger_run_id", "") or "").strip()
-        harness_summary = _build_harness_summary_for_run(
-            run_id=run_id,
-            workspace_root=Path.cwd(),
-        )
-        return result, dispatcher.state, harness_summary
-    finally:
-        await runtime.stop()
+    with _benchmark_runtime_env():
+        runtime = LocalRuntime()
+        await runtime.start()
+        try:
+            runtime.browser_action = _browser_missing  # type: ignore[method-assign]
+            dispatcher = CTFTaskDispatcher(
+                runtime=runtime,
+                progress_callback=None,
+                verification_callback=verification_callback,
+                llm=llm,
+            )
+            result = await dispatcher.run(
+                target=target,
+                goal=goal,
+                type=challenge_type,
+                hint=hint,
+            )
+            run_id = str(getattr(dispatcher, "_ledger_run_id", "") or "").strip()
+            harness_summary = _build_harness_summary_for_run(
+                run_id=run_id,
+                workspace_root=Path.cwd(),
+            )
+            return result, dispatcher.state, harness_summary
+        finally:
+            await runtime.stop()
 
 
 async def _run_easy_tornado(
@@ -561,65 +580,67 @@ async def _run_local_easy_login_runtime_only(
     verification_callback: Callable[[str], Any] | None = None,
 ) -> tuple[SolveResult, CTFState | None, dict[str, Any]]:
     sample = local_challenge_catalog_module.get_local_challenge_sample("easy_login")
-    with tempfile.TemporaryDirectory(prefix="benchmark_local_easy_login_runtime_only_") as temp_dir:
-        tmp_path = Path(temp_dir)
-        with _temporary_cwd(tmp_path), _isolated_notes(tmp_path):
-            with patch(
-                "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
-                lambda self, tools: {},
-            ):
-                runtime = local_challenge_runner_module._EasyLoginRuntimeOnlyFallbackRuntime()
-                dispatcher = CTFTaskDispatcher(
-                    runtime=runtime,
-                    progress_callback=None,
-                    verification_callback=verification_callback,
-                )
-                result = await dispatcher.run(
-                    target=sample.target,
-                    goal=sample.minimal_prompt,
-                    type=sample.mode_subtype,
-                    hint="",
-                )
-                run_id = str(getattr(dispatcher, "_ledger_run_id", "") or "").strip()
-                harness_summary = _build_harness_summary_for_run(
-                    run_id=run_id,
-                    workspace_root=tmp_path,
-                )
-                return result, dispatcher.state, harness_summary
+    with _benchmark_runtime_env():
+        with tempfile.TemporaryDirectory(prefix="benchmark_local_easy_login_runtime_only_") as temp_dir:
+            tmp_path = Path(temp_dir)
+            with _temporary_cwd(tmp_path), _isolated_notes(tmp_path):
+                with patch(
+                    "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+                    lambda self, tools: {},
+                ):
+                    runtime = local_challenge_runner_module._EasyLoginRuntimeOnlyFallbackRuntime()
+                    dispatcher = CTFTaskDispatcher(
+                        runtime=runtime,
+                        progress_callback=None,
+                        verification_callback=verification_callback,
+                    )
+                    result = await dispatcher.run(
+                        target=sample.target,
+                        goal=sample.minimal_prompt,
+                        type=sample.mode_subtype,
+                        hint="",
+                    )
+                    run_id = str(getattr(dispatcher, "_ledger_run_id", "") or "").strip()
+                    harness_summary = _build_harness_summary_for_run(
+                        run_id=run_id,
+                        workspace_root=tmp_path,
+                    )
+                    return result, dispatcher.state, harness_summary
 
 
 async def _run_local_backup_node_app_zip(
     verification_callback: Callable[[str], Any] | None = None,
 ) -> tuple[SolveResult, CTFState | None, dict[str, Any]]:
     sample = local_challenge_catalog_module.get_local_challenge_sample("backup_node_app")
-    with tempfile.TemporaryDirectory(prefix="benchmark_local_backup_node_app_zip_") as temp_dir:
-        tmp_path = Path(temp_dir)
-        with _temporary_cwd(tmp_path), _isolated_notes(tmp_path):
-            with patch(
-                "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
-                lambda self, tools: {},
-            ):
-                runtime = backup_node_app_eval_module._BackupNodeAppCandidateRuntime()
-                dispatcher = CTFTaskDispatcher(
-                    runtime=runtime,
-                    progress_callback=None,
-                    verification_callback=verification_callback,
-                )
-                result = await dispatcher.run(
-                    target=sample.target,
-                    goal=sample.minimal_prompt,
-                    type="auto",
-                    challenge_context=local_challenge_catalog_module.build_challenge_context(
-                        sample,
-                        variant="zip",
-                    ),
-                )
-                run_id = str(getattr(dispatcher, "_ledger_run_id", "") or "").strip()
-                harness_summary = _build_harness_summary_for_run(
-                    run_id=run_id,
-                    workspace_root=tmp_path,
-                )
-                return result, dispatcher.state, harness_summary
+    with _benchmark_runtime_env():
+        with tempfile.TemporaryDirectory(prefix="benchmark_local_backup_node_app_zip_") as temp_dir:
+            tmp_path = Path(temp_dir)
+            with _temporary_cwd(tmp_path), _isolated_notes(tmp_path):
+                with patch(
+                    "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+                    lambda self, tools: {},
+                ):
+                    runtime = backup_node_app_eval_module._BackupNodeAppCandidateRuntime()
+                    dispatcher = CTFTaskDispatcher(
+                        runtime=runtime,
+                        progress_callback=None,
+                        verification_callback=verification_callback,
+                    )
+                    result = await dispatcher.run(
+                        target=sample.target,
+                        goal=sample.minimal_prompt,
+                        type="auto",
+                        challenge_context=local_challenge_catalog_module.build_challenge_context(
+                            sample,
+                            variant="zip",
+                        ),
+                    )
+                    run_id = str(getattr(dispatcher, "_ledger_run_id", "") or "").strip()
+                    harness_summary = _build_harness_summary_for_run(
+                        run_id=run_id,
+                        workspace_root=tmp_path,
+                    )
+                    return result, dispatcher.state, harness_summary
 
 
 _CHALLENGE_CATALOG: dict[str, _ChallengeSpec] = {
