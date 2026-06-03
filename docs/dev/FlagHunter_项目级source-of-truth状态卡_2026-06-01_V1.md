@@ -125,6 +125,11 @@
    - `verify_runtime_signal` 会进入统一 verification 流
    - `task_finished.reason / checkpoint metadata.reason / state.stop_reason` 已完成第一轮对齐
 
+5. **wrong_flag_feedback 已进入恢复事实层**
+   - final checkpoint metadata 会带 `rejected_flags`
+   - `latestCheckpoint` 会投影 `rejectedFlags`
+   - `resumeContext.summary` 会带 `rejected_flags=...`
+
 ---
 
 ## 4. 当前最关键的短板
@@ -148,10 +153,10 @@
 - `control_action_started`
 - `control_action_completed`
 - verified/runtime early-finish 的 verification / outcome 对齐
+- wrong_flag_feedback 的 final checkpoint / resume summary 对齐
 
 但还没有完整补齐：
 
-- `wrong_flag_feedback`
 - pending verification 的结构化回写
 - candidate 切换理由与 next-best action 的稳定来源
 
@@ -170,8 +175,8 @@
 如果只看当前阶段，最值得做的是：
 
 1. **继续扩 control action 事件闭环后的动作结果语义**
-2. **继续补 wrong_flag_feedback → checkpoint / outcome / resume summary 的闭环**
-3. **继续做 Blackboard-lite 候选动作池最小设计**
+2. **继续做 Blackboard-lite 候选动作池最小设计**
+3. **补 candidate 切换理由 / next-best action 的稳定来源**
 4. **用本地样本继续做最小 Eval Harness**
 5. **保持文档与代码真相同步**
 

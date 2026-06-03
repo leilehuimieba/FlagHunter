@@ -7,6 +7,12 @@ import pytest
 import pentestagent.tools.notes as notes_module
 from pentestagent.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
 from pentestagent.agents.pa_agent.ctf_state import CTFState
+from pentestagent.agents.pa_agent.strategy_memory import (
+    ChallengeFingerprint,
+    StrategyMemoryEntry,
+    StrategyMemoryEntryMetadata,
+    StrategyMemoryStore,
+)
 from pentestagent.harness.checkpoint_store import CheckpointStore
 from pentestagent.harness.session_ledger import SessionLedger
 from pentestagent.tools.notes import set_notes_file
@@ -29,6 +35,53 @@ class _CheckpointRuntime:
         return {"error": f"unexpected action: {action}"}
 
     async def proxy_action(self, action: str, **kwargs):
+        return {"status_code": 404, "body": ""}
+
+    async def execute_command(self, command: str, timeout: int = 180):
+        return SimpleNamespace(exit_code=0, stdout="", stderr="")
+
+
+class _CheckpointSQLiSubmitRejectRuntime:
+    def __init__(self):
+        self.environment = SimpleNamespace(available_tools=[])
+
+    async def browser_action(self, action: str, **kwargs):
+        if action == "navigate":
+            return {"url": "http://ctf.local/", "title": "checkpoint-submit-reject"}
+        if action == "get_content":
+            return {
+                "content": "login portal",
+                "html": """
+                <html><body>
+                  <form action="http://ctf.local/login" method="post">
+                    <input name="username" />
+                    <input name="password" />
+                  </form>
+                </body></html>
+                """,
+            }
+        if action == "get_forms":
+            return {
+                "forms": [
+                    {
+                        "action": "http://ctf.local/login",
+                        "method": "post",
+                        "inputs": [
+                            {"name": "username", "type": "text"},
+                            {"name": "password", "type": "password"},
+                        ],
+                    }
+                ]
+            }
+        return {"error": f"unexpected action: {action}"}
+
+    async def proxy_action(self, action: str, **kwargs):
+        method = str(kwargs.get("method") or "").upper()
+        url = str(kwargs.get("url") or "")
+        if action == "post" and url == "http://ctf.local/login":
+            return {"status_code": 200, "body": "login ok"}
+        if action == "request" and method == "POST" and url == "http://submit.local/flag":
+            return {"status_code": 200, "body": "wrong flag"}
         return {"status_code": 404, "body": ""}
 
     async def execute_command(self, command: str, timeout: int = 180):
@@ -220,6 +273,84 @@ def test_restore_context_hydrates_state_from_resume_checkpoint(tmp_path) -> None
     )
     assert dispatcher.state.has_flag("flag{runtime_from_checkpoint}", level="runtime")
     assert dispatcher.state.has_flag("flag{rejected_from_checkpoint}", level="rejected")
+
+
+@pytest.mark.asyncio
+async def test_dispatcher_wrong_flag_feedback_writes_rejected_flags_into_final_checkpoint_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_checkpoint_wrong_flag.json")
+    notes_module._notes.clear()
+
+    memory_store = StrategyMemoryStore(tmp_path / "strategy_memory_checkpoint_wrong_flag.json")
+    await memory_store.save(
+        StrategyMemoryEntry(
+            id="mem_seed_checkpoint_wrong_flag",
+            fingerprint=ChallengeFingerprint(tech_stack=["web"]),
+            winning_hypothesis_kinds=["auth_form_sqli"],
+            failed_hypothesis_kinds=["generic_web_recon"],
+            solved=True,
+            metadata=StrategyMemoryEntryMetadata(
+                created_at=1e12,
+                manual_status="active",
+                applied_count=3,
+                successful_applications=1,
+                success_correlation=1.0,
+            ),
+        )
+    )
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.StrategyMemoryStore",
+        lambda: memory_store,
+    )
+
+    dispatcher = CTFTaskDispatcher(runtime=_CheckpointRuntime(), progress_callback=None)
+    dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag")
+    dispatcher._setup_session_ledger(
+        run_id="run-checkpoint-wrong-flag",
+        ledger_root=tmp_path / "ledgers",
+    )
+    dispatcher._setup_checkpoint_store(
+        run_id="run-checkpoint-wrong-flag",
+        checkpoint_root=tmp_path / "checkpoints",
+    )
+    dispatcher._notes_log = []
+    dispatcher._pending_wrong_flag_feedback = [
+        {"flag": "flag{dispatcher_sqli_ok}", "rationale": "platform rejected"}
+    ]
+    dispatcher.state.add_flag(
+        "flag{dispatcher_sqli_ok}",
+        level="rejected",
+        evidence_source="submit-endpoint",
+        rationale="platform rejected",
+        confidence=1.0,
+    )
+
+    result = await dispatcher._finalize_solve_result(
+        SimpleNamespace(
+            success=False,
+            flag=None,
+            reason="wrong flag feedback: flag{dispatcher_sqli_ok}",
+            chain_used=[],
+            notes=[],
+            missing_tools=[],
+        )
+    )
+
+    latest = CheckpointStore(tmp_path / "checkpoints").latest_checkpoint(
+        "run-checkpoint-wrong-flag"
+    )
+
+    assert result.success is False
+    assert latest is not None
+    assert latest["label"] == "task_finished"
+    assert latest["metadata"]["reason"].startswith("wrong flag feedback:")
+    assert latest["metadata"]["rejected_flags"] == ["flag{dispatcher_sqli_ok}"]
 
 
 def test_restored_checkpoint_state_can_change_followup_strategy_choice(tmp_path) -> None:

@@ -68,6 +68,7 @@ def test_session_context_view_builds_recent_events_artifacts_and_latest_checkpoi
         "stopReason": "flag_verified",
         "verifiedFlags": ["flag{ctx_ok}"],
         "runtimeFlags": [],
+        "rejectedFlags": [],
         "recentEventTypes": [
             "dispatcher_started",
             "verification_decision",
@@ -147,6 +148,43 @@ def test_session_context_view_projects_resume_ingress_from_dispatcher_started_ev
         "checkpointId": "checkpoint-prev-1",
         "sourceEvent": "dispatcher_started",
     }
+
+
+def test_session_context_view_includes_rejected_flags_in_resume_summary_for_wrong_flag_feedback(
+    tmp_path,
+) -> None:
+    run_id = "run-session-context-wrong-flag"
+
+    ledger = SessionLedger(tmp_path / "session_ledgers")
+    ledger.append_event(run_id, "verification_decision", {"decision": "rejected"})
+    ledger.append_event(run_id, "task_finished", {"success": False})
+
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    state.stop_reason = "wrong_flag_feedback"
+    state.add_flag(
+        "flag{wrong_ctx}",
+        level="rejected",
+        evidence_source="submit-endpoint",
+        rationale="platform rejected",
+        confidence=1.0,
+    )
+    CheckpointStore(tmp_path / "checkpoints").save_checkpoint(
+        run_id=run_id,
+        label="task_finished",
+        state_snapshot=state.to_snapshot(),
+        metadata={"success": False, "reason": "wrong_flag_feedback"},
+    )
+
+    view = SessionContextView(
+        ledger_root=tmp_path / "session_ledgers",
+        artifact_root=tmp_path / "artifact_registry",
+        checkpoint_root=tmp_path / "checkpoints",
+    )
+    context = view.build_run_context(run_id)
+
+    assert context["latestCheckpoint"]["stopReason"] == "wrong_flag_feedback"
+    assert context["latestCheckpoint"]["rejectedFlags"] == ["flag{wrong_ctx}"]
+    assert "rejected_flags=flag{wrong_ctx}" in context["resumeContext"]["summary"]
 
 
 def test_build_workspace_run_context_merges_artifacts_from_legacy_and_new_roots(

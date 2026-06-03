@@ -56,7 +56,8 @@
 - 已补 `control_action_completed`
 - 已补 verified/runtime early-finish 的 `verification_decision`
 - 已补 `task_finished.reason / final checkpoint reason / state.stop_reason` 第一轮对齐
-- 下一步继续补 `wrong_flag_feedback` 与候选动作层
+- 已补 `wrong_flag_feedback -> rejected_flags -> resume summary` 这一层
+- 下一步继续补候选动作层
 
 完成标准：
 
@@ -155,6 +156,10 @@
    - `verify_or_submit_flag` / `verify_runtime_signal` 现在都会把 verification 写回统一事实链
    - final outcome 与 final checkpoint reason 已对齐
 
+5. **wrong_flag_feedback 对齐**
+   - final checkpoint metadata 已带 `rejected_flags`
+   - session context / resume summary 已能读到 rejected flag
+
 ### 4.4 本地样本主线已成型
 
 当前最关键的样本输入合同：
@@ -221,5 +226,5 @@
 
 ## 8. 一句话交接摘要
 
-> **当前项目已从“Web 真值化收口”进入“主控判断收紧 + blackboard-lite 落地 + 调度收短”的下一阶段；下一批任务优先补 wrong_flag_feedback 闭环，再做候选动作池与最小 Eval Harness。**
+> **当前项目已从“Web 真值化收口”进入“主控判断收紧 + blackboard-lite 落地 + 调度收短”的下一阶段；下一批任务优先补候选动作池与切换依据，再做最小 Eval Harness。**
 

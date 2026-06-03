@@ -75,6 +75,18 @@
 
 > **当主控直接命中 verified/runtime flag 时，也能把验证、结束原因、最终断点写成一条一致的事实链。**
 
+### 2.5 wrong_flag_feedback 已补到 final checkpoint / resume summary
+
+本轮继续补齐并验证：
+
+- wrong flag 失败后的 final checkpoint metadata 会带 `rejected_flags`
+- `SessionContext.latestCheckpoint` 会投影 `rejectedFlags`
+- `resumeContext.summary` 会带出 `rejected_flags=...`
+
+这意味着：
+
+> **wrong_flag_feedback 不再只是停留在 state / reasoning 内部，而是已经进入恢复与交接可读的事实层。**
+
 ---
 
 ## 3. 我们现在是不是“黑板模式”
@@ -135,7 +147,8 @@
 
 - verified/runtime flag 的 early-finish 已补 `verification_decision`
 - 最终 `task_finished` 与 final checkpoint reason 已完成第一轮对齐
-- 下一刀更值得做的是 `wrong_flag_feedback` 的结构化闭环
+- `wrong_flag_feedback` 已补到 final checkpoint / resume summary
+- 下一刀更值得做的是 Blackboard-lite 候选动作层的切换依据收紧
 
 ### P1：Blackboard-lite 候选动作池
 
@@ -201,5 +214,5 @@
 
 ## 7. 当前一句话判断
 
-> **FlagHunter 现在的发展方向，确实在朝“主控判断优先、blackboard-lite 收紧、样本驱动验证”的路线走；它借鉴了 Cairn，但不是简单照搬，当前最值得继续的是把 wrong_flag_feedback 与候选动作层继续收紧。**
+> **FlagHunter 现在的发展方向，确实在朝“主控判断优先、blackboard-lite 收紧、样本驱动验证”的路线走；它借鉴了 Cairn，但不是简单照搬，当前最值得继续的是把候选动作层与切换依据继续收紧。**
 
