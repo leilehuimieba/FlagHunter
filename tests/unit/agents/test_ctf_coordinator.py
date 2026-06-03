@@ -1729,6 +1729,111 @@ async def test_coordinator_records_initial_fact_collection_observation_before_re
 
 
 @pytest.mark.asyncio
+async def test_coordinator_bootstraps_local_assets_before_pre_recon_when_requested():
+    coordinator = CTFCoordinator()
+    sentinel = SolveResult(success=False, reason="bootstrap-first")
+    call_order: list[str] = []
+
+    class _CapabilityRegistry:
+        async def full_check(self):
+            call_order.append("capability_full_check")
+            return None
+
+        def to_dict(self):
+            return {}
+
+    class _Dispatcher:
+        def __init__(self):
+            self._notes_log = []
+            self._challenge_context = None
+            self._ledger_run_id = None
+            self._current_fingerprint = None
+            self._memory_match_ids = []
+            self._pending_wrong_flag_feedback = []
+            self._exhausted_visit_url_targets = set()
+            self.reasoning_layer = SimpleNamespace(degradation_events=[])
+            self.state = None
+            self.capability_registry = _CapabilityRegistry()
+
+        def _setup_session_ledger(self, *, run_id=None, ledger_root=None):
+            self._ledger_run_id = run_id
+
+        def _setup_artifact_registry(self, *, run_id=None, registry_root=None):
+            return None
+
+        def _setup_checkpoint_store(self, *, run_id=None, checkpoint_root=None):
+            return None
+
+        def _apply_submit_profile(self, submit_profile):
+            return None
+
+        async def _start_failover_monitor_if_available(self):
+            return None
+
+        def _record_session_event(self, event_type: str, payload: dict[str, object]):
+            return None
+
+        def _write_checkpoint(self, label: str, payload: dict[str, object]):
+            return None
+
+        def _load_rejected_flags(self):
+            call_order.append("load_rejected_flags")
+            return None
+
+        async def _snapshot_platform_context(self, target: str):
+            call_order.append("snapshot_platform_context")
+            return None
+
+        async def _phase_recon(self, target: str):
+            call_order.append("phase_recon")
+            return {
+                "html": "<html></html>",
+                "content": "portal",
+                "forms": [],
+                "endpoints": ["/login"],
+                "recon_missing_tools": [],
+            }
+
+        def _ingest_local_challenge_artifacts(self, target: str):
+            call_order.append("ingest_local_challenge_artifacts")
+            return None
+
+        def _ingest_registered_local_source_hints(self):
+            call_order.append("ingest_registered_local_source_hints")
+            return None
+
+        async def run(self, **kwargs):
+            call_order.append("run")
+            return sentinel
+
+    dispatcher = _Dispatcher()
+
+    result = await coordinator.execute(
+        dispatcher,
+        target="127.0.0.1:3000",
+        goal="goal",
+        type="web",
+        hint=(
+            "[control_decision]\n"
+            "decisionKind=direct_execute\n"
+            "nextAction=bootstrap_local_assets\n"
+            "driver=task.local_assets\n"
+            "reason=ctf local assets available"
+        ),
+        submit_profile=None,
+        challenge_context={"artifactPaths": [r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"]},
+        run_id="run-bootstrap-first",
+        ledger_root=None,
+        checkpoint_root=None,
+    )
+
+    assert result is sentinel
+    assert call_order.index("ingest_local_challenge_artifacts") < call_order.index("snapshot_platform_context")
+    assert call_order.index("ingest_registered_local_source_hints") < call_order.index("capability_full_check")
+    assert call_order.index("snapshot_platform_context") < call_order.index("phase_recon")
+
+
+@pytest.mark.asyncio
 async def test_coordinator_returns_verified_flag_from_hint_before_recon(
     tmp_path: Path,
 ):
