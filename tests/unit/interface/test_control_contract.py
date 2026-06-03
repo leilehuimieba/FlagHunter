@@ -37,6 +37,36 @@ def test_ctf_local_assets_prefers_direct_execute() -> None:
     assert decision["nextAction"] == "bootstrap_local_assets"
 
 
+def test_initial_fact_collection_in_blackboard_prevents_repeated_local_bootstrap() -> None:
+    payload = {
+        "mode": "ctf",
+        "goal": "solve local challenge",
+        "target": "http://127.0.0.1:3000",
+        "challengePath": r"D:\webstudy\CTF\2026\sample",
+        "artifactPaths": [r"D:\webstudy\CTF\2026\sample\docker-compose.yml"],
+        "blackboardSnapshot": {
+            "facts": [
+                {
+                    "kind": "initial_fact_collection_requested",
+                    "value": "http://127.0.0.1:3000",
+                    "source": "control_decision",
+                    "confidence": "high",
+                }
+            ],
+            "pendingVerifications": [],
+        },
+    }
+
+    decision = resolve_control_decision(payload)
+
+    assert decision["shouldRun"] is True
+    assert decision["decisionKind"] == "explore_first"
+    assert decision["nextAction"] == "collect_initial_facts"
+    assert decision["driver"] == "blackboard.initial_fact_collection_requested"
+    assert decision["reason"] == "initial fact collection already requested in blackboard"
+    assert "blackboard.initial_fact_collection_requested=present" in decision["facts"]
+
+
 def test_missing_target_and_local_assets_blocks_run() -> None:
     payload = {
         "mode": "pentest",
