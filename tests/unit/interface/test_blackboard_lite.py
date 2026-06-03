@@ -620,6 +620,9 @@ def test_format_blackboard_snapshot_lines_projects_shared_sections() -> None:
                 "action": "verify_or_submit_flag",
                 "driver": "blackboard.verified_flag",
                 "reason": "selected action failed; switch to next best candidate",
+                "switchedFrom": "verify_runtime_signal",
+                "triggerResult": "failed",
+                "triggerReason": "runtime verifier rejected candidate",
             },
             "action_results": [
                 {
@@ -643,6 +646,9 @@ def test_format_blackboard_snapshot_lines_projects_shared_sections() -> None:
     assert "suppressedRecommendation.suppressedBy=blackboard.runtime_flag" in lines
     assert "[blackboard_recommended_action]" in lines
     assert "action=verify_or_submit_flag" in lines
+    assert "switchedFrom=verify_runtime_signal" in lines
+    assert "triggerResult=failed" in lines
+    assert "triggerReason=runtime verifier rejected candidate" in lines
     assert "[blackboard_action_results]" in lines
     assert "result=failed" in lines
 

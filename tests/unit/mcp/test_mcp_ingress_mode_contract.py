@@ -1327,6 +1327,9 @@ async def test_mcp_task_inspection_exposes_recommended_action_and_action_results
     assert "action=collect_initial_facts" in status_output
     assert "driver=blackboard.derived_target" in status_output
     assert "reason=selected action failed; switch to next best candidate" in status_output
+    assert "switchedFrom=bootstrap_local_assets" in status_output
+    assert "triggerResult=failed" in status_output
+    assert "triggerReason=compose parsing failed" in status_output
     assert "[blackboard_action_results]" in status_output
     assert "action=bootstrap_local_assets" in status_output
     assert "result=failed" in status_output
@@ -1335,6 +1338,7 @@ async def test_mcp_task_inspection_exposes_recommended_action_and_action_results
 
     assert "[blackboard_recommended_action]" in result_output
     assert "action=collect_initial_facts" in result_output
+    assert "switchedFrom=bootstrap_local_assets" in result_output
     assert "[blackboard_action_results]" in result_output
     assert "result=failed" in result_output
 
