@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from pentestagent.interface.control_contract import resolve_control_decision
 
 
@@ -531,3 +533,137 @@ def test_leaked_secret_in_blackboard_prefers_secret_validation() -> None:
     assert decision["decisionKind"] == "direct_execute"
     assert decision["nextAction"] == "validate_leaked_secret"
     assert decision["driver"] == "blackboard.leaked_secret"
+
+
+@pytest.mark.parametrize(
+    ("name", "payload", "expected_kind", "expected_action", "expected_driver"),
+    [
+        (
+            "verified_over_everything",
+            {
+                "mode": "ctf",
+                "target": "http://challenge.test",
+                "resumeContext": {"runId": "run-prev-1", "checkpointId": "cp-prev-1"},
+                "challengePath": r"D:\webstudy\CTF\2026\sample",
+                "artifactPaths": [r"D:\webstudy\CTF\2026\sample\docker-compose.yml"],
+                "blackboardSnapshot": {
+                    "facts": [
+                        {"kind": "resume_bootstrap_hint", "value": "continue from saved recon state"},
+                        {"kind": "initial_fact_collection_requested", "value": "http://challenge.test"},
+                        {"kind": "verified_flag", "value": "flag{done}", "source": "admin_page"},
+                    ],
+                    "pendingVerifications": [
+                        {"kind": "runtime_flag", "value": "flag{runtime_candidate}", "source": "collector", "rationale": "runtime hit"}
+                    ],
+                },
+            },
+            "direct_execute",
+            "verify_or_submit_flag",
+            "blackboard.verified_flag",
+        ),
+        (
+            "runtime_over_resume_and_bootstrap",
+            {
+                "mode": "ctf",
+                "target": "http://challenge.test",
+                "resumeContext": {"runId": "run-prev-1", "checkpointId": "cp-prev-1"},
+                "challengePath": r"D:\webstudy\CTF\2026\sample",
+                "artifactPaths": [r"D:\webstudy\CTF\2026\sample\docker-compose.yml"],
+                "blackboardSnapshot": {
+                    "facts": [
+                        {"kind": "resume_bootstrap_hint", "value": "continue from saved recon state"},
+                        {"kind": "initial_fact_collection_requested", "value": "http://challenge.test"},
+                    ],
+                    "pendingVerifications": [
+                        {"kind": "runtime_flag", "value": "flag{runtime_candidate}", "source": "collector", "rationale": "runtime hit"}
+                    ],
+                },
+            },
+            "direct_execute",
+            "verify_runtime_signal",
+            "blackboard.runtime_flag",
+        ),
+        (
+            "resume_context_over_resume_hint_and_initial_facts",
+            {
+                "mode": "ctf",
+                "target": "http://challenge.test",
+                "resumeContext": {"runId": "run-prev-1", "checkpointId": "cp-prev-1"},
+                "challengePath": r"D:\webstudy\CTF\2026\sample",
+                "artifactPaths": [r"D:\webstudy\CTF\2026\sample\docker-compose.yml"],
+                "blackboardSnapshot": {
+                    "facts": [
+                        {"kind": "resume_bootstrap_hint", "value": "continue from saved recon state"},
+                        {"kind": "initial_fact_collection_requested", "value": "http://challenge.test"},
+                    ],
+                    "pendingVerifications": [],
+                },
+            },
+            "resume_execute",
+            "resume_from_checkpoint",
+            "task.resume_context",
+        ),
+        (
+            "resume_hint_over_initial_facts",
+            {
+                "mode": "ctf",
+                "target": "http://challenge.test",
+                "challengePath": r"D:\webstudy\CTF\2026\sample",
+                "artifactPaths": [r"D:\webstudy\CTF\2026\sample\docker-compose.yml"],
+                "blackboardSnapshot": {
+                    "facts": [
+                        {"kind": "resume_bootstrap_hint", "value": "continue from saved recon state"},
+                        {"kind": "initial_fact_collection_requested", "value": "http://challenge.test"},
+                    ],
+                    "pendingVerifications": [],
+                },
+            },
+            "resume_execute",
+            "resume_from_checkpoint",
+            "blackboard.resume_bootstrap_hint",
+        ),
+        (
+            "initial_facts_over_local_bootstrap",
+            {
+                "mode": "ctf",
+                "target": "http://challenge.test",
+                "challengePath": r"D:\webstudy\CTF\2026\sample",
+                "artifactPaths": [r"D:\webstudy\CTF\2026\sample\docker-compose.yml"],
+                "blackboardSnapshot": {
+                    "facts": [
+                        {"kind": "initial_fact_collection_requested", "value": "http://challenge.test"},
+                    ],
+                    "pendingVerifications": [],
+                },
+            },
+            "explore_first",
+            "collect_initial_facts",
+            "blackboard.initial_fact_collection_requested",
+        ),
+        (
+            "local_assets_fallback",
+            {
+                "mode": "ctf",
+                "target": "http://challenge.test",
+                "challengePath": r"D:\webstudy\CTF\2026\sample",
+                "artifactPaths": [r"D:\webstudy\CTF\2026\sample\docker-compose.yml"],
+            },
+            "direct_execute",
+            "bootstrap_local_assets",
+            "",
+        ),
+    ],
+)
+def test_control_decision_priority_matrix(
+    name: str,
+    payload: dict,
+    expected_kind: str,
+    expected_action: str,
+    expected_driver: str,
+) -> None:
+    decision = resolve_control_decision(payload)
+
+    assert decision["shouldRun"] is True, name
+    assert decision["decisionKind"] == expected_kind, name
+    assert decision["nextAction"] == expected_action, name
+    assert str(decision.get("driver") or "") == expected_driver, name
