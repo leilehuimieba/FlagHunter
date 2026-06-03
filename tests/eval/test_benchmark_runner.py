@@ -257,6 +257,58 @@ async def test_run_benchmark_attaches_harness_summary_to_result_metadata(monkeyp
     assert report.results[0].metadata["harness"]["latest_checkpoint_stop_reason"] == "flag_verified"
 
 
+@pytest.mark.asyncio
+async def test_run_benchmark_attaches_eval_contract_metadata(monkeypatch, tmp_path: Path):
+    async def _fake_runner(_verification_callback=None):
+        from pentestagent.agents.pa_agent.ctf_dispatcher import SolveResult
+        from pentestagent.agents.pa_agent.ctf_state import CTFState
+
+        state = CTFState(target="http://127.0.0.1:3000", goal="拿到flag")
+        state.stop_reason = "docker localhost visit fallback"
+        state.stop_report = {"reason": "flag_verified"}
+        state.add_flag(
+            "flag{synthetic}",
+            level="verified",
+            evidence_source="runtime",
+            rationale="synthetic local challenge success",
+            confidence=1.0,
+        )
+        return (
+            SolveResult(
+                success=True,
+                flag="flag{synthetic}",
+                chain_used=["web"],
+                notes=["synthetic"],
+                reason="docker localhost visit fallback",
+            ),
+            state,
+        )
+
+    fake_catalog = {
+        "easy_login_runtime_only": benchmark_runner._ChallengeSpec(
+            challenge_id="easy_login_runtime_only",
+            expected_solved=True,
+            source="tests/integration/local_challenge_runner.py::easy_login:runtime_only",
+            runner=_fake_runner,
+            eval_contract={
+                "sample_key": "easy_login",
+                "variant": "runtime_only",
+                "expected_outcome": "verified_flag",
+            },
+        )
+    }
+    monkeypatch.setattr(benchmark_runner, "_CHALLENGE_CATALOG", fake_catalog)
+    monkeypatch.setattr(benchmark_runner, "_DEFAULT_CHALLENGE_IDS", ["easy_login_runtime_only"])
+
+    report = await benchmark_runner.run_benchmark(report_path=str(tmp_path / "benchmark.json"))
+
+    assert report.results[0].metadata["eval_contract"] == {
+        "sample_key": "easy_login",
+        "variant": "runtime_only",
+        "expected_outcome": "verified_flag",
+    }
+
+
 # ---------------------------------------------------------------------------
 # Phase 7: failure taxonomy tests (P7-EVAL-01 to P7-EVAL-04)
 # ---------------------------------------------------------------------------

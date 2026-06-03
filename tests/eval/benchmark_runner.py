@@ -50,6 +50,7 @@ class _ChallengeSpec:
     expected_solved: bool
     source: str
     runner: Callable[[Callable[[str], Any] | None], Any]
+    eval_contract: dict[str, Any] | None = None
 
 
 def _utc_now() -> datetime:
@@ -174,6 +175,7 @@ def _build_challenge_result(
     state: CTFState | None,
     wall_time_seconds: float,
     harness_summary: dict[str, Any] | None = None,
+    eval_contract: dict[str, Any] | None = None,
 ) -> ChallengeResult:
     submit_attempts = _collect_submit_attempts(state)
     wrong_flag_count = sum(1 for item in submit_attempts if item.get("correct") is False)
@@ -232,6 +234,7 @@ def _build_challenge_result(
                 else None
             ),
             "harness": dict(harness_summary or {}),
+            "eval_contract": dict(eval_contract or {}),
         },
         failure_taxonomy=failure_taxonomy,
     )
@@ -690,6 +693,7 @@ async def run_benchmark(
                 state=state,
                 wall_time_seconds=wall_time,
                 harness_summary=harness_summary,
+                eval_contract=spec.eval_contract,
             )
         )
 
