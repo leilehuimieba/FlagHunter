@@ -2914,6 +2914,108 @@ def test_build_trace_payload_projects_control_decision_into_timeline(
     assert "derivedTargetOrigin=runtime_derived" in event["input"]["facts"]
 
 
+def test_build_trace_payload_projects_decision_alignment_and_suppression_into_timeline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    now = web_server._now_iso()
+    task = {
+        "id": "task_trace_decision_alignment",
+        "title": "trace decision alignment",
+        "target": "http://trace.test",
+        "goal": "trace truth",
+        "mode": "ctf",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
+        "status": "queued",
+        "createdAt": now,
+        "startedAt": now,
+        "finishedAt": None,
+        "tokensUsed": 0,
+        "toolCalls": 0,
+        "currentRunId": "run_trace_decision_alignment",
+        "controlDecision": {
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "reason": "verified flag already present in blackboard",
+            "nextAction": "verify_or_submit_flag",
+            "driver": "blackboard.verified_flag",
+            "facts": [
+                "mode=ctf",
+                "blackboard.verified_flag=present",
+                "blackboard.recommended_action=suppressed",
+            ],
+            "suppressedRecommendation": {
+                "action": "collect_initial_facts",
+                "driver": "blackboard.derived_target.runtime_derived",
+                "reason": "selected action failed; switch to next best candidate",
+                "suppressedBy": "blackboard.verified_flag",
+            },
+        },
+        "blackboardSnapshot": {
+            "activeDecision": {
+                "decisionKind": "direct_execute",
+                "nextAction": "verify_or_submit_flag",
+                "driver": "blackboard.verified_flag",
+                "reason": "verified flag already present in blackboard",
+                "expectedAction": "collect_initial_facts",
+                "observedAction": "verify_or_submit_flag",
+                "alignment": "mismatched",
+                "alignmentReason": "verified flag preempted planned first action",
+                "suppressedRecommendation": {
+                    "action": "collect_initial_facts",
+                    "driver": "blackboard.derived_target.runtime_derived",
+                    "reason": "selected action failed; switch to next best candidate",
+                    "suppressedBy": "blackboard.verified_flag",
+                },
+            }
+        },
+        "decisionRecords": [],
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    monkeypatch.setattr(web_server, "_pick_metrics_for_task", lambda project_root, item: None)
+    monkeypatch.setattr(
+        web_server,
+        "_pick_session_snapshot",
+        lambda project_root, item: (
+            None,
+            None,
+            {"matchedBy": "none", "confidence": "none", "expectedSessionId": None, "blockedReason": None, "candidateScore": None},
+        ),
+    )
+    monkeypatch.setattr(
+        web_server,
+        "_build_run_session_context",
+        lambda project_root, run_id: {
+            "runId": run_id,
+            "recentEvents": [],
+            "artifacts": [],
+            "latestCheckpoint": None,
+            "resumeContext": None,
+        },
+    )
+
+    payload = web_server._build_trace_payload(tmp_path, task, include_timeline=True)
+
+    decision_events = [event for event in payload["timeline"] if event["type"] == "decision"]
+    assert decision_events
+    event = decision_events[0]
+    assert event["input"]["expectedAction"] == "collect_initial_facts"
+    assert event["input"]["observedAction"] == "verify_or_submit_flag"
+    assert event["input"]["alignment"] == "mismatched"
+    assert event["input"]["alignmentReason"] == "verified flag preempted planned first action"
+    assert event["input"]["suppressedRecommendation"]["action"] == "collect_initial_facts"
+    assert (
+        event["input"]["suppressedRecommendation"]["suppressedBy"]
+        == "blackboard.verified_flag"
+    )
+
+
 def test_build_trace_payload_projects_initial_fact_collection_observation_into_timeline(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
