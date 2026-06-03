@@ -120,6 +120,11 @@
    - 起始 checkpoint metadata
    - Web Trace `outcomeEvents`
 
+4. **early-finish 的 verification / outcome 对齐**
+   - `verify_or_submit_flag` 会补 `verification_decision`
+   - `verify_runtime_signal` 会进入统一 verification 流
+   - `task_finished.reason / checkpoint metadata.reason / state.stop_reason` 已完成第一轮对齐
+
 ---
 
 ## 4. 当前最关键的短板
@@ -136,12 +141,19 @@
 - action results（已开始从 `control_action_completed` 事件真值投影）
 - recommended action（已开始基于 failed/skipped 给出 next-best 提示）
 
-### 4.2 控制链还缺“执行证据”第二段
+### 4.2 控制链还缺“失败反馈 / 候选切换”这一段
 
-当前虽然知道“决定了什么、首动作是什么”，但还没有完整补齐：
+当前虽然已经补上了：
 
 - `control_action_started`
 - `control_action_completed`
+- verified/runtime early-finish 的 verification / outcome 对齐
+
+但还没有完整补齐：
+
+- `wrong_flag_feedback`
+- pending verification 的结构化回写
+- candidate 切换理由与 next-best action 的稳定来源
 
 ### 4.3 `ctf_dispatcher.py` 仍然偏大
 
@@ -158,9 +170,10 @@
 如果只看当前阶段，最值得做的是：
 
 1. **继续扩 control action 事件闭环后的动作结果语义**
-2. **继续做 Blackboard-lite 候选动作池最小设计**
-3. **用本地样本继续做最小 Eval Harness**
-4. **保持文档与代码真相同步**
+2. **继续补 wrong_flag_feedback → checkpoint / outcome / resume summary 的闭环**
+3. **继续做 Blackboard-lite 候选动作池最小设计**
+4. **用本地样本继续做最小 Eval Harness**
+5. **保持文档与代码真相同步**
 
 ---
 

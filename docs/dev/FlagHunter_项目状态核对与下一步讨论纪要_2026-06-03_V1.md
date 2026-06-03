@@ -59,6 +59,22 @@
 
 这说明项目已经从“能解释为什么这么做”，推进到“能回放它一开始决定做什么”。
 
+### 2.4 early-finish 的 verification / checkpoint / outcome 已完成第一轮对齐
+
+本轮已经补齐并验证：
+
+- `verify_or_submit_flag` 的 early-finish 会写入 `verification_decision`
+- `verify_runtime_signal` 的 early-finish 会进入统一 verification 流
+- 最终 `task_finished.reason`
+- 最终 checkpoint `task_finished.metadata.reason`
+- `state.stop_reason`
+
+这三层现在已经能保持一致。
+
+这说明项目不只是“知道先做什么”，而是开始具备：
+
+> **当主控直接命中 verified/runtime flag 时，也能把验证、结束原因、最终断点写成一条一致的事实链。**
+
 ---
 
 ## 3. 我们现在是不是“黑板模式”
@@ -114,6 +130,12 @@
 - 证明 first action 真的开始执行
 - 证明 first action 是否完成 / 跳过 / 失败
 - 让 trace / ledger / checkpoint 看到同一条事实链
+
+当前新增进展：
+
+- verified/runtime flag 的 early-finish 已补 `verification_decision`
+- 最终 `task_finished` 与 final checkpoint reason 已完成第一轮对齐
+- 下一刀更值得做的是 `wrong_flag_feedback` 的结构化闭环
 
 ### P1：Blackboard-lite 候选动作池
 
@@ -179,5 +201,5 @@
 
 ## 7. 当前一句话判断
 
-> **FlagHunter 现在的发展方向，确实在朝“主控判断优先、blackboard-lite 收紧、样本驱动验证”的路线走；它借鉴了 Cairn，但不是简单照搬，当前最值得继续的是把控制动作事件闭环补齐。**
+> **FlagHunter 现在的发展方向，确实在朝“主控判断优先、blackboard-lite 收紧、样本驱动验证”的路线走；它借鉴了 Cairn，但不是简单照搬，当前最值得继续的是把 wrong_flag_feedback 与候选动作层继续收紧。**
 
