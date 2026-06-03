@@ -1384,6 +1384,14 @@ async def test_task_detail_surfaces_suppressed_recommended_action(web_client: Te
     assert detail["controlDecision"]["suppressedRecommendation"]["action"] == "collect_initial_facts"
     assert detail["controlDecision"]["suppressedRecommendation"]["suppressedBy"] == "blackboard.verified_flag"
     assert (
+        detail["blackboardSnapshot"]["activeDecision"]["suppressedRecommendation"]["action"]
+        == "collect_initial_facts"
+    )
+    assert (
+        detail["blackboardSnapshot"]["activeDecision"]["suppressedRecommendation"]["suppressedBy"]
+        == "blackboard.verified_flag"
+    )
+    assert (
         detail["decisionRecords"][0]["suppressedRecommendation"]["driver"]
         == "blackboard.derived_target.runtime_derived"
     )

@@ -558,3 +558,36 @@ def test_build_task_blackboard_snapshot_projects_first_action_alignment_into_act
             "alignmentReason": "runtime verification preempted planned first action",
         }
     ]
+
+
+def test_build_task_blackboard_snapshot_projects_suppressed_recommendation_into_active_decision() -> None:
+    snapshot = build_task_blackboard_snapshot(
+        {
+            "controlDecision": {
+                "shouldRun": True,
+                "decisionKind": "direct_execute",
+                "reason": "verified flag already present in blackboard",
+                "nextAction": "verify_or_submit_flag",
+                "driver": "blackboard.verified_flag",
+                "facts": [
+                    "mode=ctf",
+                    "blackboard.verified_flag=present",
+                    "blackboard.recommended_action=suppressed",
+                ],
+                "suppressedRecommendation": {
+                    "action": "collect_initial_facts",
+                    "driver": "blackboard.derived_target.runtime_derived",
+                    "reason": "selected action failed; switch to next best candidate",
+                    "suppressedBy": "blackboard.verified_flag",
+                },
+            },
+        }
+    )
+
+    assert snapshot["active_decision"]["nextAction"] == "verify_or_submit_flag"
+    assert snapshot["active_decision"]["suppressedRecommendation"] == {
+        "action": "collect_initial_facts",
+        "driver": "blackboard.derived_target.runtime_derived",
+        "reason": "selected action failed; switch to next best candidate",
+        "suppressedBy": "blackboard.verified_flag",
+    }
