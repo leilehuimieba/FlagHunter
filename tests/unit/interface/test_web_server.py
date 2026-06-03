@@ -4002,6 +4002,47 @@ async def test_task_retry_allows_derived_target_when_source_target_missing(web_c
 
 
 @pytest.mark.asyncio
+async def test_post_task_consumes_recommended_action_from_blackboard_snapshot(web_client: TestClient):
+    created = await web_client.post(
+        "/api/tasks",
+        json={
+            "title": "ingress-recommended-action",
+            "target": "http://challenge.test",
+            "mode": "ctf",
+            "ctfType": "web",
+            "goal": "solve challenge",
+            "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+            "artifactPaths": [
+                r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
+            ],
+            "blackboardSnapshot": {
+                "facts": [
+                    {
+                        "kind": "derived_target",
+                        "value": "http://127.0.0.1:3000",
+                        "source": "challenge_context",
+                        "confidence": "high",
+                    }
+                ],
+                "pendingVerifications": [],
+                "recommendedAction": {
+                    "action": "collect_initial_facts",
+                    "driver": "blackboard.derived_target.runtime_derived",
+                    "reason": "selected action failed; switch to next best candidate",
+                },
+            },
+        },
+    )
+
+    assert created.status == 201
+    task = await created.json()
+    assert task["controlDecision"]["decisionKind"] == "explore_first"
+    assert task["controlDecision"]["nextAction"] == "collect_initial_facts"
+    assert task["controlDecision"]["driver"] == "blackboard.derived_target.runtime_derived"
+    assert "blackboard.recommended_action=present" in task["controlDecision"]["facts"]
+
+
+@pytest.mark.asyncio
 async def test_trace_replay_inherits_resume_context_lineage_and_detail_seed(
     web_client: TestClient, tmp_path: Path
 ):

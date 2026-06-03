@@ -535,6 +535,70 @@ def test_leaked_secret_in_blackboard_prefers_secret_validation() -> None:
     assert decision["driver"] == "blackboard.leaked_secret"
 
 
+def test_recommended_action_in_blackboard_can_override_local_assets_fallback() -> None:
+    payload = {
+        "mode": "ctf",
+        "target": "http://challenge.test",
+        "challengePath": r"D:\webstudy\CTF\2026\sample",
+        "artifactPaths": [r"D:\webstudy\CTF\2026\sample\docker-compose.yml"],
+        "blackboardSnapshot": {
+            "facts": [
+                {
+                    "kind": "derived_target",
+                    "value": "http://127.0.0.1:3000",
+                    "source": "challenge_context",
+                    "confidence": "high",
+                }
+            ],
+            "pendingVerifications": [],
+            "recommendedAction": {
+                "action": "collect_initial_facts",
+                "driver": "blackboard.derived_target.runtime_derived",
+                "reason": "selected action failed; switch to next best candidate",
+            },
+        },
+    }
+
+    decision = resolve_control_decision(payload)
+
+    assert decision["shouldRun"] is True
+    assert decision["decisionKind"] == "explore_first"
+    assert decision["nextAction"] == "collect_initial_facts"
+    assert decision["driver"] == "blackboard.derived_target.runtime_derived"
+    assert decision["reason"] == "selected action failed; switch to next best candidate"
+    assert "blackboard.recommended_action=present" in decision["facts"]
+
+
+def test_verified_flag_still_outranks_recommended_action() -> None:
+    payload = {
+        "mode": "ctf",
+        "target": "http://challenge.test",
+        "blackboardSnapshot": {
+            "facts": [
+                {
+                    "kind": "verified_flag",
+                    "value": "flag{done}",
+                    "source": "admin_page",
+                    "confidence": "high",
+                }
+            ],
+            "pendingVerifications": [],
+            "recommendedAction": {
+                "action": "collect_initial_facts",
+                "driver": "blackboard.derived_target.runtime_derived",
+                "reason": "selected action failed; switch to next best candidate",
+            },
+        },
+    }
+
+    decision = resolve_control_decision(payload)
+
+    assert decision["shouldRun"] is True
+    assert decision["decisionKind"] == "direct_execute"
+    assert decision["nextAction"] == "verify_or_submit_flag"
+    assert decision["driver"] == "blackboard.verified_flag"
+
+
 @pytest.mark.parametrize(
     ("name", "payload", "expected_kind", "expected_action", "expected_driver"),
     [
