@@ -83,6 +83,7 @@
 - 已补 `collect_initial_facts` 的 structured follow-up provenance：Web / MCP handoff 现在会携带 `driver / reason / sourceType / switchedFrom / triggerReason / triggerActionDriver / triggerAt / strongestHypothesis*`，coordinator 在 hint 为空时也能直接消费
 - 已补 `verify_runtime_signal / verify_or_submit_flag` 的 structured follow-up：Web / MCP handoff 现在会结构化携带 `runtimeFlag / verifiedFlag`，coordinator 在 hint 为空时也能直接 early-finish
 - 已补 `resume_from_checkpoint / bootstrap_local_assets` 的 structured handoff-first：coordinator 现在在 hint 为空时也能直接消费，hint 仅保留 fallback 角色
+- 已补 `backup_source_leak` 的 structured trigger 顺序收紧：当 follow-up provenance 明确指向 `source leak / backup artifact` 时，`_execute_web_chain()` 也会像 `_select_primary_strategy()` 一样，把 `backup_source_leak` 提前到 `contact_report_chain` 前执行
 - 当前 control chain 首段主路径（resume / bootstrap / collect / verify / probe）已基本完成 structured handoff-first，后续更值得继续把 provenance 压进 dispatcher 内部策略选择
 - 下一步继续补候选动作层 / 切换理由稳定来源与前端更直接展示
 
