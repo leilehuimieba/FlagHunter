@@ -77,6 +77,7 @@
 - 已补 `retry / replay` 的 follow-up refresh：**仅在 blackboard 确有 `recommendedAction.action` 时** 才刷新 follow-up；否则继续保留原本的 `resume_execute` 语义
 - 已补 `ctf_dispatcher` 对结构化 `ingress_handoff.nextAction` 的直接消费，内部选主策略不再只依赖 hint 字符串
 - 已补 `probe_discovered_endpoint -> ingressHandoff.endpoint`，coordinator 侦察目标现在会优先消费结构化 endpoint，再回退到 hint 文本
+- 已补 MCP ingress 与 Web ingress 的 `probe_discovered_endpoint` 对齐，双入口现在都会结构化传递 `endpoint`
 - 下一步继续补候选动作层 / 切换理由稳定来源与前端更直接展示
 
 完成标准：

@@ -150,6 +150,44 @@ def test_mcp_ctf_dispatcher_hint_includes_verified_flag_for_verify_or_submit_act
     assert "verifiedFlag=flag{verified_candidate}" in hint
 
 
+def test_mcp_build_ingress_handoff_includes_structured_endpoint_for_probe_action() -> None:
+    entry = mcp_tools.TaskEntry(
+        id="task-endpoint-1",
+        task="probe endpoint",
+        status="pending",
+        created_at="2026-06-04T00:00:00",
+        agent=SimpleNamespace(),
+        target="http://challenge.test",
+        mode="ctf",
+        modeSubtype="web",
+        controlDecision={
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "reason": "discovered endpoint present in blackboard",
+            "nextAction": "probe_discovered_endpoint",
+            "driver": "blackboard.discovered_endpoint",
+        },
+        ctfStateSnapshot={
+            "observations": [
+                {
+                    "kind": "recon_url",
+                    "value": "http://challenge.test/admin",
+                    "source": "recon",
+                    "metadata": {"confidence": "high"},
+                }
+            ],
+            "artifacts": [],
+            "runtime_flags": [],
+            "verified_flags": [],
+        },
+    )
+
+    handoff = mcp_tools._build_ingress_handoff(entry)
+
+    assert handoff["nextAction"] == "probe_discovered_endpoint"
+    assert handoff["endpoint"] == "http://challenge.test/admin"
+
+
 def test_mcp_ctf_dispatcher_hint_includes_strongest_hypothesis_fields() -> None:
     entry = mcp_tools.TaskEntry(
         id="task-hyp-1",
@@ -782,6 +820,66 @@ async def test_run_task_routes_ctf_mode_into_dispatcher_with_explicit_challenge_
         ],
     }
     assert "flag{mcp_ctf_ok}" in result
+
+
+@pytest.mark.asyncio
+async def test_run_task_routes_structured_probe_endpoint_handoff_into_dispatcher(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    async def fake_make_agent(target, scope):
+        return _ForbiddenMcpAgent()
+
+    def fake_resolve_mode_contract(payload, *, source_task=None):
+        return {"mode": "ctf", "modeSubtype": "web", "goalStyle": "flag"}
+
+    class _FakeDispatcher:
+        def __init__(self, runtime, progress_callback=None, verification_callback=None):
+            captured["runtime"] = runtime
+
+        async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None, ingress_handoff=None, run_id=None, ledger_root=None, checkpoint_root=None):
+            captured["target"] = target
+            captured["goal"] = goal
+            captured["type"] = type
+            captured["hint"] = hint
+            captured["challenge_context"] = challenge_context
+            captured["ingress_handoff"] = ingress_handoff
+            return SimpleNamespace(flag="flag{mcp_structured_endpoint_ok}", reason="ok", chain_used=["recon"], missing_tools=[], notes=[])
+
+    fake_dispatcher_module = types.ModuleType("pentestagent.agents.pa_agent.ctf_dispatcher")
+    fake_dispatcher_module.CTFTaskDispatcher = _FakeDispatcher
+    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent.ctf_dispatcher", fake_dispatcher_module)
+    monkeypatch.setattr(mcp_tools, "_make_agent", fake_make_agent)
+    monkeypatch.setattr(mcp_tools, "resolve_mode_contract", fake_resolve_mode_contract, raising=False)
+
+    result = await mcp_tools.run_task(
+        {
+            "task": "probe discovered endpoint from MCP",
+            "target": "http://challenge.test",
+            "mode": "ctf",
+            "ctfType": "web",
+            "blackboardSnapshot": {
+                "facts": [
+                    {
+                        "kind": "discovered_endpoint",
+                        "value": "http://challenge.test/admin",
+                        "source": "recon",
+                        "confidence": "high",
+                    }
+                ],
+                "pendingVerifications": [],
+            },
+        }
+    )
+
+    assert captured["target"] == "http://challenge.test"
+    assert captured["type"] == "web"
+    assert "nextAction=probe_discovered_endpoint" in str(captured["hint"])
+    assert "endpoint=http://challenge.test/admin" in str(captured["hint"])
+    assert captured["ingress_handoff"]["nextAction"] == "probe_discovered_endpoint"
+    assert captured["ingress_handoff"]["endpoint"] == "http://challenge.test/admin"
+    assert "flag{mcp_structured_endpoint_ok}" in result
 
 
 @pytest.mark.asyncio
