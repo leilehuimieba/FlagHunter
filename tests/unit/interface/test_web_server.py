@@ -1636,6 +1636,66 @@ async def test_task_detail_surfaces_control_decision_driver(web_client: TestClie
 
 
 @pytest.mark.asyncio
+async def test_task_detail_surfaces_exploit_provenance_from_source_leak_observation(
+    web_client: TestClient,
+):
+    created = await web_client.post(
+        "/api/tasks",
+        json={
+            "title": "exploit-provenance-detail",
+            "target": "http://challenge.test",
+            "mode": "ctf",
+            "ctfType": "web",
+            "goal": "capture the flag",
+        },
+    )
+
+    assert created.status == 201
+    task = await created.json()
+    task_id = task["id"]
+    web_server._tasks[task_id]["ctfStateSnapshot"] = {
+        "target": "http://challenge.test",
+        "goal": "capture the flag",
+        "detected_type": "web",
+        "observations": [
+            {
+                "kind": "source_leak_exploit_candidate",
+                "value": "php_unserialize",
+                "source": "backup_source_leak",
+                "metadata": {
+                    "artifact_url": "http://challenge.test/backup.zip",
+                    "exploit_info": {"type": "php_unserialize", "param": "data"},
+                },
+            }
+        ],
+        "hypotheses": [],
+        "verified_flags": [],
+        "runtime_flags": [],
+        "artifacts": [],
+        "rejected_flags": [],
+        "exploration_agenda": [],
+        "wrong_flag_history": [],
+        "uniform_failures": [],
+        "llm_exploration_log": [],
+        "pre_action_reasonings": [],
+        "weak_decision_log": [],
+        "strategy_memory_hits": [],
+        "notes": [],
+    }
+
+    detail_resp = await web_client.get(f"/api/tasks/{task_id}")
+    assert detail_resp.status == 200
+    detail = await detail_resp.json()
+
+    assert detail["exploitProvenance"] == {
+        "sourceType": "source_leak_exploit_candidate",
+        "exploitKind": "php_unserialize",
+        "observationSource": "backup_source_leak",
+        "artifactUrl": "http://challenge.test/backup.zip",
+    }
+
+
+@pytest.mark.asyncio
 async def test_task_detail_surfaces_suppressed_recommended_action(web_client: TestClient):
     created = await web_client.post(
         "/api/tasks",
@@ -3991,6 +4051,92 @@ def test_build_trace_payload_projects_control_action_outcome_events(
     assert "mismatched" in started["summary"]
     assert "bootstrap_local_assets" in completed["summary"]
     assert "ok" in completed["summary"]
+
+
+def test_build_trace_payload_surfaces_exploit_provenance_summary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    task = {
+        "id": "task_trace_exploit_provenance",
+        "title": "trace exploit provenance",
+        "target": "http://trace.test",
+        "goal": "trace exploit provenance",
+        "mode": "ctf",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
+        "status": "running",
+        "createdAt": web_server._now_iso(),
+        "startedAt": web_server._now_iso(),
+        "tokensUsed": 0,
+        "toolCalls": 0,
+        "currentRunId": "run-trace-exploit-provenance",
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+        "ctfStateSnapshot": {
+            "target": "http://trace.test",
+            "goal": "trace exploit provenance",
+            "detected_type": "web",
+            "observations": [
+                {
+                    "kind": "source_leak_exploit_candidate",
+                    "value": "profile_photo_poisoning",
+                    "source": "backup_source_leak",
+                    "metadata": {
+                        "artifact_url": "http://trace.test/backup.zip",
+                        "exploit_info": {"type": "profile_photo_poisoning"},
+                    },
+                }
+            ],
+            "hypotheses": [],
+            "verified_flags": [],
+            "runtime_flags": [],
+            "artifacts": [],
+            "rejected_flags": [],
+            "exploration_agenda": [],
+            "wrong_flag_history": [],
+            "uniform_failures": [],
+            "llm_exploration_log": [],
+            "pre_action_reasonings": [],
+            "weak_decision_log": [],
+            "strategy_memory_hits": [],
+            "notes": [],
+        },
+    }
+
+    monkeypatch.setattr(web_server, "_pick_metrics_for_task", lambda project_root, item: None)
+    monkeypatch.setattr(
+        web_server,
+        "_pick_session_snapshot",
+        lambda project_root, item: (
+            None,
+            None,
+            {"matchedBy": "none", "confidence": "none", "expectedSessionId": None, "blockedReason": None, "candidateScore": None},
+        ),
+    )
+    monkeypatch.setattr(
+        web_server,
+        "_build_run_session_context",
+        lambda project_root, run_id: {
+            "runId": run_id,
+            "recentEvents": [],
+            "artifacts": [],
+            "latestCheckpoint": None,
+            "resumeContext": None,
+        },
+    )
+
+    payload = web_server._build_trace_payload(tmp_path, task, include_timeline=True)
+
+    assert payload["exploitProvenance"] == {
+        "sourceType": "source_leak_exploit_candidate",
+        "exploitKind": "profile_photo_poisoning",
+        "observationSource": "backup_source_leak",
+        "artifactUrl": "http://trace.test/backup.zip",
+    }
 
 
 def test_build_trace_payload_keeps_strongest_hypothesis_in_control_action_outcome_events(
