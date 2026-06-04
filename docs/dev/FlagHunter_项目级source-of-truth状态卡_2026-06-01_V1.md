@@ -193,6 +193,8 @@
   当前已不只看 `nextAction`，还会结合 `switchedFrom / triggerReason / triggerActionDriver` 把 `collect_initial_facts` 这类退化 follow-up 继续拉回高价值策略，例如 `ssti_exploit`、`hash_guarded_file_read`、`backup_source_leak`，以及在 `xss` 链中恢复 `visit-url` fallback、在 `web` 链中恢复 `hint_chain_followup`
 - `StrategyContext` 真值注入
   当前 `cookie_secret_leaked` 已开始自动注入 `extras.cookie_secret`，`hash_reconstruction_attack` 不再需要只靠上一跳手工传参
+- `php_unserialize` exploit truth-source
+  当前 backup/source 分析出的 `php_unserialize` 候选已会落成 `source_leak_exploit_candidate` observation，`web` 链与 `StrategyContext` 会优先从该 observation 恢复 `exploit_info / artifact_url`，再回退到本地源码提示
 
 ### 4.2 控制链还缺“失败反馈 / 候选切换”这一段
 

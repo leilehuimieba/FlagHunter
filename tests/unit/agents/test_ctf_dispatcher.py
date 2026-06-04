@@ -2503,6 +2503,116 @@ async def test_execute_web_chain_runs_php_unserialize_before_backup_when_source_
 
 
 @pytest.mark.asyncio
+async def test_execute_web_chain_runs_php_unserialize_before_backup_when_observed_exploit_candidate_exists(
+    monkeypatch,
+):
+    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher.state.add_observation(
+        "source_leak_exploit_candidate",
+        "php_unserialize",
+        source="backup_source_leak",
+        metadata={
+            "artifact_url": "http://ctf.local/backup.zip",
+            "exploit_info": {
+                "type": "php_unserialize",
+                "param": "data",
+                "payloads": ['O:4:"User":3:{...}'],
+            },
+        },
+    )
+
+    called_kinds: list[str] = []
+
+    async def _wrapped_execute(kind: str, context):
+        called_kinds.append(kind)
+        return _ChainOutcome(progress=False, reason=kind)
+
+    monkeypatch.setattr(dispatcher.strategy_registry, "execute", _wrapped_execute)
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+
+    await dispatcher._execute_web_chain(
+        "http://ctf.local/",
+        {
+            "content": "",
+            "html": "",
+            "endpoints": [],
+            "raw_links": [],
+            "forms": [],
+        },
+        "",
+    )
+
+    assert "php_unserialize_magic_method" in called_kinds
+    assert "backup_source_leak" in called_kinds
+    assert called_kinds.index("php_unserialize_magic_method") < called_kinds.index("backup_source_leak")
+
+
+@pytest.mark.asyncio
+async def test_run_backup_analysis_stores_php_unserialize_exploit_candidate_observation(monkeypatch):
+    from types import SimpleNamespace
+
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+
+    async def _fake_scan_and_store(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(dispatcher, "_scan_and_store", _fake_scan_and_store)
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher._pick_python_command",
+        lambda runtime: "python",
+    )
+
+    async def _fake_runtime_execute_command(*args, **kwargs):
+        return SimpleNamespace(
+            stdout='{"url":"http://ctf.local/backup.zip","kind":"zip","entries":[],"interesting":[],"flag":null,"php_unserialize":true,"profile_photo_poisoning":false,"exploit":{"type":"php_unserialize","param":"data","payloads":["O:4:\\"User\\":3:{...}"]}}',
+            stderr="",
+            exit_code=0,
+        )
+
+    monkeypatch.setattr(dispatcher, "_runtime_execute_command", _fake_runtime_execute_command)
+
+    outcome = await dispatcher._download_and_analyze_backup_artifact(
+        artifact_url="http://ctf.local/backup.zip",
+        target="http://ctf.local",
+    )
+
+    assert outcome.progress is True
+    assert any(
+        obs.kind == "source_leak_exploit_candidate"
+        and obs.value == "php_unserialize"
+        and (obs.metadata or {}).get("artifact_url") == "http://ctf.local/backup.zip"
+        for obs in dispatcher.state.observations
+    )
+
+
+@pytest.mark.asyncio
 async def test_execute_xss_chain_runs_stored_xss_when_source_hints_expose_visit_admin_routes(
     monkeypatch,
 ):

@@ -244,6 +244,7 @@
 
 - 把 structured provenance 继续压进 dispatcher 更多策略分支，而不是停在 `nextAction` 字面匹配
 - 继续让 follow-up 在退化到泛化动作时，也能靠 `switchedFrom / triggerReason / triggerActionDriver` 恢复高价值决策
+- `php_unserialize` 现已开始走 observation-first：backup/source 分析得到的 exploit candidate 会先落为 `source_leak_exploit_candidate`，后续 `web` 链与 `StrategyContext` 再优先从 observation 恢复 `exploit_info / artifact_url`
 
 ---
 
