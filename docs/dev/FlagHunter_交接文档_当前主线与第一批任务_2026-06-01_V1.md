@@ -88,6 +88,7 @@
 - 已补 Web Detail / Trace 对 `profile_photo_poisoning` local-source-derived provenance 的顶层投影：即使还没有 `source_leak_exploit_candidate` observation，只要 `local_challenge_source_hint` 已能稳定派生 exploit 类型，`exploitProvenance` 与 `outcomeEvents` 也会直接展示 `sourceType / exploitKind / artifactUrl`
 - 已补 `dispatcher_started / verification_decision / task_finished` 的 exploit summary 文本收口：当前不只会展示 `exploitKind`，还会在摘要中直接带出 `sourceType`（例如 `source=local_challenge_source_hint`），前端不必只靠展开 output JSON 才能看懂 exploit 来源
 - 已补 `recovery_decision` 的稳定摘要顺序：当前 recovery 摘要统一收成 `action · chain=... · from=... · hypothesis=... · exploit=... source=...`，候选切换、主假设与 exploit 来源已进入同一层可读文本
+- 已补 `control_action_started / control_action_completed` 的标签化摘要：当前已统一成 `action=... / expected=... / alignment=... / driver=... / exploit=... source=...` 与 `action=... / result=... / driver=... / exploit=... source=...` 两种稳定格式，控制链执行摘要风格已开始对齐
 - 当前 control chain 首段主路径（resume / bootstrap / collect / verify / probe）已基本完成 structured handoff-first，后续更值得继续把 provenance 压进 dispatcher 内部策略选择
 - 下一步继续补候选动作层 / 切换理由稳定来源与前端更直接展示
 
@@ -261,6 +262,7 @@
    - Web Detail / Trace 现在也不再只依赖 `source_leak_exploit_candidate` observation 才能展示 exploit 来源；当 exploit truth 仅来自 `local_challenge_source_hint` 时，顶层 `exploitProvenance` 与 `control_action_* outcomeEvents` 也会保留这条 local-source-derived provenance
    - `dispatcher_started / verification_decision / task_finished` 的 summary 文本现在也会直接标出 exploit 来源类型；local-source-derived exploit truth 不再只埋在 output JSON 里，而是进入一眼可读的摘要层
    - `recovery_decision` 的 summary 现在也统一成标签化顺序，不再只是松散堆叠字符串；前端可直接从摘要读到 recovery action、来源切换、主假设与 exploit 来源
+   - `control_action_started / completed` 的 summary 也已标签化；前端现在可直接从摘要读到 action、expected/result、alignment、driver 与 exploit source，而不用靠 output JSON 反推执行语义
 
 ### 4.4 本地样本主线已成型
 

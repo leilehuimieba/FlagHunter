@@ -4400,12 +4400,17 @@ def test_build_trace_payload_projects_control_action_outcome_events(
     assert "control_action_completed" in kinds
     started = [event for event in payload["outcomeEvents"] if event["kind"] == "control_action_started"][0]
     completed = [event for event in payload["outcomeEvents"] if event["kind"] == "control_action_completed"][0]
-    assert "mismatched" in started["summary"]
-    assert "profile_photo_poisoning" in started["summary"]
+    assert started["summary"] == (
+        "action=bootstrap_local_assets · expected=collect_initial_facts · "
+        "alignment=mismatched · driver=task.local_assets · "
+        "exploit=profile_photo_poisoning source=source_leak_exploit_candidate"
+    )
     assert "backup_source_leak" in started["output"]
-    assert "bootstrap_local_assets" in completed["summary"]
-    assert "ok" in completed["summary"]
-    assert "profile_photo_poisoning" in completed["summary"]
+    assert completed["summary"] == (
+        "action=bootstrap_local_assets · result=ok · "
+        "driver=task.local_assets · "
+        "exploit=profile_photo_poisoning source=source_leak_exploit_candidate"
+    )
     assert "http://trace.test/backup.zip" in completed["output"]
 
 
@@ -4605,9 +4610,17 @@ def test_build_trace_payload_keeps_local_source_hint_exploit_provenance_in_outco
     started = [event for event in payload["outcomeEvents"] if event["kind"] == "control_action_started"][0]
     completed = [event for event in payload["outcomeEvents"] if event["kind"] == "control_action_completed"][0]
     started_output = json.loads(started["output"])
-    assert "profile_photo_poisoning" in started["summary"]
+    assert started["summary"] == (
+        "action=collect_initial_facts · "
+        "driver=blackboard.derived_target.runtime_derived · "
+        "exploit=profile_photo_poisoning source=local_challenge_source_hint"
+    )
     assert started_output["exploit_provenance"]["artifactUrl"] == r"D:\webstudy\CTF\easy_profile\source_bundle\index.php"
-    assert "profile_photo_poisoning" in completed["summary"]
+    assert completed["summary"] == (
+        "action=collect_initial_facts · result=ok · "
+        "driver=blackboard.derived_target.runtime_derived · "
+        "exploit=profile_photo_poisoning source=local_challenge_source_hint"
+    )
 
 
 def test_build_trace_payload_keeps_strongest_hypothesis_in_control_action_outcome_events(
