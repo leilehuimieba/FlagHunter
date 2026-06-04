@@ -176,6 +176,8 @@
   已开始消费 blackboard `recommendedAction`，同任务继续时会刷新 `controlDecision / ingressHandoff`，避免继续沿旧失败动作推进
 - `retry / replay` 入口
   已开始按 recommendation 有无做分流：有明确 `recommendedAction.action` 时刷新 follow-up；否则保留 `resume_execute`
+- `ctf_dispatcher` 内部策略选择
+  已开始直接消费结构化 `ingress_handoff.nextAction`（当前已接 `exploit_identified_engine / validate_leaked_secret`）
 
 ### 4.2 控制链还缺“失败反馈 / 候选切换”这一段
 

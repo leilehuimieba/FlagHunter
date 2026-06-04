@@ -1957,6 +1957,84 @@ def test_select_primary_strategy_prefers_hash_guarded_read_when_control_decision
     assert strategy.kind == "hash_guarded_file_read"
 
 
+def test_select_primary_strategy_prefers_ssti_exploit_from_structured_ingress_handoff():
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher._ingress_handoff = {
+        "decisionKind": "direct_execute",
+        "nextAction": "exploit_identified_engine",
+    }
+    dispatcher.state.add_observation(
+        "ssti_engine_identified",
+        "tornado",
+        source="ssti_identify",
+        metadata={"engine": "tornado"},
+    )
+
+    strategy = dispatcher._select_primary_strategy(
+        "web",
+        target="http://ctf.local",
+        page_features={
+            "content": "",
+            "html": "",
+            "endpoints": ["/error?msg=test"],
+            "raw_links": ["http://ctf.local/error?msg=test"],
+            "forms": [],
+        },
+        hint="",
+    )
+
+    assert strategy is not None
+    assert strategy.kind == "ssti_exploit"
+
+
+def test_select_primary_strategy_prefers_hash_guarded_read_from_structured_ingress_handoff():
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher._ingress_handoff = {
+        "decisionKind": "direct_execute",
+        "nextAction": "validate_leaked_secret",
+    }
+    dispatcher.state.add_observation(
+        "cookie_secret_leaked",
+        "SECRET-123",
+        source="ssti_identify",
+        metadata={"method": "handler_settings_probe"},
+    )
+
+    strategy = dispatcher._select_primary_strategy(
+        "web",
+        target="http://ctf.local",
+        page_features={
+            "content": "",
+            "html": "",
+            "endpoints": ["/file?filename=/flag.txt&filehash=x"],
+            "raw_links": ["http://ctf.local/file?filename=/flag.txt&filehash=x"],
+            "forms": [],
+        },
+        hint="",
+    )
+
+    assert strategy is not None
+    assert strategy.kind == "hash_guarded_file_read"
+
+
 def test_select_primary_strategy_prefers_php_unserialize_strategy_from_source_hints():
     dispatcher = CTFTaskDispatcher(
         runtime=_DispatcherRuntime(),
