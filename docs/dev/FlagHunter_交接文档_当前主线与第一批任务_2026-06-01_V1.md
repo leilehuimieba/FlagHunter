@@ -247,6 +247,7 @@
 - `php_unserialize` 现已开始走 observation-first：backup/source 分析得到的 exploit candidate 会先落为 `source_leak_exploit_candidate`，后续 `web` 链与 `StrategyContext` 再优先从 observation 恢复 `exploit_info / artifact_url`
 - `profile_photo_poisoning` 现也开始走 observation-first：backup/source 分析出的 exploit candidate 会先落为 `source_leak_exploit_candidate`，后续 `web` 链会优先从 observation 恢复 `exploit_info / artifact_url` 再尝试 runtime 利用
 - Web Console / Trace Detail 现已开始把 exploit truth-source 顶层投影为 `exploitProvenance`，前端不必再深入翻 `ctfStateSnapshot.observations` 才能知道当前 exploit 是从哪类事实恢复出来的
+- Web Trace `outcomeEvents` 现也会继承 `exploitProvenance`：`dispatcher_started` 与 `control_action_started / completed` 的 summary / output 已能直接看到 `exploitKind / observationSource / artifactUrl`，事件流阅读不必再回跳顶层 payload
 - `CTFState.from_snapshot` 现已改为忽略未知字段后再恢复，避免 detail/trace 因快照里混入非 dataclass 字段而把整份 state 吞空
 
 ---

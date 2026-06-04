@@ -3917,6 +3917,35 @@ def test_build_trace_payload_projects_dispatcher_started_outcome_event(
         "notes": [],
         "knowledgeHits": [],
         "attachments": [],
+        "ctfStateSnapshot": {
+            "target": "http://trace.test",
+            "goal": "trace start contract",
+            "detected_type": "web",
+            "observations": [
+                {
+                    "kind": "source_leak_exploit_candidate",
+                    "value": "php_unserialize",
+                    "source": "backup_source_leak",
+                    "metadata": {
+                        "artifact_url": "http://trace.test/backup.zip",
+                        "exploit_info": {"type": "php_unserialize"},
+                    },
+                }
+            ],
+            "hypotheses": [],
+            "verified_flags": [],
+            "runtime_flags": [],
+            "artifacts": [],
+            "rejected_flags": [],
+            "exploration_agenda": [],
+            "wrong_flag_history": [],
+            "uniform_failures": [],
+            "llm_exploration_log": [],
+            "pre_action_reasonings": [],
+            "weak_decision_log": [],
+            "strategy_memory_hits": [],
+            "notes": [],
+        },
     }
 
     monkeypatch.setattr(web_server, "_pick_metrics_for_task", lambda project_root, item: None)
@@ -3965,6 +3994,9 @@ def test_build_trace_payload_projects_dispatcher_started_outcome_event(
     assert "bootstrap_local_assets" in event["summary"]
     assert "direct_execute" in event["summary"]
     assert "task.local_assets" in event["summary"]
+    assert "php_unserialize" in event["summary"]
+    assert "backup_source_leak" in event["output"]
+    assert "http://trace.test/backup.zip" in event["output"]
 
 
 def test_build_trace_payload_projects_control_action_outcome_events(
@@ -3991,6 +4023,35 @@ def test_build_trace_payload_projects_control_action_outcome_events(
         "notes": [],
         "knowledgeHits": [],
         "attachments": [],
+        "ctfStateSnapshot": {
+            "target": "http://trace.test",
+            "goal": "trace control action contract",
+            "detected_type": "web",
+            "observations": [
+                {
+                    "kind": "source_leak_exploit_candidate",
+                    "value": "profile_photo_poisoning",
+                    "source": "backup_source_leak",
+                    "metadata": {
+                        "artifact_url": "http://trace.test/backup.zip",
+                        "exploit_info": {"type": "profile_photo_poisoning"},
+                    },
+                }
+            ],
+            "hypotheses": [],
+            "verified_flags": [],
+            "runtime_flags": [],
+            "artifacts": [],
+            "rejected_flags": [],
+            "exploration_agenda": [],
+            "wrong_flag_history": [],
+            "uniform_failures": [],
+            "llm_exploration_log": [],
+            "pre_action_reasonings": [],
+            "weak_decision_log": [],
+            "strategy_memory_hits": [],
+            "notes": [],
+        },
     }
 
     monkeypatch.setattr(web_server, "_pick_metrics_for_task", lambda project_root, item: None)
@@ -4049,8 +4110,12 @@ def test_build_trace_payload_projects_control_action_outcome_events(
     started = [event for event in payload["outcomeEvents"] if event["kind"] == "control_action_started"][0]
     completed = [event for event in payload["outcomeEvents"] if event["kind"] == "control_action_completed"][0]
     assert "mismatched" in started["summary"]
+    assert "profile_photo_poisoning" in started["summary"]
+    assert "backup_source_leak" in started["output"]
     assert "bootstrap_local_assets" in completed["summary"]
     assert "ok" in completed["summary"]
+    assert "profile_photo_poisoning" in completed["summary"]
+    assert "http://trace.test/backup.zip" in completed["output"]
 
 
 def test_build_trace_payload_surfaces_exploit_provenance_summary(
