@@ -216,6 +216,8 @@
   当前 `recovery_decision` 的摘要也已统一成稳定顺序：`action · chain=... · from=... · hypothesis=... · exploit=... source=...`；候选切换来源、主假设与 exploit 来源不再只是分散埋在 output JSON
 - `control_action_started / completed` summary 标签化
   当前 `control_action_started / control_action_completed` 的摘要也已统一成稳定格式：started 侧强调 `action / expected / alignment / driver / exploit source`，completed 侧强调 `action / result / driver / exploit source`；控制链执行语义已能在摘要层直接读取
+- `checkpoint_written` summary / output 标签化
+  当前 `checkpoint_written` 的摘要也已统一成稳定格式：`label=... · checkpoint=... · stop=...`；同时 output 顶层会直接补 `checkpoint_id / checkpoint_label / stop_reason`，checkpoint 与 resume 语义不再只埋在 `latest_checkpoint / resume_context` 嵌套对象里
 - `exploitProvenance -> outcomeEvents`
   当前 `dispatcher_started` 与 `control_action_started / completed` 已会把 `exploitProvenance` 投进 summary / output，Trace Detail 事件流可直接看到 exploit 来源，而不必只靠顶层 payload 或回翻 observation
 - `actionPathSummary / exploitProvenance -> failure outcomeEvents`

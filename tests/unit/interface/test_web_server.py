@@ -4048,10 +4048,19 @@ def test_build_trace_payload_projects_artifacts_checkpoint_and_outcomes_from_ses
         "— candidate needs stronger runtime confirmation"
     )
     assert "candidate needs stronger runtime confirmation" in recovery_event["output"]
-    assert "checkpoint-1" in checkpoint_event["summary"]
-    assert "verifier_reject" in checkpoint_event["summary"]
-    assert "run_trace_harness_projection" in checkpoint_event["output"]
-    assert "run_id=run_trace_harness_projection" in checkpoint_event["output"]
+    assert checkpoint_event["summary"] == (
+        "label=task_finished · checkpoint=checkpoint-1 · stop=verifier_reject"
+    )
+    checkpoint_output = json.loads(checkpoint_event["output"])
+    assert checkpoint_output["run_id"] == "run_trace_harness_projection"
+    assert checkpoint_output["checkpoint_id"] == "checkpoint-1"
+    assert checkpoint_output["checkpoint_label"] == "task_finished"
+    assert checkpoint_output["stop_reason"] == "verifier_reject"
+    assert checkpoint_output["resume_summary"] == (
+        "run_id=run_trace_harness_projection; "
+        "latest_checkpoint=task_finished; "
+        "stop_reason=verifier_reject"
+    )
     assert "profile_photo_poisoning" in finished_event["summary"]
     assert "generic_web_recon" in finished_event["summary"]
     assert "http://trace.test/backup.zip" in finished_event["output"]
