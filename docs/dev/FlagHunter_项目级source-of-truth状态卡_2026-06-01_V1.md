@@ -158,6 +158,8 @@
   的 selected / recommended 项已可携带 strongest hypothesis，上下文在候选动作层不再断裂
 - `recommendedAction`
   已可携带 `triggerActionDriver / triggerAt`，候选切换来源可追溯到具体动作结果
+- `candidates / recommendedAction`
+  已补 `sourceType`（当前最小为 `observation / verification / ingress`），主控可区分来源类别
 
 ### 4.2 控制链还缺“失败反馈 / 候选切换”这一段
 

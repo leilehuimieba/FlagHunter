@@ -446,12 +446,14 @@ def test_build_task_blackboard_snapshot_projects_selected_and_backup_candidates(
     selected = [item for item in candidates if item["selected"] is True]
     assert selected
     assert selected[0]["action"] == "collect_initial_facts"
+    assert selected[0]["sourceType"] == "observation"
     assert selected[0]["strongestHypothesisKind"] == "generic_web_recon"
     assert selected[0]["strongestHypothesisStatus"] == "active"
     assert selected[0]["strongestHypothesisConfidence"] == 0.52
     backup = [item for item in candidates if item["action"] == "probe_discovered_endpoint"]
     assert backup
     assert backup[0]["selected"] is False
+    assert backup[0]["sourceType"] == "observation"
 
 
 def test_build_task_blackboard_snapshot_projects_action_results_and_candidate_last_result() -> None:
@@ -555,6 +557,7 @@ def test_build_task_blackboard_snapshot_recommends_next_best_action_after_select
     assert snapshot["recommended_action"] == {
         "action": "probe_discovered_endpoint",
         "driver": "blackboard.discovered_endpoint",
+        "sourceType": "observation",
         "reason": "selected action failed; switch to next best candidate",
         "switchedFrom": "collect_initial_facts",
         "triggerResult": "failed",
@@ -567,6 +570,7 @@ def test_build_task_blackboard_snapshot_recommends_next_best_action_after_select
     }
     recommended = [item for item in snapshot["candidates"] if item["action"] == "probe_discovered_endpoint"][0]
     assert recommended["recommended"] is True
+    assert recommended["sourceType"] == "observation"
     assert recommended["strongestHypothesisKind"] == "generic_web_recon"
     assert recommended["strongestHypothesisStatus"] == "active"
     assert recommended["strongestHypothesisConfidence"] == 0.52
@@ -619,6 +623,7 @@ def test_build_task_blackboard_snapshot_recommends_next_best_action_after_select
     assert snapshot["recommended_action"] == {
         "action": "probe_discovered_endpoint",
         "driver": "blackboard.discovered_endpoint",
+        "sourceType": "observation",
         "reason": "selected action failed; switch to next best candidate",
         "switchedFrom": "collect_initial_facts",
         "triggerResult": "skipped",
@@ -711,6 +716,7 @@ def test_format_blackboard_snapshot_lines_projects_shared_sections() -> None:
             "recommended_action": {
                 "action": "verify_or_submit_flag",
                 "driver": "blackboard.verified_flag",
+                "sourceType": "verification",
                 "reason": "selected action failed; switch to next best candidate",
                 "switchedFrom": "verify_runtime_signal",
                 "triggerResult": "failed",
@@ -742,6 +748,7 @@ def test_format_blackboard_snapshot_lines_projects_shared_sections() -> None:
     assert "suppressedRecommendation.suppressedBy=blackboard.runtime_flag" in lines
     assert "[blackboard_recommended_action]" in lines
     assert "action=verify_or_submit_flag" in lines
+    assert "sourceType=verification" in lines
     assert "switchedFrom=verify_runtime_signal" in lines
     assert "triggerResult=failed" in lines
     assert "triggerReason=runtime verifier rejected candidate" in lines
