@@ -3704,6 +3704,90 @@ def test_build_trace_payload_projects_control_action_outcome_events(
     assert "ok" in completed["summary"]
 
 
+def test_build_trace_payload_keeps_strongest_hypothesis_in_control_action_outcome_events(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    task = {
+        "id": "task_trace_strongest_hypothesis",
+        "title": "trace strongest hypothesis",
+        "target": "http://trace.test",
+        "goal": "show strongest hypothesis",
+        "status": "success",
+        "createdAt": web_server._now_iso(),
+        "startedAt": web_server._now_iso(),
+        "finishedAt": web_server._now_iso(),
+        "tokensUsed": 0,
+        "toolCalls": 0,
+        "currentRunId": "run_trace_strongest_hypothesis",
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    monkeypatch.setattr(web_server, "_pick_metrics_for_task", lambda project_root, item: None)
+    monkeypatch.setattr(
+        web_server,
+        "_pick_session_snapshot",
+        lambda project_root, item: (
+            None,
+            None,
+            {"matchedBy": "none", "confidence": "none", "expectedSessionId": None, "blockedReason": None, "candidateScore": None},
+        ),
+    )
+    monkeypatch.setattr(
+        web_server,
+        "_build_run_session_context",
+        lambda project_root, run_id: {
+            "runId": run_id,
+            "recentEvents": [
+                {
+                    "type": "control_action_started",
+                    "t": "2026-06-03T10:00:01+00:00",
+                    "payload": {
+                        "action": "collect_initial_facts",
+                        "expected_action": "collect_initial_facts",
+                        "alignment": "matched",
+                        "decision_kind": "explore_first",
+                        "driver": "blackboard.derived_target.runtime_derived",
+                        "strongest_hypothesis_kind": "generic_web_recon",
+                        "strongest_hypothesis_status": "active",
+                        "strongest_hypothesis_confidence": 0.52,
+                    },
+                },
+                {
+                    "type": "control_action_completed",
+                    "t": "2026-06-03T10:00:02+00:00",
+                    "payload": {
+                        "action": "collect_initial_facts",
+                        "decision_kind": "explore_first",
+                        "driver": "blackboard.derived_target.runtime_derived",
+                        "result": "ok",
+                        "strongest_hypothesis_kind": "generic_web_recon",
+                        "strongest_hypothesis_status": "active",
+                        "strongest_hypothesis_confidence": 0.52,
+                        "details": {"facts_collected": 3},
+                    },
+                },
+            ],
+            "artifacts": [],
+            "latestCheckpoint": None,
+            "resumeContext": None,
+        },
+    )
+
+    payload = web_server._build_trace_payload(tmp_path, task, include_timeline=True)
+
+    started = [event for event in payload["outcomeEvents"] if event["kind"] == "control_action_started"][0]
+    completed = [event for event in payload["outcomeEvents"] if event["kind"] == "control_action_completed"][0]
+    assert "generic_web_recon" in started["output"]
+    assert "strongest_hypothesis_confidence" in started["output"]
+    assert "generic_web_recon" in completed["output"]
+    assert "strongest_hypothesis_confidence" in completed["output"]
+
+
 def test_task_detail_payload_re_normalizes_dirty_derived_collections(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):

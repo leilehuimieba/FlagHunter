@@ -57,7 +57,13 @@
 - 已补 verified/runtime early-finish 的 `verification_decision`
 - 已补 `task_finished.reason / final checkpoint reason / state.stop_reason` 第一轮对齐
 - 已补 `wrong_flag_feedback -> rejected_flags -> resume summary` 这一层
-- 下一步继续补候选动作层
+- 已补 strongest hypothesis 贯通：
+  - ingress hint
+  - `dispatcher_started`
+  - `control_action_started / completed`
+  - `blackboardSnapshot.activeDecision / actionResults`
+  - Trace Detail `outcomeEvents`
+- 下一步继续补候选动作层 / 切换理由稳定来源
 
 完成标准：
 

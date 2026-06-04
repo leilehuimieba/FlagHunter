@@ -98,6 +98,34 @@ def test_build_control_action_started_event_keeps_alignment_reason_for_mismatch(
     )
 
 
+def test_build_control_action_events_keep_strongest_hypothesis_contract() -> None:
+    started = build_control_action_started_event(
+        action="collect_initial_facts",
+        decision_kind="explore_first",
+        driver="blackboard.derived_target.runtime_derived",
+        expected_action="collect_initial_facts",
+        strongest_hypothesis_kind="generic_web_recon",
+        strongest_hypothesis_status="active",
+        strongest_hypothesis_confidence=0.52,
+    )
+    completed = build_control_action_completed_event(
+        action="collect_initial_facts",
+        result="ok",
+        decision_kind="explore_first",
+        driver="blackboard.derived_target.runtime_derived",
+        strongest_hypothesis_kind="generic_web_recon",
+        strongest_hypothesis_status="active",
+        strongest_hypothesis_confidence=0.52,
+    )
+
+    assert started["payload"]["strongest_hypothesis_kind"] == "generic_web_recon"
+    assert started["payload"]["strongest_hypothesis_status"] == "active"
+    assert started["payload"]["strongest_hypothesis_confidence"] == 0.52
+    assert completed["payload"]["strongest_hypothesis_kind"] == "generic_web_recon"
+    assert completed["payload"]["strongest_hypothesis_status"] == "active"
+    assert completed["payload"]["strongest_hypothesis_confidence"] == 0.52
+
+
 def test_build_verification_decision_event_exposes_strategy_and_hypothesis() -> None:
     event = build_verification_decision_event(
         decision="verified",

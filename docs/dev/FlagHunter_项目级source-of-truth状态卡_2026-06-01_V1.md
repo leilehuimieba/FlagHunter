@@ -146,6 +146,13 @@
 - action results（已开始从 `control_action_completed` 事件真值投影）
 - recommended action（已开始基于 failed/skipped 给出 next-best 提示）
 
+最新补齐：
+
+- strongest hypothesis 已能从 ingress handoff 贯通到 `dispatcher_started`
+- strongest hypothesis 已能进入 `control_action_started / control_action_completed`
+- `blackboardSnapshot.activeDecision / actionResults`
+  已可展示 `strongestHypothesisKind / Status / Confidence`
+
 ### 4.2 控制链还缺“失败反馈 / 候选切换”这一段
 
 当前虽然已经补上了：
@@ -154,6 +161,7 @@
 - `control_action_completed`
 - verified/runtime early-finish 的 verification / outcome 对齐
 - wrong_flag_feedback 的 final checkpoint / resume summary 对齐
+- strongest hypothesis 已进入 control action 事件链与 Trace Detail outcome events
 
 但还没有完整补齐：
 

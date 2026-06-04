@@ -793,6 +793,72 @@ def test_build_task_blackboard_snapshot_projects_first_action_alignment_into_act
     ]
 
 
+def test_build_task_blackboard_snapshot_projects_strongest_hypothesis_into_active_decision_and_action_results() -> None:
+    state = CTFState(target="http://challenge.test", goal="拿到flag")
+    state.add_observation(
+        "derived_target",
+        "http://127.0.0.1:3000",
+        source="challenge_context",
+        metadata={"compose_path": r"D:\webstudy\CTF\easy_login\docker-compose.yml"},
+    )
+
+    snapshot = build_task_blackboard_snapshot(
+        {
+            "controlDecision": {
+                "shouldRun": True,
+                "decisionKind": "explore_first",
+                "reason": "derived target available for initial fact collection",
+                "nextAction": "collect_initial_facts",
+                "driver": "blackboard.derived_target.runtime_derived",
+                "facts": [
+                    "mode=ctf",
+                    "blackboard.hypothesis=present",
+                    "strongestHypothesisKind=generic_web_recon",
+                    "strongestHypothesisStatus=active",
+                ],
+            },
+            "ctfStateSnapshot": state.to_snapshot(),
+        },
+        session_context={
+            "recentEvents": [
+                {
+                    "type": "control_action_started",
+                    "t": "2026-06-03T10:00:01+00:00",
+                    "payload": {
+                        "action": "collect_initial_facts",
+                        "expected_action": "collect_initial_facts",
+                        "alignment": "matched",
+                        "driver": "blackboard.derived_target.runtime_derived",
+                        "strongest_hypothesis_kind": "generic_web_recon",
+                        "strongest_hypothesis_status": "active",
+                        "strongest_hypothesis_confidence": 0.52,
+                    },
+                },
+                {
+                    "type": "control_action_completed",
+                    "t": "2026-06-03T10:00:02+00:00",
+                    "payload": {
+                        "action": "collect_initial_facts",
+                        "driver": "blackboard.derived_target.runtime_derived",
+                        "result": "ok",
+                        "details": {"facts_collected": 3},
+                        "strongest_hypothesis_kind": "generic_web_recon",
+                        "strongest_hypothesis_status": "active",
+                        "strongest_hypothesis_confidence": 0.52,
+                    },
+                },
+            ]
+        },
+    )
+
+    assert snapshot["active_decision"]["strongestHypothesisKind"] == "generic_web_recon"
+    assert snapshot["active_decision"]["strongestHypothesisStatus"] == "active"
+    assert snapshot["active_decision"]["strongestHypothesisConfidence"] == 0.52
+    assert snapshot["action_results"][0]["strongestHypothesisKind"] == "generic_web_recon"
+    assert snapshot["action_results"][0]["strongestHypothesisStatus"] == "active"
+    assert snapshot["action_results"][0]["strongestHypothesisConfidence"] == 0.52
+
+
 def test_build_task_blackboard_snapshot_projects_suppressed_recommendation_into_active_decision() -> None:
     snapshot = build_task_blackboard_snapshot(
         {
