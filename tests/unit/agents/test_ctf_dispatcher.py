@@ -2342,6 +2342,58 @@ async def test_execute_web_chain_runs_hash_guarded_before_backup_when_filehash_s
 
 
 @pytest.mark.asyncio
+async def test_execute_web_chain_runs_hash_reconstruction_before_backup_when_cookie_secret_observed(
+    monkeypatch,
+):
+    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher.state.add_observation(
+        "cookie_secret_leaked",
+        "super-secret-key",
+        source="ssti_identify",
+        metadata={"engine": "tornado"},
+    )
+
+    called_kinds: list[str] = []
+
+    async def _wrapped_execute(kind: str, context):
+        called_kinds.append(kind)
+        return _ChainOutcome(progress=False, reason=kind)
+
+    monkeypatch.setattr(dispatcher.strategy_registry, "execute", _wrapped_execute)
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+
+    await dispatcher._execute_web_chain(
+        "http://ctf.local/",
+        {
+            "content": "",
+            "html": "",
+            "endpoints": [],
+            "raw_links": [],
+            "forms": [],
+        },
+        "",
+    )
+
+    assert "hash_reconstruction_attack" in called_kinds
+    assert "backup_source_leak" in called_kinds
+    assert called_kinds.index("hash_reconstruction_attack") < called_kinds.index("backup_source_leak")
+
+
+@pytest.mark.asyncio
 async def test_execute_web_chain_runs_hint_chain_from_structured_trigger_reason_when_endpoint_not_rendered(
     monkeypatch,
 ):
