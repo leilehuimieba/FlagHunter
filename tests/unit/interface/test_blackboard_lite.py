@@ -422,7 +422,12 @@ def test_build_task_blackboard_snapshot_projects_selected_and_backup_candidates(
                 "reason": "derived target available for initial fact collection",
                 "nextAction": "collect_initial_facts",
                 "driver": "blackboard.derived_target.runtime_derived",
-                "facts": ["mode=ctf"],
+                "facts": [
+                    "mode=ctf",
+                    "strongestHypothesisKind=generic_web_recon",
+                    "strongestHypothesisStatus=active",
+                    "strongestHypothesisConfidence=0.52",
+                ],
             },
             "ctfStateSnapshot": state.to_snapshot(),
         }
@@ -433,11 +438,17 @@ def test_build_task_blackboard_snapshot_projects_selected_and_backup_candidates(
         "nextAction": "collect_initial_facts",
         "driver": "blackboard.derived_target.runtime_derived",
         "reason": "derived target available for initial fact collection",
+        "strongestHypothesisKind": "generic_web_recon",
+        "strongestHypothesisStatus": "active",
+        "strongestHypothesisConfidence": 0.52,
     }
     candidates = snapshot["candidates"]
     selected = [item for item in candidates if item["selected"] is True]
     assert selected
     assert selected[0]["action"] == "collect_initial_facts"
+    assert selected[0]["strongestHypothesisKind"] == "generic_web_recon"
+    assert selected[0]["strongestHypothesisStatus"] == "active"
+    assert selected[0]["strongestHypothesisConfidence"] == 0.52
     backup = [item for item in candidates if item["action"] == "probe_discovered_endpoint"]
     assert backup
     assert backup[0]["selected"] is False
@@ -552,6 +563,11 @@ def test_build_task_blackboard_snapshot_recommends_next_best_action_after_select
         "strongestHypothesisStatus": "active",
         "strongestHypothesisConfidence": 0.52,
     }
+    recommended = [item for item in snapshot["candidates"] if item["action"] == "probe_discovered_endpoint"][0]
+    assert recommended["recommended"] is True
+    assert recommended["strongestHypothesisKind"] == "generic_web_recon"
+    assert recommended["strongestHypothesisStatus"] == "active"
+    assert recommended["strongestHypothesisConfidence"] == 0.52
 
 
 def test_build_task_blackboard_snapshot_recommends_next_best_action_after_selected_skip() -> None:
