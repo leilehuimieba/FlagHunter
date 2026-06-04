@@ -2579,6 +2579,55 @@ async def test_execute_xss_chain_runs_visit_url_fallback_from_source_hints_when_
 
 
 @pytest.mark.asyncio
+async def test_execute_xss_chain_runs_visit_url_fallback_from_structured_trigger_reason(
+    monkeypatch,
+):
+    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher._ingress_handoff = {
+        "nextAction": "collect_initial_facts",
+        "switchedFrom": "probe_discovered_endpoint",
+        "triggerReason": "endpoint probe identified /visit admin-bot flow",
+        "triggerActionDriver": "blackboard.discovered_endpoint",
+    }
+
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+
+    async def _fake_visit_url_chain(base: str):
+        return _ChainOutcome(progress=True, reason="visit-url structured-trigger fallback")
+
+    monkeypatch.setattr(dispatcher, "_attempt_visit_url_chain", _fake_visit_url_chain)
+
+    outcome = await dispatcher._execute_xss_chain(
+        "http://ctf.local/",
+        {
+            "content": "",
+            "html": "",
+            "endpoints": [],
+            "raw_links": [],
+            "forms": [],
+        },
+        "",
+    )
+
+    assert outcome.progress is True
+    assert outcome.reason == "visit-url structured-trigger fallback"
+
+
+@pytest.mark.asyncio
 async def test_ctf_dispatcher_solves_auth_form_sqli(monkeypatch, tmp_path):
     monkeypatch.setattr(
         "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
