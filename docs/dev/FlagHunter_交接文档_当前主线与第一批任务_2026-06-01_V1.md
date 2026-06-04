@@ -72,6 +72,7 @@
 - 已补 `recommendedActionSwitchedFrom / recommendedActionTriggerReason`，候选切换的“从哪切来 / 因为什么切”已进入 `controlDecision.facts` 与 `decisionProvenance`
 - 已补 `recommendedActionSwitchedFrom / recommendedActionTriggerReason -> dispatcher_started / control_action_started / control_action_completed`，follow-up provenance 已进入 runtime 证据链
 - 已补 blackboard 从 runtime 事件重建 `activeDecision / actionResults` 时投影 `switchedFrom / triggerReason`
+- 已补 Task Detail / Trace Detail 顶层 `actionPathSummary`，当前执行路径不必再从 `activeDecision + decisionProvenance` 手工拼接
 - 下一步继续补候选动作层 / 切换理由稳定来源与前端更直接展示
 
 完成标准：
@@ -190,6 +191,16 @@
    - `dispatcher_started` 已带 `switched_from / trigger_reason`
    - `control_action_started / completed` 已带 `switched_from / trigger_reason`
    - blackboard 可从 session runtime events 重建这两项事实
+
+8. **runtime action path 顶层投影**
+   - `Task Detail` 已有 `actionPathSummary`
+   - `Trace Detail` 已有 `actionPathSummary`
+   - 当前字段：
+     - `decisionKind / decisionDriver`
+     - `plannedAction / observedAction / effectiveAction`
+     - `alignment / alignmentReason`
+     - `switchedFrom / triggerReason`
+     - `strongestHypothesisKind / Status / Confidence`
 
 ### 4.4 本地样本主线已成型
 

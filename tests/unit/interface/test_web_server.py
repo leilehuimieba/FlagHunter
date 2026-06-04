@@ -1585,6 +1585,8 @@ async def test_task_detail_blackboard_snapshot_surfaces_first_action_alignment(
                     "expected_action": "collect_initial_facts",
                     "alignment": "mismatched",
                     "alignment_reason": "runtime verification preempted planned first action",
+                    "switched_from": "collect_initial_facts",
+                    "trigger_reason": "runtime verifier rejected candidate",
                     "driver": "blackboard.runtime_flag",
                 },
             },
@@ -1596,6 +1598,8 @@ async def test_task_detail_blackboard_snapshot_surfaces_first_action_alignment(
                     "driver": "blackboard.runtime_flag",
                     "result": "ok",
                     "details": {"verified": True},
+                    "switched_from": "collect_initial_facts",
+                    "trigger_reason": "runtime verifier rejected candidate",
                 },
             },
         ],
@@ -1623,6 +1627,20 @@ async def test_task_detail_blackboard_snapshot_surfaces_first_action_alignment(
         detail["blackboardSnapshot"]["activeDecision"]["alignmentReason"]
         == "runtime verification preempted planned first action"
     )
+    assert detail["actionPathSummary"] == {
+        "decisionKind": "explore_first",
+        "decisionDriver": "blackboard.derived_target.runtime_derived",
+        "plannedAction": "collect_initial_facts",
+        "observedAction": "verify_runtime_signal",
+        "effectiveAction": "verify_runtime_signal",
+        "alignment": "mismatched",
+        "alignmentReason": "runtime verification preempted planned first action",
+        "switchedFrom": "collect_initial_facts",
+        "triggerReason": "runtime verifier rejected candidate",
+        "strongestHypothesisKind": None,
+        "strongestHypothesisStatus": None,
+        "strongestHypothesisConfidence": None,
+    }
     assert detail["blackboardSnapshot"]["actionResults"][0]["expectedAction"] == "collect_initial_facts"
     assert detail["blackboardSnapshot"]["actionResults"][0]["alignment"] == "mismatched"
 
@@ -3025,6 +3043,20 @@ def test_build_trace_payload_surfaces_decision_provenance_summary(
         "recommendedActionTriggerReason": "endpoint probe returned empty findings",
         "recommendedActionTriggerActionDriver": "blackboard.derived_target.runtime_derived",
         "recommendedActionTriggerAt": "2026-06-03T10:00:02+00:00",
+        "strongestHypothesisKind": "generic_web_recon",
+        "strongestHypothesisStatus": "active",
+        "strongestHypothesisConfidence": 0.52,
+    }
+    assert payload["actionPathSummary"] == {
+        "decisionKind": "direct_execute",
+        "decisionDriver": "blackboard.derived_target.runtime_derived",
+        "plannedAction": "collect_initial_facts",
+        "observedAction": None,
+        "effectiveAction": "collect_initial_facts",
+        "alignment": None,
+        "alignmentReason": None,
+        "switchedFrom": "probe_discovered_endpoint",
+        "triggerReason": "endpoint probe returned empty findings",
         "strongestHypothesisKind": "generic_web_recon",
         "strongestHypothesisStatus": "active",
         "strongestHypothesisConfidence": 0.52,

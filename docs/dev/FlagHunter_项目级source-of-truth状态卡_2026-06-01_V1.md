@@ -170,6 +170,8 @@
   已补 `switched_from / trigger_reason`，follow-up provenance 已真正进入 runtime 审计链
 - `blackboardSnapshot.activeDecision / actionResults`
   已能从 runtime events 重建 `switchedFrom / triggerReason`
+- `Task Detail / Trace Detail`
+  已补顶层 `actionPathSummary`，当前执行路径（planned/observed/effective）与 strongest hypothesis 已有直接展示合同
 
 ### 4.2 控制链还缺“失败反馈 / 候选切换”这一段
 
