@@ -535,6 +535,67 @@ def test_leaked_secret_in_blackboard_prefers_secret_validation() -> None:
     assert decision["driver"] == "blackboard.leaked_secret"
 
 
+def test_supported_hypothesis_in_blackboard_can_outrank_local_assets_fallback() -> None:
+    payload = {
+        "mode": "ctf",
+        "target": "http://challenge.test",
+        "challengePath": r"D:\webstudy\CTF\2026\sample",
+        "artifactPaths": [r"D:\webstudy\CTF\2026\sample\docker-compose.yml"],
+        "blackboardSnapshot": {
+            "facts": [],
+            "hypotheses": [
+                {
+                    "id": "hyp-1",
+                    "kind": "auth_form_sqli",
+                    "description": "login form may be injectable",
+                    "confidence": 0.78,
+                    "status": "supported",
+                }
+            ],
+            "pendingVerifications": [],
+        },
+    }
+
+    decision = resolve_control_decision(payload)
+
+    assert decision["shouldRun"] is True
+    assert decision["decisionKind"] == "direct_execute"
+    assert decision["nextAction"] == "probe_discovered_endpoint"
+    assert decision["driver"] == "blackboard.hypothesis.auth_form_sqli"
+    assert "blackboard.hypothesis=present" in decision["facts"]
+    assert "strongestHypothesisKind=auth_form_sqli" in decision["facts"]
+
+
+def test_generic_recon_hypothesis_in_blackboard_can_drive_collect_initial_facts() -> None:
+    payload = {
+        "mode": "ctf",
+        "target": "http://challenge.test",
+        "challengePath": None,
+        "artifactPaths": [],
+        "blackboardSnapshot": {
+            "facts": [],
+            "hypotheses": [
+                {
+                    "id": "hyp-2",
+                    "kind": "generic_web_recon",
+                    "description": "continue low-cost endpoint mapping",
+                    "confidence": 0.52,
+                    "status": "active",
+                }
+            ],
+            "pendingVerifications": [],
+        },
+    }
+
+    decision = resolve_control_decision(payload)
+
+    assert decision["shouldRun"] is True
+    assert decision["decisionKind"] == "explore_first"
+    assert decision["nextAction"] == "collect_initial_facts"
+    assert decision["driver"] == "blackboard.hypothesis.generic_web_recon"
+    assert "strongestHypothesisKind=generic_web_recon" in decision["facts"]
+
+
 def test_recommended_action_in_blackboard_can_override_local_assets_fallback() -> None:
     payload = {
         "mode": "ctf",
