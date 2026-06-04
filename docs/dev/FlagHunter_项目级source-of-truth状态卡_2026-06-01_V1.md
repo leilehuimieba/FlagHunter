@@ -204,6 +204,8 @@
   当前 backup/source 分析出的 `php_unserialize` 候选已会落成 `source_leak_exploit_candidate` observation，`web` 链与 `StrategyContext` 会优先从该 observation 恢复 `exploit_info / artifact_url`，再回退到本地源码提示
 - `profile_photo_poisoning` exploit truth-source
   当前 backup/source 分析出的 `profile_photo_poisoning` 候选也会落成 `source_leak_exploit_candidate` observation，`web` 链会优先从 observation 恢复 `exploit_info / artifact_url` 再尝试 runtime exploit
+- `profile_photo_poisoning` local-source fallback
+  当前即使还没有 backup/runtime observation，只要 `local_challenge_source_hint` 已明确暴露 `serialize($profile)`、`file_get_contents($profile['photo'])` 等稳定信号，dispatcher 也会直接派生 `exploit_info / artifact_url`，并把 `profile_photo_poisoning` 的 exploit-heavy runtime 尝试前置到 `backup_source_leak` fallback 之前
 - `exploitProvenance` 顶层投影
   当前 task detail / trace payload 已会直接返回 `exploitProvenance`，可顶层展示 `sourceType / exploitKind / observationSource / artifactUrl`
 - `exploitProvenance -> outcomeEvents`

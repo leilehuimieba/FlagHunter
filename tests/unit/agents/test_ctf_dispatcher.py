@@ -2720,6 +2720,117 @@ async def test_run_backup_analysis_stores_profile_photo_poisoning_exploit_candid
     )
 
 
+def test_recent_local_profile_photo_poisoning_source_exploit_derives_exploit_info_from_source_hints():
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher.state.add_observation(
+        "local_challenge_source_hint",
+        (
+            "index.php: <?php session_start(); if(isset($_POST['username'],$_POST['password'])){ /* login */ }\n"
+            "register.php: <?php if(isset($_POST['username'],$_POST['password'])){ /* register */ }\n"
+            "update.php: <?php $profile = unserialize($_SESSION['user']); "
+            "$profile['nickname'] = $_POST['nickname']; "
+            "$profile['photo'] = $_FILES['photo']['name']; "
+            "$serialized = serialize($profile); ?>\n"
+            "profile.php: <?php $profile = unserialize(base64_decode($_GET['profile'])); "
+            "echo file_get_contents($profile['photo']); ?>"
+        ),
+        source="local_challenge_context",
+        metadata={"path": r"D:\webstudy\CTF\easy_profile\source_bundle\index.php"},
+    )
+
+    derived = dispatcher._recent_local_profile_photo_poisoning_source_exploit()
+
+    assert derived is not None
+    assert derived["artifact_url"] == r"D:\webstudy\CTF\easy_profile\source_bundle\index.php"
+    assert derived["exploit_info"]["type"] == "profile_photo_poisoning"
+    assert derived["exploit_info"]["login_path"] == "/index.php"
+    assert derived["exploit_info"]["register_path"] == "/register.php"
+    assert derived["exploit_info"]["update_path"] == "/update.php"
+    assert derived["exploit_info"]["profile_path"] == "/profile.php"
+    assert derived["exploit_info"]["upload_field"] == "photo"
+    assert derived["exploit_info"]["poison_target"] == "config.php"
+
+
+@pytest.mark.asyncio
+async def test_execute_web_chain_runs_profile_photo_poisoning_before_backup_when_source_hints_exist(
+    monkeypatch,
+):
+    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher.state.add_observation(
+        "local_challenge_source_hint",
+        (
+            "index.php: <?php session_start(); if(isset($_POST['username'],$_POST['password'])){ /* login */ }\n"
+            "register.php: <?php if(isset($_POST['username'],$_POST['password'])){ /* register */ }\n"
+            "update.php: <?php $profile = unserialize($_SESSION['user']); "
+            "$profile['nickname'] = $_POST['nickname']; "
+            "$profile['photo'] = $_FILES['photo']['name']; "
+            "$serialized = serialize($profile); ?>\n"
+            "profile.php: <?php $profile = unserialize(base64_decode($_GET['profile'])); "
+            "echo file_get_contents($profile['photo']); ?>"
+        ),
+        source="local_challenge_context",
+        metadata={"path": r"D:\webstudy\CTF\easy_profile\source_bundle\index.php"},
+    )
+
+    called_profile: list[dict] = []
+    called_kinds: list[str] = []
+
+    async def _fake_attempt_profile(target: str, exploit_info: dict, *, artifact_url: str):
+        called_profile.append(
+            {"target": target, "exploit_info": exploit_info, "artifact_url": artifact_url}
+        )
+        return _ChainOutcome(progress=False, reason="profile-photo-local-source")
+
+    async def _wrapped_execute(kind: str, context):
+        called_kinds.append(kind)
+        return _ChainOutcome(progress=False, reason=kind)
+
+    monkeypatch.setattr(dispatcher, "_attempt_profile_photo_poisoning_chain", _fake_attempt_profile)
+    monkeypatch.setattr(dispatcher.strategy_registry, "execute", _wrapped_execute)
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+
+    outcome = await dispatcher._execute_web_chain(
+        "http://ctf.local/",
+        {
+            "content": "",
+            "html": "",
+            "endpoints": [],
+            "raw_links": [],
+            "forms": [],
+        },
+        "",
+    )
+
+    assert called_profile
+    assert called_profile[0]["artifact_url"] == r"D:\webstudy\CTF\easy_profile\source_bundle\index.php"
+    assert called_profile[0]["exploit_info"]["type"] == "profile_photo_poisoning"
+    assert "backup_source_leak" in called_kinds
+    assert outcome.progress is True or "profile-photo-local-source" in (outcome.reason or "")
+
+
 @pytest.mark.asyncio
 async def test_execute_web_chain_runs_profile_photo_poisoning_before_backup_when_observed_exploit_candidate_exists(
     monkeypatch,

@@ -84,6 +84,7 @@
 - 已补 `verify_runtime_signal / verify_or_submit_flag` 的 structured follow-up：Web / MCP handoff 现在会结构化携带 `runtimeFlag / verifiedFlag`，coordinator 在 hint 为空时也能直接 early-finish
 - 已补 `resume_from_checkpoint / bootstrap_local_assets` 的 structured handoff-first：coordinator 现在在 hint 为空时也能直接消费，hint 仅保留 fallback 角色
 - 已补 `backup_source_leak` 的 structured trigger 顺序收紧：当 follow-up provenance 明确指向 `source leak / backup artifact` 时，`_execute_web_chain()` 也会像 `_select_primary_strategy()` 一样，把 `backup_source_leak` 提前到 `contact_report_chain` 前执行
+- 已补 `profile_photo_poisoning` 的 local-source-derived exploit truth：当不存在 runtime/backup observation、但本地源码 hint 已明确暴露 `serialize($profile) / file_get_contents($profile['photo'])` 这类模式时，dispatcher 也能恢复 `exploit_info / artifact_url`，并在 `web` 链里先尝试 `profile_photo_poisoning` 再回到 `backup_source_leak`
 - 当前 control chain 首段主路径（resume / bootstrap / collect / verify / probe）已基本完成 structured handoff-first，后续更值得继续把 provenance 压进 dispatcher 内部策略选择
 - 下一步继续补候选动作层 / 切换理由稳定来源与前端更直接展示
 
@@ -253,6 +254,7 @@
    - 对这批 follow-up，结构化 truth 现在优先于 hint 字符串脆弱匹配
    - 最新补强：当 `nextAction` 退化回 `collect_initial_facts` 时，dispatcher 现在还能继续读取 `switchedFrom / triggerReason / triggerActionDriver`，把 `probe_discovered_endpoint -> collect_initial_facts` 这类结构化 provenance 再收回到高价值策略（例如 `ssti_exploit` / `hash_guarded_file_read` / `backup_source_leak`），以及在 `xss` 链中恢复 `visit-url` fallback、在 `web` 链中恢复 `hint_chain_followup`
    - `StrategyContext` 现在也会优先从真实 observation 注入 `cookie_secret_leaked -> extras.cookie_secret`，使 `hash_reconstruction_attack` 不再只依赖显式参数透传
+   - `profile_photo_poisoning` 现在不再只依赖 `source_leak_exploit_candidate` observation；当本地源码 hint 已经给出稳定利用信号时，dispatcher 也会从 `local_challenge_source_hint` 直接恢复 exploit info，并把这条 exploit-heavy runtime 尝试提前到 backup fallback 前
 
 ### 4.4 本地样本主线已成型
 
