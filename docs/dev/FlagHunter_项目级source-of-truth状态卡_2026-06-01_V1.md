@@ -189,6 +189,8 @@
   已开始消费结构化 `ingressHandoff`；当前 coordinator 首段动作已支持 structured handoff-first，hint 主要退化为兼容 fallback
 - control chain 首段主路径
   当前 `resume / bootstrap / collect / verify / probe` 已基本完成 structured handoff-first；下一步更值得把 structured provenance 继续压进 dispatcher 内部策略分支
+- `ctf_dispatcher` 结构化 follow-up 选主
+  当前已不只看 `nextAction`，还会结合 `switchedFrom / triggerReason / triggerActionDriver` 把 `collect_initial_facts` 这类退化 follow-up 继续拉回高价值策略，例如 `ssti_exploit` 与 `hash_guarded_file_read`
 
 ### 4.2 控制链还缺“失败反馈 / 候选切换”这一段
 
@@ -199,6 +201,7 @@
 - verified/runtime early-finish 的 verification / outcome 对齐
 - wrong_flag_feedback 的 final checkpoint / resume summary 对齐
 - strongest hypothesis 已进入 control action 事件链与 Trace Detail outcome events
+- structured follow-up provenance 已开始进入 dispatcher 内部选主，不再只靠 `nextAction` 字面分支
 
 但还没有完整补齐：
 

@@ -228,6 +228,7 @@
      - `validate_leaked_secret`
      - `probe_discovered_endpoint`（通过 `ingressHandoff.endpoint` 把 recon target 结构化传给 coordinator）
    - 对这批 follow-up，结构化 truth 现在优先于 hint 字符串脆弱匹配
+   - 最新补强：当 `nextAction` 退化回 `collect_initial_facts` 时，dispatcher 现在还能继续读取 `switchedFrom / triggerReason / triggerActionDriver`，把 `probe_discovered_endpoint -> collect_initial_facts` 这类结构化 provenance 再收回到高价值策略（例如 `ssti_exploit` / `hash_guarded_file_read`）
 
 ### 4.4 本地样本主线已成型
 
@@ -237,6 +238,11 @@
 - `artifactPaths`
 - `runtime-only`
 - `zip / source / docker-compose / 日志`
+
+当前更值得继续追的高价值缺口：
+
+- 把 structured provenance 继续压进 dispatcher 更多策略分支，而不是停在 `nextAction` 字面匹配
+- 继续让 follow-up 在退化到泛化动作时，也能靠 `switchedFrom / triggerReason / triggerActionDriver` 恢复高价值决策
 
 ---
 
