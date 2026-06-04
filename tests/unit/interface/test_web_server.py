@@ -3398,7 +3398,13 @@ def test_build_trace_payload_projects_control_decision_into_timeline(
             "recentEvents": [],
             "artifacts": [],
             "latestCheckpoint": None,
-            "resumeContext": None,
+            "resumeContext": {
+                "runId": run_id,
+                "checkpointId": "checkpoint-1",
+                "checkpointLabel": "task_finished",
+                "stopReason": "verifier_reject",
+                "summary": "run_id=run_trace_harness_projection; latest_checkpoint=task_finished; stop_reason=verifier_reject",
+            },
         },
     )
 
@@ -3903,6 +3909,15 @@ def test_build_trace_payload_projects_artifacts_checkpoint_and_outcomes_from_ses
                     },
                 },
                 {
+                    "type": "checkpoint_written",
+                    "t": "2026-05-29T10:00:03.500000+00:00",
+                    "payload": {
+                        "checkpoint_id": "checkpoint-1",
+                        "label": "task_finished",
+                        "metadata": {"success": False},
+                    },
+                },
+                {
                     "type": "task_finished",
                     "t": "2026-05-29T10:00:04+00:00",
                     "payload": {
@@ -3948,6 +3963,7 @@ def test_build_trace_payload_projects_artifacts_checkpoint_and_outcomes_from_ses
     assert payload["latestCheckpoint"]["stopReason"] == "verifier_reject"
     verification_event = [event for event in payload["outcomeEvents"] if event["kind"] == "verification_decision"][0]
     recovery_event = [event for event in payload["outcomeEvents"] if event["kind"] == "recovery_decision"][0]
+    checkpoint_event = [event for event in payload["outcomeEvents"] if event["kind"] == "checkpoint_written"][0]
     finished_event = [event for event in payload["outcomeEvents"] if event["kind"] == "task_finished"][0]
     assert "profile_photo_poisoning" in verification_event["summary"]
     assert "generic_web_recon" in verification_event["summary"]
@@ -3955,6 +3971,10 @@ def test_build_trace_payload_projects_artifacts_checkpoint_and_outcomes_from_ses
     assert "probe_discovered_endpoint" in recovery_event["summary"]
     assert "generic_web_recon" in recovery_event["summary"]
     assert "candidate needs stronger runtime confirmation" in recovery_event["output"]
+    assert "checkpoint-1" in checkpoint_event["summary"]
+    assert "verifier_reject" in checkpoint_event["summary"]
+    assert "run_trace_harness_projection" in checkpoint_event["output"]
+    assert "run_id=run_trace_harness_projection" in checkpoint_event["output"]
     assert "profile_photo_poisoning" in finished_event["summary"]
     assert "generic_web_recon" in finished_event["summary"]
     assert "http://trace.test/backup.zip" in finished_event["output"]
