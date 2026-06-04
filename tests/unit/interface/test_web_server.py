@@ -5190,11 +5190,13 @@ async def test_trace_replay_consumes_inherited_recommended_action_over_local_ass
 
     assert replay_resp.status == 200
     replayed_task = await replay_resp.json()
-    assert replayed_task["controlDecision"]["decisionKind"] == "resume_execute"
-    assert replayed_task["controlDecision"]["nextAction"] == "resume_from_checkpoint"
-    assert replayed_task["controlDecision"]["driver"] == "task.resume_context"
+    assert replayed_task["controlDecision"]["decisionKind"] == "explore_first"
+    assert replayed_task["controlDecision"]["nextAction"] == "collect_initial_facts"
+    assert replayed_task["controlDecision"]["driver"] == "blackboard.recommended_action"
     assert replayed_task["blackboardSnapshot"]["recommendedAction"]["action"] == "collect_initial_facts"
     assert replayed_task["blackboardSnapshot"]["recommendedAction"]["driver"] == "blackboard.recommended_action"
+    assert replayed_task["ingressHandoff"]["nextAction"] == "collect_initial_facts"
+    assert replayed_task["ingressHandoff"]["resumeBootstrap"] is None
 
 
 @pytest.mark.asyncio
@@ -5231,11 +5233,13 @@ async def test_task_retry_consumes_inherited_recommended_action_over_local_asset
 
     assert retry_resp.status == 200
     retried_task = await retry_resp.json()
-    assert retried_task["controlDecision"]["decisionKind"] == "resume_execute"
-    assert retried_task["controlDecision"]["nextAction"] == "resume_from_checkpoint"
-    assert retried_task["controlDecision"]["driver"] == "task.resume_context"
+    assert retried_task["controlDecision"]["decisionKind"] == "explore_first"
+    assert retried_task["controlDecision"]["nextAction"] == "collect_initial_facts"
+    assert retried_task["controlDecision"]["driver"] == "blackboard.recommended_action"
     assert retried_task["blackboardSnapshot"]["recommendedAction"]["action"] == "collect_initial_facts"
     assert retried_task["blackboardSnapshot"]["recommendedAction"]["driver"] == "blackboard.recommended_action"
+    assert retried_task["ingressHandoff"]["nextAction"] == "collect_initial_facts"
+    assert retried_task["ingressHandoff"]["resumeBootstrap"] is None
 
 
 @pytest.mark.asyncio

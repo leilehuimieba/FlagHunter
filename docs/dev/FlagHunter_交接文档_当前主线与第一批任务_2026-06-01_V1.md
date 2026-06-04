@@ -74,6 +74,7 @@
 - 已补 blackboard 从 runtime 事件重建 `activeDecision / actionResults` 时投影 `switchedFrom / triggerReason`
 - 已补 Task Detail / Trace Detail 顶层 `actionPathSummary`，当前执行路径不必再从 `activeDecision + decisionProvenance` 手工拼接
 - 已补 `continue` 入口的 follow-up refresh：同任务继续时，若已有 `recommendedAction`，会刷新 `controlDecision / ingressHandoff`，避免继续沿旧失败动作死跑
+- 已补 `retry / replay` 的 follow-up refresh：**仅在 blackboard 确有 `recommendedAction.action` 时** 才刷新 follow-up；否则继续保留原本的 `resume_execute` 语义
 - 下一步继续补候选动作层 / 切换理由稳定来源与前端更直接展示
 
 完成标准：
@@ -207,6 +208,11 @@
    - `continue` 不再只写 `resume` 线索
    - 当 blackboard 已有 `recommendedAction` 时，会刷新同任务的 `controlDecision`
    - 当前行为：优先避免继续沿旧失败动作重复推进
+
+10. **retry / replay follow-up 收紧**
+   - `retry / replay` 不再一刀切覆盖 `resume_execute`
+   - 只有在 blackboard 已给出明确 `recommendedAction.action` 时，才改走 next-best action
+   - 没有 recommendation 的恢复场景，仍保持原先 `resume_execute` 合同
 
 ### 4.4 本地样本主线已成型
 
