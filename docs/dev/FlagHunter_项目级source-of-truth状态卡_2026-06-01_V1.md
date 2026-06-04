@@ -160,6 +160,8 @@
   已可携带 `triggerActionDriver / triggerAt`，候选切换来源可追溯到具体动作结果
 - `candidates / recommendedAction`
   已补 `sourceType`（当前最小为 `observation / verification / ingress`），主控可区分来源类别
+- `control_contract`
+  已开始消费 `recommendedAction.sourceType / triggerActionDriver / triggerAt`，展示层真值已进一步接进决策事实层
 
 ### 4.2 控制链还缺“失败反馈 / 候选切换”这一段
 

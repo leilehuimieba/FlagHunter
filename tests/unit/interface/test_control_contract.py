@@ -615,7 +615,10 @@ def test_recommended_action_in_blackboard_can_override_local_assets_fallback() -
             "recommendedAction": {
                 "action": "collect_initial_facts",
                 "driver": "blackboard.derived_target.runtime_derived",
+                "sourceType": "observation",
                 "reason": "selected action failed; switch to next best candidate",
+                "triggerActionDriver": "blackboard.derived_target.runtime_derived",
+                "triggerAt": "2026-06-03T10:00:02+00:00",
                 "strongestHypothesisKind": "generic_web_recon",
                 "strongestHypothesisStatus": "active",
                 "strongestHypothesisConfidence": 0.52,
@@ -631,6 +634,9 @@ def test_recommended_action_in_blackboard_can_override_local_assets_fallback() -
     assert decision["driver"] == "blackboard.derived_target.runtime_derived"
     assert decision["reason"] == "selected action failed; switch to next best candidate"
     assert "blackboard.recommended_action=present" in decision["facts"]
+    assert "recommendedActionSourceType=observation" in decision["facts"]
+    assert "recommendedActionTriggerActionDriver=blackboard.derived_target.runtime_derived" in decision["facts"]
+    assert "recommendedActionTriggerAt=2026-06-03T10:00:02+00:00" in decision["facts"]
     assert "strongestHypothesisKind=generic_web_recon" in decision["facts"]
     assert "strongestHypothesisStatus=active" in decision["facts"]
     assert "strongestHypothesisConfidence=0.52" in decision["facts"]

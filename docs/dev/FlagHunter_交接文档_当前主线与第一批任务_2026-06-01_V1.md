@@ -67,6 +67,7 @@
 - 已补 `candidates.selected / candidates.recommended -> strongest hypothesis`，候选动作池已开始带解释上下文
 - 已补 `recommendedAction.triggerActionDriver / triggerAt`，候选切换已能追到触发它的动作结果
 - 已补 `candidates / recommendedAction.sourceType`，当前可区分 `observation / verification / ingress`
+- 已补 `control_contract <- recommendedAction.sourceType / trigger provenance` 消费，黑板解释字段已开始进入实际决策层
 - 下一步继续补候选动作层 / 切换理由稳定来源
 
 完成标准：
