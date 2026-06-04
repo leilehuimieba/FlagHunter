@@ -2342,6 +2342,60 @@ async def test_execute_web_chain_runs_hash_guarded_before_backup_when_filehash_s
 
 
 @pytest.mark.asyncio
+async def test_execute_web_chain_runs_hint_chain_from_structured_trigger_reason_when_endpoint_not_rendered(
+    monkeypatch,
+):
+    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher._ingress_handoff = {
+        "nextAction": "collect_initial_facts",
+        "switchedFrom": "probe_discovered_endpoint",
+        "triggerReason": "endpoint probe pointed to /hints.txt clue",
+        "triggerActionDriver": "blackboard.discovered_endpoint",
+    }
+
+    called_kinds: list[str] = []
+
+    async def _wrapped_execute(kind: str, context):
+        called_kinds.append(kind)
+        if kind == "hint_chain_followup":
+            return _ChainOutcome(progress=True, reason="hint_chain_followup")
+        return _ChainOutcome(progress=False, reason=kind)
+
+    monkeypatch.setattr(dispatcher.strategy_registry, "execute", _wrapped_execute)
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+
+    await dispatcher._execute_web_chain(
+        "http://ctf.local/",
+        {
+            "content": "",
+            "html": "",
+            "endpoints": [],
+            "raw_links": [],
+            "forms": [],
+        },
+        "",
+    )
+
+    assert "hint_chain_followup" in called_kinds
+    assert "backup_source_leak" in called_kinds
+    assert called_kinds.index("hint_chain_followup") < called_kinds.index("backup_source_leak")
+
+
+@pytest.mark.asyncio
 async def test_execute_web_chain_runs_php_unserialize_before_backup_when_source_hints_exist(
     monkeypatch,
 ):

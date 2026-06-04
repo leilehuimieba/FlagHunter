@@ -190,7 +190,7 @@
 - control chain 首段主路径
   当前 `resume / bootstrap / collect / verify / probe` 已基本完成 structured handoff-first；下一步更值得把 structured provenance 继续压进 dispatcher 内部策略分支
 - `ctf_dispatcher` 结构化 follow-up 选主
-  当前已不只看 `nextAction`，还会结合 `switchedFrom / triggerReason / triggerActionDriver` 把 `collect_initial_facts` 这类退化 follow-up 继续拉回高价值策略，例如 `ssti_exploit`、`hash_guarded_file_read`、`backup_source_leak`，以及在 `xss` 链中恢复 `visit-url` fallback
+  当前已不只看 `nextAction`，还会结合 `switchedFrom / triggerReason / triggerActionDriver` 把 `collect_initial_facts` 这类退化 follow-up 继续拉回高价值策略，例如 `ssti_exploit`、`hash_guarded_file_read`、`backup_source_leak`，以及在 `xss` 链中恢复 `visit-url` fallback、在 `web` 链中恢复 `hint_chain_followup`
 
 ### 4.2 控制链还缺“失败反馈 / 候选切换”这一段
 
