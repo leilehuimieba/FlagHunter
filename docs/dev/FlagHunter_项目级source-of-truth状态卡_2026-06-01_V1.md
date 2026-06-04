@@ -174,6 +174,8 @@
   已补顶层 `actionPathSummary`，当前执行路径（planned/observed/effective）与 strongest hypothesis 已有直接展示合同
 - `Task list / Task Detail / Trace payload / replay / retry / continue`
   已补顶层 `nextActionExplanation`，恢复类入口与前端不必再手工回拼 `controlDecision + ingressHandoff + decisionProvenance`
+- `MCP run_task_async / list_tasks / get_task_status / get_task_result`
+  已补顶层 `next_action_*` 文本合同，MCP 异步提交与任务检查现在也能直接表达“下一步做什么 / 为什么 / 谁驱动”
 - `continue` 入口
   已开始消费 blackboard `recommendedAction`，同任务继续时会刷新 `controlDecision / ingressHandoff`，避免继续沿旧失败动作推进
   且 `continue` 接受响应会优先返回“当前为什么接受继续 / 当前准备执行什么”的即时 explanation；detail / trace 继续表达刷新后的持久 decision truth

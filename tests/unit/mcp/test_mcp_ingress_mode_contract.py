@@ -715,6 +715,44 @@ async def test_run_task_async_reports_control_decision_in_text_output(
 
 
 @pytest.mark.asyncio
+async def test_run_task_async_reports_next_action_explanation_for_resume_ingress(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_make_agent(target, scope):
+        return SimpleNamespace()
+
+    def fake_resolve_mode_contract(payload, *, source_task=None):
+        return {"mode": "ctf", "modeSubtype": "web", "goalStyle": "flag"}
+
+    monkeypatch.setattr(mcp_tools, "_make_agent", fake_make_agent)
+    monkeypatch.setattr(mcp_tools.asyncio, "create_task", _close_created_task)
+    monkeypatch.setattr(mcp_tools, "resolve_mode_contract", fake_resolve_mode_contract, raising=False)
+
+    result = await mcp_tools.run_task_async(
+        {
+            "task": "resume challenge run",
+            "target": "http://challenge.test",
+            "mode": "ctf",
+            "ctfType": "web",
+            "resumeContext": {
+                "runId": "run-prev-1",
+                "checkpointId": "checkpoint-prev-1",
+                "summary": "continue from saved recon state",
+            },
+        }
+    )
+
+    assert "next_action_decision_kind: resume_execute" in result
+    assert "next_action: resume_from_checkpoint" in result
+    assert "next_action_driver: task.resume_context" in result
+    assert "next_action_reason: resume context available" in result
+    assert (
+        "next_action_summary: resume_execute -> resume_from_checkpoint via task.resume_context"
+        in result
+    )
+
+
+@pytest.mark.asyncio
 async def test_run_task_async_blocked_control_decision_does_not_schedule_execution(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1328,6 +1366,14 @@ async def test_mcp_task_inspection_exposes_blackboard_snapshot() -> None:
     assert "derived_target: http://127.0.0.1:3000" in status_output
     assert "derived_target_source: docker_compose_port_mapping" in status_output
     assert "derived_target_origin: inherited_lineage" in status_output
+    assert "next_action_decision_kind: resume_execute" in status_output
+    assert "next_action: resume_from_checkpoint" in status_output
+    assert "next_action_driver: task.resume_context" in status_output
+    assert "next_action_reason: resume context available" in status_output
+    assert (
+        "next_action_summary: resume_execute -> resume_from_checkpoint via task.resume_context"
+        in status_output
+    )
     assert (
         r"derived_target_compose_path: D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
         in status_output
@@ -1340,6 +1386,14 @@ async def test_mcp_task_inspection_exposes_blackboard_snapshot() -> None:
     assert "derived_target: http://127.0.0.1:3000" in result_output
     assert "derived_target_source: docker_compose_port_mapping" in result_output
     assert "derived_target_origin: inherited_lineage" in result_output
+    assert "next_action_decision_kind: resume_execute" in result_output
+    assert "next_action: resume_from_checkpoint" in result_output
+    assert "next_action_driver: task.resume_context" in result_output
+    assert "next_action_reason: resume context available" in result_output
+    assert (
+        "next_action_summary: resume_execute -> resume_from_checkpoint via task.resume_context"
+        in result_output
+    )
     assert (
         r"derived_target_compose_path: D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
         in result_output
@@ -1618,6 +1672,11 @@ async def test_mcp_task_inspection_exposes_recommended_action_and_action_results
     assert "switchedFrom=bootstrap_local_assets" in status_output
     assert "triggerResult=failed" in status_output
     assert "triggerReason=compose parsing failed" in status_output
+    assert "next_action_decision_kind: direct_execute" in status_output
+    assert "next_action: bootstrap_local_assets" in status_output
+    assert "next_action_driver: task.local_assets" in status_output
+    assert "next_action_reason: local challenge assets available" in status_output
+    assert "next_action_summary: direct_execute -> bootstrap_local_assets via task.local_assets" in status_output
     assert "[blackboard_action_results]" in status_output
     assert "action=bootstrap_local_assets" in status_output
     assert "result=failed" in status_output
@@ -1627,6 +1686,11 @@ async def test_mcp_task_inspection_exposes_recommended_action_and_action_results
     assert "[blackboard_recommended_action]" in result_output
     assert "action=collect_initial_facts" in result_output
     assert "switchedFrom=bootstrap_local_assets" in result_output
+    assert "next_action_decision_kind: direct_execute" in result_output
+    assert "next_action: bootstrap_local_assets" in result_output
+    assert "next_action_driver: task.local_assets" in result_output
+    assert "next_action_reason: local challenge assets available" in result_output
+    assert "next_action_summary: direct_execute -> bootstrap_local_assets via task.local_assets" in result_output
     assert "[blackboard_action_results]" in result_output
     assert "result=failed" in result_output
 
