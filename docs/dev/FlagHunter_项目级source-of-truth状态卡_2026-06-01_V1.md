@@ -222,6 +222,8 @@
   当前 `Task Detail / Trace payload` 已直接补 `recommendedActionSummary / candidateSummary / lastActionResultSummary`，前端与人工排查不必再深入 `recommendedAction / candidates / actionResults` 的内部结构，已可直接读取“建议动作 / 候选池 / 最近动作结果”
 - `pending verification / strongest hypothesis` 顶层可读 summary
   当前 `Task Detail / Trace payload` 已直接补 `pendingVerificationSummary / strongestHypothesisSummary`，前端与人工排查不必再深入 `pendingVerifications / hypotheses / decisionProvenance` 的内部结构，已可直接读取“当前待验证信号”与“当前最强假设”
+- `suppressed recommendation / active decision` 顶层可读 summary
+  当前 `Task Detail / Trace payload` 已直接补 `suppressedRecommendationSummary / activeDecisionSummary`，前端与人工排查不必再深入 `controlDecision.suppressedRecommendation / activeDecision` 的内部结构，已可直接读取“被压制的建议动作”与“当前 active decision”
 - `exploitProvenance -> outcomeEvents`
   当前 `dispatcher_started` 与 `control_action_started / completed` 已会把 `exploitProvenance` 投进 summary / output，Trace Detail 事件流可直接看到 exploit 来源，而不必只靠顶层 payload 或回翻 observation
 - `actionPathSummary / exploitProvenance -> failure outcomeEvents`
@@ -268,6 +270,13 @@
   - strongest hypothesis kind
   - status
   - confidence
+- 被压制建议动作顶层摘要已能直接表达：
+  - action
+  - driver
+  - suppressedBy
+- active decision 顶层摘要已能直接表达：
+  - decisionKind / nextAction / driver
+  - observedAction / alignment / alignmentReason
 
 ### 4.3 `ctf_dispatcher.py` 仍然偏大
 

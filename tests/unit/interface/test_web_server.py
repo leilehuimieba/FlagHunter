@@ -1830,6 +1830,13 @@ async def test_task_detail_surfaces_suppressed_recommended_action(web_client: Te
         detail["decisionRecords"][0]["suppressedRecommendation"]["driver"]
         == "blackboard.derived_target.runtime_derived"
     )
+    assert detail["suppressedRecommendationSummary"] == {
+        "action": "collect_initial_facts",
+        "driver": "blackboard.derived_target.runtime_derived",
+        "reason": "selected action failed; switch to next best candidate",
+        "suppressedBy": "blackboard.verified_flag",
+        "summary": "collect_initial_facts suppressed by blackboard.verified_flag",
+    }
 
 
 @pytest.mark.asyncio
@@ -1915,6 +1922,17 @@ async def test_task_detail_blackboard_snapshot_surfaces_first_action_alignment(
         "strongestHypothesisKind": None,
         "strongestHypothesisStatus": None,
         "strongestHypothesisConfidence": None,
+    }
+    assert detail["activeDecisionSummary"] == {
+        "decisionKind": "explore_first",
+        "nextAction": "collect_initial_facts",
+        "driver": "blackboard.derived_target.runtime_derived",
+        "reason": "derived target available for initial fact collection",
+        "expectedAction": "collect_initial_facts",
+        "observedAction": "verify_runtime_signal",
+        "alignment": "mismatched",
+        "alignmentReason": "runtime verification preempted planned first action",
+        "summary": "explore_first -> collect_initial_facts via blackboard.derived_target.runtime_derived · observed=verify_runtime_signal · alignment=mismatched",
     }
     assert detail["blackboardSnapshot"]["actionResults"][0]["expectedAction"] == "collect_initial_facts"
     assert detail["blackboardSnapshot"]["actionResults"][0]["alignment"] == "mismatched"
@@ -3217,6 +3235,13 @@ def test_build_trace_payload_surfaces_suppressed_recommended_action(
     assert payload["controlDecision"]["suppressedRecommendation"]["action"] == "collect_initial_facts"
     assert payload["controlDecision"]["suppressedRecommendation"]["suppressedBy"] == "blackboard.verified_flag"
     assert payload["decisionRecords"][0]["suppressedRecommendation"]["driver"] == "blackboard.derived_target.runtime_derived"
+    assert payload["suppressedRecommendationSummary"] == {
+        "action": "collect_initial_facts",
+        "driver": "blackboard.derived_target.runtime_derived",
+        "reason": "selected action failed; switch to next best candidate",
+        "suppressedBy": "blackboard.verified_flag",
+        "summary": "collect_initial_facts suppressed by blackboard.verified_flag",
+    }
     assert payload["decisionProvenance"] == {
         "recommendedActionSourceType": None,
         "recommendedActionSwitchedFrom": None,
@@ -3392,6 +3417,17 @@ def test_build_trace_payload_surfaces_decision_provenance_summary(
         "confidence": 0.52,
         "summary": "generic_web_recon [active/0.52]",
     }
+    assert payload["activeDecisionSummary"] == {
+        "decisionKind": "direct_execute",
+        "nextAction": "collect_initial_facts",
+        "driver": "blackboard.derived_target.runtime_derived",
+        "reason": "selected action failed; switch to next best candidate",
+        "expectedAction": None,
+        "observedAction": None,
+        "alignment": None,
+        "alignmentReason": None,
+        "summary": "direct_execute -> collect_initial_facts via blackboard.derived_target.runtime_derived",
+    }
 
 
 def test_build_task_projection_fields_surfaces_empty_blackboard_summaries(tmp_path: Path):
@@ -3454,6 +3490,24 @@ def test_build_task_projection_fields_surfaces_empty_blackboard_summaries(tmp_pa
         "kind": None,
         "status": None,
         "confidence": None,
+        "summary": None,
+    }
+    assert projection["suppressedRecommendationSummary"] == {
+        "action": None,
+        "driver": None,
+        "reason": None,
+        "suppressedBy": None,
+        "summary": None,
+    }
+    assert projection["activeDecisionSummary"] == {
+        "decisionKind": None,
+        "nextAction": None,
+        "driver": None,
+        "reason": None,
+        "expectedAction": None,
+        "observedAction": None,
+        "alignment": None,
+        "alignmentReason": None,
         "summary": None,
     }
 

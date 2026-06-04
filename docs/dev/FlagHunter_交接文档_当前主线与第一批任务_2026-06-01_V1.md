@@ -99,6 +99,10 @@
   - `pendingVerificationSummary`
   - `strongestHypothesisSummary`
   当前 Task Detail / Trace 不必再深入 `pendingVerifications / hypotheses / decisionProvenance` 内部结构，也能直接读到待验证信号与当前最强假设
+- 已补 `suppressed recommendation / active decision` 顶层可读 summary：
+  - `suppressedRecommendationSummary`
+  - `activeDecisionSummary`
+  当前 Task Detail / Trace 不必再深入 `controlDecision.suppressedRecommendation / activeDecision` 内部结构，也能直接读到被压制的建议动作与当前执行中的主控决策
 - 当前 control chain 首段主路径（resume / bootstrap / collect / verify / probe）已基本完成 structured handoff-first，后续更值得继续把 provenance 压进 dispatcher 内部策略选择
 - 下一步继续补候选动作层 / 切换理由稳定来源与前端更直接展示
 
@@ -274,6 +278,8 @@
      - 最近一次动作结果、alignment 与失败原因
      - 当前待验证数量、最新待验证 kind/source/rationale
      - 当前最强假设的 kind/status/confidence
+     - 当前被压制建议动作的 action/driver/suppressedBy
+     - 当前 active decision 的 decisionKind/nextAction/driver 与 observedAction/alignment
 
 11. **dispatcher 结构化 follow-up 消费**
    - `ctf_dispatcher` 选主策略时，已开始直接读取 `ingress_handoff.nextAction`
