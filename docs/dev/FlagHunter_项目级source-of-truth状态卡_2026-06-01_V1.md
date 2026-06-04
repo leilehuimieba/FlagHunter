@@ -185,6 +185,8 @@
   已开始消费结构化 `ingressHandoff` 的 follow-up provenance；当前 Web / MCP handoff 已能带 `driver / reason / sourceType / switchedFrom / triggerReason / triggerActionDriver / triggerAt / strongestHypothesis*`
 - `verify_runtime_signal / verify_or_submit_flag`
   已开始消费结构化 `ingressHandoff` 的 `runtimeFlag / verifiedFlag`；当前 Web / MCP ingress 与 coordinator early-finish 路径都已对齐
+- `resume_from_checkpoint / bootstrap_local_assets`
+  已开始消费结构化 `ingressHandoff`；当前 coordinator 首段动作已支持 structured handoff-first，hint 主要退化为兼容 fallback
 
 ### 4.2 控制链还缺“失败反馈 / 候选切换”这一段
 

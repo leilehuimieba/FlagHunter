@@ -2838,6 +2838,159 @@ async def test_coordinator_records_control_action_events_for_resume_from_checkpo
 
 
 @pytest.mark.asyncio
+async def test_coordinator_resume_from_checkpoint_from_structured_ingress_handoff_without_hint(
+    tmp_path: Path,
+):
+    coordinator = CTFCoordinator()
+    sentinel = SolveResult(success=False, reason="resume-structured")
+    captured: dict[str, object] = {}
+
+    class _CapabilityRegistry:
+        async def full_check(self):
+            captured["capability_checked_after_restore"] = bool(
+                getattr(dispatcher, "_restored_resume_checkpoint_id", None)
+            )
+            return None
+
+        def to_dict(self):
+            return {}
+
+    class _Dispatcher:
+        def __init__(self):
+            self._notes_log = []
+            self._challenge_context = None
+            self._ledger_run_id = None
+            self._current_fingerprint = None
+            self._memory_match_ids = []
+            self._pending_wrong_flag_feedback = []
+            self._exhausted_visit_url_targets = set()
+            self.reasoning_layer = SimpleNamespace(degradation_events=[])
+            self.state = None
+            self.capability_registry = _CapabilityRegistry()
+            self.recorded_events: list[tuple[str, dict[str, object]]] = []
+            self.written_checkpoints: list[tuple[str, dict[str, object]]] = []
+            self.restored_calls = 0
+            self.run_called = False
+            self.phase_recon_called = False
+            self._restored_resume_checkpoint_id = None
+            self._ingress_handoff = {
+                "decisionKind": "resume_execute",
+                "nextAction": "resume_from_checkpoint",
+                "driver": "task.resume_context",
+                "reason": "resume context available",
+                "resumeBootstrap": {
+                    "nextAction": "resume_from_checkpoint",
+                    "runId": "run-prev-1",
+                    "checkpointId": "checkpoint-prev-1",
+                    "summary": "run_id=run-prev-1; stop_reason=wrong_flag_feedback",
+                },
+                "switchedFrom": "bootstrap_local_assets",
+                "triggerReason": "resume requested after local bootstrap",
+            }
+
+        def _setup_session_ledger(self, *, run_id=None, ledger_root=None):
+            self._ledger_run_id = run_id
+
+        def _setup_artifact_registry(self, *, run_id=None, registry_root=None):
+            return None
+
+        def _setup_checkpoint_store(self, *, run_id=None, checkpoint_root=None):
+            return None
+
+        def _apply_submit_profile(self, submit_profile):
+            return None
+
+        async def _start_failover_monitor_if_available(self):
+            return None
+
+        def _record_session_event(self, event_type: str, payload: dict[str, object]):
+            self.recorded_events.append((event_type, dict(payload)))
+
+        def _write_checkpoint(self, label: str, payload: dict[str, object]):
+            self.written_checkpoints.append((label, dict(payload)))
+
+        def _restore_context(self):
+            self.restored_calls += 1
+            self._restored_resume_checkpoint_id = "checkpoint-prev-1"
+            if self.state is not None:
+                self.state.detected_type = "reverse"
+
+        def _load_rejected_flags(self):
+            return None
+
+        async def _snapshot_platform_context(self, target: str):
+            return None
+
+        async def _phase_recon(self, target: str):
+            self.phase_recon_called = True
+            captured["recon_detected_type"] = getattr(self.state, "detected_type", None)
+            return {
+                "html": "<html></html>",
+                "content": "portal",
+                "forms": [],
+                "endpoints": ["/login"],
+                "recon_missing_tools": [],
+            }
+
+        def _ingest_local_challenge_artifacts(self, target: str):
+            return None
+
+        def _record_ingress_handoff_observations(self, ingress_handoff):
+            return None
+
+        def _emit(self, message: str):
+            return None
+
+        async def run(self, **kwargs):
+            self.run_called = True
+            captured["recorded_events"] = list(self.recorded_events)
+            captured["restored_checkpoint_before_run"] = getattr(
+                self, "_restored_resume_checkpoint_id", None
+            )
+            return sentinel
+
+    dispatcher = _Dispatcher()
+
+    result = await coordinator.execute(
+        dispatcher,
+        target="127.0.0.1:3000",
+        goal="goal",
+        type="web",
+        hint="",
+        submit_profile=None,
+        challenge_context={
+            "artifactPaths": [],
+            "resumeContext": {
+                "runId": "run-prev-1",
+                "checkpointId": "checkpoint-prev-1",
+            },
+        },
+        ingress_handoff=dispatcher._ingress_handoff,
+        run_id="run-resume-structured",
+        ledger_root=tmp_path / "ledgers",
+        checkpoint_root=tmp_path / "checkpoints",
+    )
+
+    assert result is sentinel
+    assert dispatcher.restored_calls == 1
+    assert dispatcher.phase_recon_called is True
+    assert dispatcher.run_called is True
+    assert captured["capability_checked_after_restore"] is True
+    assert captured["recon_detected_type"] == "reverse"
+    assert captured["restored_checkpoint_before_run"] == "checkpoint-prev-1"
+    event_types = [event_type for event_type, _ in captured["recorded_events"]]
+    assert event_types[:3] == [
+        "dispatcher_started",
+        "control_action_started",
+        "control_action_completed",
+    ]
+    assert captured["recorded_events"][1][1]["action"] == "resume_from_checkpoint"
+    assert captured["recorded_events"][1][1]["switched_from"] == "bootstrap_local_assets"
+    assert captured["recorded_events"][2][1]["action"] == "resume_from_checkpoint"
+    assert captured["recorded_events"][2][1]["result"] == "ok"
+
+
+@pytest.mark.asyncio
 async def test_coordinator_records_initial_fact_collection_observation_before_recon():
     coordinator = CTFCoordinator()
     sentinel = SolveResult(success=False, reason="initial-facts")
@@ -2905,6 +3058,139 @@ async def test_coordinator_records_initial_fact_collection_observation_before_re
     assert latest[3]["strongest_hypothesis_kind"] == "generic_web_recon"
     assert latest[3]["strongest_hypothesis_status"] == "active"
     assert latest[3]["strongest_hypothesis_confidence"] == 0.52
+
+
+@pytest.mark.asyncio
+async def test_coordinator_bootstraps_local_assets_from_structured_ingress_handoff_without_hint(
+    tmp_path: Path,
+):
+    coordinator = CTFCoordinator()
+    sentinel = SolveResult(success=False, reason="bootstrap-structured")
+    challenge_dir = tmp_path / "challenge_structured_bootstrap"
+    challenge_dir.mkdir()
+    call_order: list[str] = []
+    captured: dict[str, object] = {}
+
+    class _CapabilityRegistry:
+        async def full_check(self):
+            call_order.append("capability_full_check")
+            return None
+
+        def to_dict(self):
+            return {}
+
+    class _Dispatcher:
+        def __init__(self):
+            self._notes_log = []
+            self._challenge_context = None
+            self._ledger_run_id = None
+            self._current_fingerprint = None
+            self._memory_match_ids = []
+            self._pending_wrong_flag_feedback = []
+            self._exhausted_visit_url_targets = set()
+            self.reasoning_layer = SimpleNamespace(degradation_events=[])
+            self.state = None
+            self.recorded_events: list[tuple[str, dict[str, object]]] = []
+            self.written_checkpoints: list[tuple[str, dict[str, object]]] = []
+            self.capability_registry = _CapabilityRegistry()
+            self._ingress_handoff = {
+                "decisionKind": "direct_execute",
+                "nextAction": "bootstrap_local_assets",
+                "driver": "task.local_assets",
+                "reason": "ctf local assets available",
+                "switchedFrom": "collect_initial_facts",
+                "triggerReason": "source hints needed before recon",
+            }
+
+        def _setup_session_ledger(self, *, run_id=None, ledger_root=None):
+            self._ledger_run_id = run_id
+
+        def _setup_artifact_registry(self, *, run_id=None, registry_root=None):
+            return None
+
+        def _setup_checkpoint_store(self, *, run_id=None, checkpoint_root=None):
+            return None
+
+        def _apply_submit_profile(self, submit_profile):
+            return None
+
+        async def _start_failover_monitor_if_available(self):
+            return None
+
+        def _record_session_event(self, event_type: str, payload: dict[str, object]):
+            self.recorded_events.append((event_type, dict(payload)))
+
+        def _write_checkpoint(self, label: str, payload: dict[str, object]):
+            self.written_checkpoints.append((label, dict(payload)))
+
+        def _load_rejected_flags(self):
+            return None
+
+        async def _snapshot_platform_context(self, target: str):
+            return None
+
+        async def _phase_recon(self, target: str):
+            call_order.append("phase_recon")
+            return {
+                "html": "<html></html>",
+                "content": "portal",
+                "forms": [],
+                "endpoints": ["/login"],
+                "recon_missing_tools": [],
+            }
+
+        def _ingest_local_challenge_artifacts(self, target: str):
+            call_order.append("ingest_local_assets")
+
+        def _ingest_registered_local_source_hints(self):
+            call_order.append("ingest_source_hints")
+
+        def _record_ingress_handoff_observations(self, ingress_handoff):
+            return None
+
+        def _emit(self, message: str):
+            return None
+
+        async def run(self, **kwargs):
+            captured["recorded_events"] = list(self.recorded_events)
+            captured["call_order"] = list(call_order)
+            return sentinel
+
+    dispatcher = _Dispatcher()
+
+    result = await coordinator.execute(
+        dispatcher,
+        target="127.0.0.1:3000",
+        goal="goal",
+        type="web",
+        hint="",
+        submit_profile=None,
+        challenge_context={"challengePath": str(challenge_dir), "artifactPaths": []},
+        ingress_handoff=dispatcher._ingress_handoff,
+        run_id="run-bootstrap-structured",
+        ledger_root=tmp_path / "ledgers",
+        checkpoint_root=tmp_path / "checkpoints",
+    )
+
+    assert result is sentinel
+    call_order_result = captured["call_order"]
+    assert call_order_result[0:2] == [
+        "ingest_local_assets",
+        "ingest_source_hints",
+    ]
+    assert "capability_full_check" in call_order_result
+    assert "phase_recon" in call_order_result
+    assert call_order_result.index("capability_full_check") < call_order_result.index("phase_recon")
+    event_types = [event_type for event_type, _ in captured["recorded_events"]]
+    assert event_types[:3] == [
+        "dispatcher_started",
+        "control_action_started",
+        "control_action_completed",
+    ]
+    assert captured["recorded_events"][1][1]["action"] == "bootstrap_local_assets"
+    assert captured["recorded_events"][1][1]["switched_from"] == "collect_initial_facts"
+    assert captured["recorded_events"][2][1]["action"] == "bootstrap_local_assets"
+    assert captured["recorded_events"][2][1]["result"] == "ok"
 
 
 @pytest.mark.asyncio
