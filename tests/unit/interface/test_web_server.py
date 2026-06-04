@@ -3275,7 +3275,23 @@ def test_build_trace_payload_surfaces_decision_provenance_summary(
                     "confidence": "high",
                 }
             ],
-            "pendingVerifications": [],
+            "pendingVerifications": [
+                {
+                    "kind": "runtime_flag",
+                    "value": "flag{runtime_candidate}",
+                    "source": "runtime-http",
+                    "rationale": "reflected in runtime response",
+                }
+            ],
+            "hypotheses": [
+                {
+                    "id": "hyp-1",
+                    "kind": "generic_web_recon",
+                    "description": "continue broad web recon",
+                    "confidence": 0.52,
+                    "status": "active",
+                }
+            ],
             "recommendedAction": {
                 "action": "collect_initial_facts",
                 "driver": "blackboard.derived_target.runtime_derived",
@@ -3362,6 +3378,20 @@ def test_build_trace_payload_surfaces_decision_provenance_summary(
         "reason": None,
         "summary": None,
     }
+    assert payload["pendingVerificationSummary"] == {
+        "count": 1,
+        "latestKind": "runtime_flag",
+        "latestValue": "flag{runtime_candidate}",
+        "latestSource": "runtime-http",
+        "latestRationale": "reflected in runtime response",
+        "summary": "1 pending verification · latest=runtime_flag from runtime-http",
+    }
+    assert payload["strongestHypothesisSummary"] == {
+        "kind": "generic_web_recon",
+        "status": "active",
+        "confidence": 0.52,
+        "summary": "generic_web_recon [active/0.52]",
+    }
 
 
 def test_build_task_projection_fields_surfaces_empty_blackboard_summaries(tmp_path: Path):
@@ -3410,6 +3440,20 @@ def test_build_task_projection_fields_surfaces_empty_blackboard_summaries(tmp_pa
         "expectedAction": None,
         "alignment": None,
         "reason": None,
+        "summary": None,
+    }
+    assert projection["pendingVerificationSummary"] == {
+        "count": 0,
+        "latestKind": None,
+        "latestValue": None,
+        "latestSource": None,
+        "latestRationale": None,
+        "summary": "0 pending verifications",
+    }
+    assert projection["strongestHypothesisSummary"] == {
+        "kind": None,
+        "status": None,
+        "confidence": None,
         "summary": None,
     }
 
@@ -5922,6 +5966,23 @@ async def test_task_detail_surfaces_blackboard_readable_summaries(web_client: Te
                     }
                 ],
                 "pendingVerifications": [],
+                "hypotheses": [
+                    {
+                        "id": "hyp-1",
+                        "kind": "generic_web_recon",
+                        "description": "continue broad web recon",
+                        "confidence": 0.52,
+                        "status": "active",
+                    }
+                ],
+                "pendingVerifications": [
+                    {
+                        "kind": "runtime_flag",
+                        "value": "flag{runtime_candidate}",
+                        "source": "runtime-http",
+                        "rationale": "reflected in runtime response",
+                    }
+                ],
                 "actionResults": [
                     {
                         "action": "probe_discovered_endpoint",
@@ -5962,11 +6023,11 @@ async def test_task_detail_surfaces_blackboard_readable_summaries(web_client: Te
         "summary": "collect_initial_facts via blackboard.derived_target.runtime_derived · from probe_discovered_endpoint · after failed",
     }
     assert detail["candidateSummary"] == {
-        "activeAction": "collect_initial_facts",
+        "activeAction": "verify_runtime_signal",
         "recommendedAction": "collect_initial_facts",
-        "candidateActions": ["collect_initial_facts", "bootstrap_local_assets"],
+        "candidateActions": ["verify_runtime_signal", "bootstrap_local_assets"],
         "totalCandidates": 2,
-        "summary": "2 candidates · active=collect_initial_facts · recommended=collect_initial_facts",
+        "summary": "2 candidates · active=verify_runtime_signal · recommended=collect_initial_facts",
     }
     assert detail["lastActionResultSummary"] == {
         "action": "probe_discovered_endpoint",
@@ -5976,6 +6037,20 @@ async def test_task_detail_surfaces_blackboard_readable_summaries(web_client: Te
         "alignment": "mismatched",
         "reason": "endpoint probe returned empty findings",
         "summary": "probe_discovered_endpoint failed via blackboard.discovered_endpoint · alignment=mismatched",
+    }
+    assert detail["pendingVerificationSummary"] == {
+        "count": 1,
+        "latestKind": "runtime_flag",
+        "latestValue": "flag{runtime_candidate}",
+        "latestSource": "runtime-http",
+        "latestRationale": "reflected in runtime response",
+        "summary": "1 pending verification · latest=runtime_flag from runtime-http",
+    }
+    assert detail["strongestHypothesisSummary"] == {
+        "kind": "generic_web_recon",
+        "status": "active",
+        "confidence": 0.52,
+        "summary": "generic_web_recon [active/0.52]",
     }
 
 

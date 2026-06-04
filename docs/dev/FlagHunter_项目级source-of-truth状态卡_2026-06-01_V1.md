@@ -220,6 +220,8 @@
   当前 `checkpoint_written` 的摘要也已统一成稳定格式：`label=... · checkpoint=... · stop=...`；同时 output 顶层会直接补 `checkpoint_id / checkpoint_label / stop_reason`，checkpoint 与 resume 语义不再只埋在 `latest_checkpoint / resume_context` 嵌套对象里
 - `blackboardSnapshot` 顶层可读 summary
   当前 `Task Detail / Trace payload` 已直接补 `recommendedActionSummary / candidateSummary / lastActionResultSummary`，前端与人工排查不必再深入 `recommendedAction / candidates / actionResults` 的内部结构，已可直接读取“建议动作 / 候选池 / 最近动作结果”
+- `pending verification / strongest hypothesis` 顶层可读 summary
+  当前 `Task Detail / Trace payload` 已直接补 `pendingVerificationSummary / strongestHypothesisSummary`，前端与人工排查不必再深入 `pendingVerifications / hypotheses / decisionProvenance` 的内部结构，已可直接读取“当前待验证信号”与“当前最强假设”
 - `exploitProvenance -> outcomeEvents`
   当前 `dispatcher_started` 与 `control_action_started / completed` 已会把 `exploitProvenance` 投进 summary / output，Trace Detail 事件流可直接看到 exploit 来源，而不必只靠顶层 payload 或回翻 observation
 - `actionPathSummary / exploitProvenance -> failure outcomeEvents`
@@ -259,6 +261,13 @@
   - driver
   - alignment
   - failure reason
+- 待验证信号顶层摘要已能直接表达：
+  - 当前待验证数量
+  - 最新待验证 kind / source / rationale
+- 最强假设顶层摘要已能直接表达：
+  - strongest hypothesis kind
+  - status
+  - confidence
 
 ### 4.3 `ctf_dispatcher.py` 仍然偏大
 
