@@ -226,6 +226,8 @@
   当前 `Task Detail / Trace payload` 已直接补 `suppressedRecommendationSummary / activeDecisionSummary`，前端与人工排查不必再深入 `controlDecision.suppressedRecommendation / activeDecision` 的内部结构，已可直接读取“被压制的建议动作”与“当前 active decision”
 - Task List / Dashboard recentTasks 轻量主控摘要
   当前 `/api/tasks` 列表项已直接补 `activeDecisionSummary`，`dashboard.recentTasks` 已直接补 `nextActionSummary / activeDecisionSummary`，列表层不必再点进 detail 才能知道任务当前的主控方向
+- 列表层 resume / checkpoint / runtime outcome 轻量状态
+  当前 `/api/tasks` 列表项与 `dashboard.recentTasks` 已直接补 `resumeStateSummary / checkpointStateSummary / runtimeOutcomeSummary`，列表层不必再点进 detail/trace 才能知道任务是否从 resume 进入、最新 checkpoint 是什么、当前 stop/pending 轻量状态是什么
 - `exploitProvenance -> outcomeEvents`
   当前 `dispatcher_started` 与 `control_action_started / completed` 已会把 `exploitProvenance` 投进 summary / output，Trace Detail 事件流可直接看到 exploit 来源，而不必只靠顶层 payload 或回翻 observation
 - `actionPathSummary / exploitProvenance -> failure outcomeEvents`
@@ -282,6 +284,10 @@
 - 列表层轻量摘要已能直接表达：
   - 当前 next action summary
   - 当前 active decision summary
+- 列表层状态摘要已能直接表达：
+  - 当前是否带 resume context
+  - 最新 checkpoint id / label / stopReason
+  - 当前 runtime outcome 的 status / stopReason / finalFlag
 
 ### 4.3 `ctf_dispatcher.py` 仍然偏大
 

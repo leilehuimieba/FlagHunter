@@ -107,6 +107,12 @@
   - `/api/tasks` 已直接补 `activeDecisionSummary`
   - `dashboard.recentTasks` 已直接补 `nextActionSummary / activeDecisionSummary`
   当前列表层不必再点进 detail，也能直接看出任务的主控方向与下一步
+- 已补列表层 resume / checkpoint / runtime outcome 轻量状态：
+  - `/api/tasks` 与 `dashboard.recentTasks` 已直接补
+    - `resumeStateSummary`
+    - `checkpointStateSummary`
+    - `runtimeOutcomeSummary`
+  当前列表层不必再点进 detail/trace，也能直接看出任务是否从 resume 进入、最新 checkpoint 是什么、当前运行结果轻量态是什么
 - 当前 control chain 首段主路径（resume / bootstrap / collect / verify / probe）已基本完成 structured handoff-first，后续更值得继续把 provenance 压进 dispatcher 内部策略选择
 - 下一步继续补候选动作层 / 切换理由稳定来源与前端更直接展示
 
@@ -286,6 +292,8 @@
      - 当前 active decision 的 decisionKind/nextAction/driver 与 observedAction/alignment
      - 列表层任务当前的 next action summary
      - 列表层任务当前的 active decision summary
+     - 列表层任务当前的 resume state summary
+     - 列表层任务当前的 checkpoint state / runtime outcome summary
 
 11. **dispatcher 结构化 follow-up 消费**
    - `ctf_dispatcher` 选主策略时，已开始直接读取 `ingress_handoff.nextAction`

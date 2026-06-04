@@ -759,31 +759,104 @@ async def test_dashboard_summary_supports_window_and_runtime_filters(web_client:
         "attachments": [],
     }
 
-    recent_resp = await web_client.get("/api/dashboard/summary?window=24h&runtime=all")
-    assert recent_resp.status == 200
-    recent_data = await recent_resp.json()
-    assert recent_data["kpis"]["tasksToday"] == 1
-    assert recent_data["recentTasks"][0]["id"] == "task_local_recent"
-    assert recent_data["recentTasks"][0]["mode"] == "pentest"
-    assert recent_data["recentTasks"][0]["modeSubtype"] == "unknown"
-    assert recent_data["recentTasks"][0]["goalStyle"] == "evidence"
-    assert (
-        recent_data["recentTasks"][0]["nextActionSummary"]
-        == "explore_first -> collect_initial_facts via blackboard.derived_target.runtime_derived"
+    original_builder = web_server._build_run_session_context
+    web_server._build_run_session_context = lambda project_root, run_id: (
+        {
+            "runId": run_id,
+            "recentEvents": [],
+            "latestCheckpoint": {
+                "checkpointId": "checkpoint-local-1",
+                "label": "task_running",
+                "stopReason": "waiting_for_verification",
+            },
+            "resumeContext": {
+                "runId": "run-prev-local-1",
+                "checkpointId": "checkpoint-prev-local-1",
+                "checkpointLabel": "task_finished",
+                "stopReason": "wrong_flag_feedback",
+                "summary": "run_id=run-prev-local-1; latest_checkpoint=task_finished; stop_reason=wrong_flag_feedback",
+            },
+        }
+        if run_id == "run_local_recent"
+        else {
+            "runId": run_id,
+            "recentEvents": [],
+            "latestCheckpoint": {
+                "checkpointId": "checkpoint-docker-1",
+                "label": "task_finished",
+                "stopReason": "missing tools",
+            },
+            "resumeContext": None,
+        }
     )
-    assert (
-        recent_data["recentTasks"][0]["activeDecisionSummary"]
-        == "explore_first -> collect_initial_facts via blackboard.derived_target.runtime_derived"
-    )
+    try:
+        recent_resp = await web_client.get("/api/dashboard/summary?window=24h&runtime=all")
+        assert recent_resp.status == 200
+        recent_data = await recent_resp.json()
+        assert recent_data["kpis"]["tasksToday"] == 1
+        assert recent_data["recentTasks"][0]["id"] == "task_local_recent"
+        assert recent_data["recentTasks"][0]["mode"] == "pentest"
+        assert recent_data["recentTasks"][0]["modeSubtype"] == "unknown"
+        assert recent_data["recentTasks"][0]["goalStyle"] == "evidence"
+        assert (
+            recent_data["recentTasks"][0]["nextActionSummary"]
+            == "explore_first -> collect_initial_facts via blackboard.derived_target.runtime_derived"
+        )
+        assert (
+            recent_data["recentTasks"][0]["activeDecisionSummary"]
+            == "explore_first -> collect_initial_facts via blackboard.derived_target.runtime_derived"
+        )
+        assert recent_data["recentTasks"][0]["resumeStateSummary"] == {
+            "hasResumeContext": True,
+            "runId": "run-prev-local-1",
+            "checkpointId": "checkpoint-prev-local-1",
+            "sourceEvent": None,
+            "stopReason": "wrong_flag_feedback",
+            "summary": "run-prev-local-1 -> checkpoint-prev-local-1",
+        }
+        assert recent_data["recentTasks"][0]["checkpointStateSummary"] == {
+            "checkpointId": "checkpoint-local-1",
+            "label": "task_running",
+            "stopReason": "waiting_for_verification",
+            "summary": "label=task_running · checkpoint=checkpoint-local-1 · stop=waiting_for_verification",
+        }
+        assert recent_data["recentTasks"][0]["runtimeOutcomeSummary"] == {
+            "status": "success",
+            "stopReason": "waiting_for_verification",
+            "finalFlag": None,
+            "summary": "status=success · stop=waiting_for_verification",
+        }
 
-    docker_resp = await web_client.get("/api/dashboard/summary?window=all&runtime=docker")
-    assert docker_resp.status == 200
-    docker_data = await docker_resp.json()
-    assert docker_data["kpis"]["tasksToday"] == 1
-    assert docker_data["recentTasks"][0]["id"] == "task_docker_old"
-    assert docker_data["recentTasks"][0]["mode"] == "ctf"
-    assert docker_data["recentTasks"][0]["modeSubtype"] == "web"
-    assert docker_data["recentTasks"][0]["goalStyle"] == "flag"
+        docker_resp = await web_client.get("/api/dashboard/summary?window=all&runtime=docker")
+        assert docker_resp.status == 200
+        docker_data = await docker_resp.json()
+        assert docker_data["kpis"]["tasksToday"] == 1
+        assert docker_data["recentTasks"][0]["id"] == "task_docker_old"
+        assert docker_data["recentTasks"][0]["mode"] == "ctf"
+        assert docker_data["recentTasks"][0]["modeSubtype"] == "web"
+        assert docker_data["recentTasks"][0]["goalStyle"] == "flag"
+        assert docker_data["recentTasks"][0]["resumeStateSummary"] == {
+            "hasResumeContext": False,
+            "runId": None,
+            "checkpointId": None,
+            "sourceEvent": None,
+            "stopReason": None,
+            "summary": None,
+        }
+        assert docker_data["recentTasks"][0]["checkpointStateSummary"] == {
+            "checkpointId": "checkpoint-docker-1",
+            "label": "task_finished",
+            "stopReason": "missing tools",
+            "summary": "label=task_finished · checkpoint=checkpoint-docker-1 · stop=missing tools",
+        }
+        assert docker_data["recentTasks"][0]["runtimeOutcomeSummary"] == {
+            "status": "failed",
+            "stopReason": "missing tools",
+            "finalFlag": None,
+            "summary": "status=failed · stop=missing tools",
+        }
+    finally:
+        web_server._build_run_session_context = original_builder
     for key in [
         "tokenSeries",
         "toolDistribution",
@@ -833,7 +906,27 @@ async def test_tasks_list_surfaces_lightweight_control_summaries(web_client: Tes
 
     assert created.status == 201
 
-    resp = await web_client.get("/api/tasks")
+    original_builder = web_server._build_run_session_context
+    web_server._build_run_session_context = lambda project_root, run_id: {
+        "runId": run_id,
+        "recentEvents": [],
+        "latestCheckpoint": {
+            "checkpointId": "checkpoint-list-1",
+            "label": "task_finished",
+            "stopReason": "flag_verified",
+        },
+        "resumeContext": {
+            "runId": "run-prev-list-1",
+            "checkpointId": "checkpoint-prev-list-1",
+            "checkpointLabel": "task_finished",
+            "stopReason": "wrong_flag_feedback",
+            "summary": "run_id=run-prev-list-1; latest_checkpoint=task_finished; stop_reason=wrong_flag_feedback",
+        },
+    }
+    try:
+        resp = await web_client.get("/api/tasks")
+    finally:
+        web_server._build_run_session_context = original_builder
 
     assert resp.status == 200
     items = await resp.json()
@@ -858,6 +951,26 @@ async def test_tasks_list_surfaces_lightweight_control_summaries(web_client: Tes
         "alignment": None,
         "alignmentReason": None,
         "summary": "explore_first -> collect_initial_facts via blackboard.derived_target.runtime_derived",
+    }
+    assert task["resumeStateSummary"] == {
+        "hasResumeContext": True,
+        "runId": "run-prev-list-1",
+        "checkpointId": "checkpoint-prev-list-1",
+        "sourceEvent": None,
+        "stopReason": "wrong_flag_feedback",
+        "summary": "run-prev-list-1 -> checkpoint-prev-list-1",
+    }
+    assert task["checkpointStateSummary"] == {
+        "checkpointId": "checkpoint-list-1",
+        "label": "task_finished",
+        "stopReason": "flag_verified",
+        "summary": "label=task_finished · checkpoint=checkpoint-list-1 · stop=flag_verified",
+    }
+    assert task["runtimeOutcomeSummary"] == {
+        "status": "queued",
+        "stopReason": "flag_verified",
+        "finalFlag": None,
+        "summary": "status=queued · stop=flag_verified",
     }
 
 
