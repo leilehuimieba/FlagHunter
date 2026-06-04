@@ -166,6 +166,10 @@
   已补顶层 `decisionProvenance` summary，推荐动作来源与 strongest hypothesis 已从黑板内部字段提升为直接展示合同
 - `recommendedActionSwitchedFrom / recommendedActionTriggerReason`
   已进入 `controlDecision.facts` 与 `decisionProvenance`，候选切换原因不再只埋在 `recommendedAction` 内部
+- `dispatcher_started / control_action_started / control_action_completed`
+  已补 `switched_from / trigger_reason`，follow-up provenance 已真正进入 runtime 审计链
+- `blackboardSnapshot.activeDecision / actionResults`
+  已能从 runtime events 重建 `switchedFrom / triggerReason`
 
 ### 4.2 控制链还缺“失败反馈 / 候选切换”这一段
 

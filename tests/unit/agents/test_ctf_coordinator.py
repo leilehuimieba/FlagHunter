@@ -2607,6 +2607,8 @@ async def test_coordinator_records_initial_fact_collection_observation_before_re
             "nextAction=collect_initial_facts\n"
             "driver=blackboard.derived_target.runtime_derived\n"
             "reason=derived target available for initial fact collection\n"
+            "recommendedActionSwitchedFrom=bootstrap_local_assets\n"
+            "recommendedActionTriggerReason=compose parsing failed\n"
             "strongestHypothesisKind=generic_web_recon\n"
             "strongestHypothesisStatus=active\n"
             "strongestHypothesisConfidence=0.52"
@@ -2628,6 +2630,8 @@ async def test_coordinator_records_initial_fact_collection_observation_before_re
     assert latest[3]["driver"] == "blackboard.derived_target.runtime_derived"
     assert latest[3]["reason"] == "derived target available for initial fact collection"
     assert latest[3]["next_action"] == "collect_initial_facts"
+    assert latest[3]["switched_from"] == "bootstrap_local_assets"
+    assert latest[3]["trigger_reason"] == "compose parsing failed"
     assert latest[3]["strongest_hypothesis_kind"] == "generic_web_recon"
     assert latest[3]["strongest_hypothesis_status"] == "active"
     assert latest[3]["strongest_hypothesis_confidence"] == 0.52
@@ -2722,7 +2726,9 @@ async def test_coordinator_records_control_action_events_for_initial_fact_collec
             "decisionKind=explore_first\n"
             "nextAction=collect_initial_facts\n"
             "driver=blackboard.derived_target.runtime_derived\n"
-            "reason=derived target available for initial fact collection"
+            "reason=derived target available for initial fact collection\n"
+            "recommendedActionSwitchedFrom=bootstrap_local_assets\n"
+            "recommendedActionTriggerReason=compose parsing failed"
         ),
         submit_profile=None,
         challenge_context={"artifactPaths": []},
@@ -2738,9 +2744,15 @@ async def test_coordinator_records_control_action_events_for_initial_fact_collec
         "control_action_started",
         "control_action_completed",
     ]
+    assert captured["recorded_events"][0][1]["switched_from"] == "bootstrap_local_assets"
+    assert captured["recorded_events"][0][1]["trigger_reason"] == "compose parsing failed"
     assert captured["recorded_events"][1][1]["action"] == "collect_initial_facts"
+    assert captured["recorded_events"][1][1]["switched_from"] == "bootstrap_local_assets"
+    assert captured["recorded_events"][1][1]["trigger_reason"] == "compose parsing failed"
     assert captured["recorded_events"][2][1]["action"] == "collect_initial_facts"
     assert captured["recorded_events"][2][1]["result"] == "ok"
+    assert captured["recorded_events"][2][1]["switched_from"] == "bootstrap_local_assets"
+    assert captured["recorded_events"][2][1]["trigger_reason"] == "compose parsing failed"
 
 
 @pytest.mark.asyncio

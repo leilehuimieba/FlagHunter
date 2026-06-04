@@ -45,6 +45,8 @@ def test_build_control_action_events_keep_driver_and_result_contract() -> None:
         target="http://ctf.local",
         expected_action="bootstrap_local_assets",
         alignment="matched",
+        switched_from="probe_discovered_endpoint",
+        trigger_reason="endpoint probe returned empty findings",
     )
     completed = build_control_action_completed_event(
         action="bootstrap_local_assets",
@@ -53,6 +55,8 @@ def test_build_control_action_events_keep_driver_and_result_contract() -> None:
         result="ok",
         target="http://ctf.local",
         details={"ingested": 2},
+        switched_from="probe_discovered_endpoint",
+        trigger_reason="endpoint probe returned empty findings",
     )
 
     assert started == {
@@ -64,6 +68,8 @@ def test_build_control_action_events_keep_driver_and_result_contract() -> None:
             "target": "http://ctf.local",
             "expected_action": "bootstrap_local_assets",
             "alignment": "matched",
+            "switched_from": "probe_discovered_endpoint",
+            "trigger_reason": "endpoint probe returned empty findings",
         },
     }
     assert completed == {
@@ -75,6 +81,8 @@ def test_build_control_action_events_keep_driver_and_result_contract() -> None:
             "result": "ok",
             "target": "http://ctf.local",
             "details": {"ingested": 2},
+            "switched_from": "probe_discovered_endpoint",
+            "trigger_reason": "endpoint probe returned empty findings",
         },
     }
 

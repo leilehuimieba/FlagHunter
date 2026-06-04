@@ -789,6 +789,8 @@ def test_build_task_blackboard_snapshot_projects_first_action_alignment_into_act
                         "expected_action": "collect_initial_facts",
                         "alignment": "mismatched",
                         "alignment_reason": "runtime verification preempted planned first action",
+                        "switched_from": "collect_initial_facts",
+                        "trigger_reason": "runtime verifier rejected candidate",
                         "driver": "blackboard.runtime_flag",
                     },
                 },
@@ -800,6 +802,8 @@ def test_build_task_blackboard_snapshot_projects_first_action_alignment_into_act
                         "driver": "blackboard.runtime_flag",
                         "result": "ok",
                         "details": {"verified": True},
+                        "switched_from": "collect_initial_facts",
+                        "trigger_reason": "runtime verifier rejected candidate",
                     },
                 },
             ]
@@ -815,6 +819,8 @@ def test_build_task_blackboard_snapshot_projects_first_action_alignment_into_act
         "observedAction": "verify_runtime_signal",
         "alignment": "mismatched",
         "alignmentReason": "runtime verification preempted planned first action",
+        "switchedFrom": "collect_initial_facts",
+        "triggerReason": "runtime verifier rejected candidate",
     }
     assert snapshot["action_results"] == [
         {
@@ -826,6 +832,8 @@ def test_build_task_blackboard_snapshot_projects_first_action_alignment_into_act
             "expectedAction": "collect_initial_facts",
             "alignment": "mismatched",
             "alignmentReason": "runtime verification preempted planned first action",
+            "switchedFrom": "collect_initial_facts",
+            "triggerReason": "runtime verifier rejected candidate",
         }
     ]
 
