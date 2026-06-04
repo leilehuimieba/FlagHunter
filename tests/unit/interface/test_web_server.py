@@ -3804,6 +3804,64 @@ def test_build_trace_payload_projects_artifacts_checkpoint_and_outcomes_from_ses
         "notes": [],
         "knowledgeHits": [],
         "attachments": [],
+        "controlDecision": {
+            "shouldRun": True,
+            "decisionKind": "explore_first",
+            "nextAction": "collect_initial_facts",
+            "driver": "blackboard.derived_target.runtime_derived",
+            "reason": "candidate needs stronger runtime confirmation",
+        },
+        "blackboardSnapshot": {
+            "facts": [],
+            "hypotheses": [],
+            "pendingVerifications": [],
+            "decisions": [],
+            "candidates": [],
+            "actionResults": [],
+            "recommendedAction": {},
+            "activeDecision": {
+                "decisionKind": "explore_first",
+                "driver": "blackboard.derived_target.runtime_derived",
+                "nextAction": "collect_initial_facts",
+                "observedAction": "explore_agenda",
+                "alignment": "mismatched",
+                "alignmentReason": "candidate needs stronger runtime confirmation",
+                "switchedFrom": "probe_discovered_endpoint",
+                "triggerReason": "candidate needs stronger runtime confirmation",
+                "strongestHypothesisKind": "generic_web_recon",
+                "strongestHypothesisStatus": "active",
+                "strongestHypothesisConfidence": 0.72,
+            },
+        },
+        "ctfStateSnapshot": {
+            "target": "http://trace.test",
+            "goal": "trace harness projection",
+            "detected_type": "web",
+            "observations": [
+                {
+                    "kind": "source_leak_exploit_candidate",
+                    "value": "profile_photo_poisoning",
+                    "source": "backup_source_leak",
+                    "metadata": {
+                        "artifact_url": "http://trace.test/backup.zip",
+                        "exploit_info": {"type": "profile_photo_poisoning"},
+                    },
+                }
+            ],
+            "hypotheses": [],
+            "verified_flags": [],
+            "runtime_flags": [],
+            "artifacts": [],
+            "rejected_flags": [],
+            "exploration_agenda": [],
+            "wrong_flag_history": [],
+            "uniform_failures": [],
+            "llm_exploration_log": [],
+            "pre_action_reasonings": [],
+            "weak_decision_log": [],
+            "strategy_memory_hits": [],
+            "notes": [],
+        },
     }
 
     monkeypatch.setattr(web_server, "_pick_metrics_for_task", lambda project_root, item: None)
@@ -3888,9 +3946,18 @@ def test_build_trace_payload_projects_artifacts_checkpoint_and_outcomes_from_ses
     assert payload["sessionArtifacts"][0]["title"] == "ssti_response_dump"
     assert payload["latestCheckpoint"]["checkpointId"] == "checkpoint-1"
     assert payload["latestCheckpoint"]["stopReason"] == "verifier_reject"
-    assert any(event["kind"] == "verification_decision" for event in payload["outcomeEvents"])
-    assert any(event["kind"] == "recovery_decision" for event in payload["outcomeEvents"])
-    assert any(event["kind"] == "task_finished" for event in payload["outcomeEvents"])
+    verification_event = [event for event in payload["outcomeEvents"] if event["kind"] == "verification_decision"][0]
+    recovery_event = [event for event in payload["outcomeEvents"] if event["kind"] == "recovery_decision"][0]
+    finished_event = [event for event in payload["outcomeEvents"] if event["kind"] == "task_finished"][0]
+    assert "profile_photo_poisoning" in verification_event["summary"]
+    assert "generic_web_recon" in verification_event["summary"]
+    assert "backup_source_leak" in verification_event["output"]
+    assert "probe_discovered_endpoint" in recovery_event["summary"]
+    assert "generic_web_recon" in recovery_event["summary"]
+    assert "candidate needs stronger runtime confirmation" in recovery_event["output"]
+    assert "profile_photo_poisoning" in finished_event["summary"]
+    assert "generic_web_recon" in finished_event["summary"]
+    assert "http://trace.test/backup.zip" in finished_event["output"]
 
 
 def test_build_trace_payload_projects_dispatcher_started_outcome_event(

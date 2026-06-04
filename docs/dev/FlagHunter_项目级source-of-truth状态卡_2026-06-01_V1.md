@@ -201,6 +201,8 @@
   当前 task detail / trace payload 已会直接返回 `exploitProvenance`，可顶层展示 `sourceType / exploitKind / observationSource / artifactUrl`
 - `exploitProvenance -> outcomeEvents`
   当前 `dispatcher_started` 与 `control_action_started / completed` 已会把 `exploitProvenance` 投进 summary / output，Trace Detail 事件流可直接看到 exploit 来源，而不必只靠顶层 payload 或回翻 observation
+- `actionPathSummary / exploitProvenance -> failure outcomeEvents`
+  当前 `verification_decision / recovery_decision / task_finished` 也已开始继承 `actionPathSummary + exploitProvenance`，Trace Detail 可直接看到 strongest hypothesis、候选切换来源与 exploit 来源，不必再手工回拼黑板上下文
 - `ctfStateSnapshot` 恢复容错
   当前 `CTFState.from_snapshot` 会忽略未知字段再恢复，detail/trace 不会再因为快照里夹带额外键而丢失整份 observation truth
 
