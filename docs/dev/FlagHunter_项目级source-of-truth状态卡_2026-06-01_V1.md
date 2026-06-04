@@ -205,6 +205,8 @@
   当前 `verification_decision / recovery_decision / task_finished` 也已开始继承 `actionPathSummary + exploitProvenance`，Trace Detail 可直接看到 strongest hypothesis、候选切换来源与 exploit 来源，不必再手工回拼黑板上下文
 - `latestCheckpoint / resumeContext -> checkpoint_written outcome`
   当前 `checkpoint_written` 也已开始继承 resume truth；即使 `sessionContext.resumeContext` 缺失，也会从 `runId + latestCheckpoint` 兜底恢复 `resume_context / resume_summary`，Trace Detail 可直接看到 checkpoint 与 resume 入口合同
+- `resumeIngress` 顶层投影
+  当前 task detail / trace payload 已会直接返回 `resumeIngress`；即使 session context 尚未预投影，也会从 `dispatcher_started` 里的 resume 字段兜底恢复，前端不必再深入 session event 才能识别恢复入口
 - `ctfStateSnapshot` 恢复容错
   当前 `CTFState.from_snapshot` 会忽略未知字段再恢复，detail/trace 不会再因为快照里夹带额外键而丢失整份 observation truth
 

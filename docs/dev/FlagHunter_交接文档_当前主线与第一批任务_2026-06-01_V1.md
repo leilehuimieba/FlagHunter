@@ -250,6 +250,7 @@
 - Web Trace `outcomeEvents` 现也会继承 `exploitProvenance`：`dispatcher_started` 与 `control_action_started / completed` 的 summary / output 已能直接看到 `exploitKind / observationSource / artifactUrl`，事件流阅读不必再回跳顶层 payload
 - Web Trace `outcomeEvents` 的失败反馈段也已开始 truth-first：`verification_decision / recovery_decision / task_finished` 现在会继承 `exploitProvenance + actionPathSummary`，可直接读到 `exploitKind / strongestHypothesis / switchedFrom / triggerReason`
 - Web Trace `checkpoint_written` 也已开始继承 resume truth：即使 `sessionContext.resumeContext` 为空，也会从 `runId + latestCheckpoint` 兜底恢复 `resume_context / resume_summary`，Trace Detail 可直接看 checkpoint 与后续 resume 入口合同
+- `resumeIngress` 现也已提升为 Task Detail / Trace 顶层合同：即使 session context 里还没预先投影 `resumeIngress`，也会从 `dispatcher_started` 事件兜底恢复 `runId / checkpointId / sourceEvent / stopReason / summary`
 - `CTFState.from_snapshot` 现已改为忽略未知字段后再恢复，避免 detail/trace 因快照里混入非 dataclass 字段而把整份 state 吞空
 
 ---

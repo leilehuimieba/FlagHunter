@@ -4060,6 +4060,9 @@ def test_build_trace_payload_projects_dispatcher_started_outcome_event(
                         "requested_type": "web",
                         "local_challenge_auto_verify": True,
                         "has_challenge_context": True,
+                        "has_resume_context": True,
+                        "resume_run_id": "run-prev-1",
+                        "resume_checkpoint_id": "checkpoint-prev-1",
                         "decision_kind": "direct_execute",
                         "next_action": "bootstrap_local_assets",
                         "decision_driver": "task.local_assets",
@@ -4067,8 +4070,24 @@ def test_build_trace_payload_projects_dispatcher_started_outcome_event(
                 }
             ],
             "artifacts": [],
-            "latestCheckpoint": None,
-            "resumeContext": None,
+            "latestCheckpoint": {
+                "checkpointId": "checkpoint-prev-1",
+                "label": "task_failed",
+                "t": "2026-05-29T09:59:59+00:00",
+                "metadata": {"success": False},
+                "stopReason": "wrong_flag_feedback",
+                "verifiedFlags": [],
+                "runtimeFlags": [],
+                "artifactCount": 0,
+                "observationCount": 1,
+            },
+            "resumeContext": {
+                "runId": "run-prev-1",
+                "checkpointId": "checkpoint-prev-1",
+                "checkpointLabel": "task_failed",
+                "stopReason": "wrong_flag_feedback",
+                "summary": "run_id=run-prev-1; latest_checkpoint=task_failed; stop_reason=wrong_flag_feedback",
+            },
         },
     )
 
@@ -4084,6 +4103,14 @@ def test_build_trace_payload_projects_dispatcher_started_outcome_event(
     assert "php_unserialize" in event["summary"]
     assert "backup_source_leak" in event["output"]
     assert "http://trace.test/backup.zip" in event["output"]
+    assert payload["resumeIngress"] == {
+        "hasResumeContext": True,
+        "runId": "run-prev-1",
+        "checkpointId": "checkpoint-prev-1",
+        "sourceEvent": "dispatcher_started",
+        "summary": "run-prev-1 -> checkpoint-prev-1",
+        "stopReason": "wrong_flag_feedback",
+    }
 
 
 def test_build_trace_payload_projects_control_action_outcome_events(
@@ -4685,6 +4712,14 @@ def test_task_detail_payload_includes_harness_resume_ingress(
         "runId": "run-prev-1",
         "checkpointId": "checkpoint-prev-1",
         "sourceEvent": "dispatcher_started",
+    }
+    assert detail["resumeIngress"] == {
+        "hasResumeContext": True,
+        "runId": "run-prev-1",
+        "checkpointId": "checkpoint-prev-1",
+        "sourceEvent": "dispatcher_started",
+        "summary": "run-prev-1 -> checkpoint-prev-1",
+        "stopReason": "wrong_flag_feedback",
     }
 
 
