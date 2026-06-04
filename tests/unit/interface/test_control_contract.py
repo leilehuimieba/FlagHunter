@@ -617,6 +617,8 @@ def test_recommended_action_in_blackboard_can_override_local_assets_fallback() -
                 "driver": "blackboard.derived_target.runtime_derived",
                 "sourceType": "observation",
                 "reason": "selected action failed; switch to next best candidate",
+                "switchedFrom": "probe_discovered_endpoint",
+                "triggerReason": "endpoint probe returned empty findings",
                 "triggerActionDriver": "blackboard.derived_target.runtime_derived",
                 "triggerAt": "2026-06-03T10:00:02+00:00",
                 "strongestHypothesisKind": "generic_web_recon",
@@ -635,6 +637,8 @@ def test_recommended_action_in_blackboard_can_override_local_assets_fallback() -
     assert decision["reason"] == "selected action failed; switch to next best candidate"
     assert "blackboard.recommended_action=present" in decision["facts"]
     assert "recommendedActionSourceType=observation" in decision["facts"]
+    assert "recommendedActionSwitchedFrom=probe_discovered_endpoint" in decision["facts"]
+    assert "recommendedActionTriggerReason=endpoint probe returned empty findings" in decision["facts"]
     assert "recommendedActionTriggerActionDriver=blackboard.derived_target.runtime_derived" in decision["facts"]
     assert "recommendedActionTriggerAt=2026-06-03T10:00:02+00:00" in decision["facts"]
     assert "strongestHypothesisKind=generic_web_recon" in decision["facts"]

@@ -164,6 +164,8 @@
   已开始消费 `recommendedAction.sourceType / triggerActionDriver / triggerAt`，展示层真值已进一步接进决策事实层
 - `Task Detail / Trace Detail`
   已补顶层 `decisionProvenance` summary，推荐动作来源与 strongest hypothesis 已从黑板内部字段提升为直接展示合同
+- `recommendedActionSwitchedFrom / recommendedActionTriggerReason`
+  已进入 `controlDecision.facts` 与 `decisionProvenance`，候选切换原因不再只埋在 `recommendedAction` 内部
 
 ### 4.2 控制链还缺“失败反馈 / 候选切换”这一段
 

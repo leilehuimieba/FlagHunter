@@ -1535,6 +1535,8 @@ async def test_task_detail_surfaces_suppressed_recommended_action(web_client: Te
     assert detail["controlDecision"]["suppressedRecommendation"]["suppressedBy"] == "blackboard.verified_flag"
     assert detail["decisionProvenance"] == {
         "recommendedActionSourceType": None,
+        "recommendedActionSwitchedFrom": None,
+        "recommendedActionTriggerReason": None,
         "recommendedActionTriggerActionDriver": None,
         "recommendedActionTriggerAt": None,
         "strongestHypothesisKind": None,
@@ -2924,6 +2926,8 @@ def test_build_trace_payload_surfaces_suppressed_recommended_action(
     assert payload["decisionRecords"][0]["suppressedRecommendation"]["driver"] == "blackboard.derived_target.runtime_derived"
     assert payload["decisionProvenance"] == {
         "recommendedActionSourceType": None,
+        "recommendedActionSwitchedFrom": None,
+        "recommendedActionTriggerReason": None,
         "recommendedActionTriggerActionDriver": None,
         "recommendedActionTriggerAt": None,
         "strongestHypothesisKind": None,
@@ -2951,20 +2955,22 @@ def test_build_trace_payload_surfaces_decision_provenance_summary(
         "tokensUsed": 1,
         "toolCalls": 0,
         "currentRunId": "run_trace_decision_provenance",
-        "controlDecision": {
-            "shouldRun": True,
-            "decisionKind": "direct_execute",
-            "reason": "selected action failed; switch to next best candidate",
-            "nextAction": "collect_initial_facts",
-            "driver": "blackboard.derived_target.runtime_derived",
-            "facts": [
-                "mode=ctf",
-                "recommendedActionSourceType=observation",
-                "recommendedActionTriggerActionDriver=blackboard.derived_target.runtime_derived",
-                "recommendedActionTriggerAt=2026-06-03T10:00:02+00:00",
-                "strongestHypothesisKind=generic_web_recon",
-                "strongestHypothesisStatus=active",
-                "strongestHypothesisConfidence=0.52",
+            "controlDecision": {
+                "shouldRun": True,
+                "decisionKind": "direct_execute",
+                "reason": "selected action failed; switch to next best candidate",
+                "nextAction": "collect_initial_facts",
+                "driver": "blackboard.derived_target.runtime_derived",
+                "facts": [
+                    "mode=ctf",
+                    "recommendedActionSourceType=observation",
+                    "recommendedActionSwitchedFrom=probe_discovered_endpoint",
+                    "recommendedActionTriggerReason=endpoint probe returned empty findings",
+                    "recommendedActionTriggerActionDriver=blackboard.derived_target.runtime_derived",
+                    "recommendedActionTriggerAt=2026-06-03T10:00:02+00:00",
+                    "strongestHypothesisKind=generic_web_recon",
+                    "strongestHypothesisStatus=active",
+                    "strongestHypothesisConfidence=0.52",
             ],
         },
         "blackboardSnapshot": {
@@ -2982,6 +2988,8 @@ def test_build_trace_payload_surfaces_decision_provenance_summary(
                 "driver": "blackboard.derived_target.runtime_derived",
                 "sourceType": "observation",
                 "reason": "selected action failed; switch to next best candidate",
+                "switchedFrom": "probe_discovered_endpoint",
+                "triggerReason": "endpoint probe returned empty findings",
                 "triggerActionDriver": "blackboard.derived_target.runtime_derived",
                 "triggerAt": "2026-06-03T10:00:02+00:00",
                 "strongestHypothesisKind": "generic_web_recon",
@@ -3013,6 +3021,8 @@ def test_build_trace_payload_surfaces_decision_provenance_summary(
 
     assert payload["decisionProvenance"] == {
         "recommendedActionSourceType": "observation",
+        "recommendedActionSwitchedFrom": "probe_discovered_endpoint",
+        "recommendedActionTriggerReason": "endpoint probe returned empty findings",
         "recommendedActionTriggerActionDriver": "blackboard.derived_target.runtime_derived",
         "recommendedActionTriggerAt": "2026-06-03T10:00:02+00:00",
         "strongestHypothesisKind": "generic_web_recon",
@@ -4716,6 +4726,8 @@ async def test_task_detail_surfaces_decision_provenance_summary(web_client: Test
                     "driver": "blackboard.derived_target.runtime_derived",
                     "sourceType": "observation",
                     "reason": "selected action failed; switch to next best candidate",
+                    "switchedFrom": "probe_discovered_endpoint",
+                    "triggerReason": "endpoint probe returned empty findings",
                     "triggerActionDriver": "blackboard.derived_target.runtime_derived",
                     "triggerAt": "2026-06-03T10:00:02+00:00",
                     "strongestHypothesisKind": "generic_web_recon",
@@ -4736,6 +4748,8 @@ async def test_task_detail_surfaces_decision_provenance_summary(web_client: Test
 
     assert detail["decisionProvenance"] == {
         "recommendedActionSourceType": "observation",
+        "recommendedActionSwitchedFrom": "probe_discovered_endpoint",
+        "recommendedActionTriggerReason": "endpoint probe returned empty findings",
         "recommendedActionTriggerActionDriver": "blackboard.derived_target.runtime_derived",
         "recommendedActionTriggerAt": "2026-06-03T10:00:02+00:00",
         "strongestHypothesisKind": "generic_web_recon",

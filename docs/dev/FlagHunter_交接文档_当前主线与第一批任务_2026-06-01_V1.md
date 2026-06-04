@@ -69,6 +69,7 @@
 - 已补 `candidates / recommendedAction.sourceType`，当前可区分 `observation / verification / ingress`
 - 已补 `control_contract <- recommendedAction.sourceType / trigger provenance` 消费，黑板解释字段已开始进入实际决策层
 - 已补 Task Detail / Trace 顶层 `decisionProvenance` summary，前端不必再深入 `blackboardSnapshot.recommendedAction` 或 `controlDecision.facts` 才能读到来源与 strongest hypothesis
+- 已补 `recommendedActionSwitchedFrom / recommendedActionTriggerReason`，候选切换的“从哪切来 / 因为什么切”已进入 `controlDecision.facts` 与 `decisionProvenance`
 - 下一步继续补候选动作层 / 切换理由稳定来源与前端更直接展示
 
 完成标准：
@@ -177,6 +178,8 @@
    - `Trace Detail` 已有 `decisionProvenance`
    - 当前字段：
      - `recommendedActionSourceType`
+     - `recommendedActionSwitchedFrom`
+     - `recommendedActionTriggerReason`
      - `recommendedActionTriggerActionDriver`
      - `recommendedActionTriggerAt`
      - `strongestHypothesisKind / Status / Confidence`
