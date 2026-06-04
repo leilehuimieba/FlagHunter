@@ -178,6 +178,8 @@
   已开始按 recommendation 有无做分流：有明确 `recommendedAction.action` 时刷新 follow-up；否则保留 `resume_execute`
 - `ctf_dispatcher` 内部策略选择
   已开始直接消费结构化 `ingress_handoff.nextAction`（当前已接 `exploit_identified_engine / validate_leaked_secret`）
+- `probe_discovered_endpoint`
+  已开始通过结构化 `ingressHandoff.endpoint` 驱动 recon target，coordinator 现在优先读结构化 endpoint，再回退 hint 文本
 
 ### 4.2 控制链还缺“失败反馈 / 候选切换”这一段
 

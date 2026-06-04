@@ -1763,6 +1763,49 @@ async def test_recon_contract_prefers_discovered_endpoint_from_control_decision_
     assert page_features["url"] == "http://challenge.test/admin"
 
 
+@pytest.mark.asyncio
+async def test_recon_contract_prefers_discovered_endpoint_from_structured_ingress_handoff(monkeypatch):
+    captured: dict[str, object] = {}
+
+    async def _fake_phase_recon(target):
+        captured["recon_target"] = target
+        return {
+            "url": target,
+            "html": "",
+            "content": "",
+            "forms": [],
+            "endpoints": [],
+            "recon_missing_tools": [],
+        }
+
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://challenge.test",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher._ingress_handoff = {
+        "decisionKind": "direct_execute",
+        "nextAction": "probe_discovered_endpoint",
+        "endpoint": "http://challenge.test/admin",
+    }
+    monkeypatch.setattr(dispatcher, "_phase_recon", _fake_phase_recon)
+
+    page_features, early_result = await dispatcher.coordinator._apply_recon_contract(
+        dispatcher,
+        target="http://challenge.test",
+        hint="",
+    )
+
+    assert early_result is None
+    assert captured["recon_target"] == "http://challenge.test/admin"
+    assert page_features["url"] == "http://challenge.test/admin"
+
+
 def test_select_primary_strategy_prefers_source_first_when_local_source_hints_exist():
     dispatcher = CTFTaskDispatcher(
         runtime=_DispatcherRuntime(),

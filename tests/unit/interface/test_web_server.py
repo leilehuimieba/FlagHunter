@@ -437,6 +437,36 @@ def test_ctf_dispatcher_hint_includes_discovered_endpoint_for_probe_action():
     assert "endpoint=http://challenge.test/admin" in hint
 
 
+def test_build_ingress_handoff_includes_structured_endpoint_for_probe_action():
+    task = {
+        "controlDecision": {
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "reason": "discovered endpoint present in blackboard",
+            "nextAction": "probe_discovered_endpoint",
+            "driver": "blackboard.discovered_endpoint",
+        },
+        "ctfStateSnapshot": {
+            "observations": [
+                {
+                    "kind": "recon_url",
+                    "value": "http://challenge.test/admin",
+                    "source": "recon",
+                    "metadata": {"confidence": "high"},
+                }
+            ],
+            "artifacts": [],
+            "runtime_flags": [],
+            "verified_flags": [],
+        },
+    }
+
+    handoff = web_server._build_ingress_handoff(task)
+
+    assert handoff["nextAction"] == "probe_discovered_endpoint"
+    assert handoff["endpoint"] == "http://challenge.test/admin"
+
+
 def test_ctf_dispatcher_hint_includes_runtime_flag_for_verify_runtime_signal():
     task = {
         "hints": [{"text": "focus on runtime verification"}],
