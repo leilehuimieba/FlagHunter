@@ -2756,6 +2756,150 @@ async def test_coordinator_records_control_action_events_for_initial_fact_collec
 
 
 @pytest.mark.asyncio
+async def test_coordinator_collect_initial_facts_from_structured_ingress_handoff_without_hint(
+    tmp_path: Path,
+):
+    coordinator = CTFCoordinator()
+    sentinel = SolveResult(success=False, reason="initial-fact-structured-handoff")
+    captured: dict[str, object] = {}
+
+    class _CapabilityRegistry:
+        async def full_check(self):
+            return None
+
+        def to_dict(self):
+            return {}
+
+    class _Dispatcher:
+        def __init__(self):
+            self._notes_log = []
+            self._challenge_context = None
+            self._ledger_run_id = None
+            self._current_fingerprint = None
+            self._memory_match_ids = []
+            self._pending_wrong_flag_feedback = []
+            self._exhausted_visit_url_targets = set()
+            self.reasoning_layer = SimpleNamespace(degradation_events=[])
+            self.state = None
+            self.recorded_events: list[tuple[str, dict[str, object]]] = []
+            self.written_checkpoints: list[tuple[str, dict[str, object]]] = []
+            self.capability_registry = _CapabilityRegistry()
+            self._ingress_handoff = {
+                "decisionKind": "explore_first",
+                "nextAction": "collect_initial_facts",
+                "driver": "blackboard.derived_target.runtime_derived",
+                "reason": "derived target available for initial fact collection",
+                "sourceType": "observation",
+                "switchedFrom": "probe_discovered_endpoint",
+                "triggerReason": "endpoint probe returned empty findings",
+                "triggerActionDriver": "blackboard.derived_target.runtime_derived",
+                "triggerAt": "2026-06-03T10:00:02+00:00",
+                "strongestHypothesisKind": "generic_web_recon",
+                "strongestHypothesisStatus": "active",
+                "strongestHypothesisConfidence": 0.52,
+            }
+
+        def _setup_session_ledger(self, *, run_id=None, ledger_root=None):
+            self._ledger_run_id = run_id
+
+        def _setup_artifact_registry(self, *, run_id=None, registry_root=None):
+            return None
+
+        def _setup_checkpoint_store(self, *, run_id=None, checkpoint_root=None):
+            return None
+
+        def _apply_submit_profile(self, submit_profile):
+            return None
+
+        async def _start_failover_monitor_if_available(self):
+            return None
+
+        def _record_session_event(self, event_type: str, payload: dict[str, object]):
+            self.recorded_events.append((event_type, dict(payload)))
+
+        def _write_checkpoint(self, label: str, payload: dict[str, object]):
+            self.written_checkpoints.append((label, dict(payload)))
+
+        def _load_rejected_flags(self):
+            return None
+
+        async def _snapshot_platform_context(self, target: str):
+            return None
+
+        async def _phase_recon(self, target: str):
+            if self.state is not None:
+                captured["observations"] = list(self.state.observations)
+            return {
+                "html": "<html></html>",
+                "content": "portal",
+                "forms": [],
+                "endpoints": ["/"],
+                "recon_missing_tools": [],
+            }
+
+        def _ingest_local_challenge_artifacts(self, target: str):
+            return None
+
+        def _emit(self, message: str):
+            return None
+
+        def _record_ingress_handoff_observations(self, ingress_handoff):
+            return None
+
+        async def run(self, **kwargs):
+            captured["recorded_events"] = list(self.recorded_events)
+            if self.state is not None:
+                captured["observations"] = list(self.state.observations)
+            return sentinel
+
+    dispatcher = _Dispatcher()
+
+    result = await coordinator.execute(
+        dispatcher,
+        target="127.0.0.1:3000",
+        goal="goal",
+        type="web",
+        hint="",
+        submit_profile=None,
+        challenge_context={"artifactPaths": []},
+        ingress_handoff=dispatcher._ingress_handoff,
+        run_id="run-structured-initial-facts",
+        ledger_root=tmp_path / "ledgers",
+        checkpoint_root=tmp_path / "checkpoints",
+    )
+
+    assert result is sentinel
+    event_types = [event_type for event_type, _ in captured["recorded_events"]]
+    assert event_types[:3] == [
+        "dispatcher_started",
+        "control_action_started",
+        "control_action_completed",
+    ]
+    assert captured["recorded_events"][0][1]["next_action"] == "collect_initial_facts"
+    assert captured["recorded_events"][0][1]["switched_from"] == "probe_discovered_endpoint"
+    assert captured["recorded_events"][0][1]["trigger_reason"] == "endpoint probe returned empty findings"
+    assert captured["recorded_events"][1][1]["action"] == "collect_initial_facts"
+    assert captured["recorded_events"][1][1]["switched_from"] == "probe_discovered_endpoint"
+    assert captured["recorded_events"][1][1]["trigger_reason"] == "endpoint probe returned empty findings"
+    observations = list(captured.get("observations") or [])
+    requested = [item for item in observations if getattr(item, "kind", "") == "initial_fact_collection_requested"]
+    assert requested
+    latest = requested[-1]
+    assert latest.value == "http://127.0.0.1:3000"
+    assert latest.source == "control_decision"
+    assert latest.metadata["driver"] == "blackboard.derived_target.runtime_derived"
+    assert latest.metadata["reason"] == "derived target available for initial fact collection"
+    assert latest.metadata["source_type"] == "observation"
+    assert latest.metadata["switched_from"] == "probe_discovered_endpoint"
+    assert latest.metadata["trigger_reason"] == "endpoint probe returned empty findings"
+    assert latest.metadata["trigger_action_driver"] == "blackboard.derived_target.runtime_derived"
+    assert latest.metadata["trigger_at"] == "2026-06-03T10:00:02+00:00"
+    assert latest.metadata["strongest_hypothesis_kind"] == "generic_web_recon"
+    assert latest.metadata["strongest_hypothesis_status"] == "active"
+    assert latest.metadata["strongest_hypothesis_confidence"] == 0.52
+
+
+@pytest.mark.asyncio
 async def test_coordinator_bootstraps_local_assets_before_pre_recon_when_requested():
     coordinator = CTFCoordinator()
     sentinel = SolveResult(success=False, reason="bootstrap-first")

@@ -181,6 +181,8 @@
 - `probe_discovered_endpoint`
   已开始通过结构化 `ingressHandoff.endpoint` 驱动 recon target，coordinator 现在优先读结构化 endpoint，再回退 hint 文本
   且 Web / MCP 两条 ingress 已完成同级对齐，不再只有 Web 入口带结构化 endpoint
+- `collect_initial_facts`
+  已开始消费结构化 `ingressHandoff` 的 follow-up provenance；当前 Web / MCP handoff 已能带 `driver / reason / sourceType / switchedFrom / triggerReason / triggerActionDriver / triggerAt / strongestHypothesis*`
 
 ### 4.2 控制链还缺“失败反馈 / 候选切换”这一段
 

@@ -467,6 +467,58 @@ def test_build_ingress_handoff_includes_structured_endpoint_for_probe_action():
     assert handoff["endpoint"] == "http://challenge.test/admin"
 
 
+def test_build_ingress_handoff_includes_recommended_action_provenance_for_collect_initial_facts():
+    task = {
+        "controlDecision": {
+            "shouldRun": True,
+            "decisionKind": "explore_first",
+            "reason": "derived target available for initial fact collection",
+            "nextAction": "collect_initial_facts",
+            "driver": "blackboard.derived_target.runtime_derived",
+            "facts": [
+                "mode=ctf",
+                "recommendedActionSourceType=observation",
+                "recommendedActionSwitchedFrom=probe_discovered_endpoint",
+                "recommendedActionTriggerReason=endpoint probe returned empty findings",
+                "recommendedActionTriggerActionDriver=blackboard.derived_target.runtime_derived",
+                "recommendedActionTriggerAt=2026-06-03T10:00:02+00:00",
+                "strongestHypothesisKind=generic_web_recon",
+                "strongestHypothesisStatus=active",
+            ],
+        },
+        "ctfStateSnapshot": {
+            "hypotheses": [
+                {
+                    "id": "hyp-1",
+                    "kind": "generic_web_recon",
+                    "description": "continue broad web recon",
+                    "confidence": 0.52,
+                    "status": "active",
+                }
+            ],
+            "observations": [],
+            "artifacts": [],
+            "runtime_flags": [],
+            "verified_flags": [],
+        },
+    }
+
+    handoff = web_server._build_ingress_handoff(task)
+
+    assert handoff["decisionKind"] == "explore_first"
+    assert handoff["nextAction"] == "collect_initial_facts"
+    assert handoff["driver"] == "blackboard.derived_target.runtime_derived"
+    assert handoff["reason"] == "derived target available for initial fact collection"
+    assert handoff["sourceType"] == "observation"
+    assert handoff["switchedFrom"] == "probe_discovered_endpoint"
+    assert handoff["triggerReason"] == "endpoint probe returned empty findings"
+    assert handoff["triggerActionDriver"] == "blackboard.derived_target.runtime_derived"
+    assert handoff["triggerAt"] == "2026-06-03T10:00:02+00:00"
+    assert handoff["strongestHypothesisKind"] == "generic_web_recon"
+    assert handoff["strongestHypothesisStatus"] == "active"
+    assert handoff["strongestHypothesisConfidence"] == 0.52
+
+
 def test_ctf_dispatcher_hint_includes_runtime_flag_for_verify_runtime_signal():
     task = {
         "hints": [{"text": "focus on runtime verification"}],
