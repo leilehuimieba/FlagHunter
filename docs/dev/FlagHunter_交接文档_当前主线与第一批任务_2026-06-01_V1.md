@@ -90,6 +90,11 @@
 - 已补 `recovery_decision` 的稳定摘要顺序：当前 recovery 摘要统一收成 `action · chain=... · from=... · hypothesis=... · exploit=... source=...`，候选切换、主假设与 exploit 来源已进入同一层可读文本
 - 已补 `control_action_started / control_action_completed` 的标签化摘要：当前已统一成 `action=... / expected=... / alignment=... / driver=... / exploit=... source=...` 与 `action=... / result=... / driver=... / exploit=... source=...` 两种稳定格式，控制链执行摘要风格已开始对齐
 - 已补 `checkpoint_written` 的标签化摘要与顶层 output 键：当前已统一成 `label=... · checkpoint=... · stop=...`，并在 output 顶层直接补 `checkpoint_id / checkpoint_label / stop_reason`，checkpoint / resume 信息不再只埋在嵌套对象里
+- 已补 `blackboardSnapshot` 顶层可读 summary：
+  - `recommendedActionSummary`
+  - `candidateSummary`
+  - `lastActionResultSummary`
+  当前 Task Detail / Trace 不必再深入 `recommendedAction / candidates / actionResults` 内部结构，也能直接读到建议动作、候选池与最近动作结果
 - 当前 control chain 首段主路径（resume / bootstrap / collect / verify / probe）已基本完成 structured handoff-first，后续更值得继续把 provenance 压进 dispatcher 内部策略选择
 - 下一步继续补候选动作层 / 切换理由稳定来源与前端更直接展示
 
@@ -249,6 +254,20 @@
      - `next_action_reason`
      - `next_action_summary`
    - MCP 侧检查与异步提交结果现在不必再靠 `control_decision + blackboard` 手工脑补恢复动作解释
+
+13. **blackboard-lite 顶层可读摘要**
+   - `Task Detail` 已有：
+     - `recommendedActionSummary`
+     - `candidateSummary`
+     - `lastActionResultSummary`
+   - `Trace payload` 已有：
+     - `recommendedActionSummary`
+     - `candidateSummary`
+     - `lastActionResultSummary`
+   - 当前已能直接表达：
+     - 建议动作是什么、由谁驱动、从哪条动作切来
+     - 当前候选池规模、active / recommended action
+     - 最近一次动作结果、alignment 与失败原因
 
 11. **dispatcher 结构化 follow-up 消费**
    - `ctf_dispatcher` 选主策略时，已开始直接读取 `ingress_handoff.nextAction`

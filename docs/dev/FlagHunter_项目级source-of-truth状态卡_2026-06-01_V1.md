@@ -218,6 +218,8 @@
   当前 `control_action_started / control_action_completed` 的摘要也已统一成稳定格式：started 侧强调 `action / expected / alignment / driver / exploit source`，completed 侧强调 `action / result / driver / exploit source`；控制链执行语义已能在摘要层直接读取
 - `checkpoint_written` summary / output 标签化
   当前 `checkpoint_written` 的摘要也已统一成稳定格式：`label=... · checkpoint=... · stop=...`；同时 output 顶层会直接补 `checkpoint_id / checkpoint_label / stop_reason`，checkpoint 与 resume 语义不再只埋在 `latest_checkpoint / resume_context` 嵌套对象里
+- `blackboardSnapshot` 顶层可读 summary
+  当前 `Task Detail / Trace payload` 已直接补 `recommendedActionSummary / candidateSummary / lastActionResultSummary`，前端与人工排查不必再深入 `recommendedAction / candidates / actionResults` 的内部结构，已可直接读取“建议动作 / 候选池 / 最近动作结果”
 - `exploitProvenance -> outcomeEvents`
   当前 `dispatcher_started` 与 `control_action_started / completed` 已会把 `exploitProvenance` 投进 summary / output，Trace Detail 事件流可直接看到 exploit 来源，而不必只靠顶层 payload 或回翻 observation
 - `actionPathSummary / exploitProvenance -> failure outcomeEvents`
@@ -244,6 +246,19 @@
 
 - pending verification 的结构化回写
 - candidate 切换理由与 next-best action 的稳定来源
+
+但最新已补到：
+
+- 候选池顶层摘要已能直接表达：
+  - 当前 active action
+  - 当前 recommended action
+  - candidate 数量与动作列表
+- 最近动作结果顶层摘要已能直接表达：
+  - 最近动作
+  - result
+  - driver
+  - alignment
+  - failure reason
 
 ### 4.3 `ctf_dispatcher.py` 仍然偏大
 

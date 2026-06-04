@@ -3336,6 +3336,82 @@ def test_build_trace_payload_surfaces_decision_provenance_summary(
         "strongestHypothesisStatus": "active",
         "strongestHypothesisConfidence": 0.52,
     }
+    assert payload["recommendedActionSummary"] == {
+        "action": "collect_initial_facts",
+        "driver": "blackboard.derived_target.runtime_derived",
+        "sourceType": "observation",
+        "reason": "selected action failed; switch to next best candidate",
+        "switchedFrom": "probe_discovered_endpoint",
+        "triggerResult": None,
+        "triggerReason": "endpoint probe returned empty findings",
+        "summary": "collect_initial_facts via blackboard.derived_target.runtime_derived · from probe_discovered_endpoint",
+    }
+    assert payload["candidateSummary"] == {
+        "activeAction": "collect_initial_facts",
+        "recommendedAction": "collect_initial_facts",
+        "candidateActions": ["collect_initial_facts"],
+        "totalCandidates": 1,
+        "summary": "1 candidate · active=collect_initial_facts · recommended=collect_initial_facts",
+    }
+    assert payload["lastActionResultSummary"] == {
+        "action": None,
+        "result": None,
+        "driver": None,
+        "expectedAction": None,
+        "alignment": None,
+        "reason": None,
+        "summary": None,
+    }
+
+
+def test_build_task_projection_fields_surfaces_empty_blackboard_summaries(tmp_path: Path):
+    projection = web_server._build_task_projection_fields(
+        project_root=tmp_path,
+        item={
+            "id": "task_projection_empty_summaries",
+            "title": "empty summaries",
+            "target": "http://challenge.test",
+            "goal": "trace truth",
+        },
+        session_context={},
+        session_context_mode="unobserved",
+        session_meta={},
+        metrics_session_id="",
+        task_session_id="",
+        notes_sources=[],
+        messages_mode="unobserved",
+        plan=[],
+        notes=[],
+        knowledge_mode="unobserved",
+        snapshot_path=None,
+    )
+
+    assert projection["recommendedActionSummary"] == {
+        "action": None,
+        "driver": None,
+        "sourceType": None,
+        "reason": None,
+        "switchedFrom": None,
+        "triggerResult": None,
+        "triggerReason": None,
+        "summary": None,
+    }
+    assert projection["candidateSummary"] == {
+        "activeAction": None,
+        "recommendedAction": None,
+        "candidateActions": [],
+        "totalCandidates": 0,
+        "summary": "0 candidates",
+    }
+    assert projection["lastActionResultSummary"] == {
+        "action": None,
+        "result": None,
+        "driver": None,
+        "expectedAction": None,
+        "alignment": None,
+        "reason": None,
+        "summary": None,
+    }
 
 
 def test_build_trace_payload_surfaces_derived_target_detail_source(
@@ -5819,6 +5895,87 @@ async def test_task_detail_surfaces_decision_provenance_summary(web_client: Test
         "strongestHypothesisKind": "generic_web_recon",
         "strongestHypothesisStatus": "active",
         "strongestHypothesisConfidence": 0.52,
+    }
+
+
+@pytest.mark.asyncio
+async def test_task_detail_surfaces_blackboard_readable_summaries(web_client: TestClient):
+    created = await web_client.post(
+        "/api/tasks",
+        json={
+            "title": "blackboard-readable-summaries-detail",
+            "target": "http://challenge.test",
+            "mode": "ctf",
+            "ctfType": "web",
+            "goal": "capture the flag",
+            "challengePath": r"D:\webstudy\CTF\2026\CTF比赛题\easy_login",
+            "artifactPaths": [
+                r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
+            ],
+            "blackboardSnapshot": {
+                "facts": [
+                    {
+                        "kind": "derived_target",
+                        "value": "http://127.0.0.1:3000",
+                        "source": "challenge_context",
+                        "confidence": "high",
+                    }
+                ],
+                "pendingVerifications": [],
+                "actionResults": [
+                    {
+                        "action": "probe_discovered_endpoint",
+                        "driver": "blackboard.discovered_endpoint",
+                        "result": "failed",
+                        "expectedAction": "probe_discovered_endpoint",
+                        "alignment": "mismatched",
+                        "details": {"reason": "endpoint probe returned empty findings"},
+                    }
+                ],
+                "recommendedAction": {
+                    "action": "collect_initial_facts",
+                    "driver": "blackboard.derived_target.runtime_derived",
+                    "sourceType": "observation",
+                    "reason": "selected action failed; switch to next best candidate",
+                    "switchedFrom": "probe_discovered_endpoint",
+                    "triggerResult": "failed",
+                    "triggerReason": "endpoint probe returned empty findings",
+                },
+            },
+        },
+    )
+
+    assert created.status == 201
+    task = await created.json()
+    detail_resp = await web_client.get(f"/api/tasks/{task['id']}")
+
+    assert detail_resp.status == 200
+    detail = await detail_resp.json()
+    assert detail["recommendedActionSummary"] == {
+        "action": "collect_initial_facts",
+        "driver": "blackboard.derived_target.runtime_derived",
+        "sourceType": "observation",
+        "reason": "selected action failed; switch to next best candidate",
+        "switchedFrom": "probe_discovered_endpoint",
+        "triggerResult": "failed",
+        "triggerReason": "endpoint probe returned empty findings",
+        "summary": "collect_initial_facts via blackboard.derived_target.runtime_derived · from probe_discovered_endpoint · after failed",
+    }
+    assert detail["candidateSummary"] == {
+        "activeAction": "collect_initial_facts",
+        "recommendedAction": "collect_initial_facts",
+        "candidateActions": ["collect_initial_facts", "bootstrap_local_assets"],
+        "totalCandidates": 2,
+        "summary": "2 candidates · active=collect_initial_facts · recommended=collect_initial_facts",
+    }
+    assert detail["lastActionResultSummary"] == {
+        "action": "probe_discovered_endpoint",
+        "result": "failed",
+        "driver": "blackboard.discovered_endpoint",
+        "expectedAction": "probe_discovered_endpoint",
+        "alignment": "mismatched",
+        "reason": "endpoint probe returned empty findings",
+        "summary": "probe_discovered_endpoint failed via blackboard.discovered_endpoint · alignment=mismatched",
     }
 
 
