@@ -4186,6 +4186,106 @@ def test_build_trace_payload_projects_dispatcher_started_outcome_event(
     }
 
 
+def test_build_trace_payload_projects_dispatcher_started_summary_with_local_source_exploit_truth(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    task = {
+        "id": "task_trace_dispatcher_started_local_source_truth",
+        "title": "trace dispatcher started local source truth",
+        "target": "http://trace.test",
+        "goal": "trace start contract",
+        "mode": "ctf",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
+        "status": "stopped",
+        "createdAt": web_server._now_iso(),
+        "startedAt": web_server._now_iso(),
+        "finishedAt": web_server._now_iso(),
+        "tokensUsed": 0,
+        "toolCalls": 0,
+        "currentRunId": "run-trace-dispatcher-started-local-source-truth",
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+        "ctfStateSnapshot": {
+            "target": "http://trace.test",
+            "goal": "trace start contract",
+            "detected_type": "web",
+            "observations": [
+                {
+                    "kind": "local_challenge_source_hint",
+                    "value": (
+                        "index.php: <?php session_start();\n"
+                        "update.php: $serialized = serialize($profile);\n"
+                        "profile.php: echo file_get_contents($profile['photo']);"
+                    ),
+                    "source": "local_challenge_context",
+                    "metadata": {
+                        "path": r"D:\webstudy\CTF\easy_profile\source_bundle\index.php",
+                    },
+                }
+            ],
+            "hypotheses": [],
+            "verified_flags": [],
+            "runtime_flags": [],
+            "artifacts": [],
+            "rejected_flags": [],
+            "exploration_agenda": [],
+            "wrong_flag_history": [],
+            "uniform_failures": [],
+            "llm_exploration_log": [],
+            "pre_action_reasonings": [],
+            "weak_decision_log": [],
+            "strategy_memory_hits": [],
+            "notes": [],
+        },
+    }
+
+    monkeypatch.setattr(web_server, "_pick_metrics_for_task", lambda project_root, item: None)
+    monkeypatch.setattr(
+        web_server,
+        "_pick_session_snapshot",
+        lambda project_root, item: (
+            None,
+            None,
+            {"matchedBy": "none", "confidence": "none", "expectedSessionId": None, "blockedReason": None, "candidateScore": None},
+        ),
+    )
+    monkeypatch.setattr(
+        web_server,
+        "_build_run_session_context",
+        lambda project_root, run_id: {
+            "runId": run_id,
+            "recentEvents": [
+                {
+                    "type": "dispatcher_started",
+                    "t": "2026-06-04T10:00:00+00:00",
+                    "payload": {
+                        "target": "http://trace.test",
+                        "goal": "trace start contract",
+                        "requested_type": "web",
+                        "decision_kind": "direct_execute",
+                        "next_action": "collect_initial_facts",
+                        "decision_driver": "task.local_assets",
+                    },
+                }
+            ],
+            "artifacts": [],
+            "latestCheckpoint": None,
+            "resumeContext": None,
+        },
+    )
+
+    payload = web_server._build_trace_payload(tmp_path, task, include_timeline=True)
+
+    event = [event for event in payload["outcomeEvents"] if event["kind"] == "dispatcher_started"][0]
+    assert "profile_photo_poisoning" in event["summary"]
+    assert "local_challenge_source_hint" in event["summary"]
+
+
 def test_build_trace_payload_projects_control_action_outcome_events(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
@@ -4588,6 +4688,118 @@ def test_build_trace_payload_keeps_strongest_hypothesis_in_control_action_outcom
     assert "strongest_hypothesis_confidence" in started["output"]
     assert "generic_web_recon" in completed["output"]
     assert "strongest_hypothesis_confidence" in completed["output"]
+
+
+def test_build_trace_payload_projects_verification_and_finish_summaries_with_local_source_exploit_truth(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    task = {
+        "id": "task_trace_local_source_summary_truth",
+        "title": "trace local source summary truth",
+        "target": "http://trace.test",
+        "goal": "trace summary truth",
+        "mode": "ctf",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
+        "status": "stopped",
+        "createdAt": web_server._now_iso(),
+        "startedAt": web_server._now_iso(),
+        "finishedAt": web_server._now_iso(),
+        "tokensUsed": 0,
+        "toolCalls": 0,
+        "currentRunId": "run-trace-local-source-summary-truth",
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+        "ctfStateSnapshot": {
+            "target": "http://trace.test",
+            "goal": "trace summary truth",
+            "detected_type": "web",
+            "observations": [
+                {
+                    "kind": "local_challenge_source_hint",
+                    "value": (
+                        "index.php: <?php session_start();\n"
+                        "update.php: $serialized = serialize($profile);\n"
+                        "profile.php: echo file_get_contents($profile['photo']);"
+                    ),
+                    "source": "local_challenge_context",
+                    "metadata": {
+                        "path": r"D:\webstudy\CTF\easy_profile\source_bundle\index.php",
+                    },
+                }
+            ],
+            "hypotheses": [],
+            "verified_flags": [],
+            "runtime_flags": [],
+            "artifacts": [],
+            "rejected_flags": [],
+            "exploration_agenda": [],
+            "wrong_flag_history": [],
+            "uniform_failures": [],
+            "llm_exploration_log": [],
+            "pre_action_reasonings": [],
+            "weak_decision_log": [],
+            "strategy_memory_hits": [],
+            "notes": [],
+        },
+    }
+
+    monkeypatch.setattr(web_server, "_pick_metrics_for_task", lambda project_root, item: None)
+    monkeypatch.setattr(
+        web_server,
+        "_pick_session_snapshot",
+        lambda project_root, item: (
+            None,
+            None,
+            {"matchedBy": "none", "confidence": "none", "expectedSessionId": None, "blockedReason": None, "candidateScore": None},
+        ),
+    )
+    monkeypatch.setattr(
+        web_server,
+        "_build_run_session_context",
+        lambda project_root, run_id: {
+            "runId": run_id,
+            "recentEvents": [
+                {
+                    "type": "verification_decision",
+                    "t": "2026-06-04T10:00:02+00:00",
+                    "payload": {
+                        "decision": "candidate",
+                        "flag": "flag{candidate}",
+                        "rationale": "flag-like string found in exploit response",
+                        "strategy_kind": "ssti_exploit",
+                    },
+                },
+                {
+                    "type": "task_finished",
+                    "t": "2026-06-04T10:00:04+00:00",
+                    "payload": {
+                        "success": False,
+                        "flag": "",
+                        "reason": "verifier_reject",
+                        "chain_used": ["recon", "ssti_exploit"],
+                        "missing_tools": [],
+                    },
+                },
+            ],
+            "artifacts": [],
+            "latestCheckpoint": None,
+            "resumeContext": None,
+        },
+    )
+
+    payload = web_server._build_trace_payload(tmp_path, task, include_timeline=True)
+
+    verification_event = [event for event in payload["outcomeEvents"] if event["kind"] == "verification_decision"][0]
+    finished_event = [event for event in payload["outcomeEvents"] if event["kind"] == "task_finished"][0]
+    assert "profile_photo_poisoning" in verification_event["summary"]
+    assert "local_challenge_source_hint" in verification_event["summary"]
+    assert "profile_photo_poisoning" in finished_event["summary"]
+    assert "local_challenge_source_hint" in finished_event["summary"]
 
 
 def test_task_detail_payload_re_normalizes_dirty_derived_collections(

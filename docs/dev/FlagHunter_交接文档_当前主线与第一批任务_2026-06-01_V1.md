@@ -86,6 +86,7 @@
 - 已补 `backup_source_leak` 的 structured trigger 顺序收紧：当 follow-up provenance 明确指向 `source leak / backup artifact` 时，`_execute_web_chain()` 也会像 `_select_primary_strategy()` 一样，把 `backup_source_leak` 提前到 `contact_report_chain` 前执行
 - 已补 `profile_photo_poisoning` 的 local-source-derived exploit truth：当不存在 runtime/backup observation、但本地源码 hint 已明确暴露 `serialize($profile) / file_get_contents($profile['photo'])` 这类模式时，dispatcher 也能恢复 `exploit_info / artifact_url`，并在 `web` 链里先尝试 `profile_photo_poisoning` 再回到 `backup_source_leak`
 - 已补 Web Detail / Trace 对 `profile_photo_poisoning` local-source-derived provenance 的顶层投影：即使还没有 `source_leak_exploit_candidate` observation，只要 `local_challenge_source_hint` 已能稳定派生 exploit 类型，`exploitProvenance` 与 `outcomeEvents` 也会直接展示 `sourceType / exploitKind / artifactUrl`
+- 已补 `dispatcher_started / verification_decision / task_finished` 的 exploit summary 文本收口：当前不只会展示 `exploitKind`，还会在摘要中直接带出 `sourceType`（例如 `source=local_challenge_source_hint`），前端不必只靠展开 output JSON 才能看懂 exploit 来源
 - 当前 control chain 首段主路径（resume / bootstrap / collect / verify / probe）已基本完成 structured handoff-first，后续更值得继续把 provenance 压进 dispatcher 内部策略选择
 - 下一步继续补候选动作层 / 切换理由稳定来源与前端更直接展示
 
@@ -257,6 +258,7 @@
    - `StrategyContext` 现在也会优先从真实 observation 注入 `cookie_secret_leaked -> extras.cookie_secret`，使 `hash_reconstruction_attack` 不再只依赖显式参数透传
    - `profile_photo_poisoning` 现在不再只依赖 `source_leak_exploit_candidate` observation；当本地源码 hint 已经给出稳定利用信号时，dispatcher 也会从 `local_challenge_source_hint` 直接恢复 exploit info，并把这条 exploit-heavy runtime 尝试提前到 backup fallback 前
    - Web Detail / Trace 现在也不再只依赖 `source_leak_exploit_candidate` observation 才能展示 exploit 来源；当 exploit truth 仅来自 `local_challenge_source_hint` 时，顶层 `exploitProvenance` 与 `control_action_* outcomeEvents` 也会保留这条 local-source-derived provenance
+   - `dispatcher_started / verification_decision / task_finished` 的 summary 文本现在也会直接标出 exploit 来源类型；local-source-derived exploit truth 不再只埋在 output JSON 里，而是进入一眼可读的摘要层
 
 ### 4.4 本地样本主线已成型
 
