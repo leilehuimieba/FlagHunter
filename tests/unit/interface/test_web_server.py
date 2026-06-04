@@ -519,6 +519,66 @@ def test_build_ingress_handoff_includes_recommended_action_provenance_for_collec
     assert handoff["strongestHypothesisConfidence"] == 0.52
 
 
+def test_build_ingress_handoff_includes_structured_runtime_flag_for_verify_runtime_signal():
+    task = {
+        "controlDecision": {
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "reason": "runtime flag present in blackboard",
+            "nextAction": "verify_runtime_signal",
+            "driver": "blackboard.runtime_flag",
+        },
+        "ctfStateSnapshot": {
+            "observations": [],
+            "artifacts": [],
+            "runtime_flags": [
+                {
+                    "value": "flag{runtime_candidate}",
+                    "level": "runtime",
+                    "evidence_source": "runtime-http",
+                    "rationale": "reflected in runtime response",
+                }
+            ],
+            "verified_flags": [],
+        },
+    }
+
+    handoff = web_server._build_ingress_handoff(task)
+
+    assert handoff["nextAction"] == "verify_runtime_signal"
+    assert handoff["runtimeFlag"] == "flag{runtime_candidate}"
+
+
+def test_build_ingress_handoff_includes_structured_verified_flag_for_verify_or_submit():
+    task = {
+        "controlDecision": {
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "reason": "verified flag already present in blackboard",
+            "nextAction": "verify_or_submit_flag",
+            "driver": "blackboard.verified_flag",
+        },
+        "ctfStateSnapshot": {
+            "observations": [],
+            "artifacts": [],
+            "runtime_flags": [],
+            "verified_flags": [
+                {
+                    "value": "flag{verified_candidate}",
+                    "level": "verified",
+                    "evidence_source": "platform-accept",
+                    "rationale": "accepted by prior verification",
+                }
+            ],
+        },
+    }
+
+    handoff = web_server._build_ingress_handoff(task)
+
+    assert handoff["nextAction"] == "verify_or_submit_flag"
+    assert handoff["verifiedFlag"] == "flag{verified_candidate}"
+
+
 def test_ctf_dispatcher_hint_includes_runtime_flag_for_verify_runtime_signal():
     task = {
         "hints": [{"text": "focus on runtime verification"}],

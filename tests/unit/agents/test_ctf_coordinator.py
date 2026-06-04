@@ -2163,6 +2163,276 @@ async def test_coordinator_records_control_action_events_for_verified_flag(tmp_p
     assert dispatcher.recorded_events[3][1]["result"] == "ok"
 
 
+@pytest.mark.asyncio
+async def test_coordinator_verified_flag_early_finish_from_structured_ingress_handoff_without_hint(
+    tmp_path: Path,
+):
+    coordinator = CTFCoordinator()
+
+    class _CapabilityRegistry:
+        async def full_check(self):
+            return None
+
+        def to_dict(self):
+            return {}
+
+    class _Dispatcher:
+        def __init__(self):
+            self._notes_log = []
+            self._challenge_context = None
+            self._ledger_run_id = None
+            self._current_fingerprint = None
+            self._memory_match_ids = []
+            self._pending_wrong_flag_feedback = []
+            self._exhausted_visit_url_targets = set()
+            self.reasoning_layer = SimpleNamespace(degradation_events=[])
+            self.state = None
+            self.recorded_events: list[tuple[str, dict[str, object]]] = []
+            self.written_checkpoints: list[tuple[str, dict[str, object]]] = []
+            self.capability_registry = _CapabilityRegistry()
+            self.run_called = False
+            self._ingress_handoff = {
+                "decisionKind": "direct_execute",
+                "nextAction": "verify_or_submit_flag",
+                "driver": "blackboard.verified_flag",
+                "reason": "verified flag already present in blackboard",
+                "verifiedFlag": "flag{verified_from_handoff}",
+                "switchedFrom": "verify_runtime_signal",
+                "triggerReason": "runtime verifier rejected candidate",
+            }
+
+        def _setup_session_ledger(self, *, run_id=None, ledger_root=None):
+            self._ledger_run_id = run_id
+
+        def _setup_artifact_registry(self, *, run_id=None, registry_root=None):
+            return None
+
+        def _setup_checkpoint_store(self, *, run_id=None, checkpoint_root=None):
+            return None
+
+        def _apply_submit_profile(self, submit_profile):
+            return None
+
+        async def _start_failover_monitor_if_available(self):
+            return None
+
+        def _record_session_event(self, event_type: str, payload: dict[str, object]):
+            self.recorded_events.append((event_type, dict(payload)))
+
+        def _write_checkpoint(self, label: str, payload: dict[str, object]):
+            self.written_checkpoints.append((label, dict(payload)))
+
+        def _load_rejected_flags(self):
+            return None
+
+        async def _snapshot_platform_context(self, target: str):
+            return None
+
+        async def _phase_recon(self, target: str):
+            return {
+                "html": "<html></html>",
+                "content": "portal",
+                "forms": [],
+                "endpoints": ["/"],
+                "recon_missing_tools": [],
+            }
+
+        def _ingest_local_challenge_artifacts(self, target: str):
+            return None
+
+        def _record_ingress_handoff_observations(self, ingress_handoff):
+            return None
+
+        def _emit(self, message: str):
+            return None
+
+        async def _finalize_solve_result(self, result: SolveResult):
+            return result
+
+        async def run(self, **kwargs):
+            self.run_called = True
+            return SolveResult(success=False, reason="should-not-run")
+
+    dispatcher = _Dispatcher()
+
+    result = await coordinator.execute(
+        dispatcher,
+        target="127.0.0.1:3000",
+        goal="goal",
+        type="web",
+        hint="",
+        submit_profile=None,
+        challenge_context={"artifactPaths": []},
+        ingress_handoff=dispatcher._ingress_handoff,
+        run_id="run-verified-flag-structured-handoff",
+        ledger_root=tmp_path / "ledgers",
+        checkpoint_root=tmp_path / "checkpoints",
+    )
+
+    assert result.success is True
+    assert result.flag == "flag{verified_from_handoff}"
+    assert dispatcher.run_called is False
+    event_types = [event_type for event_type, _ in dispatcher.recorded_events]
+    assert event_types[:4] == [
+        "dispatcher_started",
+        "control_action_started",
+        "verification_decision",
+        "control_action_completed",
+    ]
+    assert dispatcher.recorded_events[1][1]["action"] == "verify_or_submit_flag"
+    assert dispatcher.recorded_events[1][1]["switched_from"] == "verify_runtime_signal"
+    assert dispatcher.recorded_events[1][1]["trigger_reason"] == "runtime verifier rejected candidate"
+    assert dispatcher.recorded_events[2][1]["flag"] == "flag{verified_from_handoff}"
+    assert dispatcher.recorded_events[3][1]["action"] == "verify_or_submit_flag"
+    assert dispatcher.recorded_events[3][1]["result"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_coordinator_runtime_signal_early_finish_from_structured_ingress_handoff_without_hint(
+    tmp_path: Path,
+):
+    coordinator = CTFCoordinator()
+    observed: list[tuple[str, str, str, str]] = []
+
+    class _CapabilityRegistry:
+        async def full_check(self):
+            return None
+
+        def to_dict(self):
+            return {}
+
+    class _Dispatcher:
+        def __init__(self):
+            self._notes_log = []
+            self._challenge_context = None
+            self._ledger_run_id = None
+            self._current_fingerprint = None
+            self._memory_match_ids = []
+            self._pending_wrong_flag_feedback = []
+            self._exhausted_visit_url_targets = set()
+            self.reasoning_layer = SimpleNamespace(degradation_events=[])
+            self.state = None
+            self.recorded_events: list[tuple[str, dict[str, object]]] = []
+            self.written_checkpoints: list[tuple[str, dict[str, object]]] = []
+            self.capability_registry = _CapabilityRegistry()
+            self.phase_recon_called = False
+            self.run_called = False
+            self._ingress_handoff = {
+                "decisionKind": "direct_execute",
+                "nextAction": "verify_runtime_signal",
+                "driver": "blackboard.runtime_flag",
+                "reason": "runtime flag present in blackboard",
+                "runtimeFlag": "flag{runtime_from_handoff}",
+                "switchedFrom": "collect_initial_facts",
+                "triggerReason": "runtime verifier requested direct verification",
+            }
+
+        def _setup_session_ledger(self, *, run_id=None, ledger_root=None):
+            self._ledger_run_id = run_id
+
+        def _setup_artifact_registry(self, *, run_id=None, registry_root=None):
+            return None
+
+        def _setup_checkpoint_store(self, *, run_id=None, checkpoint_root=None):
+            return None
+
+        def _apply_submit_profile(self, submit_profile):
+            return None
+
+        async def _start_failover_monitor_if_available(self):
+            return None
+
+        def _record_session_event(self, event_type: str, payload: dict[str, object]):
+            self.recorded_events.append((event_type, dict(payload)))
+
+        def _write_checkpoint(self, label: str, payload: dict[str, object]):
+            self.written_checkpoints.append((label, dict(payload)))
+
+        def _load_rejected_flags(self):
+            return None
+
+        async def _snapshot_platform_context(self, target: str):
+            return None
+
+        async def _phase_recon(self, target: str):
+            self.phase_recon_called = True
+            return {
+                "html": "<html></html>",
+                "content": "portal",
+                "forms": [],
+                "endpoints": ["/"],
+                "recon_missing_tools": [],
+            }
+
+        def _ingest_local_challenge_artifacts(self, target: str):
+            return None
+
+        def _record_ingress_handoff_observations(self, ingress_handoff):
+            return None
+
+        async def _observe_flag(
+            self,
+            flag: str,
+            target: str,
+            *,
+            evidence_source: str,
+            rationale: str,
+        ):
+            self._notes_log.append("runtime-note")
+            observed.append((flag, target, evidence_source, rationale))
+            return SimpleNamespace(decision="verified", flag=flag)
+
+        def _emit(self, message: str):
+            return None
+
+        async def _finalize_solve_result(self, result: SolveResult):
+            return result
+
+        async def run(self, **kwargs):
+            self.run_called = True
+            return SolveResult(success=False, reason="should-not-run")
+
+    dispatcher = _Dispatcher()
+
+    result = await coordinator.execute(
+        dispatcher,
+        target="127.0.0.1:3000",
+        goal="goal",
+        type="web",
+        hint="",
+        submit_profile=None,
+        challenge_context={"artifactPaths": []},
+        ingress_handoff=dispatcher._ingress_handoff,
+        run_id="run-runtime-structured-handoff",
+        ledger_root=tmp_path / "ledgers",
+        checkpoint_root=tmp_path / "checkpoints",
+    )
+
+    assert result.success is True
+    assert result.flag == "flag{runtime_from_handoff}"
+    assert dispatcher.run_called is False
+    assert dispatcher.phase_recon_called is False
+    assert observed == [
+        (
+            "flag{runtime_from_handoff}",
+            "http://127.0.0.1:3000",
+            "runtime-blackboard-signal",
+            "blackboard runtime flag requested verification",
+        )
+    ]
+    event_types = [event_type for event_type, _ in dispatcher.recorded_events]
+    assert event_types[:3] == [
+        "dispatcher_started",
+        "control_action_started",
+        "control_action_completed",
+    ]
+    assert dispatcher.recorded_events[1][1]["action"] == "verify_runtime_signal"
+    assert dispatcher.recorded_events[1][1]["switched_from"] == "collect_initial_facts"
+    assert dispatcher.recorded_events[1][1]["trigger_reason"] == "runtime verifier requested direct verification"
+    assert dispatcher.recorded_events[2][1]["action"] == "verify_runtime_signal"
+    assert dispatcher.recorded_events[2][1]["result"] == "ok"
+
+
 class _CoordinatorEarlyFinishRuntime:
     def __init__(self):
         self.environment = SimpleNamespace(available_tools=[])

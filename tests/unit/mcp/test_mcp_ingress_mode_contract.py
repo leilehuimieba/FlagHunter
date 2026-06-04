@@ -248,6 +248,82 @@ def test_mcp_build_ingress_handoff_includes_recommended_action_provenance_for_co
     assert handoff["strongestHypothesisConfidence"] == 0.52
 
 
+def test_mcp_build_ingress_handoff_includes_structured_runtime_flag_for_verify_runtime_signal() -> None:
+    entry = mcp_tools.TaskEntry(
+        id="task-rt-handoff-1",
+        task="verify runtime signal",
+        status="pending",
+        created_at="2026-06-04T00:00:00",
+        agent=SimpleNamespace(),
+        target="http://challenge.test",
+        mode="ctf",
+        modeSubtype="web",
+        controlDecision={
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "reason": "runtime flag present in blackboard",
+            "nextAction": "verify_runtime_signal",
+            "driver": "blackboard.runtime_flag",
+        },
+        ctfStateSnapshot={
+            "observations": [],
+            "artifacts": [],
+            "runtime_flags": [
+                {
+                    "value": "flag{runtime_candidate}",
+                    "level": "runtime",
+                    "evidence_source": "runtime-http",
+                    "rationale": "reflected in runtime response",
+                }
+            ],
+            "verified_flags": [],
+        },
+    )
+
+    handoff = mcp_tools._build_ingress_handoff(entry)
+
+    assert handoff["nextAction"] == "verify_runtime_signal"
+    assert handoff["runtimeFlag"] == "flag{runtime_candidate}"
+
+
+def test_mcp_build_ingress_handoff_includes_structured_verified_flag_for_verify_or_submit() -> None:
+    entry = mcp_tools.TaskEntry(
+        id="task-vf-handoff-1",
+        task="verify or submit flag",
+        status="pending",
+        created_at="2026-06-04T00:00:00",
+        agent=SimpleNamespace(),
+        target="http://challenge.test",
+        mode="ctf",
+        modeSubtype="web",
+        controlDecision={
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "reason": "verified flag already present in blackboard",
+            "nextAction": "verify_or_submit_flag",
+            "driver": "blackboard.verified_flag",
+        },
+        ctfStateSnapshot={
+            "observations": [],
+            "artifacts": [],
+            "runtime_flags": [],
+            "verified_flags": [
+                {
+                    "value": "flag{verified_candidate}",
+                    "level": "verified",
+                    "evidence_source": "platform-accept",
+                    "rationale": "accepted by prior verification",
+                }
+            ],
+        },
+    )
+
+    handoff = mcp_tools._build_ingress_handoff(entry)
+
+    assert handoff["nextAction"] == "verify_or_submit_flag"
+    assert handoff["verifiedFlag"] == "flag{verified_candidate}"
+
+
 def test_mcp_ctf_dispatcher_hint_includes_strongest_hypothesis_fields() -> None:
     entry = mcp_tools.TaskEntry(
         id="task-hyp-1",
