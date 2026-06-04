@@ -712,6 +712,22 @@ async def test_dashboard_summary_supports_window_and_runtime_filters(web_client:
         "toolCalls": 1,
         "docker": False,
         "currentRunId": "run_local_recent",
+        "controlDecision": {
+            "shouldRun": True,
+            "decisionKind": "explore_first",
+            "reason": "derived target available for initial fact collection",
+            "nextAction": "collect_initial_facts",
+            "driver": "blackboard.derived_target.runtime_derived",
+            "facts": ["mode=pentest"],
+        },
+        "blackboardSnapshot": {
+            "activeDecision": {
+                "decisionKind": "explore_first",
+                "nextAction": "collect_initial_facts",
+                "driver": "blackboard.derived_target.runtime_derived",
+                "reason": "derived target available for initial fact collection",
+            }
+        },
         "hints": [],
         "messages": [],
         "plan": [],
@@ -751,6 +767,14 @@ async def test_dashboard_summary_supports_window_and_runtime_filters(web_client:
     assert recent_data["recentTasks"][0]["mode"] == "pentest"
     assert recent_data["recentTasks"][0]["modeSubtype"] == "unknown"
     assert recent_data["recentTasks"][0]["goalStyle"] == "evidence"
+    assert (
+        recent_data["recentTasks"][0]["nextActionSummary"]
+        == "explore_first -> collect_initial_facts via blackboard.derived_target.runtime_derived"
+    )
+    assert (
+        recent_data["recentTasks"][0]["activeDecisionSummary"]
+        == "explore_first -> collect_initial_facts via blackboard.derived_target.runtime_derived"
+    )
 
     docker_resp = await web_client.get("/api/dashboard/summary?window=all&runtime=docker")
     assert docker_resp.status == 200
@@ -773,6 +797,68 @@ async def test_dashboard_summary_supports_window_and_runtime_filters(web_client:
     ]:
         assert key in docker_data
         assert isinstance(docker_data[key], list)
+
+
+@pytest.mark.asyncio
+async def test_tasks_list_surfaces_lightweight_control_summaries(web_client: TestClient):
+    created = await web_client.post(
+        "/api/tasks",
+        json={
+            "title": "tasks-list-control-summary",
+            "target": "http://challenge.test",
+            "mode": "ctf",
+            "ctfType": "web",
+            "goal": "capture the flag",
+            "blackboardSnapshot": {
+                "facts": [
+                    {
+                        "kind": "derived_target",
+                        "value": "http://127.0.0.1:3000",
+                        "source": "challenge_context",
+                        "confidence": "high",
+                    }
+                ],
+                "pendingVerifications": [],
+                "recommendedAction": {
+                    "action": "collect_initial_facts",
+                    "driver": "blackboard.derived_target.runtime_derived",
+                    "sourceType": "observation",
+                    "reason": "selected action failed; switch to next best candidate",
+                    "switchedFrom": "probe_discovered_endpoint",
+                    "triggerReason": "endpoint probe returned empty findings",
+                },
+            },
+        },
+    )
+
+    assert created.status == 201
+
+    resp = await web_client.get("/api/tasks")
+
+    assert resp.status == 200
+    items = await resp.json()
+    task = next(item for item in items if item["title"] == "tasks-list-control-summary")
+    assert task["nextActionExplanation"] == {
+        "decisionKind": "explore_first",
+        "nextAction": "collect_initial_facts",
+        "driver": "blackboard.derived_target.runtime_derived",
+        "reason": "selected action failed; switch to next best candidate",
+        "sourceType": "observation",
+        "switchedFrom": "probe_discovered_endpoint",
+        "triggerReason": "endpoint probe returned empty findings",
+        "summary": "explore_first -> collect_initial_facts via blackboard.derived_target.runtime_derived",
+    }
+    assert task["activeDecisionSummary"] == {
+        "decisionKind": "explore_first",
+        "nextAction": "collect_initial_facts",
+        "driver": "blackboard.derived_target.runtime_derived",
+        "reason": "selected action failed; switch to next best candidate",
+        "expectedAction": None,
+        "observedAction": None,
+        "alignment": None,
+        "alignmentReason": None,
+        "summary": "explore_first -> collect_initial_facts via blackboard.derived_target.runtime_derived",
+    }
 
 
 @pytest.mark.asyncio

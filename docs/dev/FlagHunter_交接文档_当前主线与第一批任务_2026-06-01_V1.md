@@ -103,6 +103,10 @@
   - `suppressedRecommendationSummary`
   - `activeDecisionSummary`
   当前 Task Detail / Trace 不必再深入 `controlDecision.suppressedRecommendation / activeDecision` 内部结构，也能直接读到被压制的建议动作与当前执行中的主控决策
+- 已补列表层轻量主控摘要：
+  - `/api/tasks` 已直接补 `activeDecisionSummary`
+  - `dashboard.recentTasks` 已直接补 `nextActionSummary / activeDecisionSummary`
+  当前列表层不必再点进 detail，也能直接看出任务的主控方向与下一步
 - 当前 control chain 首段主路径（resume / bootstrap / collect / verify / probe）已基本完成 structured handoff-first，后续更值得继续把 provenance 压进 dispatcher 内部策略选择
 - 下一步继续补候选动作层 / 切换理由稳定来源与前端更直接展示
 
@@ -280,6 +284,8 @@
      - 当前最强假设的 kind/status/confidence
      - 当前被压制建议动作的 action/driver/suppressedBy
      - 当前 active decision 的 decisionKind/nextAction/driver 与 observedAction/alignment
+     - 列表层任务当前的 next action summary
+     - 列表层任务当前的 active decision summary
 
 11. **dispatcher 结构化 follow-up 消费**
    - `ctf_dispatcher` 选主策略时，已开始直接读取 `ingress_handoff.nextAction`
