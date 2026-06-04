@@ -1533,6 +1533,14 @@ async def test_task_detail_surfaces_suppressed_recommended_action(web_client: Te
     assert detail["controlDecision"]["driver"] == "blackboard.verified_flag"
     assert detail["controlDecision"]["suppressedRecommendation"]["action"] == "collect_initial_facts"
     assert detail["controlDecision"]["suppressedRecommendation"]["suppressedBy"] == "blackboard.verified_flag"
+    assert detail["decisionProvenance"] == {
+        "recommendedActionSourceType": None,
+        "recommendedActionTriggerActionDriver": None,
+        "recommendedActionTriggerAt": None,
+        "strongestHypothesisKind": None,
+        "strongestHypothesisStatus": None,
+        "strongestHypothesisConfidence": None,
+    }
     assert (
         detail["blackboardSnapshot"]["activeDecision"]["suppressedRecommendation"]["action"]
         == "collect_initial_facts"
@@ -2914,6 +2922,103 @@ def test_build_trace_payload_surfaces_suppressed_recommended_action(
     assert payload["controlDecision"]["suppressedRecommendation"]["action"] == "collect_initial_facts"
     assert payload["controlDecision"]["suppressedRecommendation"]["suppressedBy"] == "blackboard.verified_flag"
     assert payload["decisionRecords"][0]["suppressedRecommendation"]["driver"] == "blackboard.derived_target.runtime_derived"
+    assert payload["decisionProvenance"] == {
+        "recommendedActionSourceType": None,
+        "recommendedActionTriggerActionDriver": None,
+        "recommendedActionTriggerAt": None,
+        "strongestHypothesisKind": None,
+        "strongestHypothesisStatus": None,
+        "strongestHypothesisConfidence": None,
+    }
+
+
+def test_build_trace_payload_surfaces_decision_provenance_summary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    now = web_server._now_iso()
+    task = {
+        "id": "task_trace_decision_provenance",
+        "title": "trace decision provenance",
+        "target": "http://challenge.test",
+        "goal": "trace truth",
+        "mode": "ctf",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
+        "status": "success",
+        "createdAt": now,
+        "startedAt": now,
+        "finishedAt": now,
+        "tokensUsed": 1,
+        "toolCalls": 0,
+        "currentRunId": "run_trace_decision_provenance",
+        "controlDecision": {
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "reason": "selected action failed; switch to next best candidate",
+            "nextAction": "collect_initial_facts",
+            "driver": "blackboard.derived_target.runtime_derived",
+            "facts": [
+                "mode=ctf",
+                "recommendedActionSourceType=observation",
+                "recommendedActionTriggerActionDriver=blackboard.derived_target.runtime_derived",
+                "recommendedActionTriggerAt=2026-06-03T10:00:02+00:00",
+                "strongestHypothesisKind=generic_web_recon",
+                "strongestHypothesisStatus=active",
+                "strongestHypothesisConfidence=0.52",
+            ],
+        },
+        "blackboardSnapshot": {
+            "facts": [
+                {
+                    "kind": "derived_target",
+                    "value": "http://127.0.0.1:3000",
+                    "source": "challenge_context",
+                    "confidence": "high",
+                }
+            ],
+            "pendingVerifications": [],
+            "recommendedAction": {
+                "action": "collect_initial_facts",
+                "driver": "blackboard.derived_target.runtime_derived",
+                "sourceType": "observation",
+                "reason": "selected action failed; switch to next best candidate",
+                "triggerActionDriver": "blackboard.derived_target.runtime_derived",
+                "triggerAt": "2026-06-03T10:00:02+00:00",
+                "strongestHypothesisKind": "generic_web_recon",
+                "strongestHypothesisStatus": "active",
+                "strongestHypothesisConfidence": 0.52,
+            },
+        },
+        "decisionRecords": [],
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+    }
+
+    monkeypatch.setattr(web_server, "_pick_metrics_for_task", lambda project_root, item: None)
+    monkeypatch.setattr(
+        web_server,
+        "_pick_session_snapshot",
+        lambda project_root, item: (
+            None,
+            None,
+            {"matchedBy": "none", "confidence": "none", "expectedSessionId": None, "blockedReason": None, "candidateScore": None},
+        ),
+    )
+
+    payload = web_server._build_trace_payload(tmp_path, task, include_timeline=False)
+
+    assert payload["decisionProvenance"] == {
+        "recommendedActionSourceType": "observation",
+        "recommendedActionTriggerActionDriver": "blackboard.derived_target.runtime_derived",
+        "recommendedActionTriggerAt": "2026-06-03T10:00:02+00:00",
+        "strongestHypothesisKind": "generic_web_recon",
+        "strongestHypothesisStatus": "active",
+        "strongestHypothesisConfidence": 0.52,
+    }
 
 
 def test_build_trace_payload_surfaces_derived_target_detail_source(
@@ -4584,6 +4689,59 @@ async def test_post_task_consumes_recommended_action_from_blackboard_snapshot(we
     assert task["controlDecision"]["nextAction"] == "collect_initial_facts"
     assert task["controlDecision"]["driver"] == "blackboard.derived_target.runtime_derived"
     assert "blackboard.recommended_action=present" in task["controlDecision"]["facts"]
+
+
+@pytest.mark.asyncio
+async def test_task_detail_surfaces_decision_provenance_summary(web_client: TestClient):
+    created = await web_client.post(
+        "/api/tasks",
+        json={
+            "title": "decision-provenance-detail",
+            "target": "http://challenge.test",
+            "mode": "ctf",
+            "ctfType": "web",
+            "goal": "capture the flag",
+            "blackboardSnapshot": {
+                "facts": [
+                    {
+                        "kind": "derived_target",
+                        "value": "http://127.0.0.1:3000",
+                        "source": "challenge_context",
+                        "confidence": "high",
+                    }
+                ],
+                "pendingVerifications": [],
+                "recommendedAction": {
+                    "action": "collect_initial_facts",
+                    "driver": "blackboard.derived_target.runtime_derived",
+                    "sourceType": "observation",
+                    "reason": "selected action failed; switch to next best candidate",
+                    "triggerActionDriver": "blackboard.derived_target.runtime_derived",
+                    "triggerAt": "2026-06-03T10:00:02+00:00",
+                    "strongestHypothesisKind": "generic_web_recon",
+                    "strongestHypothesisStatus": "active",
+                    "strongestHypothesisConfidence": 0.52,
+                },
+            },
+        },
+    )
+
+    assert created.status == 201
+    task = await created.json()
+    task_id = task["id"]
+
+    detail_resp = await web_client.get(f"/api/tasks/{task_id}")
+    assert detail_resp.status == 200
+    detail = await detail_resp.json()
+
+    assert detail["decisionProvenance"] == {
+        "recommendedActionSourceType": "observation",
+        "recommendedActionTriggerActionDriver": "blackboard.derived_target.runtime_derived",
+        "recommendedActionTriggerAt": "2026-06-03T10:00:02+00:00",
+        "strongestHypothesisKind": "generic_web_recon",
+        "strongestHypothesisStatus": "active",
+        "strongestHypothesisConfidence": 0.52,
+    }
 
 
 @pytest.mark.asyncio

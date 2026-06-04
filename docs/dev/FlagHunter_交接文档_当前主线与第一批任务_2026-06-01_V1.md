@@ -4,7 +4,7 @@
 >
 > 文档角色：**随时可交接的当前执行底稿**
 >
-> 最近同步：`2026-06-03`
+> 最近同步：`2026-06-04`
 
 ---
 
@@ -68,7 +68,8 @@
 - 已补 `recommendedAction.triggerActionDriver / triggerAt`，候选切换已能追到触发它的动作结果
 - 已补 `candidates / recommendedAction.sourceType`，当前可区分 `observation / verification / ingress`
 - 已补 `control_contract <- recommendedAction.sourceType / trigger provenance` 消费，黑板解释字段已开始进入实际决策层
-- 下一步继续补候选动作层 / 切换理由稳定来源
+- 已补 Task Detail / Trace 顶层 `decisionProvenance` summary，前端不必再深入 `blackboardSnapshot.recommendedAction` 或 `controlDecision.facts` 才能读到来源与 strongest hypothesis
+- 下一步继续补候选动作层 / 切换理由稳定来源与前端更直接展示
 
 完成标准：
 
@@ -170,6 +171,15 @@
 5. **wrong_flag_feedback 对齐**
    - final checkpoint metadata 已带 `rejected_flags`
    - session context / resume summary 已能读到 rejected flag
+
+6. **decision provenance 顶层投影**
+   - `Task Detail` 已有 `decisionProvenance`
+   - `Trace Detail` 已有 `decisionProvenance`
+   - 当前字段：
+     - `recommendedActionSourceType`
+     - `recommendedActionTriggerActionDriver`
+     - `recommendedActionTriggerAt`
+     - `strongestHypothesisKind / Status / Confidence`
 
 ### 4.4 本地样本主线已成型
 

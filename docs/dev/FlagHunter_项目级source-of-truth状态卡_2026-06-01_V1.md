@@ -4,7 +4,7 @@
 >
 > 角色：项目级当前事实总览 / 接手恢复卡 / 下一阶段决策底稿
 >
-> 最近同步：`2026-06-03`
+> 最近同步：`2026-06-04`
 
 ---
 
@@ -162,6 +162,8 @@
   已补 `sourceType`（当前最小为 `observation / verification / ingress`），主控可区分来源类别
 - `control_contract`
   已开始消费 `recommendedAction.sourceType / triggerActionDriver / triggerAt`，展示层真值已进一步接进决策事实层
+- `Task Detail / Trace Detail`
+  已补顶层 `decisionProvenance` summary，推荐动作来源与 strongest hypothesis 已从黑板内部字段提升为直接展示合同
 
 ### 4.2 控制链还缺“失败反馈 / 候选切换”这一段
 
