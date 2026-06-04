@@ -2613,6 +2613,126 @@ async def test_run_backup_analysis_stores_php_unserialize_exploit_candidate_obse
 
 
 @pytest.mark.asyncio
+async def test_run_backup_analysis_stores_profile_photo_poisoning_exploit_candidate_observation(monkeypatch):
+    from types import SimpleNamespace
+
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+
+    async def _fake_scan_and_store(*args, **kwargs):
+        return None
+
+    async def _fake_attempt_profile(*args, **kwargs):
+        from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+        return _ChainOutcome(progress=True, reason="profile photo poisoning candidate")
+
+    monkeypatch.setattr(dispatcher, "_scan_and_store", _fake_scan_and_store)
+    monkeypatch.setattr(dispatcher, "_attempt_profile_photo_poisoning_chain", _fake_attempt_profile)
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher._pick_python_command",
+        lambda runtime: "python",
+    )
+
+    async def _fake_runtime_execute_command(*args, **kwargs):
+        return SimpleNamespace(
+            stdout='{"url":"http://ctf.local/backup.zip","kind":"zip","entries":[],"interesting":[],"flag":null,"php_unserialize":false,"profile_photo_poisoning":true,"exploit":{"type":"profile_photo_poisoning","login_path":"/index.php","register_path":"/register.php","update_path":"/update.php","profile_path":"/profile.php","username_field":"username","password_field":"password","phone_field":"phone","email_field":"email","nickname_field":"nickname[]","upload_field":"photo","padding_token":"where","padding_repeats":34,"payload_suffix":"\\";}s:5:\\"photo\\";s:10:\\"config.php\\";}","poison_target":"config.php","valid_phone":"13333333333","valid_email":"a@a.a","upload_filename":"avatar.txt","upload_content":"HELLOPIA"}}',
+            stderr="",
+            exit_code=0,
+        )
+
+    monkeypatch.setattr(dispatcher, "_runtime_execute_command", _fake_runtime_execute_command)
+
+    outcome = await dispatcher._download_and_analyze_backup_artifact(
+        artifact_url="http://ctf.local/backup.zip",
+        target="http://ctf.local",
+    )
+
+    assert outcome.progress is True
+    assert any(
+        obs.kind == "source_leak_exploit_candidate"
+        and obs.value == "profile_photo_poisoning"
+        and (obs.metadata or {}).get("artifact_url") == "http://ctf.local/backup.zip"
+        for obs in dispatcher.state.observations
+    )
+
+
+@pytest.mark.asyncio
+async def test_execute_web_chain_runs_profile_photo_poisoning_before_backup_when_observed_exploit_candidate_exists(
+    monkeypatch,
+):
+    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher.state.add_observation(
+        "source_leak_exploit_candidate",
+        "profile_photo_poisoning",
+        source="backup_source_leak",
+        metadata={
+            "artifact_url": "http://ctf.local/backup.zip",
+            "exploit_info": {
+                "type": "profile_photo_poisoning",
+                "login_path": "/index.php",
+                "register_path": "/register.php",
+                "update_path": "/update.php",
+                "profile_path": "/profile.php",
+            },
+        },
+    )
+
+    called_profile: list[dict] = []
+
+    async def _fake_attempt_profile(target: str, exploit_info: dict, *, artifact_url: str):
+        called_profile.append(
+            {"target": target, "exploit_info": exploit_info, "artifact_url": artifact_url}
+        )
+        return _ChainOutcome(progress=False, reason="profile-photo-observed")
+
+    monkeypatch.setattr(dispatcher, "_attempt_profile_photo_poisoning_chain", _fake_attempt_profile)
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+
+    outcome = await dispatcher._execute_web_chain(
+        "http://ctf.local/",
+        {
+            "content": "",
+            "html": "",
+            "endpoints": [],
+            "raw_links": [],
+            "forms": [],
+        },
+        "",
+    )
+
+    assert called_profile
+    assert called_profile[0]["artifact_url"] == "http://ctf.local/backup.zip"
+    assert called_profile[0]["exploit_info"]["type"] == "profile_photo_poisoning"
+    assert outcome.progress is True or "profile-photo-observed" in (outcome.reason or "")
+
+
+@pytest.mark.asyncio
 async def test_execute_xss_chain_runs_stored_xss_when_source_hints_expose_visit_admin_routes(
     monkeypatch,
 ):
