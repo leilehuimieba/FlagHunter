@@ -228,7 +228,7 @@
      - `validate_leaked_secret`
      - `probe_discovered_endpoint`（通过 `ingressHandoff.endpoint` 把 recon target 结构化传给 coordinator）
    - 对这批 follow-up，结构化 truth 现在优先于 hint 字符串脆弱匹配
-   - 最新补强：当 `nextAction` 退化回 `collect_initial_facts` 时，dispatcher 现在还能继续读取 `switchedFrom / triggerReason / triggerActionDriver`，把 `probe_discovered_endpoint -> collect_initial_facts` 这类结构化 provenance 再收回到高价值策略（例如 `ssti_exploit` / `hash_guarded_file_read`）
+   - 最新补强：当 `nextAction` 退化回 `collect_initial_facts` 时，dispatcher 现在还能继续读取 `switchedFrom / triggerReason / triggerActionDriver`，把 `probe_discovered_endpoint -> collect_initial_facts` 这类结构化 provenance 再收回到高价值策略（例如 `ssti_exploit` / `hash_guarded_file_read` / `backup_source_leak`）
 
 ### 4.4 本地样本主线已成型
 

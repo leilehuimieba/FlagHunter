@@ -2202,6 +2202,41 @@ def test_select_primary_strategy_prefers_php_unserialize_strategy_from_source_hi
     assert strategy.kind == "php_unserialize_magic_method"
 
 
+def test_select_primary_strategy_prefers_backup_source_leak_from_structured_trigger_reason():
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    dispatcher._ingress_handoff = {
+        "nextAction": "collect_initial_facts",
+        "switchedFrom": "probe_discovered_endpoint",
+        "triggerReason": "endpoint probe returned source leak candidate from backup artifact",
+        "triggerActionDriver": "blackboard.discovered_endpoint",
+    }
+
+    strategy = dispatcher._select_primary_strategy(
+        "web",
+        target="http://ctf.local",
+        page_features={
+            "content": "",
+            "html": "",
+            "endpoints": [],
+            "raw_links": [],
+            "forms": [],
+        },
+        hint="",
+    )
+
+    assert strategy is not None
+    assert strategy.kind == "backup_source_leak"
+
+
 @pytest.mark.asyncio
 async def test_execute_web_chain_runs_backup_source_before_contact_when_local_source_hints_exist(
     monkeypatch,
