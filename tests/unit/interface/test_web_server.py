@@ -4041,8 +4041,12 @@ def test_build_trace_payload_projects_artifacts_checkpoint_and_outcomes_from_ses
     assert "profile_photo_poisoning" in verification_event["summary"]
     assert "generic_web_recon" in verification_event["summary"]
     assert "backup_source_leak" in verification_event["output"]
-    assert "probe_discovered_endpoint" in recovery_event["summary"]
-    assert "generic_web_recon" in recovery_event["summary"]
+    assert recovery_event["summary"] == (
+        "explore_agenda · chain=ssti_exploit · from=probe_discovered_endpoint · "
+        "hypothesis=generic_web_recon · "
+        "exploit=profile_photo_poisoning source=source_leak_exploit_candidate "
+        "— candidate needs stronger runtime confirmation"
+    )
     assert "candidate needs stronger runtime confirmation" in recovery_event["output"]
     assert "checkpoint-1" in checkpoint_event["summary"]
     assert "verifier_reject" in checkpoint_event["summary"]
@@ -4800,6 +4804,137 @@ def test_build_trace_payload_projects_verification_and_finish_summaries_with_loc
     assert "local_challenge_source_hint" in verification_event["summary"]
     assert "profile_photo_poisoning" in finished_event["summary"]
     assert "local_challenge_source_hint" in finished_event["summary"]
+
+
+def test_build_trace_payload_projects_recovery_decision_summary_with_local_source_exploit_truth(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    task = {
+        "id": "task_trace_recovery_local_source_truth",
+        "title": "trace recovery local source truth",
+        "target": "http://trace.test",
+        "goal": "trace recovery local source truth",
+        "mode": "ctf",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
+        "status": "stopped",
+        "createdAt": web_server._now_iso(),
+        "startedAt": web_server._now_iso(),
+        "finishedAt": web_server._now_iso(),
+        "tokensUsed": 0,
+        "toolCalls": 0,
+        "currentRunId": "run-trace-recovery-local-source-truth",
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+        "controlDecision": {
+            "shouldRun": True,
+            "decisionKind": "explore_first",
+            "nextAction": "collect_initial_facts",
+            "driver": "blackboard.derived_target.runtime_derived",
+            "reason": "candidate needs stronger runtime confirmation",
+        },
+        "blackboardSnapshot": {
+            "facts": [],
+            "hypotheses": [],
+            "pendingVerifications": [],
+            "decisions": [],
+            "candidates": [],
+            "actionResults": [],
+            "recommendedAction": {},
+            "activeDecision": {
+                "decisionKind": "explore_first",
+                "driver": "blackboard.derived_target.runtime_derived",
+                "nextAction": "collect_initial_facts",
+                "observedAction": "explore_agenda",
+                "alignment": "mismatched",
+                "alignmentReason": "candidate needs stronger runtime confirmation",
+                "switchedFrom": "probe_discovered_endpoint",
+                "triggerReason": "candidate needs stronger runtime confirmation",
+                "strongestHypothesisKind": "generic_web_recon",
+                "strongestHypothesisStatus": "active",
+                "strongestHypothesisConfidence": 0.72,
+            },
+        },
+        "ctfStateSnapshot": {
+            "target": "http://trace.test",
+            "goal": "trace recovery local source truth",
+            "detected_type": "web",
+            "observations": [
+                {
+                    "kind": "local_challenge_source_hint",
+                    "value": (
+                        "index.php: <?php session_start();\n"
+                        "update.php: $serialized = serialize($profile);\n"
+                        "profile.php: echo file_get_contents($profile['photo']);"
+                    ),
+                    "source": "local_challenge_context",
+                    "metadata": {
+                        "path": r"D:\webstudy\CTF\easy_profile\source_bundle\index.php",
+                    },
+                }
+            ],
+            "hypotheses": [],
+            "verified_flags": [],
+            "runtime_flags": [],
+            "artifacts": [],
+            "rejected_flags": [],
+            "exploration_agenda": [],
+            "wrong_flag_history": [],
+            "uniform_failures": [],
+            "llm_exploration_log": [],
+            "pre_action_reasonings": [],
+            "weak_decision_log": [],
+            "strategy_memory_hits": [],
+            "notes": [],
+        },
+    }
+
+    monkeypatch.setattr(web_server, "_pick_metrics_for_task", lambda project_root, item: None)
+    monkeypatch.setattr(
+        web_server,
+        "_pick_session_snapshot",
+        lambda project_root, item: (
+            None,
+            None,
+            {"matchedBy": "none", "confidence": "none", "expectedSessionId": None, "blockedReason": None, "candidateScore": None},
+        ),
+    )
+    monkeypatch.setattr(
+        web_server,
+        "_build_run_session_context",
+        lambda project_root, run_id: {
+            "runId": run_id,
+            "recentEvents": [
+                {
+                    "type": "recovery_decision",
+                    "t": "2026-06-04T10:00:03+00:00",
+                    "payload": {
+                        "action": "explore_agenda",
+                        "reason": "candidate needs stronger runtime confirmation",
+                        "should_stop": False,
+                        "chain_name": "ssti_exploit",
+                    },
+                }
+            ],
+            "artifacts": [],
+            "latestCheckpoint": None,
+            "resumeContext": None,
+        },
+    )
+
+    payload = web_server._build_trace_payload(tmp_path, task, include_timeline=True)
+
+    recovery_event = [event for event in payload["outcomeEvents"] if event["kind"] == "recovery_decision"][0]
+    assert recovery_event["summary"] == (
+        "explore_agenda · chain=ssti_exploit · from=probe_discovered_endpoint · "
+        "hypothesis=generic_web_recon · "
+        "exploit=profile_photo_poisoning source=local_challenge_source_hint "
+        "— candidate needs stronger runtime confirmation"
+    )
 
 
 def test_task_detail_payload_re_normalizes_dirty_derived_collections(

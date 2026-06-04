@@ -212,6 +212,8 @@
   当前即使还没有 `source_leak_exploit_candidate` observation，只要本地源码 hint 已能稳定派生 `profile_photo_poisoning` 这类 exploit truth，Web Detail / Trace 也会直接返回对应的 `exploitProvenance`，且 `control_action_started / completed` outcome events 会继续继承这条 local-source-derived provenance
 - `exploitProvenance -> summary text`
   当前 `dispatcher_started / verification_decision / task_finished` 的 summary 文本也会直接带出 exploit 来源类型；像 `local_challenge_source_hint` 这类 local-source-derived truth 不再只存在于 output JSON，而是进入顶层可读摘要
+- `recovery_decision` summary 标签化
+  当前 `recovery_decision` 的摘要也已统一成稳定顺序：`action · chain=... · from=... · hypothesis=... · exploit=... source=...`；候选切换来源、主假设与 exploit 来源不再只是分散埋在 output JSON
 - `exploitProvenance -> outcomeEvents`
   当前 `dispatcher_started` 与 `control_action_started / completed` 已会把 `exploitProvenance` 投进 summary / output，Trace Detail 事件流可直接看到 exploit 来源，而不必只靠顶层 payload 或回翻 observation
 - `actionPathSummary / exploitProvenance -> failure outcomeEvents`
