@@ -73,6 +73,7 @@
 - 已补 `recommendedActionSwitchedFrom / recommendedActionTriggerReason -> dispatcher_started / control_action_started / control_action_completed`，follow-up provenance 已进入 runtime 证据链
 - 已补 blackboard 从 runtime 事件重建 `activeDecision / actionResults` 时投影 `switchedFrom / triggerReason`
 - 已补 Task Detail / Trace Detail 顶层 `actionPathSummary`，当前执行路径不必再从 `activeDecision + decisionProvenance` 手工拼接
+- 已补 `continue` 入口的 follow-up refresh：同任务继续时，若已有 `recommendedAction`，会刷新 `controlDecision / ingressHandoff`，避免继续沿旧失败动作死跑
 - 下一步继续补候选动作层 / 切换理由稳定来源与前端更直接展示
 
 完成标准：
@@ -201,6 +202,11 @@
      - `alignment / alignmentReason`
      - `switchedFrom / triggerReason`
      - `strongestHypothesisKind / Status / Confidence`
+
+9. **continue follow-up 收紧**
+   - `continue` 不再只写 `resume` 线索
+   - 当 blackboard 已有 `recommendedAction` 时，会刷新同任务的 `controlDecision`
+   - 当前行为：优先避免继续沿旧失败动作重复推进
 
 ### 4.4 本地样本主线已成型
 

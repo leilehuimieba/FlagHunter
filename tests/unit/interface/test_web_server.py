@@ -5293,10 +5293,13 @@ async def test_task_continue_refreshes_control_decision_from_recommended_action(
     detail_resp = await web_client.get(f"/api/tasks/{task_id}")
     assert detail_resp.status == 200
     detail = await detail_resp.json()
-    assert detail["controlDecision"]["decisionKind"] == "direct_execute"
-    assert detail["controlDecision"]["nextAction"] == "bootstrap_local_assets"
+    assert detail["controlDecision"]["decisionKind"] == "explore_first"
+    assert detail["controlDecision"]["nextAction"] == "collect_initial_facts"
+    assert detail["controlDecision"]["driver"] == "blackboard.recommended_action"
     assert detail["blackboardSnapshot"]["recommendedAction"]["action"] == "collect_initial_facts"
     assert detail["blackboardSnapshot"]["recommendedAction"]["driver"] == "blackboard.recommended_action"
+    assert detail["ingressHandoff"]["nextAction"] == "collect_initial_facts"
+    assert detail["ingressHandoff"]["resumeBootstrap"] is None
 
 
 @pytest.mark.asyncio
