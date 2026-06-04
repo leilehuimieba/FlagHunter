@@ -208,6 +208,8 @@
   当前即使还没有 backup/runtime observation，只要 `local_challenge_source_hint` 已明确暴露 `serialize($profile)`、`file_get_contents($profile['photo'])` 等稳定信号，dispatcher 也会直接派生 `exploit_info / artifact_url`，并把 `profile_photo_poisoning` 的 exploit-heavy runtime 尝试前置到 `backup_source_leak` fallback 之前
 - `exploitProvenance` 顶层投影
   当前 task detail / trace payload 已会直接返回 `exploitProvenance`，可顶层展示 `sourceType / exploitKind / observationSource / artifactUrl`
+- `local_challenge_source_hint -> exploitProvenance`
+  当前即使还没有 `source_leak_exploit_candidate` observation，只要本地源码 hint 已能稳定派生 `profile_photo_poisoning` 这类 exploit truth，Web Detail / Trace 也会直接返回对应的 `exploitProvenance`，且 `control_action_started / completed` outcome events 会继续继承这条 local-source-derived provenance
 - `exploitProvenance -> outcomeEvents`
   当前 `dispatcher_started` 与 `control_action_started / completed` 已会把 `exploitProvenance` 投进 summary / output，Trace Detail 事件流可直接看到 exploit 来源，而不必只靠顶层 payload 或回翻 observation
 - `actionPathSummary / exploitProvenance -> failure outcomeEvents`
@@ -293,3 +295,33 @@
 
 > **当前项目已经不是“继续补页面”的阶段，而是进入了“先判断、再证明判断真的被执行、再用样本逼出真实缺口”的主控收紧阶段。**
 
+
+## 9. 当前 CTF skills 收口状态（2026-06-04）
+
+当前 CTF 技能层已经从“按题型散落”开始收成两层：
+
+### 上层：主控 / 调度层
+- `ctf-orchestrator`
+
+职责：
+- 先做入口识别
+- 先分 facts / hypotheses / recovery signals / candidate actions
+- 先判断是恢复旧链、走最短链还是补事实
+
+### 下层：题型执行层
+- `ctf-web`
+- `ctf-crypto`
+- `ctf-reverse`
+- `ctf-misc`
+
+其中 `ctf-web` 已按当前仓库主线完成重写：
+- 不再是传统漏洞清单
+- 改为依赖 orchestrator
+- 改为优先消费 structured recovery / observation truth / source artifact / runtime surface
+
+### 当前结论
+
+这说明当前项目的“黑板-lite”现实形态是：
+- 还不是完整黑板系统
+- 但已经有了清晰的主控层与执行层分离方向
+- 当前最值得继续推进的代码缺口，仍是把 structured provenance 继续压进 exploit-heavy dispatcher 分支

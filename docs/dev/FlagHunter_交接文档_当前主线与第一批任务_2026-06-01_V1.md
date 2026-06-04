@@ -85,6 +85,7 @@
 - 已补 `resume_from_checkpoint / bootstrap_local_assets` 的 structured handoff-first：coordinator 现在在 hint 为空时也能直接消费，hint 仅保留 fallback 角色
 - 已补 `backup_source_leak` 的 structured trigger 顺序收紧：当 follow-up provenance 明确指向 `source leak / backup artifact` 时，`_execute_web_chain()` 也会像 `_select_primary_strategy()` 一样，把 `backup_source_leak` 提前到 `contact_report_chain` 前执行
 - 已补 `profile_photo_poisoning` 的 local-source-derived exploit truth：当不存在 runtime/backup observation、但本地源码 hint 已明确暴露 `serialize($profile) / file_get_contents($profile['photo'])` 这类模式时，dispatcher 也能恢复 `exploit_info / artifact_url`，并在 `web` 链里先尝试 `profile_photo_poisoning` 再回到 `backup_source_leak`
+- 已补 Web Detail / Trace 对 `profile_photo_poisoning` local-source-derived provenance 的顶层投影：即使还没有 `source_leak_exploit_candidate` observation，只要 `local_challenge_source_hint` 已能稳定派生 exploit 类型，`exploitProvenance` 与 `outcomeEvents` 也会直接展示 `sourceType / exploitKind / artifactUrl`
 - 当前 control chain 首段主路径（resume / bootstrap / collect / verify / probe）已基本完成 structured handoff-first，后续更值得继续把 provenance 压进 dispatcher 内部策略选择
 - 下一步继续补候选动作层 / 切换理由稳定来源与前端更直接展示
 
@@ -255,6 +256,7 @@
    - 最新补强：当 `nextAction` 退化回 `collect_initial_facts` 时，dispatcher 现在还能继续读取 `switchedFrom / triggerReason / triggerActionDriver`，把 `probe_discovered_endpoint -> collect_initial_facts` 这类结构化 provenance 再收回到高价值策略（例如 `ssti_exploit` / `hash_guarded_file_read` / `backup_source_leak`），以及在 `xss` 链中恢复 `visit-url` fallback、在 `web` 链中恢复 `hint_chain_followup`
    - `StrategyContext` 现在也会优先从真实 observation 注入 `cookie_secret_leaked -> extras.cookie_secret`，使 `hash_reconstruction_attack` 不再只依赖显式参数透传
    - `profile_photo_poisoning` 现在不再只依赖 `source_leak_exploit_candidate` observation；当本地源码 hint 已经给出稳定利用信号时，dispatcher 也会从 `local_challenge_source_hint` 直接恢复 exploit info，并把这条 exploit-heavy runtime 尝试提前到 backup fallback 前
+   - Web Detail / Trace 现在也不再只依赖 `source_leak_exploit_candidate` observation 才能展示 exploit 来源；当 exploit truth 仅来自 `local_challenge_source_hint` 时，顶层 `exploitProvenance` 与 `control_action_* outcomeEvents` 也会保留这条 local-source-derived provenance
 
 ### 4.4 本地样本主线已成型
 
@@ -337,3 +339,55 @@
 
 > **当前项目已从“Web 真值化收口”进入“主控判断收紧 + blackboard-lite 落地 + 调度收短”的下一阶段；下一批任务优先补候选动作池与切换依据，再做最小 Eval Harness。**
 
+
+## 9. 当前 CTF skills 状态（2026-06-04）
+
+### 9.1 已完成的技能层收口
+
+本轮已完成：
+
+- 新增并收紧 `C:\Users\33371\.codex\skills\ctf-orchestrator\SKILL.md`
+- 重写 `C:\Users\33371\.codex\skills\ctf-web\SKILL.md`
+
+当前分层已明确：
+
+- `ctf-orchestrator`
+  - 负责主控判断
+  - 负责 facts / hypotheses / recovery signals / candidate actions 分层
+  - 负责决定当前是恢复旧链、走最短链、还是补最低成本事实
+- `ctf-web`
+  - 负责 Web 主面的具体执行
+  - 负责 source / artifact / runtime 三者之间的最小实验推进
+  - 明确依赖 orchestrator，而不是再回到传统漏洞清单式工作流
+
+### 9.2 当前保留 / 重写 / 新增结论
+
+保留：
+- `ctf-crypto`
+- `ctf-reverse`
+- `ctf-misc`
+- `ctf-tools-local`
+- `local-agent-harness`
+
+已新增 / 已重写：
+- 新增：`ctf-orchestrator`
+- 重写：`ctf-web`
+
+下一步更值得继续的 skill 方向：
+- `ctf-knowledge-writeback`
+- `ctf-eval-replay`
+
+### 9.3 这对当前代码主线的意义
+
+这次 skill 收口，不是单纯补文档，而是在技能层把当前仓库主线正式表达清楚：
+
+- 当前不是“见题就扫工具”
+- 而是“主控先判断，再由题型层打穿”
+- 当前 dispatcher / blackboard-lite / structured provenance 的代码方向，与新的 `ctf-orchestrator -> ctf-web` 分层是一致的
+
+### 9.4 下一条最自然的代码主线
+
+在 skills 收口完成后，下一条最值得继续压的代码缺口仍然是：
+
+- 把 structured provenance 继续压进 exploit-heavy dispatcher 分支
+- 尤其是让退化 follow-up 也能继续恢复高价值 exploit 分支，而不是回到泛化收集动作

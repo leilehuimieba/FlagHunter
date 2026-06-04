@@ -1706,6 +1706,69 @@ async def test_task_detail_surfaces_exploit_provenance_from_source_leak_observat
 
 
 @pytest.mark.asyncio
+async def test_task_detail_surfaces_exploit_provenance_from_local_source_hint(
+    web_client: TestClient,
+):
+    created = await web_client.post(
+        "/api/tasks",
+        json={
+            "title": "exploit-provenance-local-detail",
+            "target": "http://challenge.test",
+            "mode": "ctf",
+            "ctfType": "web",
+            "goal": "capture the flag",
+        },
+    )
+
+    assert created.status == 201
+    task = await created.json()
+    task_id = task["id"]
+    web_server._tasks[task_id]["ctfStateSnapshot"] = {
+        "target": "http://challenge.test",
+        "goal": "capture the flag",
+        "detected_type": "web",
+        "observations": [
+            {
+                "kind": "local_challenge_source_hint",
+                "value": (
+                    "index.php: <?php session_start();\n"
+                    "update.php: $serialized = serialize($profile);\n"
+                    "profile.php: echo file_get_contents($profile['photo']);"
+                ),
+                "source": "local_challenge_context",
+                "metadata": {
+                    "path": r"D:\webstudy\CTF\easy_profile\source_bundle\index.php",
+                },
+            }
+        ],
+        "hypotheses": [],
+        "verified_flags": [],
+        "runtime_flags": [],
+        "artifacts": [],
+        "rejected_flags": [],
+        "exploration_agenda": [],
+        "wrong_flag_history": [],
+        "uniform_failures": [],
+        "llm_exploration_log": [],
+        "pre_action_reasonings": [],
+        "weak_decision_log": [],
+        "strategy_memory_hits": [],
+        "notes": [],
+    }
+
+    detail_resp = await web_client.get(f"/api/tasks/{task_id}")
+    assert detail_resp.status == 200
+    detail = await detail_resp.json()
+
+    assert detail["exploitProvenance"] == {
+        "sourceType": "local_challenge_source_hint",
+        "exploitKind": "profile_photo_poisoning",
+        "observationSource": "local_challenge_context",
+        "artifactUrl": r"D:\webstudy\CTF\easy_profile\source_bundle\index.php",
+    }
+
+
+@pytest.mark.asyncio
 async def test_task_detail_surfaces_suppressed_recommended_action(web_client: TestClient):
     created = await web_client.post(
         "/api/tasks",
@@ -4326,6 +4389,121 @@ def test_build_trace_payload_surfaces_exploit_provenance_summary(
         "observationSource": "backup_source_leak",
         "artifactUrl": "http://trace.test/backup.zip",
     }
+
+
+def test_build_trace_payload_keeps_local_source_hint_exploit_provenance_in_outcome_events(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    task = {
+        "id": "task_trace_local_source_exploit_provenance",
+        "title": "trace local source exploit provenance",
+        "target": "http://trace.test",
+        "goal": "trace local source exploit provenance",
+        "mode": "ctf",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
+        "status": "running",
+        "createdAt": web_server._now_iso(),
+        "startedAt": web_server._now_iso(),
+        "tokensUsed": 0,
+        "toolCalls": 0,
+        "currentRunId": "run-trace-local-source-exploit-provenance",
+        "hints": [],
+        "messages": [],
+        "plan": [],
+        "notes": [],
+        "knowledgeHits": [],
+        "attachments": [],
+        "ctfStateSnapshot": {
+            "target": "http://trace.test",
+            "goal": "trace local source exploit provenance",
+            "detected_type": "web",
+            "observations": [
+                {
+                    "kind": "local_challenge_source_hint",
+                    "value": (
+                        "index.php: <?php session_start();\n"
+                        "update.php: $serialized = serialize($profile);\n"
+                        "profile.php: echo file_get_contents($profile['photo']);"
+                    ),
+                    "source": "local_challenge_context",
+                    "metadata": {
+                        "path": r"D:\webstudy\CTF\easy_profile\source_bundle\index.php",
+                    },
+                }
+            ],
+            "hypotheses": [],
+            "verified_flags": [],
+            "runtime_flags": [],
+            "artifacts": [],
+            "rejected_flags": [],
+            "exploration_agenda": [],
+            "wrong_flag_history": [],
+            "uniform_failures": [],
+            "llm_exploration_log": [],
+            "pre_action_reasonings": [],
+            "weak_decision_log": [],
+            "strategy_memory_hits": [],
+            "notes": [],
+        },
+    }
+
+    monkeypatch.setattr(web_server, "_pick_metrics_for_task", lambda project_root, item: None)
+    monkeypatch.setattr(
+        web_server,
+        "_pick_session_snapshot",
+        lambda project_root, item: (
+            None,
+            None,
+            {"matchedBy": "none", "confidence": "none", "expectedSessionId": None, "blockedReason": None, "candidateScore": None},
+        ),
+    )
+    monkeypatch.setattr(
+        web_server,
+        "_build_run_session_context",
+        lambda project_root, run_id: {
+            "runId": run_id,
+            "recentEvents": [
+                {
+                    "type": "control_action_started",
+                    "t": "2026-06-03T10:00:01+00:00",
+                    "payload": {
+                        "action": "collect_initial_facts",
+                        "decision_kind": "explore_first",
+                        "driver": "blackboard.derived_target.runtime_derived",
+                    },
+                },
+                {
+                    "type": "control_action_completed",
+                    "t": "2026-06-03T10:00:02+00:00",
+                    "payload": {
+                        "action": "collect_initial_facts",
+                        "decision_kind": "explore_first",
+                        "driver": "blackboard.derived_target.runtime_derived",
+                        "result": "ok",
+                    },
+                },
+            ],
+            "artifacts": [],
+            "latestCheckpoint": None,
+            "resumeContext": None,
+        },
+    )
+
+    payload = web_server._build_trace_payload(tmp_path, task, include_timeline=True)
+
+    assert payload["exploitProvenance"] == {
+        "sourceType": "local_challenge_source_hint",
+        "exploitKind": "profile_photo_poisoning",
+        "observationSource": "local_challenge_context",
+        "artifactUrl": r"D:\webstudy\CTF\easy_profile\source_bundle\index.php",
+    }
+    started = [event for event in payload["outcomeEvents"] if event["kind"] == "control_action_started"][0]
+    completed = [event for event in payload["outcomeEvents"] if event["kind"] == "control_action_completed"][0]
+    started_output = json.loads(started["output"])
+    assert "profile_photo_poisoning" in started["summary"]
+    assert started_output["exploit_provenance"]["artifactUrl"] == r"D:\webstudy\CTF\easy_profile\source_bundle\index.php"
+    assert "profile_photo_poisoning" in completed["summary"]
 
 
 def test_build_trace_payload_keeps_strongest_hypothesis_in_control_action_outcome_events(
