@@ -63,6 +63,7 @@
   - `control_action_started / completed`
   - `blackboardSnapshot.activeDecision / actionResults`
   - Trace Detail `outcomeEvents`
+- 已补 `recommendedAction -> strongest hypothesis` 继承，候选切换后仍能带着主控上下文继续流转
 - 下一步继续补候选动作层 / 切换理由稳定来源
 
 完成标准：

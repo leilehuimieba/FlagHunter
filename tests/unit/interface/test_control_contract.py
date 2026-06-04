@@ -616,6 +616,9 @@ def test_recommended_action_in_blackboard_can_override_local_assets_fallback() -
                 "action": "collect_initial_facts",
                 "driver": "blackboard.derived_target.runtime_derived",
                 "reason": "selected action failed; switch to next best candidate",
+                "strongestHypothesisKind": "generic_web_recon",
+                "strongestHypothesisStatus": "active",
+                "strongestHypothesisConfidence": 0.52,
             },
         },
     }
@@ -628,6 +631,9 @@ def test_recommended_action_in_blackboard_can_override_local_assets_fallback() -
     assert decision["driver"] == "blackboard.derived_target.runtime_derived"
     assert decision["reason"] == "selected action failed; switch to next best candidate"
     assert "blackboard.recommended_action=present" in decision["facts"]
+    assert "strongestHypothesisKind=generic_web_recon" in decision["facts"]
+    assert "strongestHypothesisStatus=active" in decision["facts"]
+    assert "strongestHypothesisConfidence=0.52" in decision["facts"]
 
 
 def test_verified_flag_still_outranks_recommended_action() -> None:

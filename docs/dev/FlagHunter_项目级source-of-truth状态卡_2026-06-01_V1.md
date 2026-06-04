@@ -152,6 +152,8 @@
 - strongest hypothesis 已能进入 `control_action_started / control_action_completed`
 - `blackboardSnapshot.activeDecision / actionResults`
   已可展示 `strongestHypothesisKind / Status / Confidence`
+- `recommendedAction`
+  已可继承 strongest hypothesis，供 continue / replay / retry 后续调度继续消费
 
 ### 4.2 控制链还缺“失败反馈 / 候选切换”这一段
 

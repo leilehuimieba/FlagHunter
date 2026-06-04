@@ -530,6 +530,9 @@ def test_build_task_blackboard_snapshot_recommends_next_best_action_after_select
                         "action": "collect_initial_facts",
                         "driver": "blackboard.derived_target.runtime_derived",
                         "result": "failed",
+                        "strongest_hypothesis_kind": "generic_web_recon",
+                        "strongest_hypothesis_status": "active",
+                        "strongest_hypothesis_confidence": 0.52,
                         "details": {"reason": "no new facts"},
                     },
                 }
@@ -545,6 +548,9 @@ def test_build_task_blackboard_snapshot_recommends_next_best_action_after_select
         "switchedFrom": "collect_initial_facts",
         "triggerResult": "failed",
         "triggerReason": "no new facts",
+        "strongestHypothesisKind": "generic_web_recon",
+        "strongestHypothesisStatus": "active",
+        "strongestHypothesisConfidence": 0.52,
     }
 
 
