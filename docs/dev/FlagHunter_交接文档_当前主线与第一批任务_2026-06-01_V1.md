@@ -75,6 +75,7 @@
 - 已补 Task Detail / Trace Detail 顶层 `actionPathSummary`，当前执行路径不必再从 `activeDecision + decisionProvenance` 手工拼接
 - 已补 `continue` 入口的 follow-up refresh：同任务继续时，若已有 `recommendedAction`，会刷新 `controlDecision / ingressHandoff`，避免继续沿旧失败动作死跑
 - 已补 `retry / replay` 的 follow-up refresh：**仅在 blackboard 确有 `recommendedAction.action` 时** 才刷新 follow-up；否则继续保留原本的 `resume_execute` 语义
+- 已补 `nextActionExplanation` 顶层解释合同：`task list / detail / trace payload / replay / retry / continue` 现在都可直接返回“为什么下一步做这个动作”，前端不必再深入 `controlDecision + ingressHandoff + blackboardSnapshot`
 - 已补 `ctf_dispatcher` 对结构化 `ingress_handoff.nextAction` 的直接消费，内部选主策略不再只依赖 hint 字符串
 - 已补 `probe_discovered_endpoint -> ingressHandoff.endpoint`，coordinator 侦察目标现在会优先消费结构化 endpoint，再回退到 hint 文本
 - 已补 MCP ingress 与 Web ingress 的 `probe_discovered_endpoint` 对齐，双入口现在都会结构化传递 `endpoint`
@@ -215,11 +216,21 @@
    - `continue` 不再只写 `resume` 线索
    - 当 blackboard 已有 `recommendedAction` 时，会刷新同任务的 `controlDecision`
    - 当前行为：优先避免继续沿旧失败动作重复推进
+   - 当前返回合同：`continue` 接受响应里的 `nextActionExplanation` 表达“此刻为什么接受继续 / 当前准备执行什么”，而 task detail / trace 继续表达刷新后的持久 decision truth
 
 10. **retry / replay follow-up 收紧**
    - `retry / replay` 不再一刀切覆盖 `resume_execute`
    - 只有在 blackboard 已给出明确 `recommendedAction.action` 时，才改走 next-best action
    - 没有 recommendation 的恢复场景，仍保持原先 `resume_execute` 合同
+
+11. **recovery next action 顶层解释合同**
+   - `Task list / Task Detail / Trace payload / replay / retry / continue`
+     已可顶层返回 `nextActionExplanation`
+   - 当前字段：
+     - `decisionKind / nextAction / driver / reason`
+     - `sourceType / switchedFrom / triggerReason`
+     - `summary`
+   - 恢复类入口与前端不必再手工回拼 `controlDecision + ingressHandoff + decisionProvenance`
 
 11. **dispatcher 结构化 follow-up 消费**
    - `ctf_dispatcher` 选主策略时，已开始直接读取 `ingress_handoff.nextAction`

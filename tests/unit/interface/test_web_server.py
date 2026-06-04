@@ -1340,6 +1340,16 @@ async def test_trace_replay_response_includes_resume_execute_control_decision(we
     assert replayed_task["ingressHandoff"]["challengeContext"]["challengePath"] == r"D:\webstudy\CTF\2026\CTF比赛题\easy_login"
     assert replayed_task["ingressHandoff"]["resumeBootstrap"]["runId"] == original_run_id
     assert replayed_task["ingressHandoff"]["resumeBootstrap"]["checkpointId"] == "checkpoint-replay-1"
+    assert replayed_task["nextActionExplanation"] == {
+        "decisionKind": "resume_execute",
+        "nextAction": "resume_from_checkpoint",
+        "driver": "task.resume_context",
+        "reason": "resume context available",
+        "sourceType": None,
+        "switchedFrom": None,
+        "triggerReason": None,
+        "summary": "resume_execute -> resume_from_checkpoint via task.resume_context",
+    }
 
 
 @pytest.mark.asyncio
@@ -5594,6 +5604,16 @@ async def test_task_continue_accepts_running_task_without_creating_new_task(
     assert continue_result["accepted"] is True
     assert continue_result["sessionContext"]["resumeContext"]["runId"] == run_id
     assert continue_result["resumeFromCheckpointId"] == checkpoint["checkpoint_id"]
+    assert continue_result["nextActionExplanation"] == {
+        "decisionKind": "direct_execute",
+        "nextAction": "bootstrap_local_assets",
+        "driver": "task.local_assets",
+        "reason": "local challenge assets available for bootstrap",
+        "sourceType": None,
+        "switchedFrom": None,
+        "triggerReason": None,
+        "summary": "direct_execute -> bootstrap_local_assets via task.local_assets",
+    }
     assert continue_result["challengeContext"]["derivedTarget"] == "http://127.0.0.1:3000"
     assert continue_result["challengeContext"]["derivedTargetSource"] == "docker_compose_port_mapping"
     assert (
@@ -5672,6 +5692,16 @@ async def test_trace_replay_consumes_inherited_recommended_action_over_local_ass
     assert replayed_task["blackboardSnapshot"]["recommendedAction"]["driver"] == "blackboard.recommended_action"
     assert replayed_task["ingressHandoff"]["nextAction"] == "collect_initial_facts"
     assert replayed_task["ingressHandoff"]["resumeBootstrap"] is None
+    assert replayed_task["nextActionExplanation"] == {
+        "decisionKind": "explore_first",
+        "nextAction": "collect_initial_facts",
+        "driver": "blackboard.recommended_action",
+        "reason": "switch to next best action after failed exploit",
+        "sourceType": None,
+        "switchedFrom": None,
+        "triggerReason": None,
+        "summary": "explore_first -> collect_initial_facts via blackboard.recommended_action",
+    }
 
 
 @pytest.mark.asyncio
@@ -5715,6 +5745,16 @@ async def test_task_retry_consumes_inherited_recommended_action_over_local_asset
     assert retried_task["blackboardSnapshot"]["recommendedAction"]["driver"] == "blackboard.recommended_action"
     assert retried_task["ingressHandoff"]["nextAction"] == "collect_initial_facts"
     assert retried_task["ingressHandoff"]["resumeBootstrap"] is None
+    assert retried_task["nextActionExplanation"] == {
+        "decisionKind": "explore_first",
+        "nextAction": "collect_initial_facts",
+        "driver": "blackboard.recommended_action",
+        "reason": "switch to next best action after failed exploit",
+        "sourceType": None,
+        "switchedFrom": None,
+        "triggerReason": None,
+        "summary": "explore_first -> collect_initial_facts via blackboard.recommended_action",
+    }
 
 
 @pytest.mark.asyncio
@@ -5775,6 +5815,16 @@ async def test_task_continue_refreshes_control_decision_from_recommended_action(
     assert detail["controlDecision"]["decisionKind"] == "explore_first"
     assert detail["controlDecision"]["nextAction"] == "collect_initial_facts"
     assert detail["controlDecision"]["driver"] == "blackboard.recommended_action"
+    assert detail["nextActionExplanation"] == {
+        "decisionKind": "explore_first",
+        "nextAction": "collect_initial_facts",
+        "driver": "blackboard.recommended_action",
+        "reason": "switch to next best action after failed exploit",
+        "sourceType": None,
+        "switchedFrom": None,
+        "triggerReason": None,
+        "summary": "explore_first -> collect_initial_facts via blackboard.recommended_action",
+    }
     assert detail["blackboardSnapshot"]["recommendedAction"]["action"] == "collect_initial_facts"
     assert detail["blackboardSnapshot"]["recommendedAction"]["driver"] == "blackboard.recommended_action"
     assert detail["ingressHandoff"]["nextAction"] == "collect_initial_facts"

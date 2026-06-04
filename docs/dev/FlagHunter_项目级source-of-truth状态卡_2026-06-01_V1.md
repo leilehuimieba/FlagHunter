@@ -172,8 +172,11 @@
   已能从 runtime events 重建 `switchedFrom / triggerReason`
 - `Task Detail / Trace Detail`
   已补顶层 `actionPathSummary`，当前执行路径（planned/observed/effective）与 strongest hypothesis 已有直接展示合同
+- `Task list / Task Detail / Trace payload / replay / retry / continue`
+  已补顶层 `nextActionExplanation`，恢复类入口与前端不必再手工回拼 `controlDecision + ingressHandoff + decisionProvenance`
 - `continue` 入口
   已开始消费 blackboard `recommendedAction`，同任务继续时会刷新 `controlDecision / ingressHandoff`，避免继续沿旧失败动作推进
+  且 `continue` 接受响应会优先返回“当前为什么接受继续 / 当前准备执行什么”的即时 explanation；detail / trace 继续表达刷新后的持久 decision truth
 - `retry / replay` 入口
   已开始按 recommendation 有无做分流：有明确 `recommendedAction.action` 时刷新 follow-up；否则保留 `resume_execute`
 - `ctf_dispatcher` 内部策略选择
