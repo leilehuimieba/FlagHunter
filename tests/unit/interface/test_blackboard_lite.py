@@ -559,6 +559,8 @@ def test_build_task_blackboard_snapshot_recommends_next_best_action_after_select
         "switchedFrom": "collect_initial_facts",
         "triggerResult": "failed",
         "triggerReason": "no new facts",
+        "triggerActionDriver": "blackboard.derived_target.runtime_derived",
+        "triggerAt": "2026-06-03T10:00:02+00:00",
         "strongestHypothesisKind": "generic_web_recon",
         "strongestHypothesisStatus": "active",
         "strongestHypothesisConfidence": 0.52,
@@ -621,6 +623,8 @@ def test_build_task_blackboard_snapshot_recommends_next_best_action_after_select
         "switchedFrom": "collect_initial_facts",
         "triggerResult": "skipped",
         "triggerReason": "already explored from inherited trace",
+        "triggerActionDriver": "blackboard.derived_target.runtime_derived",
+        "triggerAt": "2026-06-03T10:00:02+00:00",
     }
 
 
@@ -711,6 +715,8 @@ def test_format_blackboard_snapshot_lines_projects_shared_sections() -> None:
                 "switchedFrom": "verify_runtime_signal",
                 "triggerResult": "failed",
                 "triggerReason": "runtime verifier rejected candidate",
+                "triggerActionDriver": "blackboard.runtime_flag",
+                "triggerAt": "2026-06-03T10:00:02+00:00",
             },
             "action_results": [
                 {
@@ -739,6 +745,8 @@ def test_format_blackboard_snapshot_lines_projects_shared_sections() -> None:
     assert "switchedFrom=verify_runtime_signal" in lines
     assert "triggerResult=failed" in lines
     assert "triggerReason=runtime verifier rejected candidate" in lines
+    assert "triggerActionDriver=blackboard.runtime_flag" in lines
+    assert "triggerAt=2026-06-03T10:00:02+00:00" in lines
     assert "[blackboard_action_results]" in lines
     assert "result=failed" in lines
 

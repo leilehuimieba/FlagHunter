@@ -156,6 +156,8 @@
   已可继承 strongest hypothesis，供 continue / replay / retry 后续调度继续消费
 - `candidates`
   的 selected / recommended 项已可携带 strongest hypothesis，上下文在候选动作层不再断裂
+- `recommendedAction`
+  已可携带 `triggerActionDriver / triggerAt`，候选切换来源可追溯到具体动作结果
 
 ### 4.2 控制链还缺“失败反馈 / 候选切换”这一段
 
