@@ -936,7 +936,10 @@ async def test_coordinator_records_control_decision_in_run_start_event_and_check
             "decisionKind=direct_execute\n"
             "nextAction=bootstrap_local_assets\n"
             "driver=task.local_assets\n"
-            "reason=ctf local assets available"
+            "reason=ctf local assets available\n"
+            "strongestHypothesisKind=backup_source_leak\n"
+            "strongestHypothesisStatus=supported\n"
+            "strongestHypothesisConfidence=0.91"
         ),
         submit_profile=None,
         challenge_context={"challengePath": str(challenge_dir), "artifactPaths": []},
@@ -957,6 +960,9 @@ async def test_coordinator_records_control_decision_in_run_start_event_and_check
             "decision_kind": "direct_execute",
             "next_action": "bootstrap_local_assets",
             "decision_driver": "task.local_assets",
+            "strongest_hypothesis_kind": "backup_source_leak",
+            "strongest_hypothesis_status": "supported",
+            "strongest_hypothesis_confidence": 0.91,
         },
     )
     assert captured["written_checkpoints"][0] == (
@@ -968,6 +974,9 @@ async def test_coordinator_records_control_decision_in_run_start_event_and_check
             "decision_kind": "direct_execute",
             "next_action": "bootstrap_local_assets",
             "decision_driver": "task.local_assets",
+            "strongest_hypothesis_kind": "backup_source_leak",
+            "strongest_hypothesis_status": "supported",
+            "strongest_hypothesis_confidence": 0.91,
         },
     )
     assert any(event_type == "control_action_started" for event_type, _ in captured["recorded_events"])
@@ -2597,7 +2606,10 @@ async def test_coordinator_records_initial_fact_collection_observation_before_re
             "decisionKind=explore_first\n"
             "nextAction=collect_initial_facts\n"
             "driver=blackboard.derived_target.runtime_derived\n"
-            "reason=derived target available for initial fact collection"
+            "reason=derived target available for initial fact collection\n"
+            "strongestHypothesisKind=generic_web_recon\n"
+            "strongestHypothesisStatus=active\n"
+            "strongestHypothesisConfidence=0.52"
         ),
         submit_profile=None,
         challenge_context={"artifactPaths": []},
@@ -2616,6 +2628,9 @@ async def test_coordinator_records_initial_fact_collection_observation_before_re
     assert latest[3]["driver"] == "blackboard.derived_target.runtime_derived"
     assert latest[3]["reason"] == "derived target available for initial fact collection"
     assert latest[3]["next_action"] == "collect_initial_facts"
+    assert latest[3]["strongest_hypothesis_kind"] == "generic_web_recon"
+    assert latest[3]["strongest_hypothesis_status"] == "active"
+    assert latest[3]["strongest_hypothesis_confidence"] == 0.52
 
 
 @pytest.mark.asyncio

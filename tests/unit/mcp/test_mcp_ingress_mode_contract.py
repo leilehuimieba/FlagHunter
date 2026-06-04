@@ -150,6 +150,60 @@ def test_mcp_ctf_dispatcher_hint_includes_verified_flag_for_verify_or_submit_act
     assert "verifiedFlag=flag{verified_candidate}" in hint
 
 
+def test_mcp_ctf_dispatcher_hint_includes_strongest_hypothesis_fields() -> None:
+    entry = mcp_tools.TaskEntry(
+        id="task-hyp-1",
+        task="probe strongest hypothesis",
+        status="pending",
+        created_at="2026-06-04T00:00:00",
+        agent=SimpleNamespace(),
+        target="http://challenge.test",
+        mode="ctf",
+        modeSubtype="web",
+        controlDecision={
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "reason": "strongest blackboard hypothesis favors endpoint probing",
+            "nextAction": "probe_discovered_endpoint",
+            "driver": "blackboard.hypothesis.auth_form_sqli",
+            "facts": [
+                "mode=ctf",
+                "blackboard.hypothesis=present",
+                "strongestHypothesisKind=auth_form_sqli",
+                "strongestHypothesisStatus=supported",
+            ],
+        },
+        ctfStateSnapshot={
+            "observations": [
+                {
+                    "kind": "recon_url",
+                    "value": "http://challenge.test/login",
+                    "source": "recon",
+                    "metadata": {"confidence": "high"},
+                }
+            ],
+            "hypotheses": [
+                {
+                    "id": "hyp-1",
+                    "kind": "auth_form_sqli",
+                    "description": "login form may be injectable",
+                    "confidence": 0.78,
+                    "status": "supported",
+                }
+            ],
+            "artifacts": [],
+            "runtime_flags": [],
+            "verified_flags": [],
+        },
+    )
+
+    hint = mcp_tools._ctf_dispatcher_hint(entry)
+
+    assert "strongestHypothesisKind=auth_form_sqli" in hint
+    assert "strongestHypothesisStatus=supported" in hint
+    assert "strongestHypothesisConfidence=0.78" in hint
+
+
 @pytest.mark.asyncio
 async def test_run_task_async_resolves_mode_contract_before_task_creation(
     monkeypatch: pytest.MonkeyPatch,

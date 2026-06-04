@@ -120,6 +120,39 @@ def test_cli_ctf_dispatcher_hint_includes_endpoint_verified_and_runtime_signal_f
     assert "runtimeFlag=flag{runtime_candidate}" in runtime_hint
 
 
+def test_cli_ctf_dispatcher_hint_includes_strongest_hypothesis_fields() -> None:
+    hint = interface_cli._ctf_dispatcher_hint(
+        control_decision={
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "reason": "strongest blackboard hypothesis favors endpoint probing",
+            "nextAction": "probe_discovered_endpoint",
+            "driver": "blackboard.hypothesis.auth_form_sqli",
+            "facts": [
+                "mode=ctf",
+                "blackboard.hypothesis=present",
+                "strongestHypothesisKind=auth_form_sqli",
+                "strongestHypothesisStatus=supported",
+            ],
+        },
+        blackboard_snapshot={
+            "facts": [{"kind": "discovered_endpoint", "value": "http://challenge.test/login"}],
+            "hypotheses": [
+                {
+                    "id": "hyp-1",
+                    "kind": "auth_form_sqli",
+                    "confidence": 0.78,
+                    "status": "supported",
+                }
+            ],
+        },
+    )
+
+    assert "strongestHypothesisKind=auth_form_sqli" in hint
+    assert "strongestHypothesisStatus=supported" in hint
+    assert "strongestHypothesisConfidence=0.78" in hint
+
+
 def test_sync_runtime_challenge_context_persists_derived_target_fields() -> None:
     challenge_context = {
         "challengePath": r"D:\webstudy\CTF\2026\easy_login",
