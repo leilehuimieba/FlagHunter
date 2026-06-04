@@ -187,6 +187,8 @@
   已开始消费结构化 `ingressHandoff` 的 `runtimeFlag / verifiedFlag`；当前 Web / MCP ingress 与 coordinator early-finish 路径都已对齐
 - `resume_from_checkpoint / bootstrap_local_assets`
   已开始消费结构化 `ingressHandoff`；当前 coordinator 首段动作已支持 structured handoff-first，hint 主要退化为兼容 fallback
+- control chain 首段主路径
+  当前 `resume / bootstrap / collect / verify / probe` 已基本完成 structured handoff-first；下一步更值得把 structured provenance 继续压进 dispatcher 内部策略分支
 
 ### 4.2 控制链还缺“失败反馈 / 候选切换”这一段
 
