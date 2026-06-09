@@ -248,6 +248,59 @@ async def test_run_cli_routes_ctf_mode_into_dispatcher_with_local_asset_hint(mon
 
 
 @pytest.mark.asyncio
+async def test_run_cli_preserves_auto_ctf_subtype_for_dispatcher(monkeypatch, _mute_cli_console) -> None:
+    captured = {}
+
+    monkeypatch.setattr(
+        interface_cli,
+        "resolve_mode_contract",
+        lambda payload, source_task=None: {"mode": "ctf", "modeSubtype": "unknown", "goalStyle": "flag"},
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "pentestagent.interface.initializer.activate_workspace_for_target",
+        lambda *args, **kwargs: None,
+    )
+
+    async def _fake_build_runtime(**kwargs):
+        return _FakeRuntime(), {"label": "Local", "status_text": "ok"}
+
+    monkeypatch.setattr("pentestagent.interface.initializer.build_runtime", _fake_build_runtime)
+    monkeypatch.setattr("pentestagent.interface.initializer.has_ssh_runtime_config", lambda: False)
+    monkeypatch.setattr("pentestagent.interface.cli.Path.exists", lambda self: False)
+    monkeypatch.setattr("pentestagent.interface.cli.get_all_tools", lambda: [], raising=False)
+
+    class _FakeDispatcher:
+        def __init__(self, runtime, progress_callback=None, verification_callback=None):
+            captured["runtime"] = runtime
+
+        async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None):
+            captured["target"] = target
+            captured["type"] = type
+            return SimpleNamespace(
+                flag="flag{cli_ctf_auto_ok}",
+                reason="ok",
+                chain_used=["sqli"],
+                missing_tools=[],
+                notes=[],
+            )
+
+    monkeypatch.setattr("pentestagent.agents.pa_agent.ctf_dispatcher.CTFTaskDispatcher", _FakeDispatcher)
+    monkeypatch.setattr("pentestagent.interface.cli.CTFTaskDispatcher", _FakeDispatcher, raising=False)
+
+    await interface_cli.run_cli(
+        target="http://127.0.0.1:3000",
+        model="gpt-5",
+        task="solve the challenge",
+        mode="ctf",
+        ctf_type=None,
+    )
+
+    assert captured["target"] == "http://127.0.0.1:3000"
+    assert captured["type"] == "auto"
+
+
+@pytest.mark.asyncio
 async def test_run_cli_syncs_derived_target_into_challenge_context_when_target_missing(
     monkeypatch,
     _mute_cli_console,
