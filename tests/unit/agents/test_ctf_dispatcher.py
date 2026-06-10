@@ -2756,6 +2756,69 @@ async def test_execute_web_chain_runs_hash_guarded_before_backup_when_filehash_s
 
 
 @pytest.mark.asyncio
+async def test_execute_web_chain_replays_prefix_strategies_when_backup_source_leak_discovers_source_hints(
+    monkeypatch,
+):
+    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+
+    class _FakeStrategy:
+        def __init__(self, kind: str):
+            self.kind = kind
+
+        def is_applicable(self, ctx):
+            return True
+
+    called_kinds: list[str] = []
+
+    async def _wrapped_execute(kind: str, context):
+        called_kinds.append(kind)
+        if kind == "backup_source_leak":
+            dispatcher.state.add_observation(
+                "local_challenge_source_hint",
+                "index.php: <?php $_GET['url']; $_GET['filename']; ?>",
+                source="runtime_source_leak",
+                metadata={"path": "file:///var/www/html/index.php"},
+            )
+            return _ChainOutcome(progress=True, reason="backup discovered runtime source")
+        return _ChainOutcome(progress=False, reason=kind)
+
+    monkeypatch.setattr(dispatcher.strategy_registry, "execute", _wrapped_execute)
+    monkeypatch.setattr(dispatcher.strategy_registry, "get", lambda kind: _FakeStrategy(kind))
+    monkeypatch.setattr(dispatcher, "_strategies_for_chain", lambda *args, **kwargs: [])
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+
+    await dispatcher._execute_web_chain(
+        "http://ctf.local/",
+        {
+            "content": "",
+            "html": "",
+            "endpoints": [],
+            "raw_links": [],
+            "forms": [],
+        },
+        "",
+    )
+
+    assert "backup_source_leak" in called_kinds
+    backup_idx = called_kinds.index("backup_source_leak")
+    assert "hint_chain_followup" in called_kinds[backup_idx + 1 :]
+
+
+@pytest.mark.asyncio
 async def test_execute_web_chain_runs_hash_reconstruction_before_backup_when_cookie_secret_observed(
     monkeypatch,
 ):
@@ -3130,6 +3193,57 @@ async def test_run_backup_analysis_stores_profile_photo_poisoning_exploit_candid
         obs.kind == "source_leak_exploit_candidate"
         and obs.value == "profile_photo_poisoning"
         and (obs.metadata or {}).get("artifact_url") == "http://ctf.local/backup.zip"
+        for obs in dispatcher.state.observations
+    )
+
+
+@pytest.mark.asyncio
+async def test_run_backup_analysis_stores_source_fetch_write_ssrf_observation(monkeypatch):
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(target="http://ctf.local/", goal="拿到flag", detected_type="web")
+
+    async def _fake_scan_and_store(*args, **kwargs):
+        return None
+
+    async def _fake_attempt_source_fetch(*args, **kwargs):
+        from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+
+        return _ChainOutcome(progress=True, reason="source fetch/write candidate")
+
+    monkeypatch.setattr(dispatcher, "_scan_and_store", _fake_scan_and_store)
+    monkeypatch.setattr(dispatcher, "_attempt_source_fetch_write_ssrf_chain", _fake_attempt_source_fetch)
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher._pick_python_command",
+        lambda runtime: "python",
+    )
+
+    async def _fake_runtime_execute_command(*args, **kwargs):
+        return SimpleNamespace(
+            stdout='{"url":"http://ctf.local/","kind":"raw","entries":[],"interesting":[],"flag":null,"php_unserialize":false,"profile_photo_poisoning":false,"php_upload_cookie_pop":false,"source_fetch_write_ssrf":true,"exploit":{"type":"source_fetch_write_ssrf","url_param":"url","filename_param":"filename","client_ip_header":"X-Forwarded-For","client_ip_value":"8.8.8.8","sandbox_prefix":"sandbox/","remote_addr_hash":"md5","remote_addr_salt":"orange","probe_filename":"p/flaghunter_probe.txt"}}',
+            stderr="",
+            exit_code=0,
+        )
+
+    monkeypatch.setattr(dispatcher, "_runtime_execute_command", _fake_runtime_execute_command)
+
+    outcome = await dispatcher._download_and_analyze_backup_artifact(
+        "http://ctf.local/",
+        "http://ctf.local/",
+    )
+
+    assert outcome.progress is True
+    assert any(
+        obs.kind == "source_leak_exploit_candidate"
+        and obs.value == "source_fetch_write_ssrf"
+        and (obs.metadata or {}).get("artifact_url") == "http://ctf.local/"
         for obs in dispatcher.state.observations
     )
 
@@ -5000,6 +5114,109 @@ async def test_ctf_dispatcher_generic_upload_chain_follows_uploaded_payload(
     notes_module._notes.clear()
     notes_module._custom_notes_file = None
     notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
+async def test_ctf_dispatcher_backup_source_leak_analyzes_inline_source_on_current_page(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_inline_source_ssrf.json")
+    notes_module._notes.clear()
+
+    dispatcher = CTFTaskDispatcher(runtime=_DispatcherRuntime(), progress_callback=None)
+    called_urls: list[str] = []
+
+    async def _fake_proxy_action(action: str, **kwargs):
+        if action == "get" and kwargs.get("url") == "http://ctf.local/":
+            return {
+                "status_code": 200,
+                "body": """<code><?php echo $_SERVER['REMOTE_ADDR']; $sandbox = "sandbox/" . md5("orange" . $_SERVER["REMOTE_ADDR"]); $data = shell_exec("GET " . escapeshellarg($_GET["url"])); $info = pathinfo($_GET["filename"]); @file_put_contents(basename($info["basename"]), $data); highlight_file(__FILE__);</code>""",
+                "headers": {"Content-Type": "text/html"},
+                "final_url": "http://ctf.local/",
+            }
+        return {"status_code": 404, "body": ""}
+
+    async def _fake_download_and_analyze(artifact_url: str, target: str):
+        from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+
+        called_urls.append(artifact_url)
+        return _ChainOutcome(progress=True, reason="inline-source-analyzed")
+
+    monkeypatch.setattr(dispatcher.runtime, "proxy_action", _fake_proxy_action)
+    monkeypatch.setattr(dispatcher, "_download_and_analyze_backup_artifact", _fake_download_and_analyze)
+
+    outcome = await dispatcher._run_backup_source_leak_strategy(
+        "http://ctf.local/",
+        {
+            "url": "http://ctf.local/",
+            "html": """<code><?php echo $_SERVER['REMOTE_ADDR']; $data = shell_exec("GET " . escapeshellarg($_GET["url"])); $info = pathinfo($_GET["filename"]); @file_put_contents(basename($info["basename"]), $data); highlight_file(__FILE__);</code>""",
+            "content": "$_GET['url'] $_GET['filename'] shell_exec(\"GET \") highlight_file(__FILE__)",
+        },
+        "",
+    )
+
+    assert outcome.progress is True
+    assert "http://ctf.local/" in called_urls
+
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
+async def test_scan_and_store_registers_runtime_source_hint_from_source_leak():
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+
+    await dispatcher._scan_and_store(
+        "<?php echo $_GET['url']; highlight_file(__FILE__);",
+        "file:///var/www/html/index.php",
+        evidence_source="source-leak",
+    )
+
+    hints = [
+        obs
+        for obs in dispatcher.state.observations
+        if obs.kind == "local_challenge_source_hint"
+    ]
+    assert hints
+    assert hints[-1].source == "runtime_source_leak"
+    assert (hints[-1].metadata or {}).get("path") == "file:///var/www/html/index.php"
+    assert "index.php:" in hints[-1].value
+
+
+def test_extract_followup_fetch_targets_discovers_paths_and_loopback_urls():
+    dispatcher = CTFTaskDispatcher(
+        runtime=_DispatcherRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+
+    targets = dispatcher._extract_followup_fetch_targets(
+        """
+        include '/var/www/html/config.php';
+        error_log('/tmp/app.log');
+        see also /etc/apache2/sites-enabled/000-default.conf
+        internal panel http://127.0.0.1/admin.php
+        """
+    )
+
+    assert "file:///var/www/html/config.php" in targets
+    assert "file:///tmp/app.log" in targets
+    assert "file:///etc/apache2/sites-enabled/000-default.conf" in targets
+    assert "http://127.0.0.1/admin.php" in targets
 
 
 @pytest.mark.asyncio

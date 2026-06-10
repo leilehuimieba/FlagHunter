@@ -95,12 +95,63 @@
 ### [HITCON 2017]SSRFme
 
 - 目标能力：SSRF 判型、参数名泛化、内网/本地文件读取、协议 payload、二次触发与结果回收。
-- 能力测试：`pytest tests -k ssrf` 通过 `2 passed`，覆盖 `detect_type` 与 `gf` 模式；dispatcher 当前 SSRF 链仅固定尝试 `?url=http://127.0.0.1/`、`?url=file:///etc/passwd`、`?url=dict://127.0.0.1:6379/`。
-- live 靶机：未分配。OpenCLI 点击“启动靶机”后页面仍保持“启动靶机”，无 `http-ctf2` 地址，未进入运行中。
-- E2E 命令：未运行，因为没有 live target URL。
-- E2E 结果：未开始，不计为项目解题失败。
+- 能力测试：
+  - 早期基线：`pytest tests -k ssrf` 只能覆盖 `detect_type` 与 `gf` 模式，dispatcher 的 SSRF 链仍偏固定 payload。
+  - 本轮补充 focused 回归：
+
+```powershell
+pytest tests/unit/agents/test_ctf_dispatcher.py -k "source_fetch_write_ssrf or inline_source_on_current_page or runtime_source_hint or replays_prefix_strategies or followup_fetch_targets" -q
+```
+
+  - 结果：`5 passed`；新增覆盖 inline highlighted source 归一化、`source_fetch_write_ssrf` 观察结果、runtime source hint 注册、backup/source 后的 web 前缀回放、以及 follow-up file target 自动扩展。
+- live 靶机：
+  - 通过 OpenCLI Browser Bridge 复用 DASCTF 登录态后，确认 challenge start/read API 为：
+    - `POST /api/v1/practice/<practice_id>/challenges/<challenge_id>/target/`
+    - `GET /api/v1/practice/<practice_id>/challenges/<challenge_id>/target/?is_private=false`
+  - live challenge id：`0884c676-f23e-40a2-92b6-2bd7f6e8a50e`
+  - 成功启动后拿到 URL：`http://7f27af4c32949d4708f8686f.http-ctf2.dasctf.com:80`
+  - 实例时间：
+    - 创建：`2026-06-09 22:07:26 +08:00`
+    - 过期：`2026-06-09 23:07:26 +08:00`
+- E2E 命令：
+
+```powershell
+.\.venv\Scripts\pentestagent run -t "http://7f27af4c32949d4708f8686f.http-ctf2.dasctf.com:80" --mode ctf --max-loops 6 "拿到flag。先测试通用SSRF能力：优先少量HTTP侦察、从页面源码和表单中发现 SSRF 输入面、再按响应证据迭代 localhost/file/gopher/dict 等目标；不要大规模扫描。"
+```
+
+- E2E 结果：
+  - `run1/run2/run3`：只停在 `backup_source_leak`，尚未真正跑出 SSRF runtime 探针。
+  - `run4`：已确认 runtime 真实触发 `source_fetch_write_ssrf`，从 live 靶机回收：
+    - `file:///etc/passwd`
+    - `file:///proc/self/cmdline`
+    - `file:///proc/self/environ`
+    - `file:///var/www/html/index.php`
+    - `http://127.0.0.1/`
+    - `http://127.0.0.1/index.php`
+  - `run5`：在 run4 基础上，新增把 runtime 回收源码注册为 `local_challenge_source_hint`，observation 数从 `13` 提升到 `18`，但仍未自动收敛到 flag。
+  - 注意：终端摘要中的 `Loops: 0 / Tools: 0` 与内部 ledger/checkpoint 证据不一致；真实 session ledger 显示已执行大量 `browser_action` / `proxy_action` / `execute_command`。
 - 平台确认：未完成。
-- 暴露缺口：SSRF 通用链能力较薄；平台本次同样未能启动环境，需要后续重新尝试 live URL。
-- 通用修复：待补。方向应是从表单/链接/参数自动发现 SSRF 参数，按响应证据迭代协议和目标，而不是固定 `?url=`。
-- 回归验证：待补。
+- 暴露缺口：
+  - inline highlighted PHP source 虽然能识别为 source leak，但此前 analyzer 对高亮 HTML 归一化不足，无法稳定提取 SSRF 原语。
+  - Windows `LocalRuntime` 下，backup analyzer 早期使用超长 `python -c` 命令行，触发 `The command line is too long.`。
+  - SSRF runtime 已能回收源码/配置，但此前不会把回收结果注册为后续可消费的 `source hint`，导致主流程停在“证明可读文件”，不能基于新证据继续展开。
+  - SSRF follow-up 目标此前主要依赖固定文件列表，缺少基于回收内容自动扩展后续 file/loopback 目标的能力。
+  - 输出层缺口：终端 `Loops/Tools` 汇总口径与 session ledger 不一致，容易误导验收。
+- 通用修复：
+  - `pentestagent/agents/pa_agent/ctf_dispatcher.py`
+  - backup/source analyzer 对 highlighted HTML 做 `<br>`、tag stripping、HTML entity unescape、空白归一化，稳定识别 `source_fetch_write_ssrf`。
+  - Windows LocalRuntime 下改为临时 `.py` 文件执行 backup analyzer，绕过命令行长度限制。
+  - `source_fetch_write_ssrf` runtime 成功回收源码时，统一注册为 `local_challenge_source_hint`，来源标记为 `runtime_source_leak`。
+  - web 链在 `backup_source_leak` 新发现 source hint 后，允许回放一轮前置策略，让新源码证据真正进入后续调度。
+  - SSRF follow-up 目标支持从已回收内容中自动抽取 `file:///...` 和 `http://127.0.0.1/...` 候选，继续少量扩展。
+- 回归验证：
+  - `pytest tests/unit/agents/test_ctf_dispatcher.py -k "source_fetch_write_ssrf or inline_source_on_current_page or runtime_source_hint or replays_prefix_strategies or followup_fetch_targets" -q`
+  - `5 passed`
+  - live 证据：
+    - `loot/ssrfme_e2e_2026-06-09_run4.log`
+    - `loot/ssrfme_e2e_2026-06-09_run5.log`
+    - `loot/checkpoints/ctf-d2d0b952ec43.jsonl`
+    - `loot/checkpoints/ctf-98367b67287c.jsonl`
+    - `loot/session_ledgers/ctf-d2d0b952ec43.jsonl`
+    - `loot/session_ledgers/ctf-98367b67287c.jsonl`
 - WP/证据：本台账记录。
