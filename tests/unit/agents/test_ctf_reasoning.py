@@ -399,6 +399,26 @@ def test_pre_action_reasoning_blocks_repeated_rejected_flag():
     assert decision.repeated_reject is True
 
 
+def test_pre_action_reasoning_allows_same_host_when_default_port_is_implicit():
+    state = CTFState(target="http://ctf.local:80", goal="拿到flag")
+
+    decision = PreActionReasoning.evaluate(
+        {
+            "action_type": "http_request",
+            "tool_name": "http_request",
+            "rationale": "read same-host source endpoint",
+            "payload": {"method": "GET", "url": "http://ctf.local/index.php"},
+            "expected_signal": "200 且 body 含 <?php",
+            "next_if_fail": "switch chain",
+        },
+        state,
+        target="http://ctf.local:80",
+    )
+
+    assert decision.approve is True
+    assert decision.reason == "approved"
+
+
 def test_pre_action_reasoning_allows_stop_action_without_capability_gate():
     state = CTFState(target="http://ctf.local", goal="拿到flag")
 
@@ -442,3 +462,65 @@ def test_pre_action_reasoning_blocks_install_command():
 
     assert decision.approve is False
     assert "install commands" in decision.reason
+
+
+def test_pre_action_reasoning_blocks_empty_shell_command():
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+
+    decision = PreActionReasoning.evaluate(
+        {
+            "action_type": "shell",
+            "tool_name": "terminal",
+            "rationale": "inspect the leaked source locally",
+            "payload": {"command": ""},
+            "expected_signal": "status 0",
+            "next_if_fail": "switch chain",
+        },
+        state,
+        target="http://ctf.local",
+    )
+
+    assert decision.approve is False
+    assert "non-empty command" in decision.reason
+
+
+def test_pre_action_reasoning_blocks_redundant_root_fetch_after_source_hint():
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    state.add_observation(
+        "local_challenge_source_hint",
+        "index.php: <?php echo $_GET['url']; ?>",
+        source="runtime_source_leak",
+        metadata={"path": "file:///var/www/html/index.php"},
+    )
+
+    decision = PreActionReasoning.evaluate(
+        {
+            "action_type": "http_request",
+            "tool_name": "http_request",
+            "rationale": "fetch the homepage source again",
+            "payload": {"method": "GET", "url": "http://ctf.local/"},
+            "expected_signal": "200 且 body 含 <?php",
+            "next_if_fail": "switch chain",
+        },
+        state,
+        target="http://ctf.local",
+    )
+
+    assert decision.approve is False
+    assert "repeated homepage fetch" in decision.reason
+
+    string_payload_decision = PreActionReasoning.evaluate(
+        {
+            "action_type": "http_request",
+            "tool_name": "http_request",
+            "rationale": "fetch the homepage source again via string payload",
+            "payload": "GET http://ctf.local/",
+            "expected_signal": "200 且 body 含 <?php",
+            "next_if_fail": "switch chain",
+        },
+        state,
+        target="http://ctf.local",
+    )
+
+    assert string_payload_decision.approve is False
+    assert "repeated homepage fetch" in string_payload_decision.reason

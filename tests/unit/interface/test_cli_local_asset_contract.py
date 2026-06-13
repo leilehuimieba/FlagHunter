@@ -196,11 +196,16 @@ async def test_run_cli_routes_ctf_mode_into_dispatcher_with_local_asset_hint(mon
     monkeypatch.setattr("pentestagent.interface.initializer.has_ssh_runtime_config", lambda: False)
     monkeypatch.setattr("pentestagent.interface.cli.Path.exists", lambda self: False)
     monkeypatch.setattr("pentestagent.interface.cli.get_all_tools", lambda: [], raising=False)
+    monkeypatch.setattr(
+        "pentestagent.llm.LLM",
+        lambda model, rag_engine=None: SimpleNamespace(model=model, rag_engine=rag_engine),
+    )
 
     class _FakeDispatcher:
-        def __init__(self, runtime, progress_callback=None, verification_callback=None):
+        def __init__(self, runtime, progress_callback=None, verification_callback=None, llm=None):
             captured["runtime"] = runtime
             captured["progress_callback"] = progress_callback
+            captured["llm"] = llm
 
         async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None):
             captured["target"] = target
@@ -245,6 +250,7 @@ async def test_run_cli_routes_ctf_mode_into_dispatcher_with_local_asset_hint(mon
     assert "nextAction=bootstrap_local_assets" in captured["hint"]
     assert r"D:\webstudy\CTF\2026\CTF比赛题\easy_login" in captured["hint"]
     assert r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml" in captured["hint"]
+    assert captured["llm"].model == "gpt-5"
 
 
 @pytest.mark.asyncio
@@ -269,10 +275,15 @@ async def test_run_cli_preserves_auto_ctf_subtype_for_dispatcher(monkeypatch, _m
     monkeypatch.setattr("pentestagent.interface.initializer.has_ssh_runtime_config", lambda: False)
     monkeypatch.setattr("pentestagent.interface.cli.Path.exists", lambda self: False)
     monkeypatch.setattr("pentestagent.interface.cli.get_all_tools", lambda: [], raising=False)
+    monkeypatch.setattr(
+        "pentestagent.llm.LLM",
+        lambda model, rag_engine=None: SimpleNamespace(model=model, rag_engine=rag_engine),
+    )
 
     class _FakeDispatcher:
-        def __init__(self, runtime, progress_callback=None, verification_callback=None):
+        def __init__(self, runtime, progress_callback=None, verification_callback=None, llm=None):
             captured["runtime"] = runtime
+            captured["llm"] = llm
 
         async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None):
             captured["target"] = target
@@ -298,6 +309,7 @@ async def test_run_cli_preserves_auto_ctf_subtype_for_dispatcher(monkeypatch, _m
 
     assert captured["target"] == "http://127.0.0.1:3000"
     assert captured["type"] == "auto"
+    assert captured["llm"].model == "gpt-5"
 
 
 @pytest.mark.asyncio
@@ -325,10 +337,15 @@ async def test_run_cli_syncs_derived_target_into_challenge_context_when_target_m
     monkeypatch.setattr("pentestagent.interface.initializer.has_ssh_runtime_config", lambda: False)
     monkeypatch.setattr("pentestagent.interface.cli.Path.exists", lambda self: False)
     monkeypatch.setattr("pentestagent.interface.cli.get_all_tools", lambda: [], raising=False)
+    monkeypatch.setattr(
+        "pentestagent.llm.LLM",
+        lambda model, rag_engine=None: SimpleNamespace(model=model, rag_engine=rag_engine),
+    )
 
     class _FakeDispatcher:
-        def __init__(self, runtime, progress_callback=None, verification_callback=None):
+        def __init__(self, runtime, progress_callback=None, verification_callback=None, llm=None):
             self._challenge_context = {}
+            captured["llm"] = llm
 
         async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None):
             captured["target"] = target
@@ -374,6 +391,7 @@ async def test_run_cli_syncs_derived_target_into_challenge_context_when_target_m
         captured["challenge_context"]["derivedTargetComposePath"]
         == r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml"
     )
+    assert captured["llm"].model == "gpt-5"
 
 
 @pytest.mark.asyncio

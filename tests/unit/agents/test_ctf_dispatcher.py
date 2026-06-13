@@ -1364,8 +1364,12 @@ class _ProjectStyleLLM:
 
 
 class _LLMExplorationRuntime:
-    def __init__(self):
-        self.environment = SimpleNamespace(available_tools=[])
+    def __init__(self, *, os_name: str = "Linux", shell_name: str = "bash", available_tools=None):
+        self.environment = SimpleNamespace(
+            os=os_name,
+            shell=shell_name,
+            available_tools=list(available_tools or []),
+        )
         self.requests: list[dict[str, object]] = []
         self.commands: list[str] = []
 
@@ -1387,6 +1391,20 @@ class _LLMExplorationRuntime:
     async def execute_command(self, command: str, timeout: int = 180):
         self.commands.append(command)
         return SimpleNamespace(exit_code=0, stdout="", stderr="")
+
+
+class _SourceFetchWriteLLMRuntime(_LLMExplorationRuntime):
+    def __init__(self):
+        super().__init__(os_name="Windows", shell_name="powershell", available_tools=["python", "curl"])
+
+    async def proxy_action(self, action: str, **kwargs):
+        self.requests.append({"action": action, **dict(kwargs)})
+        url = str(kwargs.get("url") or "")
+        if action == "request" and url.startswith("http://ctf.local/?url=file%3A%2F%2F%2Fflag"):
+            return {"status_code": 200, "body": "triggered", "final_url": url}
+        if action == "get" and url.endswith("/sandbox/eb11108619a840822329aec8682a0064/p/flaghunter_probe.txt"):
+            return {"status_code": 200, "body": "flag{ssrf_llm_bridge_ok}", "final_url": url}
+        return await super().proxy_action(action, **kwargs)
 
 
 class _FakeOwnedFailoverMonitor:
@@ -5893,6 +5911,56 @@ async def test_ctf_dispatcher_llm5_respects_step_budget(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_ctf_dispatcher_llm6_replans_after_empty_shell_rejection(tmp_path):
+    set_notes_file(tmp_path / "notes_llm6.json")
+    notes_module._notes.clear()
+    runtime = _LLMExplorationRuntime(os_name="Windows", shell_name="powershell", available_tools=["python"])
+    llm = _FakeLLM(
+        [
+            {
+                "action_type": "shell",
+                "tool_name": "terminal",
+                "rationale": "inspect the page locally",
+                "payload": {"command": ""},
+                "expected_signal": "status 0",
+                "next_if_fail": "switch chain",
+            },
+            {
+                "action_type": "http_request",
+                "tool_name": "http_request",
+                "rationale": "fallback to a concrete admin probe",
+                "payload": {"method": "GET", "url": "http://ctf.local/admin"},
+                "expected_signal": "200 且 body 含 admin panel",
+                "next_if_fail": "switch chain",
+            },
+        ]
+    )
+    dispatcher = CTFTaskDispatcher(runtime=runtime, llm=llm)
+    dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag")
+
+    outcome = await dispatcher._run_llm_driven_exploration(
+        dispatcher._strategy_context(
+            target="http://ctf.local",
+            page_features={"raw_links": [], "endpoints": []},
+            hint="",
+        )
+    )
+
+    assert outcome.progress is True
+    assert len(llm.calls) >= 2
+    assert runtime.commands == []
+    assert runtime.requests
+    assert any(
+        "non-empty command" in str(item.get("reason") or "")
+        for item in dispatcher.state.pre_action_reasonings
+        if isinstance(item, dict)
+    )
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
 async def test_ctf_dispatcher_llm7_blocks_external_domain_request(tmp_path):
     set_notes_file(tmp_path / "notes_llm7.json")
     notes_module._notes.clear()
@@ -6039,6 +6107,121 @@ async def test_ctf_dispatcher_llm11_provider_unavailable_stop_is_not_blocked_by_
     assert outcome.progress is False
     assert "wait_for_provider_recovery" in (outcome.reason or "")
     assert dispatcher.state.llm_exploration_steps == 0
+
+
+@pytest.mark.asyncio
+async def test_ctf_dispatcher_llm12_parses_string_http_request_payload():
+    runtime = _LLMExplorationRuntime()
+    dispatcher = CTFTaskDispatcher(runtime=runtime)
+
+    result = await dispatcher._execute_llm_action(
+        {
+            "action_type": "http_request",
+            "tool_name": "http_request",
+            "payload": "GET http://ctf.local/admin",
+        },
+        "http://ctf.local",
+    )
+
+    assert runtime.requests
+    assert runtime.requests[0]["url"] == "http://ctf.local/admin"
+    assert result["status_code"] == 200
+
+
+@pytest.mark.asyncio
+async def test_ctf_dispatcher_llm13_bridges_source_fetch_write_candidate_urls(tmp_path):
+    set_notes_file(tmp_path / "notes_llm13.json")
+    notes_module._notes.clear()
+    runtime = _SourceFetchWriteLLMRuntime()
+    llm = _FakeLLM(
+        [
+            {
+                "action_type": "http_request",
+                "tool_name": "http_request",
+                "rationale": "use the confirmed source-fetch/write primitive against a likely flag path",
+                "payload": {"candidate_file_urls": ["file:///flag"]},
+                "expected_signal": "200 且 body 含 flag",
+                "next_if_fail": "switch chain",
+            }
+        ]
+    )
+    dispatcher = CTFTaskDispatcher(
+        runtime=runtime,
+        llm=llm,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag")
+    dispatcher.state.add_observation(
+        "source_leak_exploit_candidate",
+        "source_fetch_write_ssrf",
+        source="backup_source_leak",
+        metadata={
+            "artifact_url": "http://ctf.local/",
+            "exploit_info": {
+                "type": "source_fetch_write_ssrf",
+                "url_param": "url",
+                "filename_param": "filename",
+                "client_ip_header": "X-Forwarded-For",
+                "client_ip_value": "8.8.8.8",
+                "probe_filename": "p/flaghunter_probe.txt",
+                "sandbox_prefix": "sandbox/",
+                "remote_addr_hash": "md5",
+                "remote_addr_salt": "orange",
+            },
+        },
+    )
+
+    outcome = await dispatcher._run_llm_driven_exploration(
+        dispatcher._strategy_context(
+            target="http://ctf.local",
+            page_features={"raw_links": [], "endpoints": []},
+            hint="",
+        )
+    )
+
+    assert outcome.progress is True
+    assert len(runtime.requests) >= 2
+    assert runtime.requests[0]["action"] == "request"
+    assert "filename=p%2Fflaghunter_probe.txt" in str(runtime.requests[0]["url"])
+    assert runtime.requests[1]["action"] == "get"
+    assert any(
+        record.value == "flag{ssrf_llm_bridge_ok}"
+        for record in dispatcher.state.candidate_flags
+    )
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
+async def test_ctf_dispatcher_llm14_normalizes_windows_python_heredoc(tmp_path):
+    set_notes_file(tmp_path / "notes_llm14.json")
+    notes_module._notes.clear()
+    runtime = _LLMExplorationRuntime(
+        os_name="Windows",
+        shell_name="powershell",
+        available_tools=["python", "curl"],
+    )
+    dispatcher = CTFTaskDispatcher(runtime=runtime)
+
+    result = await dispatcher._execute_llm_action(
+        {
+            "action_type": "shell",
+            "tool_name": "terminal",
+            "payload": {
+                "command": "curl -sS http://ctf.local/ > /tmp/root.html && python3 - <<'PY'\nprint('ok')\nPY"
+            },
+        },
+        "http://ctf.local",
+    )
+
+    assert result["status_code"] == 0
+    assert runtime.commands
+    assert "<<" not in runtime.commands[0]
+    assert "/tmp/" not in runtime.commands[0]
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
 
 
 # ---------------------------------------------------------------------------

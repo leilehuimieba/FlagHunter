@@ -129,6 +129,24 @@ pytest tests/unit/agents/test_ctf_dispatcher.py -k "source_fetch_write_ssrf or i
     - `http://127.0.0.1/`
     - `http://127.0.0.1/index.php`
   - `run5`：在 run4 基础上，新增把 runtime 回收源码注册为 `local_challenge_source_hint`，observation 数从 `13` 提升到 `18`，但仍未自动收敛到 flag。
+  - `run6`：
+    - 新实例：`http://a22df207d1aff3332833bbbf.http-ctf2.dasctf.com:80`
+    - run id：`ctf-e5baedfb6a40`
+    - 内部证据显示 SSRF/source-leak 主链依然成立，但 CLI `run --mode ctf` 未把 `llm` 注入 `CTFTaskDispatcher`，导致 flow 停在 `llm_not_configured`。
+  - `run7`：
+    - run id：`ctf-ff9af3c68585`
+    - 注入 CLI LLM 后，LLM follow-up 首次真实跑起来。
+    - 新阻塞：`ToolGuard blocked: external domain is outside target/collector allowlist`。
+    - 归因：`PreActionReasoning` 把 `http://host` 与 `http://host:80` 误判为不同主机，导致同域 follow-up 被挡。
+  - `run8`：
+    - run id：`ctf-f256bd62c637`
+    - 默认端口同域归一化修复后，`ToolGuard blocked...` 消失。
+    - `llm_exploration_steps=8`，说明 dispatcher 已经真实继续执行 post-source-leak 的 LLM follow-up，而不再停在 SSRF/runtime 基线能力。
+    - 新主缺口不再是“能不能 SSRF”，而是“拿到源码后怎么稳定推进下一步”：
+      - LLM 多次重复请求首页高亮源码，未优先消费已确认的 `source_fetch_write_ssrf` 原语与 runtime 证据。
+      - LLM shell follow-up 存在 Windows `LocalRuntime` 不兼容命令：
+        - `python3 - <<'PY'` 触发 `<< was unexpected at this time.`
+        - `python3` 在某一步返回 `9009`。
   - 注意：终端摘要中的 `Loops: 0 / Tools: 0` 与内部 ledger/checkpoint 证据不一致；真实 session ledger 显示已执行大量 `browser_action` / `proxy_action` / `execute_command`。
 - 平台确认：未完成。
 - 暴露缺口：
@@ -136,6 +154,11 @@ pytest tests/unit/agents/test_ctf_dispatcher.py -k "source_fetch_write_ssrf or i
   - Windows `LocalRuntime` 下，backup analyzer 早期使用超长 `python -c` 命令行，触发 `The command line is too long.`。
   - SSRF runtime 已能回收源码/配置，但此前不会把回收结果注册为后续可消费的 `source hint`，导致主流程停在“证明可读文件”，不能基于新证据继续展开。
   - SSRF follow-up 目标此前主要依赖固定文件列表，缺少基于回收内容自动扩展后续 file/loopback 目标的能力。
+  - CLI `run --mode ctf` 此前未注入 `llm`，导致 live E2E 与 TUI / 内部 dispatcher 能力不一致。
+  - `PreActionReasoning` 的外域判断此前没有归一化默认端口，`http://host` 与 `http://host:80` 会被误判成不同目标。
+  - post-source-leak 阶段存在两个新的通用短板：
+    - LLM 动作虽然能生成 richer payload，但执行层会把一部分 payload 意图塌缩成普通首页 GET，没把 discovered primitive 真正翻译成 runtime 请求。
+    - LLM shell follow-up 缺少 Windows/PowerShell 兼容约束，容易生成 here-doc 和 `/tmp` 之类的 Linux 命令。
   - 输出层缺口：终端 `Loops/Tools` 汇总口径与 session ledger 不一致，容易误导验收。
 - 通用修复：
   - `pentestagent/agents/pa_agent/ctf_dispatcher.py`
@@ -144,14 +167,45 @@ pytest tests/unit/agents/test_ctf_dispatcher.py -k "source_fetch_write_ssrf or i
   - `source_fetch_write_ssrf` runtime 成功回收源码时，统一注册为 `local_challenge_source_hint`，来源标记为 `runtime_source_leak`。
   - web 链在 `backup_source_leak` 新发现 source hint 后，允许回放一轮前置策略，让新源码证据真正进入后续调度。
   - SSRF follow-up 目标支持从已回收内容中自动抽取 `file:///...` 和 `http://127.0.0.1/...` 候选，继续少量扩展。
+  - `pentestagent/interface/cli.py`
+  - CLI CTF 模式统一注入 `LLM(model=model, rag_engine=rag)`，避免 `run --mode ctf` 在 live E2E 中停在 `llm_not_configured`。
+  - `pentestagent/agents/pa_agent/reasoning.py`
+  - 同域外发判断对默认端口做归一化，`http://host == http://host:80`，`https://host == https://host:443`。
+  - `pentestagent/agents/pa_agent/ctf_dispatcher.py`
+  - LLM prompt 追加 runtime 环境摘要和已确认的 `source_fetch_write_ssrf` exploit 上下文，明确要求优先消费已知 primitive，不再重复抓取同一首页源码。
+  - LLM http action 执行层新增 payload 归一化：
+    - 支持 `"GET http://..."` 这种字符串 payload。
+    - 支持从 `candidate_file_urls` / `candidate_urls` 中恢复真实请求意图。
+    - 若已观察到 `source_fetch_write_ssrf`，可把 LLM follow-up 直接桥接到 runtime trigger + output retrieve，而不是退化成首页 GET。
+  - LLM shell action 在 Windows `LocalRuntime` 下新增通用兼容归一化：
+    - 将 `python3 - <<'PY'` here-doc 转为临时 `.py` 文件执行。
+    - 将 `/tmp/...` 重写到本机临时目录。
+    - 将 `python3` 替换为当前解释器路径，减少 `9009` 类失败。
 - 回归验证：
   - `pytest tests/unit/agents/test_ctf_dispatcher.py -k "source_fetch_write_ssrf or inline_source_on_current_page or runtime_source_hint or replays_prefix_strategies or followup_fetch_targets" -q`
   - `5 passed`
+  - `pytest tests/unit/interface/test_cli_local_asset_contract.py -k "run_cli_routes_ctf_mode_into_dispatcher_with_local_asset_hint or run_cli_preserves_auto_ctf_subtype_for_dispatcher or run_cli_syncs_derived_target_into_challenge_context_when_target_missing" -q`
+  - `3 passed`
+  - `pytest tests/unit/agents/test_ctf_reasoning.py -k "default_port_is_implicit or blocks_external_domain_request or allows_stop_action_without_capability_gate" -q`
+  - `2 passed`
+  - 本轮新增 focused 回归：
+    - `llm string payload -> http_request`
+    - `llm source_fetch_write candidate urls -> runtime trigger/retrieve`
+    - `windows heredoc shell normalization`
   - live 证据：
     - `loot/ssrfme_e2e_2026-06-09_run4.log`
     - `loot/ssrfme_e2e_2026-06-09_run5.log`
+    - `loot/ssrfme_e2e_2026-06-10_run6.log`
+    - `loot/ssrfme_e2e_2026-06-10_run7.log`
+    - `loot/ssrfme_e2e_2026-06-10_run8.log`
     - `loot/checkpoints/ctf-d2d0b952ec43.jsonl`
     - `loot/checkpoints/ctf-98367b67287c.jsonl`
+    - `loot/checkpoints/ctf-e5baedfb6a40.jsonl`
+    - `loot/checkpoints/ctf-ff9af3c68585.jsonl`
+    - `loot/checkpoints/ctf-f256bd62c637.jsonl`
     - `loot/session_ledgers/ctf-d2d0b952ec43.jsonl`
     - `loot/session_ledgers/ctf-98367b67287c.jsonl`
-- WP/证据：本台账记录。
+    - `loot/session_ledgers/ctf-e5baedfb6a40.jsonl`
+    - `loot/session_ledgers/ctf-ff9af3c68585.jsonl`
+    - `loot/session_ledgers/ctf-f256bd62c637.jsonl`
+- WP/证据：本台账记录；本轮建议配套查看 `docs/dev/DASCTF_HITCON2017_SSRFme_阶段WP_2026-06-10_V1.md`。
