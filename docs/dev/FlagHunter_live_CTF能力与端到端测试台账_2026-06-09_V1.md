@@ -147,6 +147,29 @@ pytest tests/unit/agents/test_ctf_dispatcher.py -k "source_fetch_write_ssrf or i
       - LLM shell follow-up 存在 Windows `LocalRuntime` 不兼容命令：
         - `python3 - <<'PY'` 触发 `<< was unexpected at this time.`
         - `python3` 在某一步返回 `9009`。
+  - `run11`：
+    - 日期：`2026-06-13`
+    - 实例 id：`2d1c320e-7bbf-4b5b-a977-f1a682794112`
+    - URL：`http://2d1c320ed1d8a28774d53709.http-ctf2.dasctf.com:80`
+    - 过期：`2026-06-13 22:57:06 +08:00`
+    - run id：`ctf-a8a21324f7ed`
+    - 结果：live runtime 仍可稳定触发 `source_fetch_write_ssrf`，继续回收 `/etc/passwd`、`/proc/self/*`、`/var/www/html/index.php`、`/flag`、`/flag.txt`、loopback 目标。
+    - 新确认：Windows heredoc 归一化回归未复发，空 shell 命令问题也未再显性出现。
+    - 新主缺口：post-source-leak 后 LLM 仍会退化成弱 GET 和 provider-heavy 循环；其中出现 `GET /` 与 `GET ?url=file:///etc/passwd` 但未桥接 `filename` 的低质量 follow-up。
+  - `run12`：
+    - run id：`ctf-3eab53ecf0e4`
+    - 时长：`7m17s`
+    - 结果：首次在 long-run live ledger 中确认 `llm_action` 已保留 `source_fetch_write=true` 桥接语义，并成功执行：
+      - `GET ?url=file:///flag&filename=p/flaghunter_probe.txt`
+      - 随后 `retrieve_source_fetch_write_output`
+    - 结论：此前“长 observation 后遗忘 confirmed primitive”这一类缺口已经明显收紧。
+    - 仍存问题：run12 中仍出现两次无参数根路径 `GET http://host:80`，说明 planner/guard 对弱动作的抑制还不稳定。
+  - `run13`：
+    - run id：`ctf-82062fa9c801`
+    - 时长：`7m59s`
+    - 结果：再次确认 long-run 下 `llm_action -> source_fetch_write=true -> retrieve_source_fetch_write_output` 仍成立，这次桥接到 `file:///etc/passwd`。
+    - 结论：`source_fetch_write` retained bridge 已进入 live 主链，不再只是单元测试能力。
+    - 仍存问题：run13 里无参数根路径 `GET http://host:80` 依然出现 3 次，说明剩余瓶颈已经进一步收敛为 post-source-leak planner 质量 / reasoning 可见性，而不是 SSRF primitive 本身。
   - 注意：终端摘要中的 `Loops: 0 / Tools: 0` 与内部 ledger/checkpoint 证据不一致；真实 session ledger 显示已执行大量 `browser_action` / `proxy_action` / `execute_command`。
 - 平台确认：未完成。
 - 暴露缺口：
@@ -160,6 +183,9 @@ pytest tests/unit/agents/test_ctf_dispatcher.py -k "source_fetch_write_ssrf or i
     - LLM 动作虽然能生成 richer payload，但执行层会把一部分 payload 意图塌缩成普通首页 GET，没把 discovered primitive 真正翻译成 runtime 请求。
     - LLM shell follow-up 缺少 Windows/PowerShell 兼容约束，容易生成 here-doc 和 `/tmp` 之类的 Linux 命令。
   - 输出层缺口：终端 `Loops/Tools` 汇总口径与 session ledger 不一致，容易误导验收。
+  - 2026-06-13 新定位后的剩余缺口：
+    - `source_fetch_write_ssrf` observation 与 `local_challenge_source_hint` 的 retained context 已部分补齐，但 planner 仍会周期性提出无参数根路径 GET。
+    - 该弱动作在 run12/run13 中仍能进入 `llm_action` 执行，说明剩余问题更偏向“LLM proposal 为什么绕过/未命中已有弱动作判定”，而不是 primitive 已丢失。
 - 通用修复：
   - `pentestagent/agents/pa_agent/ctf_dispatcher.py`
   - backup/source analyzer 对 highlighted HTML 做 `<br>`、tag stripping、HTML entity unescape、空白归一化，稳定识别 `source_fetch_write_ssrf`。
@@ -181,6 +207,15 @@ pytest tests/unit/agents/test_ctf_dispatcher.py -k "source_fetch_write_ssrf or i
     - 将 `python3 - <<'PY'` here-doc 转为临时 `.py` 文件执行。
     - 将 `/tmp/...` 重写到本机临时目录。
     - 将 `python3` 替换为当前解释器路径，减少 `9009` 类失败。
+  - `pentestagent/agents/pa_agent/ctf_state.py`
+  - 新增 `recent_observations(kind=..., limit=...)`，按 observation kind 回看最近匹配项，而不是只盯“最后 N 条事件”。
+  - `pentestagent/agents/pa_agent/ctf_dispatcher.py`
+  - `source_fetch_write_ssrf` 与 `local_challenge_source_hint` 相关上下文改为按 kind 回看，避免 long-run 被大量 probe observation 挤掉。
+  - `pentestagent/agents/pa_agent/reasoning.py`
+  - 无参数/相对根路径 GET 的弱动作判定更早收紧：
+    - `GET /`
+    - `payload: {method: GET}`
+    - 但保留 `candidate_file_urls` / `candidate_urls` 这类真实 SSRF follow-up 意图，不误伤已确认 primitive 的桥接动作。
 - 回归验证：
   - `pytest tests/unit/agents/test_ctf_dispatcher.py -k "source_fetch_write_ssrf or inline_source_on_current_page or runtime_source_hint or replays_prefix_strategies or followup_fetch_targets" -q`
   - `5 passed`
@@ -192,12 +227,18 @@ pytest tests/unit/agents/test_ctf_dispatcher.py -k "source_fetch_write_ssrf or i
     - `llm string payload -> http_request`
     - `llm source_fetch_write candidate urls -> runtime trigger/retrieve`
     - `windows heredoc shell normalization`
+    - `source_fetch_write bridge survives probe history`
+    - `redundant root fetch blocked for relative/implicit root payload`
+    - `redundant root fetch blocked after source exploit candidate`
   - live 证据：
     - `loot/ssrfme_e2e_2026-06-09_run4.log`
     - `loot/ssrfme_e2e_2026-06-09_run5.log`
     - `loot/ssrfme_e2e_2026-06-10_run6.log`
     - `loot/ssrfme_e2e_2026-06-10_run7.log`
     - `loot/ssrfme_e2e_2026-06-10_run8.log`
+    - `loot/ssrfme_e2e_2026-06-13_run11.log`
+    - `loot/ssrfme_e2e_2026-06-13_run12.log`
+    - `loot/ssrfme_e2e_2026-06-13_run13.log`
     - `loot/checkpoints/ctf-d2d0b952ec43.jsonl`
     - `loot/checkpoints/ctf-98367b67287c.jsonl`
     - `loot/checkpoints/ctf-e5baedfb6a40.jsonl`
@@ -208,4 +249,7 @@ pytest tests/unit/agents/test_ctf_dispatcher.py -k "source_fetch_write_ssrf or i
     - `loot/session_ledgers/ctf-e5baedfb6a40.jsonl`
     - `loot/session_ledgers/ctf-ff9af3c68585.jsonl`
     - `loot/session_ledgers/ctf-f256bd62c637.jsonl`
+    - `loot/session_ledgers/ctf-a8a21324f7ed.jsonl`
+    - `loot/session_ledgers/ctf-3eab53ecf0e4.jsonl`
+    - `loot/session_ledgers/ctf-82062fa9c801.jsonl`
 - WP/证据：本台账记录；本轮建议配套查看 `docs/dev/DASCTF_HITCON2017_SSRFme_阶段WP_2026-06-10_V1.md`。

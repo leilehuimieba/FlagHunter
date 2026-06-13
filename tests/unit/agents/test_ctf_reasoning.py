@@ -524,3 +524,61 @@ def test_pre_action_reasoning_blocks_redundant_root_fetch_after_source_hint():
 
     assert string_payload_decision.approve is False
     assert "repeated homepage fetch" in string_payload_decision.reason
+
+    relative_payload_decision = PreActionReasoning.evaluate(
+        {
+            "action_type": "http_request",
+            "tool_name": "http_request",
+            "rationale": "fetch the homepage source again via relative path",
+            "payload": {"method": "GET", "url": "/"},
+            "expected_signal": "200 且 body 含 <?php",
+            "next_if_fail": "switch chain",
+        },
+        state,
+        target="http://ctf.local",
+    )
+
+    assert relative_payload_decision.approve is False
+    assert "repeated homepage fetch" in relative_payload_decision.reason
+
+    empty_payload_decision = PreActionReasoning.evaluate(
+        {
+            "action_type": "http_request",
+            "tool_name": "http_request",
+            "rationale": "fetch the homepage source again with implicit default target",
+            "payload": {"method": "GET"},
+            "expected_signal": "200 且 body 含 <?php",
+            "next_if_fail": "switch chain",
+        },
+        state,
+        target="http://ctf.local",
+    )
+
+    assert empty_payload_decision.approve is False
+    assert "repeated homepage fetch" in empty_payload_decision.reason
+
+
+def test_pre_action_reasoning_blocks_redundant_root_fetch_after_source_exploit_candidate():
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    state.add_observation(
+        "source_leak_exploit_candidate",
+        "source_fetch_write_ssrf",
+        source="backup_source_leak",
+        metadata={"artifact_url": "http://ctf.local/"},
+    )
+
+    decision = PreActionReasoning.evaluate(
+        {
+            "action_type": "http_request",
+            "tool_name": "http_request",
+            "rationale": "re-fetch the same homepage after confirmed exploit primitive",
+            "payload": {"method": "GET"},
+            "expected_signal": "200 且 body 含 <?php",
+            "next_if_fail": "switch chain",
+        },
+        state,
+        target="http://ctf.local",
+    )
+
+    assert decision.approve is False
+    assert "repeated homepage fetch" in decision.reason

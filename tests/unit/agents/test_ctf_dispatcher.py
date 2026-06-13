@@ -6194,6 +6194,59 @@ async def test_ctf_dispatcher_llm13_bridges_source_fetch_write_candidate_urls(tm
 
 
 @pytest.mark.asyncio
+async def test_ctf_dispatcher_llm15_keeps_source_fetch_bridge_after_probe_history(tmp_path):
+    set_notes_file(tmp_path / "notes_llm15.json")
+    notes_module._notes.clear()
+    runtime = _SourceFetchWriteLLMRuntime()
+    dispatcher = CTFTaskDispatcher(runtime=runtime)
+    dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag")
+    dispatcher.state.add_observation(
+        "source_leak_exploit_candidate",
+        "source_fetch_write_ssrf",
+        source="backup_source_leak",
+        metadata={
+            "artifact_url": "http://ctf.local/",
+            "exploit_info": {
+                "type": "source_fetch_write_ssrf",
+                "url_param": "url",
+                "filename_param": "filename",
+                "client_ip_header": "X-Forwarded-For",
+                "client_ip_value": "8.8.8.8",
+                "probe_filename": "p/flaghunter_probe.txt",
+                "sandbox_prefix": "sandbox/",
+                "remote_addr_hash": "md5",
+                "remote_addr_salt": "orange",
+            },
+        },
+    )
+    for index in range(12):
+        dispatcher.state.add_observation(
+            "source_fetch_write_probe",
+            f"file:///tmp/probe_{index}.txt",
+            source="backup_source_leak",
+        )
+
+    result = await dispatcher._execute_llm_action(
+        {
+            "action_type": "http_request",
+            "tool_name": "http_request",
+            "payload": {"method": "GET", "url": "http://ctf.local/?url=file:///flag"},
+        },
+        "http://ctf.local",
+    )
+
+    assert len(runtime.requests) >= 2
+    assert runtime.requests[0]["action"] == "request"
+    assert "filename=p%2Fflaghunter_probe.txt" in str(runtime.requests[0]["url"])
+    assert runtime.requests[1]["action"] == "get"
+    assert result["evidence_source"] == "source-leak"
+    assert "flag{ssrf_llm_bridge_ok}" in result["response_text"]
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
 async def test_ctf_dispatcher_llm14_normalizes_windows_python_heredoc(tmp_path):
     set_notes_file(tmp_path / "notes_llm14.json")
     notes_module._notes.clear()
