@@ -110,6 +110,11 @@ pentestagent/mcp/mcp_servers.json
 /knowledge/retrospective_notes.md
 /pentestagent/knowledge/retrospective.json
 /pentestagent/knowledge/sessions/
-/tools/_downloads/
-/tools/nuclei/nuclei-templates/
+# Vendored third-party tool binaries/data (nmap/nuclei/ffuf/gobuster/sqlmap/...).
+# These must be fetched via a setup script, NOT committed (~163MB).
+# Already-tracked copies are removed from the index via `git rm -r --cached tools/`
+# (working files on disk are untouched; this only stops FUTURE commits).
+# Git history still contains the old blobs until a separate `git filter-repo` pass.
+/tools/
+!/tools/README.md
 /tmp_*
