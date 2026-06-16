@@ -286,3 +286,15 @@ pytest tests/unit/agents/test_ctf_dispatcher.py -k "source_fetch_write_ssrf or i
 - **Live 验证**：活靶机 recon 现在 agenda = `link_href:/login,/register` + `framework_convention:/home,/api`，`/login` 正确去重为 1 条；空 body 场景（只剩 laravel cookie）单测验证仍能播种 `/login,/register`。
 - 回归：新增单测 `test_recon_seeds_framework_conventional_routes_when_body_empty`；全量 `tests/unit tests/integration` 运行中（提交前以零新增失败为准）。
 - 仍存深层缺口（后续专项）：Laravel 加密 cookie 反序列化 RCE 利用链（APP_KEY 泄露 + gadget）尚未实现——这是 easy_laravel 拿 flag 的最后一公里。
+
+#### easy_laravel 新靶机复跑（2026-06-16，SSH runtime 暴露两个新缺口）
+
+新实例 `http://b547e85b1cceb7848573fd09...:80`（同 Laravel），完整 agent `max-loops 8`，本次 runtime 自动解析成 **SSH（Kali VM user1@127.0.0.1:2222）**，log `loot/easy_laravel_new_215649.log`，ledger `ctf-053987fbdb39.jsonl`。
+
+- **结果**：仍未解，`stop_generic`。recon 后又只探 `.git/HEAD`、`.env`、`backup.zip/tar.gz`，**全程没碰 `/login`、`/register`**。
+- **缺口 1（agent 不消费 agenda）**：本次 recon **是工作的**——`agenda` 里实打实有 `/login`、`/register`（link_href 抓到了）。但 planner prompt 只把链接埋在 `Known links` 里，**从不显式呈现 ExplorationAgenda 这个结构化高价值队列** → 模型按 CTF 先验去盲猜 `.git/.env/backup` 并停。
+  - **修复**：`_call_llm_for_action` 新增「Unexplored high-value entry points (ExplorationAgenda)」块，把 `get_unexplored_priority_items` 的未探索高优先条目（带 discovery_source/hint）显式列给模型，提示优先消费 `/login /register /admin /api`、auth-gated 应用先注册再登录走最短链。**补协议不补控制**——只呈现队列，不强制选择。
+- **缺口 2（SSH 下 HTTP get 不支持）**：`recon_errors: ['proxy_get: Unknown proxy action: get']`。`SSHRuntime.proxy_action` 只是 mitmproxy 控制器，没有 HTTP `get` → recon 的 HTTP 回退拿不到 response headers/Set-Cookie → `framework_detected=[]`（Local 下能识别 laravel，SSH 下识别不了，常规路由播种也跟着失效）。
+  - **修复**：`SSHRuntime` 新增 `_proxy_http_fetch`，用 Kali VM 上的 curl 实现 `get/request/post`，返回 `{status_code, headers, body, final_url}`，对齐 LocalRuntime 的 httpx 契约（含多跳 Set-Cookie 合并）。
+- **Live 验证（SSH runtime 真实靶机）**：`proxy get status=200`、set-cookie 含 `laravel_session`、`framework_detected=['laravel']`、`recon_errors=[]`、agenda = link_href `/login,/register` + framework_convention `/home,/api`。两缺口均闭环。
+- 回归：新增单测 `test_planner_prompt_surfaces_unexplored_exploration_agenda`、`TestSSHRuntimeProxyHttpFetch`（2 条）；全量 `tests/unit tests/integration`（剔除 2 个需 Kali VM 的 radare2/angr 环境用例）运行中，提交前以零新增失败为准。

@@ -6063,6 +6063,40 @@ async def test_ctf_dispatcher_llm9_supports_project_llm_signature():
 
 
 @pytest.mark.asyncio
+async def test_planner_prompt_surfaces_unexplored_exploration_agenda():
+    """The agenda-consumption fix: high-value unexplored entry points (e.g.
+    /login,/register seeded by recon) must appear in the planner prompt as an
+    explicit prioritized queue, so the model can prefer them over blindly
+    guessing backup/dotfile paths."""
+    runtime = _LLMExplorationRuntime()
+    llm = _ProjectStyleLLM(
+        '{"action_type":"http_request","tool_name":"http_request","rationale":"x","payload":{"method":"GET","url":"http://ctf.local/login"},"expected_signal":"login form","next_if_fail":"switch chain"}'
+    )
+    dispatcher = CTFTaskDispatcher(runtime=runtime, llm=llm)
+    dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag")
+    dispatcher.state.add_exploration_item(
+        "http://ctf.local/login", discovery_source="link_href", hint_strength=2
+    )
+    dispatcher.state.add_exploration_item(
+        "http://ctf.local/register", discovery_source="framework_convention", hint_strength=2
+    )
+
+    await dispatcher._call_llm_for_action(
+        dispatcher._strategy_context(
+            target="http://ctf.local",
+            page_features={"raw_links": [], "endpoints": []},
+            hint="",
+        )
+    )
+
+    prompt = llm.calls[0]["messages"][0]["content"]
+    assert "Unexplored high-value entry points" in prompt
+    assert "http://ctf.local/login" in prompt
+    assert "http://ctf.local/register" in prompt
+    assert "framework_convention" in prompt
+
+
+@pytest.mark.asyncio
 async def test_ctf_dispatcher_llm10_surfaces_provider_unavailable_as_stop_action():
     runtime = _LLMExplorationRuntime()
     llm = _ProjectStyleLLM(
