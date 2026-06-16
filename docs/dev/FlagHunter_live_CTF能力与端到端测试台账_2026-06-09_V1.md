@@ -253,3 +253,14 @@ pytest tests/unit/agents/test_ctf_dispatcher.py -k "source_fetch_write_ssrf or i
     - `loot/session_ledgers/ctf-3eab53ecf0e4.jsonl`
     - `loot/session_ledgers/ctf-82062fa9c801.jsonl`
 - WP/证据：本台账记录；本轮建议配套查看 `docs/dev/DASCTF_HITCON2017_SSRFme_阶段WP_2026-06-10_V1.md`。
+
+### [护网杯 2018]easy_laravel（2026-06-16 live）
+
+- 目标能力：web 框架指纹识别、Laravel 应用的源码/路由发现与反序列化利用。
+- live 靶机：`http://c6c0f5452a46239c548766bb.http-ctf2.dasctf.com:80`（DASCTF ctf2 新平台 BUUCTF 迁移练习场，OpenCLI Browser Bridge 复用登录态启动）。
+- E2E 命令：`pentestagent run -t <url> --mode ctf --max-loops 6 "拿到flag。先做少量HTTP侦察，识别框架与源码泄露(.git、composer、路由入口如 /index.php)，基于源码证据逐步推进利用；不要大规模扫描、不要暴力破解。"`
+- E2E 结果：未解。recon 后仅探了 backup.zip/tar.gz/bak，exploration_agenda 为空 → recovery(explore_agenda) → 停。
+- 暴露缺口（通用）：**recon 抓到了 `laravel_session`/`XSRF-TOKEN` cookie，但项目无任何 web 框架指纹**（`detected_type` 始终 None），把 Laravel 应用当作空白 web 目标，过早放弃。首页明明有 `/login`、`/register`。
+- 通用修复（`e78c345`）：`_phase_recon` HTTP 回退路径补抓 response headers + Set-Cookie（无浏览器也能拿框架信号）；新增 `_fingerprint_framework`，按 cookie/header/body 签名识别 Laravel/ThinkPHP/Django/WordPress/Rails/Express/Spring/Flask，记 `framework_detected` observation（流入黑板 facts + planner prompt）。
+- 回归验证：新增单测 `test_recon_fingerprints_framework_from_signals`；全量 `1585 passed / 0 failed`；live 靶机真实 `laravel_session` cookie 上验证识别为 laravel。
+- 仍存深层缺口（后续专项）：① 浏览器被平台 WAF(ModSecurity) 挡/无法启动时，recon 的链接/表单抽取仍可能为空 → agenda 空；② Laravel 加密 cookie 反序列化 RCE 利用链（需 APP_KEY 泄露 + gadget）尚未实现。
