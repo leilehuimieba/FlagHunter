@@ -95,7 +95,7 @@ class _BootstrapCapableDispatcher:
     def _ingest_registered_local_source_hints(self):
         return None
 
-    async def run(self, **kwargs):
+    async def _run_solve_loop(self, **kwargs):
         self._captured = dict(kwargs)
         return self._result
 
@@ -244,7 +244,7 @@ class _FirstActionMatrixDispatcher:
         self.finalized_results.append(result)
         return result
 
-    async def run(self, **kwargs):
+    async def _run_solve_loop(self, **kwargs):
         self.run_called = True
         self.call_order.append("run")
         return self._result
@@ -296,9 +296,10 @@ async def test_coordinator_execute_calls_dispatcher_run_without_redelegation():
     )
 
     assert result is sentinel
-    assert dispatcher._captured["_delegate_to_coordinator"] is False
+    # Slice 1b: coordinator hands off via _run_solve_loop (no re-delegation flag);
+    # target still flows as a handoff kwarg, goal is observable on the built state.
     assert dispatcher._captured["target"] == "http://127.0.0.1:3000"
-    assert dispatcher._captured["goal"] == "goal"
+    assert dispatcher.state.goal == "goal"
 
 
 @pytest.mark.asyncio
@@ -333,11 +334,18 @@ async def test_coordinator_normalizes_public_run_inputs_before_dispatch():
     )
 
     assert result is sentinel
+    # Slice 1b: target/hint still flow as handoff kwargs; goal/type/challenge_context
+    # are observable on the state and the dispatcher_started checkpoint the coordinator wrote.
     assert dispatcher._captured["target"] == "http://127.0.0.1:3000"
-    assert dispatcher._captured["goal"] == "拿到flag"
-    assert dispatcher._captured["type"] == "auto"
+    assert dispatcher.state.goal == "拿到flag"
+    started_checkpoint = next(
+        payload
+        for label, payload in dispatcher.written_checkpoints
+        if label == "dispatcher_started"
+    )
+    assert started_checkpoint["requested_type"] == "auto"
     assert dispatcher._captured["hint"] == "local hint"
-    assert dispatcher._captured["challenge_context"] == {
+    assert dispatcher._challenge_context == {
         "challengePath": None,
         "artifactPaths": ["C:/tmp/app.zip"],
         "resumeContext": {
@@ -385,7 +393,7 @@ async def test_coordinator_derives_target_from_challenge_path_compose_when_targe
 
     assert result is sentinel
     assert dispatcher._captured["target"] == "http://127.0.0.1:3000"
-    assert dispatcher._captured["challenge_context"]["challengePath"] == str(challenge_dir)
+    assert dispatcher._challenge_context["challengePath"] == str(challenge_dir)
     assert dispatcher.state is not None
     derived_target_observations = [
         obs for obs in dispatcher.state.observations if obs.kind == "derived_target"
@@ -436,7 +444,7 @@ async def test_coordinator_derives_target_from_local_archive_when_target_missing
 
     assert result is sentinel
     assert dispatcher._captured["target"] == "http://127.0.0.1:8080"
-    assert dispatcher._captured["challenge_context"]["artifactPaths"] == [str(archive_path)]
+    assert dispatcher._challenge_context["artifactPaths"] == [str(archive_path)]
 
 
 @pytest.mark.asyncio
@@ -523,7 +531,7 @@ async def test_coordinator_bootstraps_dispatcher_before_inner_run(tmp_path: Path
         def _ingest_local_challenge_artifacts(self, target: str):
             return None
 
-        async def run(self, **kwargs):
+        async def _run_solve_loop(self, **kwargs):
             captured.update(kwargs)
             captured["notes_log"] = list(self._notes_log)
             captured["challenge_context"] = dict(self._challenge_context or {})
@@ -561,11 +569,9 @@ async def test_coordinator_bootstraps_dispatcher_before_inner_run(tmp_path: Path
     )
 
     assert result is sentinel
-    assert captured["_delegate_to_coordinator"] is False
-    assert captured["_bootstrap_ready"] is True
-    assert captured["_requested_type"] == "auto"
+    # Slice 1b: _ready/_delegate/_requested_type skip-flags are gone; target/hint still
+    # flow as handoff kwargs, goal/requested_type are covered via state below.
     assert captured["target"] == "http://127.0.0.1:3000"
-    assert captured["goal"] == "goal"
     assert captured["hint"] == "hint"
     assert captured["notes_log"] == []
     assert captured["challenge_context"] == {
@@ -661,7 +667,7 @@ async def test_coordinator_applies_run_start_contract_before_inner_run(tmp_path:
         def _ingest_local_challenge_artifacts(self, target: str):
             return None
 
-        async def run(self, **kwargs):
+        async def _run_solve_loop(self, **kwargs):
             captured.update(kwargs)
             captured["local_challenge_auto_verify"] = getattr(self.state, "local_challenge_auto_verify", None)
             captured["recorded_events"] = list(self.recorded_events)
@@ -684,7 +690,6 @@ async def test_coordinator_applies_run_start_contract_before_inner_run(tmp_path:
     )
 
     assert result is sentinel
-    assert captured["_run_started"] is True
     assert captured["local_challenge_auto_verify"] is True
     assert captured["recorded_events"] == [
         (
@@ -781,7 +786,7 @@ async def test_coordinator_records_resume_ingress_in_run_start_contract(tmp_path
         def _ingest_local_challenge_artifacts(self, target: str):
             return None
 
-        async def run(self, **kwargs):
+        async def _run_solve_loop(self, **kwargs):
             captured.update(kwargs)
             captured["local_challenge_auto_verify"] = getattr(
                 self.state, "local_challenge_auto_verify", None
@@ -816,7 +821,6 @@ async def test_coordinator_records_resume_ingress_in_run_start_contract(tmp_path
     )
 
     assert result is sentinel
-    assert captured["_run_started"] is True
     assert captured["local_challenge_auto_verify"] is True
     assert captured["recorded_events"] == [
         (
@@ -919,7 +923,7 @@ async def test_coordinator_records_control_decision_in_run_start_event_and_check
         def _ingest_registered_local_source_hints(self):
             return None
 
-        async def run(self, **kwargs):
+        async def _run_solve_loop(self, **kwargs):
             captured["recorded_events"] = list(self.recorded_events)
             captured["written_checkpoints"] = list(self.written_checkpoints)
             return sentinel
@@ -1054,7 +1058,7 @@ async def test_coordinator_records_control_action_events_for_bootstrap_local_ass
         def _ingest_registered_local_source_hints(self):
             return None
 
-        async def run(self, **kwargs):
+        async def _run_solve_loop(self, **kwargs):
             captured["recorded_events"] = list(self.recorded_events)
             captured["written_checkpoints"] = list(self.written_checkpoints)
             return sentinel
@@ -1174,7 +1178,7 @@ async def test_coordinator_applies_pre_recon_contract_before_inner_run(tmp_path:
         def _ingest_local_challenge_artifacts(self, target: str):
             return None
 
-        async def run(self, **kwargs):
+        async def _run_solve_loop(self, **kwargs):
             captured.update(kwargs)
             captured["rejected_flags_loaded"] = self.rejected_flags_loaded
             captured["platform_snapshot_targets"] = list(self.platform_snapshot_targets)
@@ -1198,7 +1202,6 @@ async def test_coordinator_applies_pre_recon_contract_before_inner_run(tmp_path:
     )
 
     assert result is sentinel
-    assert captured["_pre_recon_ready"] is True
     assert captured["rejected_flags_loaded"] is True
     assert captured["platform_snapshot_targets"] == ["http://127.0.0.1:3000"]
     assert captured["capability_full_check_calls"] == 1
@@ -1279,7 +1282,7 @@ async def test_coordinator_applies_recon_contract_before_inner_run(tmp_path: Pat
         def _ingest_local_challenge_artifacts(self, target: str):
             self.ingested_targets.append(target)
 
-        async def run(self, **kwargs):
+        async def _run_solve_loop(self, **kwargs):
             captured.update(kwargs)
             captured["phase_recon_targets"] = list(self.phase_recon_targets)
             captured["ingested_targets"] = list(self.ingested_targets)
@@ -1301,8 +1304,7 @@ async def test_coordinator_applies_recon_contract_before_inner_run(tmp_path: Pat
     )
 
     assert result is sentinel
-    assert captured["_recon_ready"] is True
-    assert captured["_page_features"] == page_features
+    assert captured["page_features"] == page_features
     assert captured["phase_recon_targets"] == ["http://127.0.0.1:3000"]
     assert captured["ingested_targets"] == ["http://127.0.0.1:3000"]
 
@@ -1386,7 +1388,7 @@ async def test_coordinator_returns_missing_recon_result_before_inner_run(tmp_pat
             finalized.append(result)
             return result
 
-        async def run(self, **kwargs):
+        async def _run_solve_loop(self, **kwargs):
             self.run_called = True
             return SolveResult(success=True, reason="should-not-run")
 
@@ -1498,7 +1500,7 @@ async def test_coordinator_applies_post_recon_contract_before_inner_run(
         def _emit(self, message: str):
             return None
 
-        async def run(self, **kwargs):
+        async def _run_solve_loop(self, **kwargs):
             captured.update(kwargs)
             return sentinel
 
@@ -1518,9 +1520,8 @@ async def test_coordinator_applies_post_recon_contract_before_inner_run(
     )
 
     assert result is sentinel
-    assert captured["_post_recon_ready"] is True
-    assert captured["_page_features"] == page_features
-    assert captured["_detected_type"] == "misc"
+    assert captured["page_features"] == page_features
+    assert captured["detected_type"] == "misc"
     assert dispatcher.state is not None
     assert dispatcher.state.detected_type == "misc"
 
@@ -1611,7 +1612,7 @@ async def test_coordinator_stops_when_platform_alignment_marks_already_solved(tm
             self.finalized_results.append(result)
             return result
 
-        async def run(self, **kwargs):
+        async def _run_solve_loop(self, **kwargs):
             self.run_called = True
             return SolveResult(success=False, reason="should-not-run")
 
@@ -1735,7 +1736,7 @@ async def test_coordinator_returns_verified_direct_flag_before_inner_run(tmp_pat
             self.finalized_results.append(result)
             return result
 
-        async def run(self, **kwargs):
+        async def _run_solve_loop(self, **kwargs):
             self.run_called = True
             return SolveResult(success=False, reason="should-not-run")
 
@@ -1870,7 +1871,7 @@ async def test_coordinator_verifies_runtime_signal_before_recon_when_hint_reques
             self.finalized_results.append(result)
             return result
 
-        async def run(self, **kwargs):
+        async def _run_solve_loop(self, **kwargs):
             self.run_called = True
             return SolveResult(success=False, reason="should-not-run")
 
@@ -2005,7 +2006,7 @@ async def test_coordinator_records_control_action_events_for_runtime_signal(tmp_
         async def _finalize_solve_result(self, result: SolveResult):
             return result
 
-        async def run(self, **kwargs):
+        async def _run_solve_loop(self, **kwargs):
             self.run_called = True
             return SolveResult(success=False, reason="should-not-run")
 
@@ -2122,7 +2123,7 @@ async def test_coordinator_records_control_action_events_for_verified_flag(tmp_p
         async def _finalize_solve_result(self, result: SolveResult):
             return result
 
-        async def run(self, **kwargs):
+        async def _run_solve_loop(self, **kwargs):
             self.run_called = True
             return SolveResult(success=False, reason="should-not-run")
 
@@ -2249,7 +2250,7 @@ async def test_coordinator_verified_flag_early_finish_from_structured_ingress_ha
         async def _finalize_solve_result(self, result: SolveResult):
             return result
 
-        async def run(self, **kwargs):
+        async def _run_solve_loop(self, **kwargs):
             self.run_called = True
             return SolveResult(success=False, reason="should-not-run")
 
@@ -2388,7 +2389,7 @@ async def test_coordinator_runtime_signal_early_finish_from_structured_ingress_h
         async def _finalize_solve_result(self, result: SolveResult):
             return result
 
-        async def run(self, **kwargs):
+        async def _run_solve_loop(self, **kwargs):
             self.run_called = True
             return SolveResult(success=False, reason="should-not-run")
 
@@ -2673,7 +2674,7 @@ async def test_coordinator_restores_resume_checkpoint_before_pre_recon_when_requ
         def _ingest_registered_local_source_hints(self):
             return None
 
-        async def run(self, **kwargs):
+        async def _run_solve_loop(self, **kwargs):
             self.run_called = True
             captured["restored_checkpoint_before_run"] = getattr(
                 self, "_restored_resume_checkpoint_id", None
@@ -2792,7 +2793,7 @@ async def test_coordinator_records_control_action_events_for_resume_from_checkpo
         def _emit(self, message: str):
             return None
 
-        async def run(self, **kwargs):
+        async def _run_solve_loop(self, **kwargs):
             captured["recorded_events"] = list(self.recorded_events)
             captured["written_checkpoints"] = list(self.written_checkpoints)
             captured["restored_resume_checkpoint_id"] = self._restored_resume_checkpoint_id
@@ -2941,7 +2942,7 @@ async def test_coordinator_resume_from_checkpoint_from_structured_ingress_handof
         def _emit(self, message: str):
             return None
 
-        async def run(self, **kwargs):
+        async def _run_solve_loop(self, **kwargs):
             self.run_called = True
             captured["recorded_events"] = list(self.recorded_events)
             captured["restored_checkpoint_before_run"] = getattr(
@@ -3151,7 +3152,7 @@ async def test_coordinator_bootstraps_local_assets_from_structured_ingress_hando
         def _emit(self, message: str):
             return None
 
-        async def run(self, **kwargs):
+        async def _run_solve_loop(self, **kwargs):
             captured["recorded_events"] = list(self.recorded_events)
             captured["call_order"] = list(call_order)
             return sentinel
@@ -3263,7 +3264,7 @@ async def test_coordinator_records_control_action_events_for_initial_fact_collec
         def _emit(self, message: str):
             return None
 
-        async def run(self, **kwargs):
+        async def _run_solve_loop(self, **kwargs):
             captured["recorded_events"] = list(self.recorded_events)
             captured["written_checkpoints"] = list(self.written_checkpoints)
             if self.state is not None:
@@ -3402,7 +3403,7 @@ async def test_coordinator_collect_initial_facts_from_structured_ingress_handoff
         def _record_ingress_handoff_observations(self, ingress_handoff):
             return None
 
-        async def run(self, **kwargs):
+        async def _run_solve_loop(self, **kwargs):
             captured["recorded_events"] = list(self.recorded_events)
             if self.state is not None:
                 captured["observations"] = list(self.state.observations)
@@ -3529,7 +3530,7 @@ async def test_coordinator_bootstraps_local_assets_before_pre_recon_when_request
             call_order.append("ingest_registered_local_source_hints")
             return None
 
-        async def run(self, **kwargs):
+        async def _run_solve_loop(self, **kwargs):
             call_order.append("run")
             return sentinel
 
@@ -3644,7 +3645,7 @@ async def test_coordinator_returns_verified_flag_from_hint_before_recon(
             self.finalized_results.append(result)
             return result
 
-        async def run(self, **kwargs):
+        async def _run_solve_loop(self, **kwargs):
             self.run_called = True
             return SolveResult(success=False, reason="should-not-run")
 
@@ -3921,7 +3922,7 @@ async def test_coordinator_applies_strategy_memory_contract_before_inner_run(
         def _emit(self, message: str):
             return None
 
-        async def run(self, **kwargs):
+        async def _run_solve_loop(self, **kwargs):
             captured.update(kwargs)
             captured["current_fingerprint"] = self._current_fingerprint
             captured["memory_match_ids"] = list(self._memory_match_ids)
@@ -3947,7 +3948,6 @@ async def test_coordinator_applies_strategy_memory_contract_before_inner_run(
     )
 
     assert result is sentinel
-    assert captured["_strategy_memory_ready"] is True
     assert captured["current_fingerprint"] == {
         "target": "http://127.0.0.1:3000",
         "detected_type": "sqli",
@@ -4085,7 +4085,7 @@ async def test_coordinator_applies_hypothesis_contract_before_inner_run(tmp_path
         def _emit(self, message: str):
             return None
 
-        async def run(self, **kwargs):
+        async def _run_solve_loop(self, **kwargs):
             captured.update(kwargs)
             captured["hypotheses"] = [
                 {
@@ -4113,8 +4113,7 @@ async def test_coordinator_applies_hypothesis_contract_before_inner_run(tmp_path
     )
 
     assert result is sentinel
-    assert captured["_hypotheses_ready"] is True
-    assert captured["_chain_order"] == ["sqli", "web"]
+    assert captured["chain_order"] == ["sqli", "web"]
     assert captured["hypotheses"] == [
         {"id": "hyp-1", "kind": "auth_form_sqli", "confidence": 0.78},
         {"id": "hyp-2", "kind": "generic_web_recon", "confidence": 0.52},
