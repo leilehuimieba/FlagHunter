@@ -6,6 +6,24 @@
 
 ---
 
+## 实施进展（2026-06-16 更新）
+
+| 步骤 | 内容 | 状态 | commit |
+|---|---|---|---|
+| Slice 0 | coordinator 引入 `RunContext` 透明代理接缝，`execute()` 走 ctx 不再直接戳 `dispatcher: Any` | ✅ 已落地 | `1b98c9b` |
+| Slice 1a | 从 `_run_bootstrapped` 抽出 `_run_solve_loop` 接缝（纯提取、零测试影响） | ✅ 已落地 | `2db66b8` |
+| Slice 1b | coordinator 末尾直连 `_run_solve_loop`，不再 `run(_delegate=False, ×7 _ready)` 回跳；迁移 28 个 fake + 删 8 条 `_ready` 断言 | ✅ 已落地 | `6b839f4` |
+| Slice 1c | 删除死代码 `_run_bootstrapped` + 14 个 `_ready/_delegate` 标志，`run()` 退成纯 façade | ✅ 已落地 | `b295671` |
+
+**已兑现的收益**：
+- **循环委托归零**：调用图变成无环 `run() → coordinator.execute() → _run_solve_loop()`，不再 dispatcher→coordinator→dispatcher 弹跳。
+- **14 个 `_ready/_delegate` 标志全删**。
+- 每步都用全量 `tests/unit + tests/integration` 对齐 16 失败基线（5 已知 + 11 跨套件污染），**零新增失败**。
+
+**尚未兑现**：dispatcher 行数仅 9892→~9793（Slice 1 只删了回跳脚手架）。"行数下到 <3000"需要 **Slice 2**——把 `_phase_recon`、exploit helper 等**行为**搬进 `ReconExecutor`/`ExploreExecutor`。Slice 1 是 Slice 2 与 Workstream B 的地基，本身的核心目标（消除循环委托）已达成。
+
+---
+
 ## 0. 一句话结论
 
 **架构已经不差：黑板思维（blackboard-lite）该补的壳已经落地。** 当前缺的不是"更多模块"，更不是"更重的控制平面"，而是两件事：
