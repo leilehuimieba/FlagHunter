@@ -8189,3 +8189,81 @@ async def test_recon_fingerprints_framework_from_signals():
     # no false positive on a plain page
     d.state = CTFState(target="http://t", goal="g")
     assert d._fingerprint_framework({"cookies": "sid=1", "headers": {}, "html": "<h1>hi</h1>", "content": ""}) is None
+
+
+@pytest.mark.asyncio
+async def test_proxy_get_with_retry_recovers_from_booting_instance(monkeypatch, tmp_path):
+    """Transient 5xx (instance mid-boot) is retried, not accepted as the page."""
+    from types import SimpleNamespace as _NS
+    import asyncio as _asyncio
+
+    full = "<html><body>" + ("x" * 300) + "<a href='/login'>L</a></body></html>"
+    responses = [
+        {"status_code": 502, "body": "Target unavailable\n"},
+        {"status_code": 502, "body": "Target unavailable\n"},
+        {"status_code": 200, "body": full},
+    ]
+    calls = {"n": 0}
+
+    async def fake_proxy(action, **kw):
+        i = min(calls["n"], len(responses) - 1)
+        calls["n"] += 1
+        return responses[i]
+
+    async def _fast_sleep(*a, **k):
+        return None
+
+    monkeypatch.setattr(_asyncio, "sleep", _fast_sleep)
+    rt = _NS(environment=_NS(available_tools=[]), proxy_action=fake_proxy)
+    d = CTFTaskDispatcher(runtime=rt)
+    d.state = CTFState(target="http://t", goal="g")
+    d._setup_session_ledger(run_id="retry", ledger_root=str(tmp_path))
+
+    page = await d._proxy_get_with_retry("http://t/", attempts=3, audit_target="http://t/")
+    assert page.get("status_code") == 200
+    assert "/login" in str(page.get("body"))
+    assert calls["n"] == 3  # retried past the two 502s
+
+
+@pytest.mark.asyncio
+async def test_proxy_get_with_retry_accepts_first_good_page(monkeypatch, tmp_path):
+    from types import SimpleNamespace as _NS
+    import asyncio as _asyncio
+
+    good = {"status_code": 200, "body": "<html>" + ("y" * 300) + "</html>"}
+    calls = {"n": 0}
+
+    async def fake_proxy(action, **kw):
+        calls["n"] += 1
+        return good
+
+    monkeypatch.setattr(_asyncio, "sleep", lambda *a, **k: _asyncio.sleep(0))
+    rt = _NS(environment=_NS(available_tools=[]), proxy_action=fake_proxy)
+    d = CTFTaskDispatcher(runtime=rt)
+    d.state = CTFState(target="http://t", goal="g")
+    d._setup_session_ledger(run_id="retry2", ledger_root=str(tmp_path))
+
+    page = await d._proxy_get_with_retry("http://t/", attempts=3)
+    assert page.get("status_code") == 200
+    assert calls["n"] == 1  # no wasted retries on a good first response
+
+
+def test_exploration_candidate_normalizes_default_port():
+    from types import SimpleNamespace as _NS
+    d = CTFTaskDispatcher(runtime=_NS(environment=_NS(available_tools=[])))
+    # target given with :80, link written without a port -> SAME host, must NOT be ignored
+    assert d._should_ignore_exploration_candidate(
+        "http://h.example.com/login", base_url="http://h.example.com:80"
+    ) is False
+    # https default :443 likewise
+    assert d._should_ignore_exploration_candidate(
+        "https://h.example.com/x", base_url="https://h.example.com:443"
+    ) is False
+    # a genuinely different host is still ignored
+    assert d._should_ignore_exploration_candidate(
+        "http://evil.example.com/x", base_url="http://h.example.com:80"
+    ) is True
+    # a non-default port mismatch is still a different host
+    assert d._should_ignore_exploration_candidate(
+        "http://h.example.com:8080/x", base_url="http://h.example.com:80"
+    ) is True
