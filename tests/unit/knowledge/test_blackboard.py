@@ -159,3 +159,29 @@ def test_session_context_view_empty_when_no_checkpoint(tmp_path: Path):
     )
     board = view.build_blackboard_view("missing", hints=[" h "])
     assert board == {"facts": [], "intents": [], "hints": ["h"]}
+
+
+def test_intents_ranked_by_directness_among_equal_value():
+    state = CTFState(target="t", goal="g")
+    # same value_score; A has fewer remaining steps + more evidence -> more direct
+    a = Hypothesis(id="a", kind="sqli", description="direct", confidence=0.5, value_score=0.7)
+    a.supporting_observations = ["o1", "o2"]
+    a.next_experiments = ["e1"]
+    b = Hypothesis(id="b", kind="ssti", description="far", confidence=0.5, value_score=0.7)
+    b.supporting_observations = []
+    b.next_experiments = ["e1", "e2", "e3"]
+    state.hypotheses.extend([b, a])  # insert b first to prove sort, not insertion order
+
+    board = project_blackboard(state)
+    order = [i["id"] for i in board["intents"]]
+    assert order[0] == "a"  # more direct ranks first at equal value
+    a_intent = next(i for i in board["intents"] if i["id"] == "a")
+    assert a_intent["directness"] == 1  # 2 supporting - 1 remaining
+
+
+def test_candidate_flag_is_most_direct():
+    state = CTFState(target="t", goal="g")
+    state.candidate_flags.append(_flag("flag{maybe}", "candidate", confidence=0.5))
+    board = project_blackboard(state)
+    cand = next(i for i in board["intents"] if i["origin"] == "candidate_flag")
+    assert cand["directness"] == 2
