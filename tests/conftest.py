@@ -11,6 +11,41 @@ from pentestagent.config import Settings
 from pentestagent.tools import Tool, ToolSchema
 
 
+@pytest.fixture(scope="session")
+def _tool_registry_baseline() -> dict:
+    """Snapshot of the fully-loaded global tool registry.
+
+    Tool registration is an import side-effect cached by ``sys.modules`` (see
+    ``loader.load_tool_module``), so once a test calls ``clear_tools()`` the
+    registry cannot be repopulated via ``load_all_tools()`` — the modules are
+    already imported and won't re-register. Capture the populated registry once
+    per session so the heal fixture below can restore any tools a test removed.
+    """
+    from pentestagent.tools import registry
+    from pentestagent.tools.loader import load_all_tools
+
+    load_all_tools()
+    return dict(registry._tools)
+
+
+@pytest.fixture(autouse=True)
+def _heal_tool_registry_after_test(_tool_registry_baseline):
+    """Prevent cross-test tool-registry pollution.
+
+    Several tool tests call ``clear_tools()`` in teardown, which leaves the
+    global registry empty (and unrepopulatable) for every test that follows —
+    notably integration tests that assert ``get_tool("nmap") is not None``. This
+    runs in teardown and re-adds only missing baseline tools via ``setdefault``,
+    so it never clobbers tools a test added nor affects in-test assertions about
+    a cleared registry.
+    """
+    yield
+    from pentestagent.tools import registry
+
+    for name, tool in _tool_registry_baseline.items():
+        registry._tools.setdefault(name, tool)
+
+
 @pytest.fixture
 def settings() -> Settings:
     """Create test settings."""
