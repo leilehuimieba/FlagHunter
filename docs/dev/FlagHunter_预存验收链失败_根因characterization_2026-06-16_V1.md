@@ -53,10 +53,12 @@
 |---|---|---|
 | llm7 allowlist | 真 bug（ToolGuard 块被 replan 吞掉，reason 没冒出来） | ✅ 已修 `95b652f`（allowlist 块改为 terminal） |
 | easy_tornado solves/skips | 行为哲学分歧（激进直接利用 vs 保守先确认）——非 bug 非纯过时 | ✅ 已修 `0957d94`：引入 `exploitation_mode` 两模式（aggressive=CTF 默认走最短链 / conservative=pentest 先确认再打），两条测试跑 conservative |
-| php escalation | 真能力缺口（上游未做 PHP unserialize 利用） | ⬜ 否——深度 exploit |
-| profile poisoning | 真能力缺口（链未跑通） | ⬜ 否——深度 exploit |
+| php escalation | **其实不是能力缺口，是一行正则 bug**：备份源码分析用 `re.sub(r"<[^>]+>"," ")` 剥 HTML，把整段 `<?php ?>`（含 unserialize/__destruct 标记）也吃掉了 → 探测器永远检测不到 → 停在 source-only。payload 构造器（`O:4:"Name":3:` __wakeup 绕过）和利用链一直是对的，只是没触发。 | ✅ 已修 `04f3800` |
+| profile poisoning | **同一根因**：profile_photo_poisoning 探测也走 `normalized_joined`，同样被 `<?php ?>` 吃源码问题挡住。 | ✅ 已修 `04f3800`（同一行修复） |
 
-> **进展（commit 时间线）**：5 真失败 → 2。`llm7`（allowlist terminal）+ easy_tornado 两条（两模式）已清；全量套件 **2 failed / 1573 passed**，剩 php / profile 两条深度 exploit 缺口。
+> **进展（commit 时间线）**：5 真失败 → **0**。`llm7`（allowlist terminal）+ easy_tornado 两条（两模式）+ php/profile（`<?php ?>` 正则修复，一行修双 bug）全部清掉。全量套件 **1575 passed / 0 failed**，本会话首次全绿。
+>
+> **教训**：php/profile 一开始被我判为"深度 exploit 能力缺口"，实际是**探测层一行正则顺序 bug**静默禁用了两条已实现的利用链——`scan_text` 在剥 HTML 前的原文上跑（所以诱饵 flag 找得到），但 exploit 探测在剥过 HTML 的 `normalized_joined` 上跑（`<?php ?>` 被当成 HTML 标签删掉）。能力其实都在，被一行正则埋了。
 >
 > **`exploitation_mode` 设计**：呼应蚁群"发散探索→走最短链"——CTF 默认激进（最短链直达 flag），渗透模式保守（不断收集信息、确认漏洞类型再打）。两条 easy_tornado 测试因此各自归位到对应模式，而非被强行放宽。
 
