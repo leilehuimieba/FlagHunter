@@ -8163,3 +8163,29 @@ async def test_attempt_docker_loopback_visit_chain_writes_tool_audit_events(
         and str(event["payload"]["target"]).endswith("/visit")
         for event in events
     )
+
+
+@pytest.mark.asyncio
+async def test_recon_fingerprints_framework_from_signals():
+    from types import SimpleNamespace as _NS
+    rt = _NS(environment=_NS(available_tools=[]))
+    d = CTFTaskDispatcher(runtime=rt)
+    d.state = CTFState(target="http://t", goal="g")
+
+    # Laravel from its session cookie (the easy_laravel live-run gap)
+    fw = d._fingerprint_framework(
+        {"cookies": "XSRF-TOKEN=a; laravel_session=b", "headers": {}, "html": "", "content": ""}
+    )
+    assert fw == "laravel"
+    assert any(o.kind == "framework_detected" and o.value == "laravel" for o in d.state.observations)
+    # idempotent — second call adds no duplicate observation
+    d._fingerprint_framework({"cookies": "laravel_session=b"})
+    assert sum(1 for o in d.state.observations if o.kind == "framework_detected") == 1
+
+    # wordpress from body markers
+    d.state = CTFState(target="http://t", goal="g")
+    assert d._fingerprint_framework({"html": "<link href='/wp-content/x.css'>", "content": ""}) == "wordpress"
+
+    # no false positive on a plain page
+    d.state = CTFState(target="http://t", goal="g")
+    assert d._fingerprint_framework({"cookies": "sid=1", "headers": {}, "html": "<h1>hi</h1>", "content": ""}) is None
