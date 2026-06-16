@@ -8,10 +8,10 @@
 
 ## 0. 一句话结论
 
-**架构已经不差：黑板思维（blackboard-lite）该补的壳已经落地。** 当前缺的不是"更多模块"，而是两件没收尾的事：
+**架构已经不差：黑板思维（blackboard-lite）该补的壳已经落地。** 当前缺的不是"更多模块"，更不是"更重的控制平面"，而是两件事：
 
-1. `ctf_dispatcher.py` 仍是 **9892 行**上帝对象，façade 拆分只做了一半（coordinator 抽出来了，但回调 dispatcher 自身方法）。
-2. 有"黑板"（事件账本 ledger），但还缺真正的**控制单元（control unit）**——它现在是写多读少的审计日志，不是驱动决策的黑板。
+1. `ctf_dispatcher.py` 仍是 **9892 行**上帝对象，façade 拆分只做了一半（coordinator 抽出来了，但回调 dispatcher 自身方法）——这本身就是**过度 Harness**，把人类流程强加给模型。
+2. 有"黑板"（事件账本 ledger），但它是写多读少的审计日志，不是模型读写的共享黑板。**方向是"补协议而非补控制"**：升级成 Fact/Intent/Hint 极简协议、把决策权还给模型（依据 §2.3 Cairn 作者复盘"补能力不补信心"），而不是加一个替模型决策的打分控制器。
 
 ---
 
@@ -51,6 +51,26 @@ XBOW 基准（[Aaron Brown 架构复盘](https://medium.com/data-science-collect
 
 > **对 FlagHunter 的含义**：crew 模式（已冻结）保持冻结是对的；优化预算花在**单 agent 的控制环质量**上，不要再切角色。
 
+### 2.3 Cairn 作者复盘：状态/行动/控制三层闭环 + "补能力不补信心"
+
+来源：[两届TCH之后——AI 渗透测试 Agent 的 Harness 工程演进](https://mp.weixin.qq.com/s/pbieEet9VCR5iLhjViokIA)（Cairn 作者本人，全国第三、唯一 SOLO、**唯一 AK 全部 54 题**选手）。这篇直接提供了一套可复用的判断框架，并修正了本文 §3 原 🥈 的方向。
+
+**判断框架——所有方案都在补同一个闭环 `状态→决策→行动→反馈→新状态`，拆成三层：**
+
+| 层 | 解决什么 | 各队代表做法 | FlagHunter 对照 |
+|---|---|---|---|
+| 状态层 | 系统如何知道世界长什么样 | 绿盟 Idea/Memory Board 分"假设vs事实"；Cairn 压成 **Fact/Intent/Hint 事实图** | ✅ 有 `CTFState`+ledger+session_context；但真相分散 7 处，需"状态成为系统资产，而非模型回忆" |
+| 行动层 | 系统如何可靠改变世界 | 工具网关/沙箱/C2；**Cairn/yhy 的 Meta-Tooling：agent 用 Python 代码组合工具，而非每工具封一层 MCP** | ⚠️ 你们是"每工具封一层"，缺 code-use 动作面 |
+| 控制层 | 系统如何决定下一步 | 绿盟 Observer / 清华 Planner 攻击树……从 Prompt 软约束迁到代码/协议硬约束 | ⚠️ 写死 phase 顺序流 + 循环委托 |
+
+**最尖锐的论点（必须纳入决策）：**
+
+> **"很多控制不是在补能力，而是在补信心（信任缺失）。这种基于信任缺失的控制，会随模型进化变成冗余代码。"**
+
+证据：Cairn 不预设攻击流程、不定义角色、不用 RAG，只给**黑板(Fact) + Dispatcher(Intent) + Kali 容器**，Harness 体现在**信息结构**而非**行为约束**上——Worker 只能通过 Fact/Intent/Hint 三对象交互，这是唯一协议，其余全交给模型。结果用全场最少工程 + 最少 Token（前十唯一消息数数十万级，别人百万级）做到唯一 AK。Anthropic《Managed Agents》佐证：Harness 编码"模型能力不足的假设"，模型变强后反成 dead weight。
+
+> **对本文的修正**：原 §3 🥈 设计的"打分式控制器（替模型挑下一步动作）"正属于"用控制补信心"那一类（类比绿盟 Observer）。据此论点，🥈 改写为**极简协议路线**——见下。façade 收尾（🥇）则获得更强背书（"减法哲学/Less is more"）。
+
 ---
 
 ## 3. 推荐改造（按性价比排序）
@@ -77,26 +97,42 @@ XBOW 基准（[Aaron Brown 架构复盘](https://medium.com/data-science-collect
 
 ---
 
-### 🥈 工作流 B：给黑板装控制单元（最贴近"黑板思维"、直接提解题率）
+### 🥈 工作流 B：把 ledger 升级成 Fact/Intent/Hint 极简黑板协议（修订版）
 
-> **前置依赖：工作流 A 必须先完成**（控制器没法长在循环委托的 dispatcher 上）。
+> **方向修订（依据 §2.3）**：放弃原"打分式 BlackboardController（替模型挑动作）"——那是"用控制补信心"。改做**极简协议**：黑板只承载结构化事实/意图/提示，**决策权还给模型**，控制层薄到只剩"协议 + 失败回馈回路"，不做 FSM / 打分。
+>
+> **前置依赖：工作流 A 必须先完成**（协议没法长在循环委托的 dispatcher 上）。
 
-**目标**：新增轻量 `BlackboardController`，把 ledger 从"审计日志"升级成真正驱动决策的黑板，并闭合 **"验证失败 → 切候选链"** 回馈环（Cairn 方案承认现在缺这个闭环）。
+**目标**：把 `session_ledger` 从"写多读少的审计日志"升级成**模型可读写的共享黑板**，用三类对象统一状态/意图/提示的流转，闭合 **"验证失败 → 模型自主切候选"** 回馈环——但不替模型决策。
+
+**协议设计（对齐 Cairn，但复用 FlagHunter 现有语义，不做术语级迁移）**：
+
+| 黑板对象 | FlagHunter 现有载体 | 语义 |
+|---|---|---|
+| **Fact** | `Observation / Artifact / VerificationResult(verified)` | 已确证的世界状态，append-only 写入 ledger |
+| **Intent** | `Hypothesis / next_experiments` | 模型/规则提出的待验证意图，带置信度但**不由系统打分裁决** |
+| **Hint** | 用户 hint / `challengePath` / recovery 提示 | 外部注入的引导 |
 
 **实施清单**：
 
-1. 新建 `pentestagent/agents/pa_agent/blackboard_controller.py`：
-   - 输入：`SessionContextView.build_run_context(run_id)`（事实 / 待验证假设 / 最近失败事件）。
-   - 输出：`ControlAction`（`continue_chain | switch_candidate | escalate_recon | request_verify | stop`）。
-   - 打分：按"未验证假设数 × 置信度 − 近 N 轮失败惩罚"挑当前最高价值动作。
-2. coordinator 主循环每轮调用 `controller.decide(context)`，替代写死的 `phase` 顺序流。
-3. 接入回馈环：`verifier` 返回 `rejected` → 写 `verification_decision` 事件 → 下一轮 controller 读到失败 → 输出 `switch_candidate`，自动切到 `StrategyRegistry` 的下一条候选链。
-4. 所有 `ControlAction` 写 `build_control_action_started/completed_event`（audit_events 已有这两个 builder，直接复用）。
+1. 在 `knowledge/session_context.py` 的 `SessionContextView` 上新增 `build_blackboard_view(run_id)`：把 ledger 事件投影成 `{facts:[...], intents:[...], hints:[...]}` 三段式**低噪声视图**（对标绿盟"假设 vs 事实"分离）。
+2. coordinator 主循环不再走写死 phase 顺序：每轮把 blackboard view 注入 prompt，**让模型自己读事实、表达下一个 Intent**；系统只负责把模型产出的 Intent 与执行结果（Fact）写回 ledger。
+3. 闭合回馈环（**协议级，非打分**）：`verifier` 返回 `rejected` → 写一条 `Fact(kind=refuted, target=<intent_id>)` → 下一轮该 refuted fact 出现在 blackboard view 里 → **模型自己看到失败、自己换候选**。系统不强制 `switch`，只保证失败事实对模型可见。
+4. 复用 `audit_events` 的 `build_control_action_started/completed_event` 记录每次 Intent→执行，保持可审计/可回放。
+5. **可丢弃性原则**：blackboard view 是纯投影，不持久化第二份真相；ledger 仍是唯一事实源。
 
 **验收指标**：
 - candidate→verified 转化率相对基线提升（基线见 §5）。
-- wrong-flag / verification-rejected 后能**自动切候选链**而非停在原链（新增端到端用例覆盖）。
-- 平均 prompt context 长度不增（黑板按需切片，不是全量灌入）。
+- verification-rejected 后，**模型能在不被系统强制的情况下自主切到新候选**（新增端到端用例：注入一条 refuted fact，断言下一轮模型 Intent 改变）。
+- 平均 prompt context 长度**不增**（三段式低噪声视图，不是全量灌入）——可对比改造前后 token 数验证"补协议而非补控制"是否真省 token。
+
+---
+
+### 🆕 工作流 D（可选）：行动层引入 Meta-Tooling / code-use
+
+**依据**：§2.3 行动层——Cairn/yhy 验证过"让 agent 用 Python 代码组合工具"优于"每工具封一层 MCP/文本"。FlagHunter 目前是后者。
+
+**最小实施**：新增一个 `code_exec` 动作面（受 `permission_enforcer` 管控），允许模型在沙箱/Docker runtime 里写短 Python 脚本组合 browser/terminal/http/notes，而非逐个调用工具文本。**先做 PoC 验证 token 与成功率收益，再决定是否扩面**。风险较高（代码执行面），排在 A/B 之后。
 
 ---
 
@@ -135,10 +171,11 @@ XBOW 基准（[Aaron Brown 架构复盘](https://medium.com/data-science-collect
 ## 6. 建议执行顺序
 
 ```
-C（量化基线，可并行） → A（façade 收尾） → B（黑板控制单元） → 复测 candidate→verified 转化率
+C（量化基线，可并行） → A（façade 收尾） → B（Fact/Intent/Hint 极简黑板协议） → 复测 candidate→verified 转化率与 token
+        └─（A 之后可选）→ D（Meta-Tooling / code-use PoC）
 ```
 
-推荐先 A：风险可控、收益用行数客观验证，且是 B 的硬前置。
+推荐先 A：风险可控、收益用行数客观验证，且是 B 的硬前置。B 走"补协议而非补控制"路线（§2.3），D 为可选高风险项。
 
 ---
 
@@ -158,3 +195,4 @@ C（量化基线，可并行） → A（façade 收尾） → B（黑板控制�
 - [Building the Leading Open-Source Pentesting Agent: Architecture Lessons from XBOW Benchmark（Aaron Brown）](https://medium.com/data-science-collective/building-the-leading-open-source-pentesting-agent-architecture-lessons-from-xbow-benchmark-f6874f932ca4)
 - [MAPTA: Multi-Agent Penetration Testing AI for the Web, arxiv 2508.20816](https://arxiv.org/html/2508.20816v1)
 - Anthropic — Multi-agent research system / Managed agents（解耦 brain 与 hands、并行探索 + 上下文隔离）
+- [两届TCH之后——AI 渗透测试 Agent 的 Harness 工程演进、防御与我的思考（Cairn 作者）](https://mp.weixin.qq.com/s/pbieEet9VCR5iLhjViokIA)——状态/行动/控制三层闭环框架、"补能力不补信心"论点、多 Agent=并行算力而非分工（本文 §2.3 即据此修订）
