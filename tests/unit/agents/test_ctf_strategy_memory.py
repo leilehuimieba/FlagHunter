@@ -465,3 +465,55 @@ async def test_recall_shortest_winning_chain_empty_when_no_solved_match(tmp_path
         metadata=StrategyMemoryEntryMetadata(created_at=time.time(), manual_status="active"),
     ))
     assert store.recall_shortest_winning_chain(fp) == []
+
+
+@pytest.mark.asyncio
+async def test_recall_chain_pheromone_shorter_chain_gets_more(tmp_path):
+    store = StrategyMemoryStore(tmp_path / "strategy_memory.json")
+    fp = ChallengeFingerprint(detected_type="web", tech_stack=["php"])
+    now = time.time()
+
+    # single-step winning chain ['web'] -> deposits 1.0 on web
+    await store.save(StrategyMemoryEntry(
+        id="mem_web",
+        fingerprint=fp,
+        winning_primitive_sequence=["web"],
+        solved=True,
+        created_at=now,
+        metadata=StrategyMemoryEntryMetadata(
+            created_at=now, last_used_at=now, manual_status="active",
+            confidence_decay_factor=1.0, success_correlation=1.0,
+        ),
+    ))
+    # two-step winning chain ['sqli','web'] -> deposits 0.5 on each
+    await store.save(StrategyMemoryEntry(
+        id="mem_sqli_web",
+        fingerprint=fp,
+        winning_primitive_sequence=["sqli", "web"],
+        solved=True,
+        created_at=now,
+        metadata=StrategyMemoryEntryMetadata(
+            created_at=now, last_used_at=now, manual_status="active",
+            confidence_decay_factor=1.0, success_correlation=1.0,
+        ),
+    ))
+
+    pher = store.recall_chain_pheromone(fp)
+    assert pher.get("web", 0) > pher.get("sqli", 0) > 0  # web accumulates from both, sqli only the long path
+
+
+@pytest.mark.asyncio
+async def test_recall_chain_pheromone_empty_without_similar_solved(tmp_path):
+    store = StrategyMemoryStore(tmp_path / "strategy_memory.json")
+    fp = ChallengeFingerprint(detected_type="web")
+    now = time.time()
+    # dissimilar type -> below threshold; unsolved -> ignored
+    await store.save(StrategyMemoryEntry(
+        id="mem_pwn",
+        fingerprint=ChallengeFingerprint(detected_type="pwn"),
+        winning_primitive_sequence=["pwn"],
+        solved=True,
+        created_at=now,
+        metadata=StrategyMemoryEntryMetadata(created_at=now, manual_status="active", confidence_decay_factor=1.0),
+    ))
+    assert store.recall_chain_pheromone(fp) == {}
