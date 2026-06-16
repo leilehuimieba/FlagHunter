@@ -385,6 +385,7 @@ async def test_ctf_dispatcher_acceptance_solves_easy_tornado_chain(
             runtime=runtime,
             progress_callback=None,
             verification_callback=lambda flag: "yes",
+            exploitation_mode="conservative",
         )
         result = await dispatcher.run(
             target=easy_tornado_server["base_url"],
@@ -450,6 +451,7 @@ async def test_ctf_dispatcher_acceptance_skips_identify_when_ssti_probe_has_no_h
             runtime=runtime,
             progress_callback=None,
             verification_callback=lambda flag: "yes",
+            exploitation_mode="conservative",
         )
         result = await dispatcher.run(
             target=easy_tornado_realistic_server["base_url"],
