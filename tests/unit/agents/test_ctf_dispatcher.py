@@ -8192,6 +8192,57 @@ async def test_recon_fingerprints_framework_from_signals():
 
 
 @pytest.mark.asyncio
+async def test_recon_seeds_framework_conventional_routes_when_body_empty():
+    """The 'body 抖动' fix: when recon scrapes zero links but the framework
+    fingerprint fires from cookies/headers, conventional entry routes must still
+    land in the agenda so the agent explores /login,/register instead of
+    degrading to blind backup-file guessing."""
+    from types import SimpleNamespace as _NS
+    rt = _NS(environment=_NS(available_tools=[]))
+    d = CTFTaskDispatcher(runtime=rt)
+    d.state = CTFState(target="http://t", goal="g")
+
+    base = "http://app.local:80"
+    # Empty body — only the laravel cookie survived the flaky response.
+    features = {
+        "url": base,
+        "html": "",
+        "content": "",
+        "cookies": "laravel_session=abc; XSRF-TOKEN=xyz",
+        "headers": {"set-cookie": "laravel_session=abc"},
+        "raw_links": [],
+        "endpoints": [],
+    }
+    d._fingerprint_framework(features)
+    d._populate_exploration_agenda_from_recon(base, features)
+
+    paths = [item.url_or_path for item in d.state.exploration_agenda]
+    # Default :80 is dropped so seeded routes dedupe with scraped absolute links.
+    assert "http://app.local/login" in paths
+    assert "http://app.local/register" in paths
+    assert all(":80/login" not in p for p in paths)
+    seeded = [
+        item
+        for item in d.state.exploration_agenda
+        if item.discovery_source == "framework_convention"
+    ]
+    assert seeded and all(item.hint_strength == 2 for item in seeded)
+
+    # No framework → no seeding (plain page must not get phantom routes).
+    d2 = CTFTaskDispatcher(runtime=rt)
+    d2.state = CTFState(target="http://t", goal="g")
+    plain = {"url": base, "html": "<h1>hi</h1>", "content": "", "cookies": "sid=1",
+             "headers": {}, "raw_links": [], "endpoints": []}
+    d2._fingerprint_framework(plain)
+    d2._populate_exploration_agenda_from_recon(base, plain)
+    assert not [
+        item
+        for item in d2.state.exploration_agenda
+        if item.discovery_source == "framework_convention"
+    ]
+
+
+@pytest.mark.asyncio
 async def test_proxy_get_with_retry_recovers_from_booting_instance(monkeypatch, tmp_path):
     """Transient 5xx (instance mid-boot) is retried, not accepted as the page."""
     from types import SimpleNamespace as _NS

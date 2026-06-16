@@ -274,3 +274,15 @@ pytest tests/unit/agents/test_ctf_dispatcher.py -k "source_fetch_write_ssrf or i
 - **附带修复**：`_proxy_get_with_retry`——recon 对 5xx/空/极小 body 重试（CTF 实例常在启动中返回 "Target unavailable"），不再把错误页当 recon 内容。
 - **Live 验证**：对真实活实例，recon 现在产出 `raw_links=[/login,/register]` + agenda 被填充（原来空）+ `framework_detected=laravel`。
 - 回归：全量 `1588 passed / 0 failed`（+2 retry、+1 端口归一化单测）。
+
+#### easy_laravel 复跑追加（2026-06-16，框架常规路由播种）
+
+端口归一化修完后再跑一次完整 agent（`max-loops 8`，靶机 `http://384a6158d060c2a4f0dc96dd...:80`，log `loot/easy_laravel_full_205104.log`，ledger `ctf-5a8416c89179.jsonl`）：
+
+- **结果**：仍未解。8 轮全耗在盲猜 `.env`/`.git/config`/`backup.zip`/`backup.bak`，**从未访问 `/login`、`/register`**；`recovery(explore_agenda)` 的理由写着"消耗 ExplorationAgenda 中的显式页面线索"，实际却跳去 backup.zip → agenda 当时是空的。
+- **定位**：直接对活靶机调真实 `_phase_recon`，**happy path 完全正常**（`html_len=2252`、`raw_links=[/login,/register]`、`framework_detected=laravel`、`agenda=[/,/login,/register]`）。说明那一跑命中真实的 **"body 抖动"**——代理那一刻 body 空/坏，recon 抓到 0 链接 → 退化成盲猜 backup，且无回头补侦察的路径。
+- **关键观察**：**headers/cookie 稳，body 抖**。`laravel_session`/`XSRF-TOKEN` 即使 body 空也照样到，而 `_fingerprint_framework` 正是靠 cookie/header 触发。
+- **通用修复**：新增 `_FRAMEWORK_CONVENTIONAL_ROUTES` + `_seed_framework_conventional_routes`——只要框架被指纹识别，就把该框架的常规入口路由（laravel: `/login /register /home /api`；wordpress: `/wp-login.php …`；spring: `/actuator …` 等）播种进 exploration_agenda（`discovery_source=framework_convention`, `hint_strength=2`，默认端口归一化以与抓取链接去重）。这样 recon 不再单靠"首页能否抓到链接"——body 抖动/SPA/重定向到登录页时，agent 仍落在应用真实入口而非盲猜备份文件。
+- **Live 验证**：活靶机 recon 现在 agenda = `link_href:/login,/register` + `framework_convention:/home,/api`，`/login` 正确去重为 1 条；空 body 场景（只剩 laravel cookie）单测验证仍能播种 `/login,/register`。
+- 回归：新增单测 `test_recon_seeds_framework_conventional_routes_when_body_empty`；全量 `tests/unit tests/integration` 运行中（提交前以零新增失败为准）。
+- 仍存深层缺口（后续专项）：Laravel 加密 cookie 反序列化 RCE 利用链（APP_KEY 泄露 + gadget）尚未实现——这是 easy_laravel 拿 flag 的最后一公里。
