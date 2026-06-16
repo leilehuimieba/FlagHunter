@@ -49,12 +49,16 @@
 
 ## 2. 结论与建议
 
-| 链 | 性质 | 是否 session 级可修 |
+| 链 | 性质 | 状态 |
 |---|---|---|
-| easy_tornado solves | 测试过度指定 | 半可——需核观测是否该补记 |
-| easy_tornado skips | 测试前提失效 | **不建议轻改**（可能掩盖误报） |
-| php escalation | 真能力缺口（上游未做 PHP unserialize 利用） | 否——深度 exploit |
-| profile poisoning | 真能力缺口（链未跑通） | 否——深度 exploit |
+| llm7 allowlist | 真 bug（ToolGuard 块被 replan 吞掉，reason 没冒出来） | ✅ 已修 `95b652f`（allowlist 块改为 terminal） |
+| easy_tornado solves/skips | 行为哲学分歧（激进直接利用 vs 保守先确认）——非 bug 非纯过时 | ✅ 已修 `0957d94`：引入 `exploitation_mode` 两模式（aggressive=CTF 默认走最短链 / conservative=pentest 先确认再打），两条测试跑 conservative |
+| php escalation | 真能力缺口（上游未做 PHP unserialize 利用） | ⬜ 否——深度 exploit |
+| profile poisoning | 真能力缺口（链未跑通） | ⬜ 否——深度 exploit |
+
+> **进展（commit 时间线）**：5 真失败 → 2。`llm7`（allowlist terminal）+ easy_tornado 两条（两模式）已清；全量套件 **2 failed / 1573 passed**，剩 php / profile 两条深度 exploit 缺口。
+>
+> **`exploitation_mode` 设计**：呼应蚁群"发散探索→走最短链"——CTF 默认激进（最短链直达 flag），渗透模式保守（不断收集信息、确认漏洞类型再打）。两条 easy_tornado 测试因此各自归位到对应模式，而非被强行放宽。
 
 **总判断**：这 4 条没有低风险的"快修"。两条 easy_tornado 是测试与行为分叉（改测试有掩盖误报风险），两条是真 exploit 能力缺口（深度实现 + 对现有 1551 通过用例的连带风险）。
 
