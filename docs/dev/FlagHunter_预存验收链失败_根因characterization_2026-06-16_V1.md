@@ -11,7 +11,9 @@
 本轮 façade（slice 0/1）+ 黑板（B1/B2）每步都用全量 `tests/unit + tests/integration` 对齐过 **clean-HEAD 16 失败基线**，逐步零新增。其中：
 
 - **真实失败（隔离也挂）**：`llm7_blocks_external_domain_request`（allowlist）+ 下述 4 条验收链。
-- **跨套件污染（仅合并跑挂、隔离全过）**：adversarial_grounding ×3、easy_login ×4、full_chain ×2、http_request_smoke ×2 —— 是某个 unit 测试向后续 integration 泄漏全局状态，**与被测能力无关**，另案。
+- **跨套件污染（仅合并跑挂、隔离全过）**：adversarial_grounding ×3、easy_login ×4、full_chain ×2、http_request_smoke ×2 —— 是某个 unit 测试向后续 integration 泄漏全局状态，**与被测能力无关**。
+
+  > **已修复（commit `7b2b52d`）**：根因是**工具注册是 import 副作用、被 `sys.modules` 缓存**（`loader.load_tool_module` 见到模块已导入就提前 return）。一旦某测试调 `clear_tools()` 清空全局注册表，`load_all_tools()` 无法重填（模块已导入、不会重新注册）。`test_http_request`/`test_dirscan`/`test_nuclei` 等在 **teardown** 调 `clear_tools()`，把空注册表留给后续所有测试 → 那 11 条断言 `get_tool("nmap") is not None` 的集成测试就挂。修复：`tests/conftest.py` 加 session 级 baseline 快照 + autouse teardown fixture，用 `setdefault` 把被清掉的 baseline 工具补回（不 clobber、不影响测内断言）。全量套件从 **16 失败 → 5 失败**（只剩本文 4 条 + llm7），套件终于可信。
 
 本文只 characterize 那 4 条真实验收链。
 
@@ -59,4 +61,4 @@
 **建议优先级**：
 1. 若要做能力提升，**php escalation 最值得**——目标清晰（source 诱饵 → PHP unserialize → runtime flag），是文档点名的 candidate→verified 指标，且 `finalize()` 防御逻辑已就位、只缺上游利用实现。应作为独立专项（带自己的 fixture 复现 + 不碰共享停机逻辑）。
 2. easy_tornado 两条建议**先核 fixture 意图**再决定是放宽断言还是补观测，不要为了变绿而盲目放宽。
-3. 跨套件污染那 11 条是**测试隔离问题**，与能力无关，值得单独排查（定位哪个 unit 测试泄漏全局状态）。
+3. ~~跨套件污染那 11 条是**测试隔离问题**，与能力无关，值得单独排查~~ **已完成（`7b2b52d`）**：工具注册表污染已修，全量套件 16→5 失败、可信。
