@@ -14,13 +14,19 @@
 | Slice 1a | 从 `_run_bootstrapped` 抽出 `_run_solve_loop` 接缝（纯提取、零测试影响） | ✅ 已落地 | `2db66b8` |
 | Slice 1b | coordinator 末尾直连 `_run_solve_loop`，不再 `run(_delegate=False, ×7 _ready)` 回跳；迁移 28 个 fake + 删 8 条 `_ready` 断言 | ✅ 已落地 | `6b839f4` |
 | Slice 1c | 删除死代码 `_run_bootstrapped` + 14 个 `_ready/_delegate` 标志，`run()` 退成纯 façade | ✅ 已落地 | `b295671` |
+| Slice B1 | 新增 `knowledge/blackboard.py` 的 `project_blackboard(state)→{facts,intents,hints}` 纯读模型 + `SessionContextView.build_blackboard_view`（8 个单测，纯加法） | ✅ 已落地 | `6583d91` |
+| Slice B2 | 把 ranked intents（活跃高价值在前、refuted 标记）注入 `_call_llm_for_action` 的 LLM planner prompt，模型据黑板选下一步、不再 re-propose 已 refuted 候选 | ✅ 已落地 | `2b6120b` |
 
 **已兑现的收益**：
 - **循环委托归零**：调用图变成无环 `run() → coordinator.execute() → _run_solve_loop()`，不再 dispatcher→coordinator→dispatcher 弹跳。
 - **14 个 `_ready/_delegate` 标志全删**。
 - 每步都用全量 `tests/unit + tests/integration` 对齐 16 失败基线（5 已知 + 11 跨套件污染），**零新增失败**。
 
-**尚未兑现**：dispatcher 行数仅 9892→~9793（Slice 1 只删了回跳脚手架）。"行数下到 <3000"需要 **Slice 2**——把 `_phase_recon`、exploit helper 等**行为**搬进 `ReconExecutor`/`ExploreExecutor`。Slice 1 是 Slice 2 与 Workstream B 的地基，本身的核心目标（消除循环委托）已达成。
+**Workstream B 已兑现（B1+B2）**：黑板从"写多读少的审计日志"变成**模型在 planner 决策时真正读取的 ranked 视图**；refuted 的 flag/假设在 prompt 里显式可见并标注"已试过、勿重提"，把"验证失败→切候选"闭环落在**协议级**（板上暴露失败，模型自己切，无打分控制器强制）——正是修订版"补协议而非补控制"的形态。
+
+**尚未兑现 / 后续可选**：
+- **Slice 2（Workstream A 续）**：dispatcher 行数仅 9892→~9793（Slice 1 只删回跳脚手架）。"<3000"需把 `_phase_recon`、exploit helper 等**行为**搬进 `ReconExecutor`/`ExploreExecutor`。
+- **Slice B3+（可选深化）**：让模型直接决定 `chain_order`（替代确定性链迭代），而非仅在 planner 内读板——更彻底但风险更高，按需再评估。
 
 ---
 
