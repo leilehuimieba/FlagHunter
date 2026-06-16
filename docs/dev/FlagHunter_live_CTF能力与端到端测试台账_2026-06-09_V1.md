@@ -264,3 +264,13 @@ pytest tests/unit/agents/test_ctf_dispatcher.py -k "source_fetch_write_ssrf or i
 - 通用修复（`e78c345`）：`_phase_recon` HTTP 回退路径补抓 response headers + Set-Cookie（无浏览器也能拿框架信号）；新增 `_fingerprint_framework`，按 cookie/header/body 签名识别 Laravel/ThinkPHP/Django/WordPress/Rails/Express/Spring/Flask，记 `framework_detected` observation（流入黑板 facts + planner prompt）。
 - 回归验证：新增单测 `test_recon_fingerprints_framework_from_signals`；全量 `1585 passed / 0 failed`；live 靶机真实 `laravel_session` cookie 上验证识别为 laravel。
 - 仍存深层缺口（后续专项）：① 浏览器被平台 WAF(ModSecurity) 挡/无法启动时，recon 的链接/表单抽取仍可能为空 → agenda 空；② Laravel 加密 cookie 反序列化 RCE 利用链（需 APP_KEY 泄露 + gadget）尚未实现。
+
+#### easy_laravel 深挖追加（2026-06-16，commit `85288c3`）
+
+复验时发现"body 抖动"背后其实藏着一个**更大的通用根因 bug**：
+
+- **根因**：`_should_ignore_exploration_candidate` 比较主机时**不归一化默认端口**。靶机 URL 是 `http://host:80`（DASCTF 实例都带 `:80`），而页面里的链接写成 `http://host/login`（不带端口）→ 被判为**跨主机** → **所有同站链接被忽略** → exploration_agenda 空 → agent 在**任何带显式端口的目标**上都直接放弃。这才是 easy_laravel（以及大量 live 题）recon 后"无事可做"的真因，不是框架识别也不是抖动。
+- **修复**：归一化 `:80`(http)/`:443`(https)，`http://host` 与 `http://host:80` 视为同站；真正的跨主机和非默认端口仍正确拒绝。
+- **附带修复**：`_proxy_get_with_retry`——recon 对 5xx/空/极小 body 重试（CTF 实例常在启动中返回 "Target unavailable"），不再把错误页当 recon 内容。
+- **Live 验证**：对真实活实例，recon 现在产出 `raw_links=[/login,/register]` + agenda 被填充（原来空）+ `framework_detected=laravel`。
+- 回归：全量 `1588 passed / 0 failed`（+2 retry、+1 端口归一化单测）。
