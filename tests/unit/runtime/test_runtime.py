@@ -408,3 +408,48 @@ class TestLocalRuntimeProxyBinary:
             server.shutdown()
             thread.join(timeout=5)
             server.server_close()
+
+
+# ---------------------------------------------------------------------------
+# SSHRuntime.proxy_action HTTP fetch (curl-on-Kali, mirrors LocalRuntime "get")
+# ---------------------------------------------------------------------------
+class TestSSHRuntimeProxyHttpFetch:
+    @pytest.mark.asyncio
+    async def test_get_parses_status_headers_body_and_set_cookie(self, monkeypatch):
+        from pentestagent.runtime.ssh_runtime import SSHRuntime
+
+        rt = SSHRuntime.__new__(SSHRuntime)
+        rt._proxy_port = 8888
+        sep = "__PA_SEP_9b1c4f__"
+        # curl: <http_code>\n<sep>\n<headers>\n<sep>\n<body>
+        headers = (
+            "HTTP/1.1 200 OK\r\n"
+            "Server: openresty\r\n"
+            "Set-Cookie: XSRF-TOKEN=abc; path=/\r\n"
+            "Set-Cookie: laravel_session=def; httponly\r\n"
+            "X-Powered-By: PHP/5.6.40\r\n"
+        )
+        body = "<html><a href='/login'>Login</a></html>"
+        stdout = f"200\n{sep}\n{headers}{sep}\n{body}"
+
+        async def fake_exec(cmd, timeout=0):
+            assert "curl" in cmd
+            return CommandResult(exit_code=0, stdout=stdout, stderr="")
+
+        monkeypatch.setattr(rt, "execute_command", fake_exec)
+        res = await rt.proxy_action("get", url="http://t.local:80/", timeout=10)
+
+        assert res["status_code"] == 200
+        assert res["body"] == body
+        assert "laravel_session=def" in res["headers"]["set-cookie"]
+        assert "xsrf-token=abc" in res["headers"]["set-cookie"].lower()
+        assert res["headers"]["x-powered-by"] == "PHP/5.6.40"
+
+    @pytest.mark.asyncio
+    async def test_missing_url_errors(self):
+        from pentestagent.runtime.ssh_runtime import SSHRuntime
+
+        rt = SSHRuntime.__new__(SSHRuntime)
+        rt._proxy_port = 8888
+        res = await rt.proxy_action("get")
+        assert "error" in res
