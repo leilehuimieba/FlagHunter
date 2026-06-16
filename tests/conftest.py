@@ -11,6 +11,22 @@ from pentestagent.config import Settings
 from pentestagent.tools import Tool, ToolSchema
 
 
+@pytest.fixture(autouse=True)
+def _isolate_strategy_memory(tmp_path_factory, monkeypatch):
+    """Isolate the cross-challenge StrategyMemoryStore per test.
+
+    The default store path is ``loot/strategy_memory.json`` (relative to CWD).
+    Tests that don't ``chdir`` would otherwise read/write the real, persisted
+    memory — making them non-deterministic (e.g. the ant-colony shortest-chain
+    bias reordering chains based on accumulated real solves). Point each test at
+    a fresh empty file via the env override so default-constructed stores are
+    isolated; tests that pass an explicit path are unaffected.
+    """
+    mem = tmp_path_factory.mktemp("strategy_memory") / "strategy_memory.json"
+    monkeypatch.setenv("PENTESTAGENT_STRATEGY_MEMORY_PATH", str(mem))
+    yield
+
+
 @pytest.fixture(scope="session")
 def _tool_registry_baseline() -> dict:
     """Snapshot of the fully-loaded global tool registry.
