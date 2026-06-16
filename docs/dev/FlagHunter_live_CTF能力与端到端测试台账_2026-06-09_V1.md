@@ -298,3 +298,15 @@ pytest tests/unit/agents/test_ctf_dispatcher.py -k "source_fetch_write_ssrf or i
   - **修复**：`SSHRuntime` 新增 `_proxy_http_fetch`，用 Kali VM 上的 curl 实现 `get/request/post`，返回 `{status_code, headers, body, final_url}`，对齐 LocalRuntime 的 httpx 契约（含多跳 Set-Cookie 合并）。
 - **Live 验证（SSH runtime 真实靶机）**：`proxy get status=200`、set-cookie 含 `laravel_session`、`framework_detected=['laravel']`、`recon_errors=[]`、agenda = link_href `/login,/register` + framework_convention `/home,/api`。两缺口均闭环。
 - 回归：新增单测 `test_planner_prompt_surfaces_unexplored_exploration_agenda`、`TestSSHRuntimeProxyHttpFetch`（2 条）；全量 `tests/unit tests/integration`（剔除 2 个需 Kali VM 的 radare2/angr 环境用例）运行中，提交前以零新增失败为准。
+
+#### easy_laravel 第三台复跑（2026-06-17，闭合认证流缺口）
+
+第三个实例 `http://0d10c31dee607afda9f261a0...:80`，完整 agent `max-loops 10`（SSH runtime），log `loot/easy_laravel_n3_233439.log`，ledger `ctf-a90b18fb150a.jsonl`。
+
+- **结果**：仍未解，但**两处修复显著生效** —— agent 这次**真的去 GET 了 `/login`、`/register`**（前两台从不碰），`framework=laravel`，agenda 里 `/login /register /home /api` 全部 `explored=True`，还发现了 `/password/reset`。
+- **新缺口（认证流死在无表单首页）**：agent 只是把 `/login`、`/register` 当页面 GET 来读，**没有真正注册→登录→带 session 重新侦察**。根因：`_attempt_post_auth_recon` 只看**首页**的 `features["forms"]`，而 Laravel 落地页是 welcome 页 `forms=0`，登录/注册表单在 `/login`、`/register` 子页上 → `find_auth_form` 返回空 → 整个认证流不触发。
+  - **通用修复**：新增 `_candidate_auth_page_urls`（从 raw_links/agenda 里挑 login/register/signin/signup 路径 + 常规 `/register`、`/login` 兜底，默认端口去重）+ `_harvest_auth_forms_from_routes`（GET 这些子页、解析其表单、动作 URL 解析为绝对）。首页无表单时改用采集到的表单跑既有 register→login→re-recon 流。顺手把 `has_session_cookie` 从 Django 专用 `sessionid=` 扩成多框架（laravel_session/_session_id/connect.sid/jsessionid）。
+  - **Live 验证**：真实靶机采集到两张表单 —— 登录 `/login`(_token,email,password,remember)、注册 `/register`(_token,name,email,password,password_confirmation)，`find_auth_form`/`_find_registration_form` 均正确命中。
+- **认证流为何仍 None（题目专属，非 bug）**：实测 register/login POST 均返回 **500**（Laravel debug 异常页，YUI 样式），既有 `400<=status<600 → None` 守卫正确拦下，不把 500 误判成登录成功。easy_laravel 的真实解法本就不是"正常注册登录"，而是 **debug 错误页泄露 → 加密 cookie 反序列化 RCE 链**（APP_KEY + gadget），属深层专项。
+- 回归：新增单测 `test_harvest_auth_forms_from_conventional_routes_when_homepage_formless`；34 条 auth/login 相关用例全过；全量运行中，提交前以零新增失败为准。
+- **能力进展小结（三台连跑）**：recon→框架指纹→agenda 播种→planner 消费 agenda→探登录入口→采集认证表单→尝试注册登录，这条**通用渗透前置链路在 Local/SSH 两种 runtime 下已全部打通**。剩下的就是 easy_laravel 专属的反序列化利用链。

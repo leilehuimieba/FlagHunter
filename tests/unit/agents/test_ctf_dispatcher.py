@@ -6062,6 +6062,73 @@ async def test_ctf_dispatcher_llm9_supports_project_llm_signature():
     assert llm.calls[0]["task_hint"] == "ctf_planning"
 
 
+class _AuthPagesRuntime:
+    """Form-less landing page; the login/register forms live on /login & /register."""
+
+    def __init__(self):
+        self.environment = SimpleNamespace(available_tools=[])
+        self.fetched: list[str] = []
+
+    async def proxy_action(self, action: str, **kwargs):
+        url = str(kwargs.get("url") or "")
+        if action == "get":
+            self.fetched.append(url)
+            if url.rstrip("/").endswith("/login"):
+                return {"status_code": 200, "final_url": url, "body": (
+                    "<form action='/login' method='post'>"
+                    "<input name='_token' type='hidden' value='tok'/>"
+                    "<input name='email' type='email'/>"
+                    "<input name='password' type='password'/></form>"
+                )}
+            if url.rstrip("/").endswith("/register"):
+                return {"status_code": 200, "final_url": url, "body": (
+                    "<form action='/register' method='post'>"
+                    "<input name='_token' type='hidden' value='tok'/>"
+                    "<input name='name' type='text'/>"
+                    "<input name='email' type='email'/>"
+                    "<input name='password' type='password'/>"
+                    "<input name='password_confirmation' type='password'/></form>"
+                )}
+            return {"status_code": 200, "final_url": url, "body": "<html>welcome, no form</html>"}
+        return {"status_code": 404, "body": ""}
+
+
+@pytest.mark.asyncio
+async def test_harvest_auth_forms_from_conventional_routes_when_homepage_formless():
+    """The auth-flow fix: when the landing page has no form, the login/register
+    forms must be harvested from /login and /register so post-auth recon can
+    still run register→login instead of dead-ending."""
+    from pentestagent.agents.pa_agent.ctf_planner import find_auth_form
+
+    rt = _AuthPagesRuntime()
+    dispatcher = CTFTaskDispatcher(runtime=rt)
+    dispatcher.state = CTFState(target="http://app.local:80", goal="拿到flag")
+
+    features = {
+        "url": "http://app.local:80",
+        "forms": [],  # landing page has no form
+        "raw_links": [
+            "http://app.local/login",
+            "http://app.local/register",
+        ],
+    }
+
+    # Default-port variants must dedupe — no double-fetch of the same page.
+    candidates = dispatcher._candidate_auth_page_urls("http://app.local:80", features)
+    assert sorted(candidates) == [
+        "http://app.local/login",
+        "http://app.local/register",
+    ]
+
+    harvested = await dispatcher._harvest_auth_forms_from_routes("http://app.local:80", features)
+    login = find_auth_form(harvested)
+    register = dispatcher._find_registration_form(harvested, login_form=login)
+    assert login and login["action"].endswith("/login")
+    assert register and register["action"].endswith("/register")
+    # Each auth page fetched exactly once.
+    assert sorted(rt.fetched) == ["http://app.local/login", "http://app.local/register"]
+
+
 @pytest.mark.asyncio
 async def test_planner_prompt_surfaces_unexplored_exploration_agenda():
     """The agenda-consumption fix: high-value unexplored entry points (e.g.
