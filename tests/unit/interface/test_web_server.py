@@ -27,6 +27,67 @@ class _NoopThread:
         return None
 
 
+def _fake_build_agent_components_for(fake_pa_agent, runtime_cls):
+    """Hermetic stub of the assembly seam for _run_agent_task tests.
+
+    web_server now assembles via AgentSession.create -> build_agent_components
+    (P1-web). This stub assembles from the per-test fakes and skips the real
+    CPA hooks / RAG / MCP so tests stay hermetic, while still returning the
+    component dict the facade expects.
+    """
+    async def _bac(**kwargs):
+        runtime = runtime_cls()
+        agent = fake_pa_agent.PentestAgentAgent(
+            llm=object(),
+            tools=[],
+            runtime=runtime,
+            target=kwargs.get("target"),
+            rag_engine=None,
+        )
+        return {
+            "agent": agent,
+            "runtime": runtime,
+            "runtime_info": {"selected": "local", "connected": True},
+            "rag_engine": None,
+            "all_tools": [],
+            "model": kwargs.get("model"),
+            "mcp_manager": None,
+        }
+
+    return _bac
+
+
+def test_run_agent_task_routes_through_agent_session():
+    """Guard I2: web_server must assemble via the facade, not hand-roll it."""
+    import inspect
+
+    src = inspect.getsource(web_server._run_agent_task)
+    assert "AgentSession.create" in src
+    assert "PentestAgentAgent(" not in src, "web must not construct the agent directly"
+    assert "build_runtime(" not in src, "web must not build runtime directly"
+    assert "LLM(model=" not in src, "web must not construct an LLM outside the root"
+    assert "get_all_tools(" not in src, "web must not load tools directly"
+
+
+class _NeverRunAgent:
+    """Constructible agent whose loop must never be driven (CTF-mode tests).
+
+    The facade legitimately builds an agent even for CTF mode (unused); the
+    real contract is that the generic agent_loop is never driven for CTF.
+    """
+
+    def __init__(self, **kwargs):
+        pass
+
+    async def agent_loop(self, goal):
+        raise AssertionError("agent_loop must not be driven for ctf mode")
+        if False:  # pragma: no cover
+            yield None
+
+    def save_session(self):
+        return None
+
+
 @pytest.fixture
 async def web_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     (tmp_path / ".env").write_text(
@@ -2230,6 +2291,7 @@ def test_run_agent_task_uses_pentest_default_goal_when_mode_is_pentest(
         return _FakeRuntime(), {"selected": "local", "connected": True}
 
     fake_initializer.build_runtime = _fake_build_runtime
+    fake_initializer.build_agent_components = _fake_build_agent_components_for(fake_pa_agent, _FakeRuntime)
     fake_llm = types.ModuleType("pentestagent.llm")
     fake_llm.LLM = lambda model, rag_engine=None: object()
     fake_tools = types.ModuleType("pentestagent.tools")
@@ -2327,6 +2389,7 @@ def test_run_agent_task_attaches_run_id_and_project_root_to_agent(
         return _FakeRuntime(), {"selected": "local", "connected": True}
 
     fake_initializer.build_runtime = _fake_build_runtime
+    fake_initializer.build_agent_components = _fake_build_agent_components_for(fake_pa_agent, _FakeRuntime)
     fake_llm = types.ModuleType("pentestagent.llm")
     fake_llm.LLM = lambda model, rag_engine=None: object()
     fake_tools = types.ModuleType("pentestagent.tools")
@@ -2430,8 +2493,15 @@ def test_run_agent_task_routes_ctf_mode_to_ctf_dispatcher(
             )
 
     class _ForbiddenAgent:
+        # The facade builds an agent even in CTF mode (unused); the real
+        # contract is that its loop is never driven for CTF.
         def __init__(self, **kwargs):
-            raise AssertionError("PentestAgentAgent should not be constructed for ctf mode")
+            pass
+
+        async def agent_loop(self, goal):
+            raise AssertionError("agent_loop must not be driven for ctf mode")
+            if False:  # pragma: no cover
+                yield None
 
     fake_pa_agent = types.ModuleType("pentestagent.agents.pa_agent")
     fake_pa_agent.PentestAgentAgent = _ForbiddenAgent
@@ -2446,6 +2516,7 @@ def test_run_agent_task_routes_ctf_mode_to_ctf_dispatcher(
         return _FakeRuntime(), {"selected": "local", "connected": True}
 
     fake_initializer.build_runtime = _fake_build_runtime
+    fake_initializer.build_agent_components = _fake_build_agent_components_for(fake_pa_agent, _FakeRuntime)
     fake_llm = types.ModuleType("pentestagent.llm")
     fake_llm.LLM = lambda model, rag_engine=None: object()
     fake_tools = types.ModuleType("pentestagent.tools")
@@ -2541,9 +2612,7 @@ def test_run_agent_task_routes_ctf_progress_messages_into_logs(
             )
 
     fake_pa_agent = types.ModuleType("pentestagent.agents.pa_agent")
-    fake_pa_agent.PentestAgentAgent = lambda **kwargs: (_ for _ in ()).throw(
-        AssertionError("PentestAgentAgent should not be constructed for ctf mode")
-    )
+    fake_pa_agent.PentestAgentAgent = _NeverRunAgent
     fake_dispatcher_module = types.ModuleType("pentestagent.agents.pa_agent.ctf_dispatcher")
     fake_dispatcher_module.CTFTaskDispatcher = _FakeDispatcher
     fake_settings = types.ModuleType("pentestagent.config.settings")
@@ -2555,6 +2624,7 @@ def test_run_agent_task_routes_ctf_progress_messages_into_logs(
         return _FakeRuntime(), {"selected": "local", "connected": True}
 
     fake_initializer.build_runtime = _fake_build_runtime
+    fake_initializer.build_agent_components = _fake_build_agent_components_for(fake_pa_agent, _FakeRuntime)
     fake_llm = types.ModuleType("pentestagent.llm")
     fake_llm.LLM = lambda model, rag_engine=None: object()
     fake_tools = types.ModuleType("pentestagent.tools")
@@ -2645,9 +2715,7 @@ def test_run_agent_task_emits_ctf_dispatcher_lifecycle_summary_logs(
             )
 
     fake_pa_agent = types.ModuleType("pentestagent.agents.pa_agent")
-    fake_pa_agent.PentestAgentAgent = lambda **kwargs: (_ for _ in ()).throw(
-        AssertionError("PentestAgentAgent should not be constructed for ctf mode")
-    )
+    fake_pa_agent.PentestAgentAgent = _NeverRunAgent
     fake_dispatcher_module = types.ModuleType("pentestagent.agents.pa_agent.ctf_dispatcher")
     fake_dispatcher_module.CTFTaskDispatcher = _FakeDispatcher
     fake_settings = types.ModuleType("pentestagent.config.settings")
@@ -2659,6 +2727,7 @@ def test_run_agent_task_emits_ctf_dispatcher_lifecycle_summary_logs(
         return _FakeRuntime(), {"selected": "local", "connected": True}
 
     fake_initializer.build_runtime = _fake_build_runtime
+    fake_initializer.build_agent_components = _fake_build_agent_components_for(fake_pa_agent, _FakeRuntime)
     fake_llm = types.ModuleType("pentestagent.llm")
     fake_llm.LLM = lambda model, rag_engine=None: object()
     fake_tools = types.ModuleType("pentestagent.tools")
@@ -2758,9 +2827,7 @@ def test_run_agent_task_emits_ctf_dispatcher_missing_tools_log_on_stop(
             )
 
     fake_pa_agent = types.ModuleType("pentestagent.agents.pa_agent")
-    fake_pa_agent.PentestAgentAgent = lambda **kwargs: (_ for _ in ()).throw(
-        AssertionError("PentestAgentAgent should not be constructed for ctf mode")
-    )
+    fake_pa_agent.PentestAgentAgent = _NeverRunAgent
     fake_dispatcher_module = types.ModuleType("pentestagent.agents.pa_agent.ctf_dispatcher")
     fake_dispatcher_module.CTFTaskDispatcher = _FakeDispatcher
     fake_settings = types.ModuleType("pentestagent.config.settings")
@@ -2772,6 +2839,7 @@ def test_run_agent_task_emits_ctf_dispatcher_missing_tools_log_on_stop(
         return _FakeRuntime(), {"selected": "local", "connected": True}
 
     fake_initializer.build_runtime = _fake_build_runtime
+    fake_initializer.build_agent_components = _fake_build_agent_components_for(fake_pa_agent, _FakeRuntime)
     fake_llm = types.ModuleType("pentestagent.llm")
     fake_llm.LLM = lambda model, rag_engine=None: object()
     fake_tools = types.ModuleType("pentestagent.tools")
@@ -2881,9 +2949,7 @@ def test_run_agent_task_passes_latest_user_hint_to_ctf_dispatcher(
             )
 
     fake_pa_agent = types.ModuleType("pentestagent.agents.pa_agent")
-    fake_pa_agent.PentestAgentAgent = lambda **kwargs: (_ for _ in ()).throw(
-        AssertionError("PentestAgentAgent should not be constructed for ctf mode")
-    )
+    fake_pa_agent.PentestAgentAgent = _NeverRunAgent
     fake_dispatcher_module = types.ModuleType("pentestagent.agents.pa_agent.ctf_dispatcher")
     fake_dispatcher_module.CTFTaskDispatcher = _FakeDispatcher
     fake_settings = types.ModuleType("pentestagent.config.settings")
@@ -2895,6 +2961,7 @@ def test_run_agent_task_passes_latest_user_hint_to_ctf_dispatcher(
         return _FakeRuntime(), {"selected": "local", "connected": True}
 
     fake_initializer.build_runtime = _fake_build_runtime
+    fake_initializer.build_agent_components = _fake_build_agent_components_for(fake_pa_agent, _FakeRuntime)
     fake_llm = types.ModuleType("pentestagent.llm")
     fake_llm.LLM = lambda model, rag_engine=None: object()
     fake_tools = types.ModuleType("pentestagent.tools")
@@ -3018,9 +3085,7 @@ def test_run_agent_task_bridges_ctf_local_asset_contract_into_dispatcher_hint(
             )
 
     fake_pa_agent = types.ModuleType("pentestagent.agents.pa_agent")
-    fake_pa_agent.PentestAgentAgent = lambda **kwargs: (_ for _ in ()).throw(
-        AssertionError("PentestAgentAgent should not be constructed for ctf mode")
-    )
+    fake_pa_agent.PentestAgentAgent = _NeverRunAgent
     fake_dispatcher_module = types.ModuleType("pentestagent.agents.pa_agent.ctf_dispatcher")
     fake_dispatcher_module.CTFTaskDispatcher = _FakeDispatcher
     fake_settings = types.ModuleType("pentestagent.config.settings")
@@ -3032,6 +3097,7 @@ def test_run_agent_task_bridges_ctf_local_asset_contract_into_dispatcher_hint(
         return _FakeRuntime(), {"selected": "local", "connected": True}
 
     fake_initializer.build_runtime = _fake_build_runtime
+    fake_initializer.build_agent_components = _fake_build_agent_components_for(fake_pa_agent, _FakeRuntime)
     fake_llm = types.ModuleType("pentestagent.llm")
     fake_llm.LLM = lambda model, rag_engine=None: object()
     fake_tools = types.ModuleType("pentestagent.tools")
@@ -5782,6 +5848,7 @@ def test_run_agent_task_persists_session_more_than_once_when_tool_results_are_ob
         return _FakeRuntime(), {"selected": "local", "connected": True}
 
     fake_initializer.build_runtime = _fake_build_runtime
+    fake_initializer.build_agent_components = _fake_build_agent_components_for(fake_pa_agent, _FakeRuntime)
     fake_llm = types.ModuleType("pentestagent.llm")
     fake_llm.LLM = lambda model, rag_engine=None: object()
     fake_tools = types.ModuleType("pentestagent.tools")
