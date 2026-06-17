@@ -5250,6 +5250,66 @@ class _DispatcherAll404Runtime:
         return SimpleNamespace(exit_code=0, stdout="", stderr="")
 
 
+class _DispatcherCmdiPingRuntime:
+    """A ping-style tool with command injection on the `ip` GET parameter."""
+
+    def __init__(self):
+        self.environment = SimpleNamespace(available_tools=[])
+        self.requests: list[tuple[str, str]] = []
+
+    async def proxy_action(self, action: str, **kwargs):
+        url = kwargs.get("url", "")
+        self.requests.append((action, url))
+        lowered = url.lower()
+        if "cat" in lowered and "flag" in lowered:
+            # injected command executed: flag + id output leak into the response
+            return {
+                "status_code": 200,
+                "final_url": url,
+                "body": "PING 127.0.0.1\nDASCTF{cmdi-generic-ok}\nuid=33(www-data) gid=33(www-data)",
+            }
+        return {"status_code": 200, "final_url": url, "body": "PING 127.0.0.1 (0% loss)"}
+
+    async def browser_action(self, action: str, **kwargs):
+        return {"error": "browser unavailable"}
+
+    async def execute_command(self, command: str, timeout: int = 180):
+        return SimpleNamespace(exit_code=0, stdout="", stderr="")
+
+
+@pytest.mark.asyncio
+async def test_web_chain_reaches_generic_param_cmdi_on_get_param(monkeypatch, tmp_path):
+    """A ping tool classified "web" must still get command-injected via the
+    web chain (detect_type never emits cmdi)."""
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_cmdi.json")
+    notes_module._notes.clear()
+
+    runtime = _DispatcherCmdiPingRuntime()
+    dispatcher = CTFTaskDispatcher(runtime=runtime, progress_callback=None)
+    dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="web")
+
+    page_features = {
+        "forms": [
+            {"method": "GET", "action": "/", "inputs": [{"name": "ip", "type": "text"}]}
+        ],
+        "endpoints": [],
+        "raw_links": [],
+    }
+    outcome = await dispatcher._execute_web_chain("http://ctf.local/", page_features, "")
+
+    assert outcome.flag == "DASCTF{cmdi-generic-ok}"
+    # a command-separator payload reading the flag must have hit the ip param
+    assert any("ip=" in url and "cat" in url for _, url in runtime.requests)
+
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
 @pytest.mark.asyncio
 async def test_web_chain_reaches_jwt_manipulation_when_token_only_in_cookie(monkeypatch, tmp_path):
     """detect_type only inspects body/URL, so a JWT carried in a Cookie is
