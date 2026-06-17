@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 
-from pentestagent.agents.pa_agent.ctf_state import CTFState, FlagProof, LLMStepLog
+from flaghunter.agents.pa_agent.ctf_state import CTFState, FlagProof, LLMStepLog
 
 
 def test_ctf_state_exploration_agenda_defaults_to_empty():

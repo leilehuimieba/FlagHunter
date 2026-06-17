@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from pentestagent.agents.pa_agent.capability_registry import CapabilityImplementation
-from pentestagent.agents.pa_agent.ctf_state import CTFState, Hypothesis
-from pentestagent.agents.pa_agent.reasoning import (
+from flaghunter.agents.pa_agent.capability_registry import CapabilityImplementation
+from flaghunter.agents.pa_agent.ctf_state import CTFState, Hypothesis
+from flaghunter.agents.pa_agent.reasoning import (
     ALLOWED_FAILURE_NEXT_ACTIONS,
     PreActionReasoning,
     ReasoningDecision,
     ReasoningLayer,
 )
-from pentestagent.agents.pa_agent.strategy_registry import StrategyDefinition
+from flaghunter.agents.pa_agent.strategy_registry import StrategyDefinition
 
 
 async def _noop_execute(context):

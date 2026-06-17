@@ -1,0 +1,236 @@
+"""
+CPA M5 Swarm Link 模块 — 多Agent群体智能协作层。
+
+提供共享黑板（Shared Blackboard）、信息素路由（Pheromone Routing）、
+Agent消息传递（Agent Messaging）和共识机制（Consensus Mechanism）四大能力，
+支持多Agent间的动态任务协调与群体决策。
+
+环境变量控制（默认全部关闭）：
+    CPA_M5_SWARM_LINK          -- 模块总开关（默认 "false"）
+    CPA_M5_BLACKBOARD_DB       -- 黑板SQLite数据库路径（默认 "./logs/blackboard.db"）
+    CPA_M5_PHEROMONE_DECAY     -- 信息素衰减率（默认 "0.95"）
+    CPA_M5_PHEROMONE_THRESHOLD -- 信息素阈值（默认 "0.1"）
+    CPA_M5_CONSENSUS_AGENTS    -- 共识所需最小Agent数（默认 "3"）
+    CPA_M5_CONSENSUS_THRESHOLD -- 共识通过阈值（默认 "0.6"）
+    CPA_M5_MSG_RETENTION_HOURS -- 消息保留小时数（默认 "24"）
+
+用法::
+    from flaghunter.cpa_modules.m5_swarm_link import init_m5, get_blackboard, get_pheromone_router
+    await init_m5()
+    board = get_blackboard()
+    router = get_pheromone_router()
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .shared_blackboard import SharedBlackboard
+    from .pheromone_router import PheromoneRouter
+    from .agent_messenger import AgentMessenger
+    from .consensus_mechanism import ConsensusMechanism
+
+# ---------------------------------------------------------------------------
+# 模块级日志
+# ---------------------------------------------------------------------------
+logger: logging.Logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# 环境变量配置（集中读取，便于追踪）
+# ---------------------------------------------------------------------------
+_ENV_ENABLED: str = os.getenv("CPA_M5_SWARM_LINK", "false")
+_ENV_DB_PATH: str = os.getenv("CPA_M5_BLACKBOARD_DB", "./logs/blackboard.db")
+_ENV_DECAY: str = os.getenv("CPA_M5_PHEROMONE_DECAY", "0.95")
+_ENV_THRESHOLD: str = os.getenv("CPA_M5_PHEROMONE_THRESHOLD", "0.1")
+_ENV_CONSENSUS_AGENTS: str = os.getenv("CPA_M5_CONSENSUS_AGENTS", "3")
+_ENV_CONSENSUS_THRESHOLD: str = os.getenv("CPA_M5_CONSENSUS_THRESHOLD", "0.6")
+_ENV_RETENTION: str = os.getenv("CPA_M5_MSG_RETENTION_HOURS", "24")
+
+# ---------------------------------------------------------------------------
+# 延迟相对导入封装（避免循环依赖，保持模块轻量加载）
+# ---------------------------------------------------------------------------
+def _import_classes() -> tuple[type, type, type, type]:
+    """运行时延迟导入核心类，避免模块顶层循环依赖。"""
+    from .shared_blackboard import SharedBlackboard
+    from .pheromone_router import PheromoneRouter
+    from .agent_messenger import AgentMessenger
+    from .consensus_mechanism import ConsensusMechanism
+    return SharedBlackboard, PheromoneRouter, AgentMessenger, ConsensusMechanism
+
+
+# ---------------------------------------------------------------------------
+# 单例持有者（模块级全局状态）
+# ---------------------------------------------------------------------------
+_blackboard: "SharedBlackboard | None" = None
+_pheromone_router: "PheromoneRouter | None" = None
+_messengers: dict[str, "AgentMessenger"] = {}       # agent_id -> AgentMessenger
+_consensus: dict[str, "ConsensusMechanism"] = {}    # agent_id -> ConsensusMechanism
+_initialized: bool = False
+
+# ---------------------------------------------------------------------------
+# 公开接口
+# ---------------------------------------------------------------------------
+
+__all__ = [
+    "init_m5",
+    "get_blackboard",
+    "get_pheromone_router",
+    "get_messenger",
+    "get_consensus_mechanism",
+    "is_m5_enabled",
+    # 核心类延迟暴露，便于类型提示与外部直接导入
+    "SharedBlackboard",
+    "PheromoneRouter",
+    "AgentMessenger",
+    "ConsensusMechanism",
+]
+
+
+# ---------------------------------------------------------------------------
+# 初始化
+# ---------------------------------------------------------------------------
+
+async def init_m5() -> None:
+    """异步初始化 M5 Swarm Link 模块。
+
+    执行流程：
+        1. 检查 CPA_M5_SWARM_LINK 开关（默认 *false*，必须显式开启）。
+        2. 防止重复初始化。
+        3. 创建 SharedBlackboard（SQLite 持久化 + TTL 清理）。
+        4. 创建 PheromoneRouter（信息素表 + 衰减协程）。
+        5. 启动后台信息素衰减循环。
+        6. 标记 ``_initialized = True``。
+
+    Raises:
+        RuntimeError: 若模块已被初始化过。
+    """
+    global _initialized, _blackboard, _pheromone_router
+
+    # 1) 开关检查 —— M5 默认关闭，必须显式设置 CPA_M5_SWARM_LINK=true
+    if _ENV_ENABLED.lower() != "true":
+        logger.info("M5 Swarm Link 模块已禁用（CPA_M5_SWARM_LINK=%s），跳过初始化。", _ENV_ENABLED)
+        return
+
+    # 2) 重复初始化防护
+    if _initialized:
+        raise RuntimeError("M5 Swarm Link 模块已初始化，不可重复调用 init_m5()")
+
+    logger.info("M5 Swarm Link 模块初始化开始...")
+
+    # 延迟导入核心类
+    SharedBlackboard, PheromoneRouter, _, ConsensusMechanism = _import_classes()
+
+    # 3) 创建共享黑板
+    retention_hours: int = int(_ENV_RETENTION)
+    _blackboard = SharedBlackboard(db_path=_ENV_DB_PATH, retention_hours=retention_hours)
+    logger.debug("SharedBlackboard 已创建: db=%s, retention=%dh", _ENV_DB_PATH, retention_hours)
+
+    # 4) 创建信息素路由器
+    decay_rate: float = float(_ENV_DECAY)
+    threshold: float = float(_ENV_THRESHOLD)
+    _pheromone_router = PheromoneRouter(decay_rate=decay_rate, threshold=threshold)
+    logger.debug("PheromoneRouter 已创建: decay=%.3f, threshold=%.3f", decay_rate, threshold)
+
+    # 5) 启动信息素衰减后台协程
+    asyncio.create_task(_pheromone_router.start_decay_loop(), name="m5-pheromone-decay")
+    logger.debug("信息素衰减循环已启动")
+
+    # 6) 标记完成
+    _initialized = True
+    logger.info("M5 Swarm Link 模块初始化完成。")
+
+
+# ---------------------------------------------------------------------------
+# Getter 函数（按需访问单例）
+# ---------------------------------------------------------------------------
+
+def get_blackboard() -> "SharedBlackboard":
+    """获取共享黑板单例。
+
+    Returns:
+        SharedBlackboard: 全局唯一黑板实例。
+
+    Raises:
+        RuntimeError: 若模块尚未初始化。
+    """
+    if _blackboard is None:
+        raise RuntimeError("M5 模块未初始化，请先调用 init_m5()")
+    return _blackboard
+
+
+def get_pheromone_router() -> "PheromoneRouter":
+    """获取信息素路由器单例。
+
+    Returns:
+        PheromoneRouter: 全局唯一路由器实例。
+
+    Raises:
+        RuntimeError: 若模块尚未初始化。
+    """
+    if _pheromone_router is None:
+        raise RuntimeError("M5 模块未初始化，请先调用 init_m5()")
+    return _pheromone_router
+
+
+def get_messenger(agent_id: str) -> "AgentMessenger":
+    """按 agent_id 获取或创建 AgentMessenger 实例（按需懒加载）。
+
+    Args:
+        agent_id: 唯一Agent标识符。
+
+    Returns:
+        AgentMessenger: 对应该 Agent 的信使实例。
+
+    Raises:
+        RuntimeError: 若模块尚未初始化。
+    """
+    if not _initialized:
+        raise RuntimeError("M5 模块未初始化，请先调用 init_m5()")
+
+    if agent_id not in _messengers:
+        _, _, AgentMessenger, _ = _import_classes()
+        _messengers[agent_id] = AgentMessenger(
+            agent_id=agent_id,
+            blackboard=get_blackboard(),
+        )
+        logger.debug("AgentMessenger 已创建: agent_id=%s", agent_id)
+    return _messengers[agent_id]
+
+
+def get_consensus_mechanism(agent_id: str) -> "ConsensusMechanism":
+    """按 agent_id 获取或创建 ConsensusMechanism 实例（按需懒加载）。
+
+    Args:
+        agent_id: 唯一Agent标识符。
+
+    Returns:
+        ConsensusMechanism: 对应该 Agent 的共识机制实例。
+
+    Raises:
+        RuntimeError: 若模块尚未初始化。
+    """
+    if not _initialized:
+        raise RuntimeError("M5 模块未初始化，请先调用 init_m5()")
+
+    if agent_id not in _consensus:
+        _, _, _, ConsensusMechanism = _import_classes()
+        _consensus[agent_id] = ConsensusMechanism(
+            messenger=get_messenger(agent_id),
+            min_agents=int(_ENV_CONSENSUS_AGENTS),
+            threshold=float(_ENV_CONSENSUS_THRESHOLD),
+        )
+        logger.debug("ConsensusMechanism 已创建: agent_id=%s", agent_id)
+    return _consensus[agent_id]
+
+
+def is_m5_enabled() -> bool:
+    """检查 M5 Swarm Link 模块是否已启用且初始化完成。
+
+    Returns:
+        bool: 当且仅当环境变量开关为 ``"true"`` 且 ``init_m5()`` 执行成功时返回 ``True``。
+    """
+    return _initialized and _ENV_ENABLED.lower() == "true"

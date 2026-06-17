@@ -55,8 +55,8 @@ def test_benchmark_report_can_serialize_and_write_json(tmp_path: Path):
 @pytest.mark.asyncio
 async def test_run_benchmark_subset_uses_catalog_and_writes_report(monkeypatch, tmp_path: Path):
     async def _fake_runner(_verification_callback=None):
-        from pentestagent.agents.pa_agent.ctf_dispatcher import SolveResult
-        from pentestagent.agents.pa_agent.ctf_state import CTFState
+        from flaghunter.agents.pa_agent.ctf_dispatcher import SolveResult
+        from flaghunter.agents.pa_agent.ctf_state import CTFState
 
         state = CTFState(target="http://ctf.local", goal="拿到flag")
         state.add_flag(
@@ -100,10 +100,10 @@ async def test_run_benchmark_subset_uses_catalog_and_writes_report(monkeypatch, 
 
 
 def test_build_harness_summary_for_run_reads_session_artifacts_and_checkpoint(tmp_path: Path):
-    from pentestagent.agents.pa_agent.ctf_state import CTFState
-    from pentestagent.harness.artifact_registry import ArtifactRegistry
-    from pentestagent.harness.checkpoint_store import CheckpointStore
-    from pentestagent.harness.session_ledger import SessionLedger
+    from flaghunter.agents.pa_agent.ctf_state import CTFState
+    from flaghunter.harness.artifact_registry import ArtifactRegistry
+    from flaghunter.harness.checkpoint_store import CheckpointStore
+    from flaghunter.harness.session_ledger import SessionLedger
 
     run_id = "benchmark-run-1"
     root = tmp_path
@@ -196,8 +196,8 @@ def test_build_harness_summary_for_run_reads_session_artifacts_and_checkpoint(tm
 @pytest.mark.asyncio
 async def test_run_benchmark_attaches_harness_summary_to_result_metadata(monkeypatch, tmp_path: Path):
     async def _fake_runner(_verification_callback=None):
-        from pentestagent.agents.pa_agent.ctf_dispatcher import SolveResult
-        from pentestagent.agents.pa_agent.ctf_state import CTFState
+        from flaghunter.agents.pa_agent.ctf_dispatcher import SolveResult
+        from flaghunter.agents.pa_agent.ctf_state import CTFState
 
         state = CTFState(target="http://ctf.local", goal="拿到flag")
         state.stop_reason = "synthetic success"
@@ -260,8 +260,8 @@ async def test_run_benchmark_attaches_harness_summary_to_result_metadata(monkeyp
 @pytest.mark.asyncio
 async def test_run_benchmark_attaches_eval_contract_metadata(monkeypatch, tmp_path: Path):
     async def _fake_runner(_verification_callback=None):
-        from pentestagent.agents.pa_agent.ctf_dispatcher import SolveResult
-        from pentestagent.agents.pa_agent.ctf_state import CTFState
+        from flaghunter.agents.pa_agent.ctf_dispatcher import SolveResult
+        from flaghunter.agents.pa_agent.ctf_state import CTFState
 
         state = CTFState(target="http://127.0.0.1:3000", goal="拿到flag")
         state.stop_reason = "docker localhost visit fallback"
@@ -420,8 +420,8 @@ def test_p7_eval_01_solved_challenge_has_no_taxonomy(tmp_path: Path):
 def test_p7_eval_02_wrong_flag_unsolved_has_wrong_answer_taxonomy(tmp_path: Path):
     """P7-EVAL-02: wrong_flag_count > 0 且未 solved → failure_taxonomy == "wrong_answer" """
     from tests.eval.benchmark_runner import _build_challenge_result
-    from pentestagent.agents.pa_agent.ctf_dispatcher import SolveResult
-    from pentestagent.agents.pa_agent.ctf_state import CTFState
+    from flaghunter.agents.pa_agent.ctf_dispatcher import SolveResult
+    from flaghunter.agents.pa_agent.ctf_state import CTFState
 
     state = CTFState(target="http://ctf.local", goal="拿到flag")
     state.stop_reason = "no progress"
@@ -448,8 +448,8 @@ def test_p7_eval_02_wrong_flag_unsolved_has_wrong_answer_taxonomy(tmp_path: Path
 def test_p7_eval_03_no_progress_stop_has_give_up_taxonomy(tmp_path: Path):
     """P7-EVAL-03: no_progress_stop 且未 solved → failure_taxonomy == "give_up" """
     from tests.eval.benchmark_runner import _build_challenge_result
-    from pentestagent.agents.pa_agent.ctf_dispatcher import SolveResult
-    from pentestagent.agents.pa_agent.ctf_state import CTFState
+    from flaghunter.agents.pa_agent.ctf_dispatcher import SolveResult
+    from flaghunter.agents.pa_agent.ctf_state import CTFState
 
     state = CTFState(target="http://ctf.local", goal="拿到flag")
     state.stop_reason = "no progress"
@@ -471,8 +471,8 @@ def test_p7_eval_03_no_progress_stop_has_give_up_taxonomy(tmp_path: Path):
 async def test_p7_eval_04_failure_distribution_in_report(monkeypatch, tmp_path: Path):
     """P7-EVAL-04: BenchmarkReport.failure_distribution 包含各标签计数"""
     async def _fake_unsolved(_verification_callback=None):
-        from pentestagent.agents.pa_agent.ctf_dispatcher import SolveResult
-        from pentestagent.agents.pa_agent.ctf_state import CTFState
+        from flaghunter.agents.pa_agent.ctf_dispatcher import SolveResult
+        from flaghunter.agents.pa_agent.ctf_state import CTFState
 
         state = CTFState(target="http://ctf.local", goal="拿到flag")
         state.stop_reason = "no progress"
@@ -483,8 +483,8 @@ async def test_p7_eval_04_failure_distribution_in_report(monkeypatch, tmp_path: 
         )
 
     async def _fake_solved(_verification_callback=None):
-        from pentestagent.agents.pa_agent.ctf_dispatcher import SolveResult
-        from pentestagent.agents.pa_agent.ctf_state import CTFState
+        from flaghunter.agents.pa_agent.ctf_dispatcher import SolveResult
+        from flaghunter.agents.pa_agent.ctf_state import CTFState
 
         state = CTFState(target="http://ctf.local", goal="拿到flag")
         state.add_flag("flag{ok}", level="verified", evidence_source="http-response",
@@ -760,8 +760,8 @@ def test_aggregate_report_includes_local_sample_summary_metrics() -> None:
 
 
 def test_build_challenge_result_classifies_wrong_flag_feedback_as_unexpected_failure() -> None:
-    from pentestagent.agents.pa_agent.ctf_dispatcher import SolveResult
-    from pentestagent.agents.pa_agent.ctf_state import CTFState
+    from flaghunter.agents.pa_agent.ctf_dispatcher import SolveResult
+    from flaghunter.agents.pa_agent.ctf_state import CTFState
 
     state = CTFState(target="http://ctf.local", goal="拿到flag")
     state.stop_reason = "wrong_flag_feedback"
@@ -797,8 +797,8 @@ def test_build_challenge_result_classifies_wrong_flag_feedback_as_unexpected_fai
 
 
 def test_build_challenge_result_keeps_no_progress_without_flags_as_honest_no_flag() -> None:
-    from pentestagent.agents.pa_agent.ctf_dispatcher import SolveResult
-    from pentestagent.agents.pa_agent.ctf_state import CTFState
+    from flaghunter.agents.pa_agent.ctf_dispatcher import SolveResult
+    from flaghunter.agents.pa_agent.ctf_state import CTFState
 
     state = CTFState(target="http://ctf.local", goal="拿到flag")
     state.stop_reason = "no progress"

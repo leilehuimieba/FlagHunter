@@ -4,12 +4,12 @@ import json
 
 import pytest
 
-from pentestagent.tools.registry import get_tool
+from flaghunter.tools.registry import get_tool
 
 
 @pytest.mark.asyncio
 async def test_browser_tool_exposes_form_submission_and_cookie_actions():
-    import pentestagent.tools.browser  # noqa: F401
+    import flaghunter.tools.browser  # noqa: F401
 
     tool = get_tool("browser")
     assert tool is not None

@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from pentestagent.cpa_modules.m2_ctf_kit.flag_submitter import (
+from flaghunter.cpa_modules.m2_ctf_kit.flag_submitter import (
     detect_platform_from_url,
     get_platform_snapshot,
 )
-from pentestagent.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
-from pentestagent.agents.pa_agent.ctf_state import CTFState
+from flaghunter.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
+from flaghunter.agents.pa_agent.ctf_state import CTFState
 from tests.unit.agents.test_ctf_dispatcher import _DispatcherMissingReconDepsRuntime
 
 

@@ -1,0 +1,804 @@
+from __future__ import annotations
+
+import re
+from typing import Any
+
+from flaghunter.agents.pa_agent.ctf_state import CTFState
+from flaghunter.interface.control_contract import strongest_hypothesis_contract
+
+
+def _normalize_mapping(value: object) -> dict[str, Any]:
+    return dict(value) if isinstance(value, dict) else {}
+
+
+def normalize_blackboard_snapshot(snapshot: dict[str, Any] | None) -> dict[str, Any]:
+    data = _normalize_mapping(snapshot)
+    pending_verifications = data.get("pendingVerifications")
+    if not isinstance(pending_verifications, list):
+        pending_verifications = data.get("pending_verifications")
+    action_results = data.get("actionResults")
+    if not isinstance(action_results, list):
+        action_results = data.get("action_results")
+    recommended_action = data.get("recommendedAction")
+    if not isinstance(recommended_action, dict):
+        recommended_action = data.get("recommended_action")
+    active_decision = data.get("activeDecision")
+    if not isinstance(active_decision, dict):
+        active_decision = data.get("active_decision")
+    return {
+        "facts": list(data.get("facts") or []) if isinstance(data.get("facts"), list) else [],
+        "hypotheses": list(data.get("hypotheses") or []) if isinstance(data.get("hypotheses"), list) else [],
+        "pendingVerifications": list(pending_verifications or []) if isinstance(pending_verifications, list) else [],
+        "decisions": list(data.get("decisions") or []) if isinstance(data.get("decisions"), list) else [],
+        "candidates": list(data.get("candidates") or []) if isinstance(data.get("candidates"), list) else [],
+        "actionResults": list(action_results or []) if isinstance(action_results, list) else [],
+        "recommendedAction": dict(recommended_action or {}) if isinstance(recommended_action, dict) else {},
+        "activeDecision": dict(active_decision or {}) if isinstance(active_decision, dict) else {},
+    }
+
+
+def serialize_blackboard_snapshot(snapshot: dict[str, Any] | None) -> dict[str, Any]:
+    return normalize_blackboard_snapshot(snapshot)
+
+
+def format_blackboard_snapshot_lines(snapshot: dict[str, Any] | None) -> list[str]:
+    normalized = normalize_blackboard_snapshot(snapshot)
+    lines: list[str] = []
+    facts = [item for item in list(normalized.get("facts") or []) if isinstance(item, dict)]
+    hypotheses = [
+        item for item in list(normalized.get("hypotheses") or []) if isinstance(item, dict)
+    ]
+    pending = [
+        item
+        for item in list(normalized.get("pendingVerifications") or [])
+        if isinstance(item, dict)
+    ]
+    active_decision = (
+        dict(normalized.get("activeDecision") or {})
+        if isinstance(normalized.get("activeDecision"), dict)
+        else {}
+    )
+    recommended_action = (
+        dict(normalized.get("recommendedAction") or {})
+        if isinstance(normalized.get("recommendedAction"), dict)
+        else {}
+    )
+    action_results = [
+        item
+        for item in list(normalized.get("actionResults") or [])
+        if isinstance(item, dict)
+    ]
+    if facts:
+        lines.append("[blackboard_facts]")
+        for item in facts:
+            kind = str(item.get("kind") or "").strip()
+            value = str(item.get("value") or "").strip()
+            if kind and value:
+                lines.append(f"{kind}={value}")
+    if hypotheses:
+        lines.append("[blackboard_hypotheses]")
+        for item in hypotheses:
+            hypothesis_id = str(item.get("id") or "").strip()
+            kind = str(item.get("kind") or "").strip()
+            status = str(item.get("status") or "").strip()
+            confidence = item.get("confidence")
+            if not hypothesis_id or not kind:
+                continue
+            suffix = ""
+            if status or confidence is not None:
+                suffix = f" [{status}/{confidence}]"
+            lines.append(f"{hypothesis_id}:{kind}{suffix}")
+    if pending:
+        lines.append("[blackboard_pending_verifications]")
+        for item in pending:
+            kind = str(item.get("kind") or "").strip()
+            value = str(item.get("value") or "").strip()
+            if kind and value:
+                lines.append(f"{kind}={value}")
+    if active_decision:
+        lines.append("[blackboard_active_decision]")
+        for key in (
+            "decisionKind",
+            "nextAction",
+            "driver",
+            "reason",
+            "expectedAction",
+            "observedAction",
+            "alignment",
+            "alignmentReason",
+            "strongestHypothesisKind",
+            "strongestHypothesisStatus",
+            "strongestHypothesisConfidence",
+        ):
+            value = str(active_decision.get(key) or "").strip()
+            if value:
+                lines.append(f"{key}={value}")
+        suppressed = (
+            dict(active_decision.get("suppressedRecommendation") or {})
+            if isinstance(active_decision.get("suppressedRecommendation"), dict)
+            else {}
+        )
+        for key in ("action", "driver", "reason", "suppressedBy"):
+            value = str(suppressed.get(key) or "").strip()
+            if value:
+                lines.append(f"suppressedRecommendation.{key}={value}")
+    if recommended_action:
+        lines.append("[blackboard_recommended_action]")
+        for key in (
+            "action",
+            "driver",
+            "sourceType",
+            "reason",
+            "switchedFrom",
+            "triggerResult",
+            "triggerReason",
+            "triggerActionDriver",
+            "triggerAt",
+        ):
+            value = str(recommended_action.get(key) or "").strip()
+            if value:
+                lines.append(f"{key}={value}")
+    if action_results:
+        lines.append("[blackboard_action_results]")
+        for item in action_results:
+            for key in (
+                "action",
+                "driver",
+                "result",
+                "expectedAction",
+                "alignment",
+                "alignmentReason",
+                "strongestHypothesisKind",
+                "strongestHypothesisStatus",
+                "strongestHypothesisConfidence",
+            ):
+                value = str(item.get(key) or "").strip()
+                if value:
+                    lines.append(f"{key}={value}")
+    return lines
+
+
+def _snapshot_from_state_payload(value: object) -> CTFState | None:
+    payload = _normalize_mapping(value)
+    if not payload:
+        return None
+    try:
+        return CTFState.from_snapshot(payload)
+    except Exception:
+        return None
+
+
+
+
+def _fact_from_observation(kind: str, value: str, *, source: str = "", metadata: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    normalized_kind = str(kind or "").strip()
+    normalized_value = str(value or "").strip()
+    if not normalized_kind or not normalized_value:
+        return None
+    mapping = {
+        "resume_bootstrap_hint": ("resume_bootstrap_hint", "high"),
+        "initial_fact_collection_requested": ("initial_fact_collection_requested", "high"),
+        "recon_url": ("discovered_endpoint", "high"),
+        "ssti_engine_identified": ("identified_engine", "high"),
+        "cookie_secret_leaked": ("leaked_secret", "medium"),
+        "source_leak_exploit_candidate": ("source_leak_exploit_candidate", "high"),
+        "local_challenge_source_hint": ("local_challenge_source_hint", "high"),
+        "http_response": ("recent_http_response", "medium"),
+        "derived_target": ("derived_target", "high"),
+    }
+    mapped = mapping.get(normalized_kind)
+    if not mapped:
+        return None
+    fact_kind, default_confidence = mapped
+    meta = dict(metadata or {})
+    confidence = str(meta.get("confidence") or default_confidence).strip() or default_confidence
+    fact = {
+        "kind": fact_kind,
+        "value": normalized_value,
+        "source": str(source or "").strip(),
+        "confidence": confidence,
+    }
+    artifact_url = str(
+        meta.get("artifact_url") or meta.get("path") or meta.get("file_name") or ""
+    ).strip()
+    if artifact_url:
+        fact["artifactUrl"] = artifact_url
+    exploit_info = meta.get("exploit_info") or {}
+    if isinstance(exploit_info, dict):
+        exploit_type = str(exploit_info.get("type") or "").strip()
+        if exploit_type:
+            fact["exploitType"] = exploit_type
+    if fact_kind == "local_challenge_source_hint" and "exploitType" not in fact:
+        lowered = normalized_value.lower()
+        if (
+            "serialize($profile)" in lowered
+            and "file_get_contents($profile['photo'])" in lowered
+        ):
+            fact["exploitType"] = "profile_photo_poisoning"
+        elif "unserialize" in lowered and re.search(r"__destruct", normalized_value, re.IGNORECASE):
+            fact["exploitType"] = "php_unserialize"
+    return fact
+
+
+def _active_decision_from_control_decision(control_decision: dict[str, Any] | None) -> dict[str, Any]:
+    decision = _normalize_mapping(control_decision)
+    if not decision:
+        return {}
+    active_decision = {
+        "decisionKind": str(decision.get("decisionKind") or "").strip(),
+        "nextAction": str(decision.get("nextAction") or "").strip(),
+        "driver": str(decision.get("driver") or "").strip(),
+        "reason": str(decision.get("reason") or "").strip(),
+    }
+    suppressed_recommendation = (
+        dict(decision.get("suppressedRecommendation") or {})
+        if isinstance(decision.get("suppressedRecommendation"), dict)
+        else {}
+    )
+    if suppressed_recommendation:
+        active_decision["suppressedRecommendation"] = suppressed_recommendation
+    strongest_hypothesis = strongest_hypothesis_contract(decision, {})
+    if str(strongest_hypothesis.get("kind") or "").strip():
+        active_decision["strongestHypothesisKind"] = str(
+            strongest_hypothesis.get("kind") or ""
+        ).strip()
+    if str(strongest_hypothesis.get("status") or "").strip():
+        active_decision["strongestHypothesisStatus"] = str(
+            strongest_hypothesis.get("status") or ""
+        ).strip()
+    if strongest_hypothesis.get("confidence") is not None:
+        active_decision["strongestHypothesisConfidence"] = strongest_hypothesis.get("confidence")
+    return active_decision
+
+
+def _extract_first_action_alignment(session_context: dict[str, Any] | None) -> dict[str, Any]:
+    context = _normalize_mapping(session_context)
+    recent_events = context.get("recentEvents")
+    if not isinstance(recent_events, list):
+        return {}
+    for event in recent_events:
+        if not isinstance(event, dict):
+            continue
+        if str(event.get("type") or "").strip() != "control_action_started":
+            continue
+        payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+        action = str(payload.get("action") or "").strip()
+        expected_action = str(payload.get("expected_action") or "").strip()
+        alignment = str(payload.get("alignment") or "").strip()
+        alignment_reason = str(payload.get("alignment_reason") or "").strip()
+        switched_from = str(payload.get("switched_from") or "").strip()
+        trigger_reason = str(payload.get("trigger_reason") or "").strip()
+        if not any([action, expected_action, alignment, alignment_reason, switched_from, trigger_reason]):
+            return {}
+        projected: dict[str, Any] = {}
+        if action:
+            projected["observedAction"] = action
+        if expected_action:
+            projected["expectedAction"] = expected_action
+        if alignment:
+            projected["alignment"] = alignment
+        if alignment_reason:
+            projected["alignmentReason"] = alignment_reason
+        if switched_from:
+            projected["switchedFrom"] = switched_from
+        if trigger_reason:
+            projected["triggerReason"] = trigger_reason
+        strongest_hypothesis_kind = str(payload.get("strongest_hypothesis_kind") or "").strip()
+        strongest_hypothesis_status = str(payload.get("strongest_hypothesis_status") or "").strip()
+        if strongest_hypothesis_kind:
+            projected["strongestHypothesisKind"] = strongest_hypothesis_kind
+        if strongest_hypothesis_status:
+            projected["strongestHypothesisStatus"] = strongest_hypothesis_status
+        if payload.get("strongest_hypothesis_confidence") is not None:
+            projected["strongestHypothesisConfidence"] = payload.get(
+                "strongest_hypothesis_confidence"
+            )
+        return projected
+    return {}
+
+
+def _extract_started_action_metadata_by_action(
+    session_context: dict[str, Any] | None,
+) -> dict[str, dict[str, Any]]:
+    context = _normalize_mapping(session_context)
+    recent_events = context.get("recentEvents")
+    if not isinstance(recent_events, list):
+        return {}
+    started_by_action: dict[str, dict[str, Any]] = {}
+    for event in recent_events:
+        if not isinstance(event, dict):
+            continue
+        if str(event.get("type") or "").strip() != "control_action_started":
+            continue
+        payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+        action = str(payload.get("action") or "").strip()
+        if not action:
+            continue
+        item: dict[str, Any] = {}
+        expected_action = str(payload.get("expected_action") or "").strip()
+        alignment = str(payload.get("alignment") or "").strip()
+        alignment_reason = str(payload.get("alignment_reason") or "").strip()
+        switched_from = str(payload.get("switched_from") or "").strip()
+        trigger_reason = str(payload.get("trigger_reason") or "").strip()
+        if expected_action:
+            item["expectedAction"] = expected_action
+        if alignment:
+            item["alignment"] = alignment
+        if alignment_reason:
+            item["alignmentReason"] = alignment_reason
+        if switched_from:
+            item["switchedFrom"] = switched_from
+        if trigger_reason:
+            item["triggerReason"] = trigger_reason
+        strongest_hypothesis_kind = str(payload.get("strongest_hypothesis_kind") or "").strip()
+        strongest_hypothesis_status = str(payload.get("strongest_hypothesis_status") or "").strip()
+        if strongest_hypothesis_kind:
+            item["strongestHypothesisKind"] = strongest_hypothesis_kind
+        if strongest_hypothesis_status:
+            item["strongestHypothesisStatus"] = strongest_hypothesis_status
+        if payload.get("strongest_hypothesis_confidence") is not None:
+            item["strongestHypothesisConfidence"] = payload.get(
+                "strongest_hypothesis_confidence"
+            )
+        if item:
+            started_by_action[action] = item
+    return started_by_action
+
+
+def _append_candidate(
+    candidates: list[dict[str, Any]],
+    *,
+    seen_actions: set[str],
+    action: str,
+    driver: str = "",
+    reason: str = "",
+    priority: int = 50,
+    selected: bool = False,
+    source_type: str = "",
+) -> None:
+    normalized_action = str(action or "").strip()
+    if not normalized_action or normalized_action in seen_actions:
+        return
+    seen_actions.add(normalized_action)
+    candidates.append(
+        {
+            "action": normalized_action,
+            "driver": str(driver or "").strip(),
+            "sourceType": str(source_type or "").strip(),
+            "reason": str(reason or "").strip(),
+            "priority": priority,
+            "selected": bool(selected),
+        }
+    )
+
+
+def _source_type_from_driver(driver: str) -> str:
+    normalized = str(driver or "").strip()
+    if not normalized:
+        return ""
+    if normalized.startswith("blackboard.verified_flag") or normalized.startswith("blackboard.runtime_flag"):
+        return "verification"
+    if normalized.startswith("task.") or normalized.startswith("blackboard.resume_"):
+        return "ingress"
+    if normalized.startswith("blackboard."):
+        return "observation"
+    return ""
+
+
+def _extract_action_results(session_context: dict[str, Any] | None) -> list[dict[str, Any]]:
+    context = _normalize_mapping(session_context)
+    recent_events = context.get("recentEvents")
+    if not isinstance(recent_events, list):
+        return []
+    started_by_action = _extract_started_action_metadata_by_action(session_context)
+    results: list[dict[str, Any]] = []
+    for event in recent_events:
+        if not isinstance(event, dict):
+            continue
+        if str(event.get("type") or "").strip() != "control_action_completed":
+            continue
+        payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+        action = str(payload.get("action") or "").strip()
+        result = str(payload.get("result") or "").strip()
+        if not action or not result:
+            continue
+        item = {
+            "action": action,
+            "driver": str(payload.get("driver") or "").strip(),
+            "result": result,
+            "t": str(event.get("t") or "").strip(),
+            "details": dict(payload.get("details") or {}) if isinstance(payload.get("details"), dict) else {},
+        }
+        strongest_hypothesis_kind = str(payload.get("strongest_hypothesis_kind") or "").strip()
+        strongest_hypothesis_status = str(payload.get("strongest_hypothesis_status") or "").strip()
+        if strongest_hypothesis_kind:
+            item["strongestHypothesisKind"] = strongest_hypothesis_kind
+        if strongest_hypothesis_status:
+            item["strongestHypothesisStatus"] = strongest_hypothesis_status
+        if payload.get("strongest_hypothesis_confidence") is not None:
+            item["strongestHypothesisConfidence"] = payload.get(
+                "strongest_hypothesis_confidence"
+            )
+        switched_from = str(payload.get("switched_from") or "").strip()
+        trigger_reason = str(payload.get("trigger_reason") or "").strip()
+        if switched_from:
+            item["switchedFrom"] = switched_from
+        if trigger_reason:
+            item["triggerReason"] = trigger_reason
+        item.update(started_by_action.get(action) or {})
+        results.append(item)
+    return results
+
+
+def _build_blackboard_candidates(
+    *,
+    facts: list[dict[str, Any]],
+    pending_verifications: list[dict[str, Any]],
+    active_decision: dict[str, Any],
+    action_results: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
+    seen_actions: set[str] = set()
+    selected_action = str(active_decision.get("nextAction") or "").strip()
+    selected_decision_kind = str(active_decision.get("decisionKind") or "").strip()
+    if selected_action and selected_action != "await_input" and selected_decision_kind != "blocked":
+        _append_candidate(
+            candidates,
+            seen_actions=seen_actions,
+            action=selected_action,
+            driver=str(active_decision.get("driver") or "").strip(),
+            source_type=_source_type_from_driver(str(active_decision.get("driver") or "").strip()),
+            reason=str(active_decision.get("reason") or "").strip(),
+            priority=0,
+            selected=True,
+        )
+
+    fact_kinds = {str(item.get("kind") or "").strip() for item in facts if isinstance(item, dict)}
+    pending_kinds = {
+        str(item.get("kind") or "").strip()
+        for item in pending_verifications
+        if isinstance(item, dict)
+    }
+
+    if "verified_flag" in fact_kinds:
+        _append_candidate(
+            candidates,
+            seen_actions=seen_actions,
+            action="verify_or_submit_flag",
+            driver="blackboard.verified_flag",
+            source_type="verification",
+            reason="verified flag already present in blackboard",
+            priority=1,
+            selected=selected_action == "verify_or_submit_flag",
+        )
+    if "runtime_flag" in pending_kinds:
+        _append_candidate(
+            candidates,
+            seen_actions=seen_actions,
+            action="verify_runtime_signal",
+            driver="blackboard.runtime_flag",
+            source_type="verification",
+            reason="runtime flag pending verification in blackboard",
+            priority=2,
+            selected=selected_action == "verify_runtime_signal",
+        )
+    if {"resume_bootstrap_hint", "resume_run_id", "resume_checkpoint_id"} & fact_kinds:
+        _append_candidate(
+            candidates,
+            seen_actions=seen_actions,
+            action="resume_from_checkpoint",
+            driver="blackboard.resume_context",
+            source_type="ingress",
+            reason="resume context or resume hint available",
+            priority=3,
+            selected=selected_action == "resume_from_checkpoint",
+        )
+    if "identified_engine" in fact_kinds:
+        _append_candidate(
+            candidates,
+            seen_actions=seen_actions,
+            action="exploit_identified_engine",
+            driver="blackboard.identified_engine",
+            source_type="observation",
+            reason="identified engine present in blackboard",
+            priority=10,
+            selected=selected_action == "exploit_identified_engine",
+        )
+    if "discovered_endpoint" in fact_kinds:
+        _append_candidate(
+            candidates,
+            seen_actions=seen_actions,
+            action="probe_discovered_endpoint",
+            driver="blackboard.discovered_endpoint",
+            source_type="observation",
+            reason="discovered endpoint present in blackboard",
+            priority=11,
+            selected=selected_action == "probe_discovered_endpoint",
+        )
+    if "leaked_secret" in fact_kinds:
+        _append_candidate(
+            candidates,
+            seen_actions=seen_actions,
+            action="validate_leaked_secret",
+            driver="blackboard.leaked_secret",
+            source_type="observation",
+            reason="leaked secret present in blackboard",
+            priority=12,
+            selected=selected_action == "validate_leaked_secret",
+        )
+    if {"initial_fact_collection_requested", "derived_target"} & fact_kinds:
+        _append_candidate(
+            candidates,
+            seen_actions=seen_actions,
+            action="collect_initial_facts",
+            driver="blackboard.derived_target",
+            source_type="observation",
+            reason="derived target available for initial fact collection",
+            priority=20,
+            selected=selected_action == "collect_initial_facts",
+        )
+    if {"challenge_path", "artifact"} & fact_kinds:
+        _append_candidate(
+            candidates,
+            seen_actions=seen_actions,
+            action="bootstrap_local_assets",
+            driver="task.local_assets",
+            source_type="ingress",
+            reason="local challenge assets available",
+            priority=21,
+            selected=selected_action == "bootstrap_local_assets",
+        )
+
+    latest_result_by_action: dict[str, str] = {}
+    for item in list(action_results or []):
+        if not isinstance(item, dict):
+            continue
+        action = str(item.get("action") or "").strip()
+        result = str(item.get("result") or "").strip()
+        if action and result:
+            latest_result_by_action[action] = result
+    for candidate in candidates:
+        action = str(candidate.get("action") or "").strip()
+        if action in latest_result_by_action:
+            candidate["lastResult"] = latest_result_by_action[action]
+        candidate["recommended"] = False
+
+    candidates.sort(key=lambda item: (int(item.get("priority", 999)), str(item.get("action") or "")))
+    return candidates
+
+
+def _build_recommended_action(
+    *,
+    candidates: list[dict[str, Any]],
+    active_decision: dict[str, Any],
+    action_results: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    selected_action = str(active_decision.get("nextAction") or "").strip()
+    if not selected_action:
+        return {}
+    selected_candidate = next(
+        (
+            item
+            for item in candidates
+            if str(item.get("action") or "").strip() == selected_action
+        ),
+        None,
+    )
+    if not isinstance(selected_candidate, dict):
+        return {}
+    last_result = str(selected_candidate.get("lastResult") or "").strip().lower()
+    if last_result not in {"failed", "skipped"}:
+        return {}
+    latest_selected_result: dict[str, Any] = {}
+    for item in reversed(list(action_results or [])):
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("action") or "").strip() != selected_action:
+            continue
+        latest_selected_result = item
+        break
+    details = (
+        dict(latest_selected_result.get("details") or {})
+        if isinstance(latest_selected_result.get("details"), dict)
+        else {}
+    )
+    for candidate in candidates:
+        action = str(candidate.get("action") or "").strip()
+        if not action or action == selected_action:
+            continue
+        candidate["recommended"] = True
+        recommended_action = {
+            "action": action,
+            "driver": str(candidate.get("driver") or "").strip(),
+            "sourceType": str(candidate.get("sourceType") or "").strip(),
+            "reason": "selected action failed; switch to next best candidate",
+            "switchedFrom": selected_action,
+            "triggerResult": last_result,
+        }
+        trigger_reason = str(details.get("reason") or "").strip()
+        if trigger_reason:
+            recommended_action["triggerReason"] = trigger_reason
+        trigger_action_driver = str(latest_selected_result.get("driver") or "").strip()
+        if trigger_action_driver:
+            recommended_action["triggerActionDriver"] = trigger_action_driver
+        trigger_at = str(latest_selected_result.get("t") or "").strip()
+        if trigger_at:
+            recommended_action["triggerAt"] = trigger_at
+        for source in (latest_selected_result, active_decision):
+            strongest_kind = str(source.get("strongestHypothesisKind") or "").strip()
+            strongest_status = str(source.get("strongestHypothesisStatus") or "").strip()
+            strongest_confidence = source.get("strongestHypothesisConfidence")
+            if strongest_kind and "strongestHypothesisKind" not in recommended_action:
+                recommended_action["strongestHypothesisKind"] = strongest_kind
+            if strongest_status and "strongestHypothesisStatus" not in recommended_action:
+                recommended_action["strongestHypothesisStatus"] = strongest_status
+            if (
+                strongest_confidence is not None
+                and "strongestHypothesisConfidence" not in recommended_action
+            ):
+                recommended_action["strongestHypothesisConfidence"] = strongest_confidence
+        return recommended_action
+    return {}
+
+
+def _build_blackboard_snapshot(
+    *,
+    control_decision: dict[str, Any] | None,
+    decision_records: list[dict[str, Any]] | None,
+    ingress_handoff: dict[str, Any] | None,
+    state_snapshot: object,
+    session_context: dict[str, Any] | None = None,
+) -> dict[str, list[dict[str, Any]]]:
+    facts: list[dict[str, Any]] = []
+    hypotheses: list[dict[str, Any]] = []
+    pending_verifications: list[dict[str, Any]] = []
+    decisions: list[dict[str, Any]] = []
+    active_decision = _active_decision_from_control_decision(control_decision)
+    action_results = _extract_action_results(session_context)
+    active_decision.update(_extract_first_action_alignment(session_context))
+
+    decision = _normalize_mapping(control_decision)
+    if decision.get("decisionKind"):
+        facts.append({"kind": "control_decision", "value": str(decision.get("decisionKind"))})
+    if decision.get("nextAction"):
+        facts.append({"kind": "next_action", "value": str(decision.get("nextAction"))})
+
+    handoff = _normalize_mapping(ingress_handoff)
+    challenge_context = _normalize_mapping(handoff.get("challengeContext"))
+    if challenge_context.get("challengePath"):
+        facts.append({"kind": "challenge_path", "value": str(challenge_context.get("challengePath"))})
+
+    resume_bootstrap = _normalize_mapping(handoff.get("resumeBootstrap"))
+    if resume_bootstrap.get("runId"):
+        facts.append({"kind": "resume_run_id", "value": str(resume_bootstrap.get("runId"))})
+    if resume_bootstrap.get("checkpointId"):
+        facts.append({"kind": "resume_checkpoint_id", "value": str(resume_bootstrap.get("checkpointId"))})
+
+    for record in list(decision_records or []):
+        if isinstance(record, dict):
+            decisions.append(dict(record))
+
+    state = _snapshot_from_state_payload(state_snapshot)
+    if state is not None:
+        for observation in list(state.observations):
+            fact = _fact_from_observation(
+                observation.kind,
+                observation.value,
+                source=observation.source,
+                metadata=getattr(observation, "metadata", {}) or {},
+            )
+            if fact is not None:
+                facts.append(fact)
+
+        for hypothesis in list(state.hypotheses):
+            hypotheses.append(
+                {
+                    "id": str(hypothesis.id or "").strip(),
+                    "kind": str(hypothesis.kind or "").strip(),
+                    "description": str(hypothesis.description or "").strip(),
+                    "confidence": float(hypothesis.confidence),
+                    "status": str(hypothesis.status or "").strip(),
+                    "supportingObservations": list(hypothesis.supporting_observations or []),
+                    "counterEvidence": list(hypothesis.counter_evidence or []),
+                    "nextExperiments": list(hypothesis.next_experiments or []),
+                }
+            )
+
+        for record in list(state.verified_flags):
+            if record.value:
+                facts.append({
+                    "kind": "verified_flag",
+                    "value": record.value,
+                    "source": record.evidence_source,
+                    "confidence": "high",
+                })
+
+        for record in list(state.runtime_flags):
+            if record.value:
+                pending_verifications.append(
+                    {
+                        "kind": "runtime_flag",
+                        "value": record.value,
+                        "source": record.evidence_source,
+                        "rationale": record.rationale,
+                    }
+                )
+
+        for artifact in list(state.artifacts):
+            location = str(artifact.location or "").strip()
+            if location:
+                facts.append({"kind": "artifact", "value": location})
+
+    candidates = _build_blackboard_candidates(
+        facts=facts,
+        pending_verifications=pending_verifications,
+        active_decision=active_decision,
+        action_results=action_results,
+    )
+    recommended_action = _build_recommended_action(
+        candidates=candidates,
+        active_decision=active_decision,
+        action_results=action_results,
+    )
+    selected_action = str(active_decision.get("nextAction") or "").strip()
+    recommended_candidate_action = str(recommended_action.get("action") or "").strip()
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+        action = str(candidate.get("action") or "").strip()
+        if action and action == selected_action:
+            for key in (
+                "strongestHypothesisKind",
+                "strongestHypothesisStatus",
+                "strongestHypothesisConfidence",
+            ):
+                if active_decision.get(key) is not None and key not in candidate:
+                    candidate[key] = active_decision.get(key)
+        if action and action == recommended_candidate_action:
+            for key in (
+                "strongestHypothesisKind",
+                "strongestHypothesisStatus",
+                "strongestHypothesisConfidence",
+            ):
+                if recommended_action.get(key) is not None and key not in candidate:
+                    candidate[key] = recommended_action.get(key)
+
+    return {
+        "facts": facts,
+        "hypotheses": hypotheses,
+        "pending_verifications": pending_verifications,
+        "decisions": decisions,
+        "candidates": candidates,
+        "active_decision": active_decision,
+        "action_results": action_results,
+        "recommended_action": recommended_action,
+    }
+
+
+def build_task_blackboard_snapshot(
+    task: dict[str, Any],
+    *,
+    session_context: dict[str, Any] | None = None,
+) -> dict[str, list[dict[str, Any]]]:
+    task_data = _normalize_mapping(task)
+    return _build_blackboard_snapshot(
+        control_decision=_normalize_mapping(task_data.get("controlDecision")),
+        decision_records=list(task_data.get("decisionRecords") or []),
+        ingress_handoff=_normalize_mapping(task_data.get("ingressHandoff")),
+        state_snapshot=task_data.get("ctfStateSnapshot"),
+        session_context=session_context,
+    )
+
+
+def build_entry_blackboard_snapshot(
+    entry: Any,
+    *,
+    session_context: dict[str, Any] | None = None,
+) -> dict[str, list[dict[str, Any]]]:
+    return _build_blackboard_snapshot(
+        control_decision=_normalize_mapping(getattr(entry, "controlDecision", None)),
+        decision_records=list(getattr(entry, "decisionRecords", []) or []),
+        ingress_handoff=_normalize_mapping(getattr(entry, "ingressHandoff", None)),
+        state_snapshot=getattr(entry, "ctfStateSnapshot", None),
+        session_context=session_context,
+    )

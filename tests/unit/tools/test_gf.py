@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from pentestagent.tools.gf import gf, _BUILTIN_PATTERNS
+from flaghunter.tools.gf import gf, _BUILTIN_PATTERNS
 
 
 class TestBuiltinPatternsExist:

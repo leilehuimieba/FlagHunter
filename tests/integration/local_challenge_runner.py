@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pentestagent.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
+from flaghunter.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
 from tests.integration.local_challenge_catalog import (
     LocalChallengeSample,
     get_local_challenge_sample,
@@ -224,7 +224,7 @@ async def run_active_local_challenge_sample(
         )
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     enable_local_pivot = normalized_variant in {"directory", "zip"}

@@ -2,15 +2,15 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from pentestagent.agents.pa_agent.ctf_state import CTFState, Hypothesis
-from pentestagent.interface.blackboard_lite import (
+from flaghunter.agents.pa_agent.ctf_state import CTFState, Hypothesis
+from flaghunter.interface.blackboard_lite import (
     build_entry_blackboard_snapshot,
     build_task_blackboard_snapshot,
     format_blackboard_snapshot_lines,
     normalize_blackboard_snapshot,
     serialize_blackboard_snapshot,
 )
-from pentestagent.mcp.server.mcp_tools import TaskEntry
+from flaghunter.mcp.server.mcp_tools import TaskEntry
 
 
 def test_build_task_blackboard_snapshot_aggregates_ingress_decision_and_resume_facts() -> None:

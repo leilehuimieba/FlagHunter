@@ -1,6 +1,6 @@
 """Unit tests for the neutral EventBus (architecture joint A, invariant I3)."""
 
-from pentestagent.session.event_bus import Event, EventBus
+from flaghunter.session.event_bus import Event, EventBus
 
 
 def test_subscribe_receives_emitted_events():

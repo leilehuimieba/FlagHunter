@@ -1,4 +1,4 @@
-"""Tests for pentestagent.runtime.runtime (CommandResult, detect_environment, LocalRuntime)."""
+"""Tests for flaghunter.runtime.runtime (CommandResult, detect_environment, LocalRuntime)."""
 
 import asyncio
 import base64
@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from types import SimpleNamespace
 import pytest
 
-from pentestagent.runtime.runtime import (
+from flaghunter.runtime.runtime import (
     CommandResult,
     EnvironmentInfo,
     LocalRuntime,
@@ -416,7 +416,7 @@ class TestLocalRuntimeProxyBinary:
 class TestSSHRuntimeProxyHttpFetch:
     @pytest.mark.asyncio
     async def test_get_parses_status_headers_body_and_set_cookie(self, monkeypatch):
-        from pentestagent.runtime.ssh_runtime import SSHRuntime
+        from flaghunter.runtime.ssh_runtime import SSHRuntime
 
         rt = SSHRuntime.__new__(SSHRuntime)
         rt._proxy_port = 8888
@@ -447,7 +447,7 @@ class TestSSHRuntimeProxyHttpFetch:
 
     @pytest.mark.asyncio
     async def test_missing_url_errors(self):
-        from pentestagent.runtime.ssh_runtime import SSHRuntime
+        from flaghunter.runtime.ssh_runtime import SSHRuntime
 
         rt = SSHRuntime.__new__(SSHRuntime)
         rt._proxy_port = 8888

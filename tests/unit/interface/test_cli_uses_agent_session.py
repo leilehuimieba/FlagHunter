@@ -9,7 +9,7 @@ would bypass the composition root.
 
 import inspect
 
-from pentestagent.interface import cli
+from flaghunter.interface import cli
 
 
 def test_run_cli_routes_through_agent_session():

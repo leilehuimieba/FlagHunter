@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-import pentestagent.tools.notes as notes_module
-from pentestagent.tools.finish import PlanStep, TaskPlan, finish
-from pentestagent.tools.notes import set_notes_file
+import flaghunter.tools.notes as notes_module
+from flaghunter.tools.finish import PlanStep, TaskPlan, finish
+from flaghunter.tools.notes import set_notes_file
 
 
 @pytest.fixture(autouse=True)
@@ -59,7 +59,7 @@ async def test_finish_complete_writes_session_markdown_for_worthy_notes():
 
     assert "All steps complete" in result
 
-    sessions_dir = Path("pentestagent/knowledge/sessions")
+    sessions_dir = Path("flaghunter/knowledge/sessions")
     md_files = list(sessions_dir.glob("*_127.0.0.1.md"))
     assert len(md_files) == 1
 
@@ -91,5 +91,5 @@ async def test_finish_incomplete_step_does_not_write_session_markdown():
     result = await finish({"action": "complete", "step_id": 1, "result": "done"}, runtime)
 
     assert "Next: Step 2" in result
-    sessions_dir = Path("pentestagent/knowledge/sessions")
+    sessions_dir = Path("flaghunter/knowledge/sessions")
     assert list(sessions_dir.glob("*.md")) == []

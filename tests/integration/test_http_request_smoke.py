@@ -9,13 +9,13 @@ from urllib.parse import parse_qs
 
 import pytest
 
-import pentestagent.tools.notes as notes_module
-from pentestagent.runtime import LocalRuntime
-from pentestagent.tools import ToolExecutor
-from pentestagent.tools.notes import get_all_notes_sync, set_notes_file
-from pentestagent.tools.registry import get_tool
+import flaghunter.tools.notes as notes_module
+from flaghunter.runtime import LocalRuntime
+from flaghunter.tools import ToolExecutor
+from flaghunter.tools.notes import get_all_notes_sync, set_notes_file
+from flaghunter.tools.registry import get_tool
 
-import pentestagent.tools.http_request  # noqa: F401
+import flaghunter.tools.http_request  # noqa: F401
 
 
 SID_VALUE = "smoke-admin-sid"

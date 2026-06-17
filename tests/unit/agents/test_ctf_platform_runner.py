@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from types import SimpleNamespace
 
-from pentestagent.agents.pa_agent.platform_runner import (
+from flaghunter.agents.pa_agent.platform_runner import (
     PlatformAutonomyRunner,
     PlatformRunConfig,
 )

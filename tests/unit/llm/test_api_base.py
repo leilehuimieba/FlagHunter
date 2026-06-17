@@ -6,9 +6,9 @@ from unittest.mock import patch
 
 import pytest
 
-from pentestagent.llm.config import ModelConfig
-from pentestagent.llm.llm import LLM
-from pentestagent.llm.memory import ConversationMemory
+from flaghunter.llm.config import ModelConfig
+from flaghunter.llm.llm import LLM
+from flaghunter.llm.memory import ConversationMemory
 
 
 class TestIsOpenAICompatibleModel:

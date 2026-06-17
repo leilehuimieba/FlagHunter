@@ -2,10 +2,10 @@
 
 import asyncio
 
-import pentestagent.tools.executor as executor_module
-import pentestagent.tools.notes as notes_module
-import pentestagent.tools.waf as waf_module
-from pentestagent.tools.waf import run_waf
+import flaghunter.tools.executor as executor_module
+import flaghunter.tools.notes as notes_module
+import flaghunter.tools.waf as waf_module
+from flaghunter.tools.waf import run_waf
 
 
 def test_waf_note_key_contains_host(monkeypatch):

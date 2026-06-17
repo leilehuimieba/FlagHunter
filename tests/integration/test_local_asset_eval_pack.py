@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from pentestagent.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
+from flaghunter.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
 from tests.integration.easy_login_acceptance import extract_flag
 from tests.integration.local_challenge_catalog import (
     build_challenge_context,
@@ -115,7 +115,7 @@ def easy_login_dir() -> Path:
 @pytest.mark.asyncio
 async def test_eval_local_asset_directory_only_success(monkeypatch, easy_login_dir: Path):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     sample = get_local_challenge_sample("easy_login")
@@ -137,7 +137,7 @@ async def test_eval_local_asset_directory_only_success(monkeypatch, easy_login_d
 @pytest.mark.asyncio
 async def test_eval_local_asset_zip_only_success(monkeypatch, tmp_path: Path, easy_login_dir: Path):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     sample = get_local_challenge_sample("easy_login")
@@ -158,7 +158,7 @@ async def test_eval_local_asset_zip_only_success(monkeypatch, tmp_path: Path, ea
 @pytest.mark.asyncio
 async def test_eval_no_local_asset_is_honest_not_false_verified(monkeypatch):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     sample = get_local_challenge_sample("easy_login")

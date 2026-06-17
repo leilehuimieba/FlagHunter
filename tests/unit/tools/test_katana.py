@@ -7,23 +7,23 @@ from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 
 import pytest
 
-from pentestagent.tools.katana import katana
+from flaghunter.tools.katana import katana
 
 
 class TestKatana:
-    @patch("pentestagent.tools.katana.find_tool")
+    @patch("flaghunter.tools.katana.find_tool")
     def test_empty_url(self, mock_find):
         mock_find.return_value = "/usr/bin/katana"
         result = asyncio.run(katana({"url": ""}, None))
         assert "Error: url is required" in result
 
-    @patch("pentestagent.tools.katana.find_tool")
+    @patch("flaghunter.tools.katana.find_tool")
     def test_binary_not_found(self, mock_find):
         mock_find.return_value = None
         result = asyncio.run(katana({"url": "https://example.com"}, None))
         assert "not installed" in result
 
-    @patch("pentestagent.tools.katana.find_tool")
+    @patch("flaghunter.tools.katana.find_tool")
     @patch("os.path.exists")
     @patch("os.remove")
     def test_successful_crawl(self, mock_remove, mock_exists, mock_find):
@@ -51,7 +51,7 @@ class TestKatana:
         assert "https://example.com/api/users" in result
         assert "https://example.com/app.js" in result
 
-    @patch("pentestagent.tools.katana.find_tool")
+    @patch("flaghunter.tools.katana.find_tool")
     def test_execution_failure_no_output(self, mock_find):
         mock_find.return_value = "/usr/bin/katana"
         runtime = MagicMock()
@@ -64,7 +64,7 @@ class TestKatana:
         assert "Katana execution failed" in result
         assert "connection refused" in result
 
-    @patch("pentestagent.tools.katana.find_tool")
+    @patch("flaghunter.tools.katana.find_tool")
     @patch("os.path.exists")
     @patch("os.remove")
     def test_json_decode_error_ignored(self, mock_remove, mock_exists, mock_find):
@@ -85,7 +85,7 @@ class TestKatana:
             result = asyncio.run(katana({"url": "https://example.com"}, runtime))
         assert "Total Endpoints: 2" in result
 
-    @patch("pentestagent.tools.katana.find_tool")
+    @patch("flaghunter.tools.katana.find_tool")
     @patch("os.path.exists")
     @patch("os.remove")
     def test_js_render_and_headless_flags(self, mock_remove, mock_exists, mock_find):
@@ -112,7 +112,7 @@ class TestKatana:
         assert "-scope subdomain" in cmd
         assert "-f url,path,host" in cmd
 
-    @patch("pentestagent.tools.katana.find_tool")
+    @patch("flaghunter.tools.katana.find_tool")
     @patch("os.path.exists")
     def test_file_read_exception(self, mock_exists, mock_find):
         mock_find.return_value = "/usr/bin/katana"

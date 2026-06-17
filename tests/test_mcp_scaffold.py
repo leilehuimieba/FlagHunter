@@ -1,7 +1,7 @@
 import asyncio
 
 
-from pentestagent.mcp.example_adapter import ExampleAdapter
+from flaghunter.mcp.example_adapter import ExampleAdapter
 
 
 def test_example_adapter_list_and_call():

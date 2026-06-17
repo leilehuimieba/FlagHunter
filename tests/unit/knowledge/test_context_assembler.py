@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from pentestagent.agents.base_agent import AgentMessage
-from pentestagent.agents.pa_agent.ctf_state import CTFState
-from pentestagent.harness.artifact_registry import ArtifactRegistry
-from pentestagent.harness.checkpoint_store import CheckpointStore
-from pentestagent.harness.session_ledger import SessionLedger
-from pentestagent.knowledge.context_assembler import ContextAssembler
+from flaghunter.agents.base_agent import AgentMessage
+from flaghunter.agents.pa_agent.ctf_state import CTFState
+from flaghunter.harness.artifact_registry import ArtifactRegistry
+from flaghunter.harness.checkpoint_store import CheckpointStore
+from flaghunter.harness.session_ledger import SessionLedger
+from flaghunter.knowledge.context_assembler import ContextAssembler
 
 
 class _StubAgent:

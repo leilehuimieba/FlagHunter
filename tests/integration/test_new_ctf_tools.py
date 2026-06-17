@@ -7,9 +7,9 @@ import json
 import os
 import pytest
 
-from pentestagent.tools.crypto_solve import crypto_solve
-from pentestagent.tools.angr_solve import angr_solve
-from pentestagent.tools.radare2 import radare2
+from flaghunter.tools.crypto_solve import crypto_solve
+from flaghunter.tools.angr_solve import angr_solve
+from flaghunter.tools.radare2 import radare2
 
 
 # Determine if Kali VM is reachable for integration tests
@@ -32,7 +32,7 @@ class _SSHRuntimeWrapper:
     """Minimal wrapper around SSHRuntime for testing."""
 
     def __init__(self):
-        from pentestagent.runtime.ssh_runtime import SSHRuntime
+        from flaghunter.runtime.ssh_runtime import SSHRuntime
         self._runtime = SSHRuntime(
             host="127.0.0.1",
             port=2222,

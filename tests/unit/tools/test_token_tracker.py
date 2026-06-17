@@ -1,4 +1,4 @@
-"""Tests for pentestagent.tools.token_tracker."""
+"""Tests for flaghunter.tools.token_tracker."""
 
 import json
 from datetime import date
@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-import pentestagent.tools.token_tracker as tt
+import flaghunter.tools.token_tracker as tt
 
 
 @pytest.fixture(autouse=True)

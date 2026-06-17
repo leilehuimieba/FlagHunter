@@ -5,8 +5,8 @@ import json
 
 import pytest
 
-from pentestagent.tools.nuclei import run_nuclei
-from pentestagent.tools.registry import clear_tools, get_tool
+from flaghunter.tools.nuclei import run_nuclei
+from flaghunter.tools.registry import clear_tools, get_tool
 
 
 class _CommandResult:
@@ -82,7 +82,7 @@ async def test_run_nuclei_parses_jsonl_output():
 @pytest.mark.asyncio
 async def test_registered_tool_returns_json_string():
     clear_tools()
-    import pentestagent.tools.nuclei as nuclei_module
+    import flaghunter.tools.nuclei as nuclei_module
 
     importlib.reload(nuclei_module)
     runtime = _FakeRuntime([

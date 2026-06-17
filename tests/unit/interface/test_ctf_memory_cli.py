@@ -3,13 +3,13 @@ from __future__ import annotations
 import argparse
 import time
 
-from pentestagent.agents.pa_agent.strategy_memory import (
+from flaghunter.agents.pa_agent.strategy_memory import (
     ChallengeFingerprint,
     StrategyMemoryEntry,
     StrategyMemoryEntryMetadata,
     StrategyMemoryStore,
 )
-from pentestagent.interface.main import handle_ctf_command
+from flaghunter.interface.main import handle_ctf_command
 
 
 def _seed_memory_store(tmp_path):
@@ -41,7 +41,7 @@ def _seed_memory_store(tmp_path):
 def test_ctf_memory_cli_list(monkeypatch, tmp_path, capsys):
     store = _seed_memory_store(tmp_path)
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.strategy_memory.StrategyMemoryStore",
+        "flaghunter.agents.pa_agent.strategy_memory.StrategyMemoryStore",
         lambda: store,
     )
 
@@ -62,7 +62,7 @@ def test_ctf_memory_cli_list(monkeypatch, tmp_path, capsys):
 def test_ctf_memory_cli_list_supports_filter_and_sort(monkeypatch, tmp_path, capsys):
     store = _seed_memory_store(tmp_path)
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.strategy_memory.StrategyMemoryStore",
+        "flaghunter.agents.pa_agent.strategy_memory.StrategyMemoryStore",
         lambda: store,
     )
 
@@ -83,7 +83,7 @@ def test_ctf_memory_cli_list_supports_filter_and_sort(monkeypatch, tmp_path, cap
 def test_ctf_memory_cli_show_and_mute(monkeypatch, tmp_path, capsys):
     store = _seed_memory_store(tmp_path)
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.strategy_memory.StrategyMemoryStore",
+        "flaghunter.agents.pa_agent.strategy_memory.StrategyMemoryStore",
         lambda: store,
     )
 
@@ -128,7 +128,7 @@ def test_ctf_memory_cli_audit(monkeypatch, tmp_path, capsys):
     asyncio.run(store.record_outcome(["mem_cli"], solved=False))
     asyncio.run(store.record_outcome(["mem_cli"], solved=False))
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.strategy_memory.StrategyMemoryStore",
+        "flaghunter.agents.pa_agent.strategy_memory.StrategyMemoryStore",
         lambda: store,
     )
 
@@ -152,7 +152,7 @@ def test_ctf_memory_cli_audit_supports_sort(monkeypatch, tmp_path, capsys):
     asyncio.run(store.record_query_usage(["mem_cli"]))
     asyncio.run(store.record_outcome(["mem_cli"], solved=False))
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.strategy_memory.StrategyMemoryStore",
+        "flaghunter.agents.pa_agent.strategy_memory.StrategyMemoryStore",
         lambda: store,
     )
 
@@ -171,7 +171,7 @@ def test_ctf_memory_cli_audit_supports_sort(monkeypatch, tmp_path, capsys):
 def test_ctf_memory_cli_delete_export_clear(monkeypatch, tmp_path, capsys):
     store = _seed_memory_store(tmp_path)
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.strategy_memory.StrategyMemoryStore",
+        "flaghunter.agents.pa_agent.strategy_memory.StrategyMemoryStore",
         lambda: store,
     )
 

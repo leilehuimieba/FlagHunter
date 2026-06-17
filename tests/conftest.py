@@ -6,9 +6,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from pentestagent.agents.state import AgentStateManager
-from pentestagent.config import Settings
-from pentestagent.tools import Tool, ToolSchema
+from flaghunter.agents.state import AgentStateManager
+from flaghunter.config import Settings
+from flaghunter.tools import Tool, ToolSchema
 
 
 @pytest.fixture(autouse=True)
@@ -37,8 +37,8 @@ def _tool_registry_baseline() -> dict:
     already imported and won't re-register. Capture the populated registry once
     per session so the heal fixture below can restore any tools a test removed.
     """
-    from pentestagent.tools import registry
-    from pentestagent.tools.loader import load_all_tools
+    from flaghunter.tools import registry
+    from flaghunter.tools.loader import load_all_tools
 
     load_all_tools()
     return dict(registry._tools)
@@ -56,7 +56,7 @@ def _heal_tool_registry_after_test(_tool_registry_baseline):
     a cleared registry.
     """
     yield
-    from pentestagent.tools import registry
+    from flaghunter.tools import registry
 
     for name, tool in _tool_registry_baseline.items():
         registry._tools.setdefault(name, tool)

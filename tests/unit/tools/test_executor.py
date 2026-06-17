@@ -1,11 +1,11 @@
-"""Tests for pentestagent.tools.executor (ToolExecutor, ExecutionResult)."""
+"""Tests for flaghunter.tools.executor (ToolExecutor, ExecutionResult)."""
 
 import asyncio
 import pytest
 
-from pentestagent.tools import executor as executor_module
-from pentestagent.tools.executor import ExecutionResult, ToolExecutor
-from pentestagent.tools.registry import Tool, ToolSchema
+from flaghunter.tools import executor as executor_module
+from flaghunter.tools.executor import ExecutionResult, ToolExecutor
+from flaghunter.tools.registry import Tool, ToolSchema
 
 
 # ---------------------------------------------------------------------------

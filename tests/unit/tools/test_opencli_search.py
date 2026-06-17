@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from pentestagent.tools import web_search as mod
+from flaghunter.tools import web_search as mod
 
 
 def _completed(stdout: str = "", returncode: int = 0, stderr: str = ""):

@@ -1,0 +1,1068 @@
+"""Independent flag verification logic for /ctf workflows."""
+
+from __future__ import annotations
+
+import os
+import re
+import time
+from datetime import datetime, timezone
+from typing import Awaitable, Callable
+
+from .ctf_state import CTFState, FlagProof, VerificationResult
+from .platform_orchestrator import PlatformTaskOrchestrator
+
+
+_BROAD_FLAG_PATTERN = r"[A-Za-z][A-Za-z0-9_]{1,20}\{[A-Za-z0-9_!@#$%^&*+=:.,?\-]{3,200}\}"
+_DEFAULT_FLAG_PATTERNS = (
+    _BROAD_FLAG_PATTERN,
+    r"flag\{[^}]{4,128}\}",
+    r"FLAG\{[^}]{4,128}\}",
+    r"ctfshow\{[^}]+\}",
+    r"SYC\{[^}]+\}",
+    r"BUUCTF\{[^}]+\}",
+    r"HCTF\{[^}]+\}",
+    r"DASCTF\{[^}]+\}",
+    r"NepCTF\{[^}]+\}",
+    r"XYCTF\{[^}]+\}",
+    r"ISCC\{[^}]+\}",
+    r"WMCTF\{[^}]+\}",
+    r"CTF\{[^}]{4,128}\}",
+    r"CTF_\w+\{[^}]+\}",
+)
+_RUNTIME_SOURCES = {
+    "recon",
+    "browser-rendered-page",
+    "runtime-blackboard-signal",
+    "runtime-output",
+    "http-response",
+    "response_body",
+    "response-body",
+    "collector-hit",
+    "collector-body",
+    "collector-iframe",
+    "collector-flag",
+    "collector-cookie",
+    "collector-openerr",
+    "collector-iframeerr",
+    "collector-err",
+    "command-output",
+    "rce-output",
+    "profile-photo-file-read",
+}
+_AUTO_SUBMIT_STRONG_RUNTIME_SOURCES = {
+    "http-response",
+    "response_body",
+    "response-body",
+    "collector-hit",
+    "collector-body",
+    "collector-iframe",
+    "collector-flag",
+    "command-output",
+    "rce-output",
+    "profile-photo-file-read",
+}
+_SOURCE_ONLY_SOURCES = {
+    "source-leak",
+    "backup-archive",
+    "source-code",
+    "html-comment",
+    "robots-txt",
+    "readme",
+    "license",
+    "notes",
+}
+
+
+ConfirmationCallback = Callable[[str], Awaitable[str | bool | None] | str | bool | None]
+
+
+class CTFVerifier:
+    def __init__(
+        self,
+        runtime=None,
+        *,
+        confirmation_callback: ConfirmationCallback | None = None,
+    ):
+        self.runtime = runtime
+        self.confirmation_callback = confirmation_callback
+        self.flag_patterns = self._compile_flag_patterns()
+        self.platform_orchestrator = PlatformTaskOrchestrator()
+
+    async def verify_flag(
+        self,
+        state: CTFState,
+        *,
+        flag: str,
+        evidence_source: str,
+        rationale: str = "",
+        evidence_url: str = "",
+        evidence_snippet: str = "",
+        replayable: bool | None = None,
+        hypothesis_id: str | None = None,
+        strategy_kind: str | None = None,
+    ) -> VerificationResult:
+        normalized_flag = str(flag or "").strip()
+        source = str(evidence_source or "").strip().lower()
+        why = str(rationale or "").strip()
+        runtime_strength = self._runtime_evidence_strength(source, why)
+
+        if not normalized_flag:
+            return self._finalize_result(
+                state,
+                VerificationResult(
+                    decision="insufficient",
+                    flag=None,
+                    evidence_source=source,
+                    confidence=0.0,
+                    rationale="empty flag candidate",
+                    requires_followup=False,
+                    proof=None,
+                    metadata={
+                        "verification_path": "empty",
+                        "platform_verified": False,
+                        "operator_confirmed": False,
+                    },
+                ),
+            )
+
+        if state.is_rejected_flag(normalized_flag):
+            proof = self._build_flag_proof(
+                evidence_source=source or "user-feedback",
+                evidence_url=evidence_url,
+                evidence_snippet=evidence_snippet or normalized_flag,
+                replayable=replayable,
+                base_confidence=1.0,
+                source_trust="runtime",
+                hypothesis_id=hypothesis_id,
+                strategy_kind=strategy_kind,
+            )
+            state.add_flag(
+                normalized_flag,
+                level="rejected",
+                evidence_source=source or "user-feedback",
+                rationale=why or "flag was previously rejected",
+                confidence=1.0,
+                proof=proof,
+                metadata={
+                    "verification_path": "prior_rejected",
+                    "platform_verified": False,
+                    "operator_confirmed": False,
+                },
+            )
+            return self._finalize_result(
+                state,
+                VerificationResult(
+                    decision="rejected",
+                    flag=normalized_flag,
+                    evidence_source=source,
+                    confidence=1.0,
+                    rationale=why or "flag was previously rejected",
+                    requires_followup=False,
+                    proof=proof,
+                    metadata={
+                        "verification_path": "prior_rejected",
+                        "platform_verified": False,
+                        "operator_confirmed": False,
+                    },
+                ),
+            )
+
+        if not self._matches_flag_pattern(normalized_flag):
+            return self._finalize_result(
+                state,
+                VerificationResult(
+                    decision="insufficient",
+                    flag=None,
+                    evidence_source=source,
+                    confidence=0.0,
+                    rationale="text does not match configured flag patterns",
+                    requires_followup=False,
+                    proof=None,
+                    metadata={
+                        "verification_path": "pattern_miss",
+                        "platform_verified": False,
+                        "operator_confirmed": False,
+                    },
+                ),
+            )
+
+        runtime_confidence = 0.85 if runtime_strength == "strong" else 0.45
+        if source in _RUNTIME_SOURCES:
+            proof = self._build_flag_proof(
+                evidence_source=source,
+                evidence_url=evidence_url,
+                evidence_snippet=evidence_snippet or normalized_flag,
+                replayable=replayable,
+                base_confidence=runtime_confidence,
+                source_trust="runtime",
+                hypothesis_id=hypothesis_id,
+                strategy_kind=strategy_kind,
+            )
+            seen_before = state.has_flag(normalized_flag, level="runtime") or state.has_flag(
+                normalized_flag, level="verified"
+            )
+            state.add_flag(
+                normalized_flag,
+                level="runtime",
+                evidence_source=source,
+                rationale=why or "runtime-backed flag candidate",
+                confidence=runtime_confidence,
+                proof=proof,
+                metadata={
+                    "verification_path": "runtime_observed",
+                    "runtime_strength": runtime_strength,
+                    "platform_verified": False,
+                    "operator_confirmed": False,
+                },
+            )
+            prior_submit = self._find_prior_submit_attempt(state, normalized_flag)
+            if prior_submit is not None:
+                if bool(prior_submit.get("correct")):
+                    accepted_proof = self._build_flag_proof(
+                        evidence_source=str(prior_submit.get("source") or "platform-submit"),
+                        evidence_url=evidence_url,
+                        evidence_snippet=evidence_snippet or normalized_flag,
+                        replayable=True,
+                        base_confidence=1.0,
+                        source_trust="platform",
+                        hypothesis_id=hypothesis_id,
+                        strategy_kind=strategy_kind,
+                        proof_type="platform_accept",
+                    )
+                    state.add_flag(
+                        normalized_flag,
+                        level="verified",
+                        evidence_source=str(prior_submit.get("source") or "platform-submit"),
+                        rationale="platform previously accepted this flag",
+                        confidence=1.0,
+                        proof=accepted_proof,
+                        metadata={
+                            "verification_path": "prior_submit_accept",
+                            "runtime_strength": runtime_strength,
+                            "platform_verified": True,
+                            "operator_confirmed": False,
+                        },
+                    )
+                    return self._finalize_result(
+                        state,
+                        VerificationResult(
+                            decision="verified",
+                            flag=normalized_flag,
+                            evidence_source=str(prior_submit.get("source") or "platform-submit"),
+                            confidence=1.0,
+                            rationale="platform previously accepted this flag",
+                            requires_followup=False,
+                            proof=accepted_proof,
+                            metadata={
+                                "verification_path": "prior_submit_accept",
+                                "runtime_strength": runtime_strength,
+                                "platform_verified": True,
+                                "operator_confirmed": False,
+                            },
+                        ),
+                    )
+                if bool(prior_submit.get("success")) and not bool(prior_submit.get("correct")):
+                    return self.reject_flag(
+                        state,
+                        flag=normalized_flag,
+                        evidence_source=str(prior_submit.get("source") or "platform-submit"),
+                        rationale="platform previously rejected this flag",
+                        evidence_url=evidence_url,
+                        evidence_snippet=evidence_snippet or normalized_flag,
+                        replayable=proof.replayable,
+                        hypothesis_id=hypothesis_id,
+                        strategy_kind=strategy_kind,
+                        submit_confidence=proof.submit_confidence,
+                    )
+
+            if (
+                state.local_challenge_auto_verify
+                and runtime_strength == "strong"
+                and not self._has_submit_channel(state)
+            ):
+                state.add_flag(
+                    normalized_flag,
+                    level="verified",
+                    evidence_source=source,
+                    rationale=why or "strong runtime flag auto-verified for local challenge context",
+                    confidence=1.0,
+                    proof=proof,
+                    metadata={
+                        "verification_path": "local_challenge_runtime",
+                        "runtime_strength": runtime_strength,
+                        "platform_verified": False,
+                        "operator_confirmed": False,
+                    },
+                )
+                return self._finalize_result(
+                    state,
+                    VerificationResult(
+                        decision="verified",
+                        flag=normalized_flag,
+                        evidence_source=source,
+                        confidence=1.0,
+                        rationale=why or "strong runtime flag auto-verified for local challenge context",
+                        requires_followup=False,
+                        proof=proof,
+                        metadata={
+                            "verification_path": "local_challenge_runtime",
+                            "runtime_strength": runtime_strength,
+                            "platform_verified": False,
+                            "operator_confirmed": False,
+                        },
+                    ),
+                )
+
+            gate = self._assess_auto_submit_gate(
+                state,
+                flag=normalized_flag,
+                evidence_source=source,
+                rationale=why,
+                seen_before=seen_before,
+                submit_confidence=proof.submit_confidence,
+            )
+            submit_attempted = False
+            if gate["allow"]:
+                submit_attempted = True
+                submit_result = await self._attempt_submit_if_configured(
+                    state,
+                    flag=normalized_flag,
+                    evidence_source=source,
+                    rationale=why,
+                    evidence_url=evidence_url,
+                    evidence_snippet=evidence_snippet or normalized_flag,
+                    replayable=proof.replayable,
+                    hypothesis_id=hypothesis_id,
+                    strategy_kind=strategy_kind,
+                    submit_confidence=proof.submit_confidence,
+                )
+                if submit_result is not None:
+                    return self._finalize_result(state, submit_result)
+
+            confirm_result = await self._attempt_user_confirmation(
+                state,
+                flag=normalized_flag,
+                evidence_source=source,
+                rationale=why,
+                evidence_url=evidence_url,
+                evidence_snippet=evidence_snippet or normalized_flag,
+                replayable=proof.replayable,
+                hypothesis_id=hypothesis_id,
+                strategy_kind=strategy_kind,
+            )
+            if confirm_result is not None:
+                if (
+                    confirm_result.decision == "verified"
+                    and bool(confirm_result.metadata.get("operator_confirmed"))
+                    and self._has_submit_channel(state)
+                    and not submit_attempted
+                ):
+                        submit_result = await self._attempt_submit_if_configured(
+                            state,
+                            flag=normalized_flag,
+                            evidence_source=source,
+                            rationale=why or "operator confirmed runtime flag",
+                            evidence_url=evidence_url,
+                            evidence_snippet=evidence_snippet or normalized_flag,
+                            replayable=proof.replayable,
+                            hypothesis_id=hypothesis_id,
+                            strategy_kind=strategy_kind,
+                            submit_confidence=confirm_result.proof.submit_confidence if confirm_result.proof else proof.submit_confidence,
+                        )
+                        if submit_result is not None:
+                            return self._finalize_result(state, submit_result)
+                return self._finalize_result(state, confirm_result)
+
+            return self._finalize_result(
+                state,
+                VerificationResult(
+                    decision="runtime",
+                    flag=normalized_flag,
+                    evidence_source=source,
+                    confidence=runtime_confidence,
+                    rationale=why or "runtime-backed flag candidate needs verification",
+                    requires_followup=True,
+                    proof=proof,
+                    metadata={
+                        "verification_path": "runtime_pending",
+                        "runtime_strength": runtime_strength,
+                        "platform_verified": False,
+                        "operator_confirmed": False,
+                    },
+                ),
+            )
+
+        requires_followup = source in _SOURCE_ONLY_SOURCES or True
+        proof = self._build_flag_proof(
+            evidence_source=source or "source-leak",
+            evidence_url=evidence_url,
+            evidence_snippet=evidence_snippet or normalized_flag,
+            replayable=replayable,
+            base_confidence=0.4,
+            source_trust="source_only",
+            hypothesis_id=hypothesis_id,
+            strategy_kind=strategy_kind,
+        )
+        state.add_flag(
+            normalized_flag,
+            level="candidate",
+            evidence_source=source or "source-leak",
+            rationale=why or "source-only flag candidate",
+            confidence=0.4,
+            requires_followup=requires_followup,
+            proof=proof,
+            metadata={
+                "verification_path": "source_candidate",
+                "platform_verified": False,
+                "operator_confirmed": False,
+            },
+        )
+        return self._finalize_result(
+            state,
+            VerificationResult(
+                decision="candidate",
+                flag=normalized_flag,
+                evidence_source=source,
+                confidence=0.4,
+                rationale=why or "source-only flag candidate",
+                requires_followup=requires_followup,
+                proof=proof,
+                metadata={
+                    "verification_path": "source_candidate",
+                    "platform_verified": False,
+                    "operator_confirmed": False,
+                },
+            ),
+        )
+
+    def reject_flag(
+        self,
+        state: CTFState,
+        *,
+        flag: str,
+        evidence_source: str = "user-feedback",
+        rationale: str = "",
+        evidence_url: str = "",
+        evidence_snippet: str = "",
+        replayable: bool | None = None,
+        hypothesis_id: str | None = None,
+        strategy_kind: str | None = None,
+        submit_confidence: float | None = None,
+    ) -> VerificationResult:
+        normalized_flag = str(flag or "").strip()
+        proof = self._build_flag_proof(
+            evidence_source=evidence_source,
+            evidence_url=evidence_url,
+            evidence_snippet=evidence_snippet or normalized_flag,
+            replayable=replayable,
+            base_confidence=1.0 if submit_confidence is None else submit_confidence,
+            source_trust="runtime",
+            hypothesis_id=hypothesis_id,
+            strategy_kind=strategy_kind,
+        )
+        state.add_flag(
+            normalized_flag,
+            level="rejected",
+            evidence_source=evidence_source,
+            rationale=rationale or "flag explicitly rejected",
+            confidence=1.0,
+            proof=proof,
+            metadata={
+                "verification_path": "explicit_reject",
+                "platform_verified": False,
+                "operator_confirmed": False,
+            },
+        )
+        return self._finalize_result(
+            state,
+            VerificationResult(
+                decision="rejected",
+                flag=normalized_flag,
+                evidence_source=evidence_source,
+                confidence=1.0,
+                rationale=rationale or "flag explicitly rejected",
+                requires_followup=False,
+                proof=proof,
+                metadata={
+                    "verification_path": "explicit_reject",
+                    "platform_verified": False,
+                    "operator_confirmed": False,
+                },
+            ),
+        )
+
+    async def _attempt_submit_if_configured(
+        self,
+        state: CTFState,
+        *,
+        flag: str,
+        evidence_source: str,
+        rationale: str,
+        evidence_url: str = "",
+        evidence_snippet: str = "",
+        replayable: bool | None = None,
+        hypothesis_id: str | None = None,
+        strategy_kind: str | None = None,
+        submit_confidence: float | None = None,
+    ) -> VerificationResult | None:
+        runtime_strength = self._runtime_evidence_strength(evidence_source, rationale)
+        endpoint = str(state.submit_endpoint or "").strip()
+        if endpoint and self.runtime is not None and hasattr(self.runtime, "proxy_action"):
+            try:
+                resp = await self.runtime.proxy_action(
+                    "request",
+                    method="POST",
+                    url=endpoint,
+                    json={"flag": flag},
+                    timeout=20,
+                )
+            except Exception:
+                resp = None
+
+            if resp is not None:
+                body = str((resp or {}).get("body") or "")
+                success_pattern = state.submit_success_pattern or r"(correct|accepted|success|正确)"
+                failure_pattern = state.submit_failure_pattern or r"(wrong|incorrect|invalid|错误)"
+                self._record_submit_attempt(
+                    state,
+                    flag=flag,
+                    source="submit-endpoint",
+                    success=True,
+                    correct=bool(re.search(success_pattern, body, re.IGNORECASE)),
+                    message=body[:300],
+                    error="",
+                    metadata={"endpoint": endpoint},
+                )
+
+                if re.search(failure_pattern, body, re.IGNORECASE):
+                    return self.reject_flag(
+                        state,
+                        flag=flag,
+                        evidence_source="submit-endpoint",
+                        rationale="platform submit endpoint rejected this flag",
+                        evidence_url=endpoint,
+                        evidence_snippet=body[:200],
+                        replayable=True,
+                        hypothesis_id=hypothesis_id,
+                        strategy_kind=strategy_kind,
+                        submit_confidence=submit_confidence,
+                    )
+
+                if re.search(success_pattern, body, re.IGNORECASE):
+                    accepted_proof = self._build_flag_proof(
+                        evidence_source="submit-endpoint",
+                        evidence_url=endpoint,
+                        evidence_snippet=body[:200] or evidence_snippet or flag,
+                        replayable=True,
+                        base_confidence=1.0,
+                        source_trust="platform",
+                        hypothesis_id=hypothesis_id,
+                        strategy_kind=strategy_kind,
+                        proof_type="platform_accept",
+                    )
+                    state.add_flag(
+                        flag,
+                        level="verified",
+                        evidence_source="submit-endpoint",
+                        rationale=rationale or "submit endpoint accepted runtime flag",
+                        confidence=1.0,
+                        proof=accepted_proof,
+                        metadata={
+                            "verification_path": "submit_endpoint_accept",
+                            "runtime_strength": runtime_strength,
+                            "platform_verified": True,
+                            "operator_confirmed": False,
+                        },
+                    )
+                    return VerificationResult(
+                        decision="verified",
+                        flag=flag,
+                        evidence_source="submit-endpoint",
+                        confidence=1.0,
+                        rationale=rationale or "submit endpoint accepted runtime flag",
+                        requires_followup=False,
+                        proof=accepted_proof,
+                        metadata={
+                            "verification_path": "submit_endpoint_accept",
+                            "runtime_strength": runtime_strength,
+                            "platform_verified": True,
+                            "operator_confirmed": False,
+                        },
+                    )
+
+        profile = self._resolve_platform_submit_profile(state)
+        if profile is None:
+            return None
+
+        try:
+            from flaghunter.cpa_modules.m2_ctf_kit.flag_submitter import submit_flag
+
+            result = await submit_flag(
+                flag,
+                platform_type=profile["platform_type"],
+                challenge_id=profile.get("challenge_id"),
+                base_url=profile.get("base_url", ""),
+                api_key=profile.get("api_key"),
+                auth_token=profile.get("auth_token"),
+            )
+        except Exception as exc:
+            self._record_submit_attempt(
+                state,
+                flag=flag,
+                source="platform-submit",
+                success=False,
+                correct=False,
+                message="",
+                error=str(exc),
+                metadata=profile,
+            )
+            return None
+
+        self._record_submit_attempt(
+            state,
+            flag=flag,
+            source="platform-submit",
+            success=bool(result.success),
+            correct=bool(getattr(result, "correct", False)),
+            message=str(getattr(result, "message", "") or ""),
+            error=str(getattr(result, "error", "") or ""),
+            metadata=profile | {"platform": getattr(result, "platform", profile["platform_type"])},
+        )
+        platform_name = str(getattr(result, "platform", profile["platform_type"]) or profile["platform_type"])
+        if not result.success:
+            return None
+        if platform_name.lower() == "manual" or profile["platform_type"].lower() == "manual":
+            return None
+        if getattr(result, "correct", False):
+            accepted_proof = self._build_flag_proof(
+                evidence_source="platform-submit",
+                evidence_url=str(profile.get("base_url") or ""),
+                evidence_snippet=str(getattr(result, "message", "") or "")[:200] or evidence_snippet or flag,
+                replayable=True,
+                base_confidence=1.0,
+                source_trust="platform",
+                hypothesis_id=hypothesis_id,
+                strategy_kind=strategy_kind,
+                proof_type="platform_accept",
+            )
+            state.add_flag(
+                flag,
+                level="verified",
+                evidence_source="platform-submit",
+                rationale=rationale or f"{platform_name} accepted runtime flag",
+                confidence=1.0,
+                proof=accepted_proof,
+                metadata={
+                    "verification_path": "platform_submit_accept",
+                    "runtime_strength": runtime_strength,
+                    "platform_verified": True,
+                    "operator_confirmed": False,
+                },
+            )
+            return VerificationResult(
+                decision="verified",
+                flag=flag,
+                evidence_source="platform-submit",
+                confidence=1.0,
+                rationale=rationale or f"{platform_name} accepted runtime flag",
+                requires_followup=False,
+                proof=accepted_proof,
+                metadata={
+                    "verification_path": "platform_submit_accept",
+                    "runtime_strength": runtime_strength,
+                    "platform_verified": True,
+                    "operator_confirmed": False,
+                },
+            )
+        return self.reject_flag(
+            state,
+            flag=flag,
+            evidence_source="platform-submit",
+            rationale=f"{platform_name} rejected runtime flag: {getattr(result, 'message', '') or getattr(result, 'error', '') or 'wrong flag'}",
+            evidence_url=str(profile.get("base_url") or ""),
+            evidence_snippet=str(getattr(result, "message", "") or getattr(result, "error", "") or flag)[:200],
+            replayable=True,
+            hypothesis_id=hypothesis_id,
+            strategy_kind=strategy_kind,
+            submit_confidence=submit_confidence,
+        )
+
+    def _resolve_platform_submit_profile(self, state: CTFState) -> dict[str, str] | None:
+        auto_submit = bool(state.submit_auto)
+        env_profile: dict[str, str] = {}
+        try:
+            from flaghunter.cpa_modules.m2_ctf_kit.flag_submitter import (
+                detect_platform_from_url,
+                load_platform_from_env,
+            )
+
+            env_profile = load_platform_from_env()
+            if not auto_submit:
+                auto_submit = str(env_profile.get("auto_submit", "")).strip().lower() in {
+                    "1",
+                    "true",
+                    "yes",
+                    "on",
+                }
+            platform_type = str(state.submit_platform_type or env_profile.get("platform_type") or "").strip()
+            base_url = str(state.submit_base_url or env_profile.get("base_url") or "").strip()
+            if not platform_type and base_url:
+                platform_type = detect_platform_from_url(base_url)
+        except Exception:
+            platform_type = str(state.submit_platform_type or "").strip()
+            base_url = str(state.submit_base_url or "").strip()
+
+        if not auto_submit:
+            return None
+        challenge_id = str(
+            state.submit_challenge_id
+            or os.environ.get("CPA_CTF_CHALLENGE_ID", "")
+            or ""
+        ).strip()
+        api_key = str(state.submit_api_key or env_profile.get("api_key") or "").strip()
+        auth_token = str(
+            state.submit_auth_token or env_profile.get("auth_token") or ""
+        ).strip()
+        if not platform_type:
+            platform_type = "manual"
+        return {
+            "platform_type": platform_type,
+            "challenge_id": challenge_id,
+            "base_url": base_url,
+            "api_key": api_key,
+            "auth_token": auth_token,
+        }
+
+    def _record_submit_attempt(
+        self,
+        state: CTFState,
+        *,
+        flag: str,
+        source: str,
+        success: bool,
+        correct: bool,
+        message: str,
+        error: str,
+        metadata: dict[str, str] | None = None,
+    ) -> None:
+        state.meta_reasonings.append(
+            {
+                "type": "flag_submit_attempt",
+                "flag": flag,
+                "source": source,
+                "success": bool(success),
+                "correct": bool(correct),
+                "message": str(message or ""),
+                "error": str(error or ""),
+                "metadata": dict(metadata or {}),
+                "created_at": time.time(),
+            }
+        )
+
+    def _assess_auto_submit_gate(
+        self,
+        state: CTFState,
+        *,
+        flag: str,
+        evidence_source: str,
+        rationale: str,
+        seen_before: bool,
+        submit_confidence: float | None = None,
+    ) -> dict[str, object]:
+        allow = False
+        reason = ""
+        rate_limit = self.platform_orchestrator.assess_submit_rate_limit(
+            [item for item in state.meta_reasonings if isinstance(item, dict)]
+        )
+        if rate_limit["throttled"]:
+            allow = False
+            reason = str(rate_limit["reason"])
+        elif submit_confidence is not None and float(submit_confidence) < 0.5:
+            allow = False
+            reason = "proof submit_confidence below auto-submit threshold"
+        elif self._platform_challenge_already_solved(state):
+            allow = False
+            reason = "platform challenge already solved"
+        elif seen_before:
+            allow = True
+            reason = "same runtime flag observed repeatedly"
+        elif evidence_source in _AUTO_SUBMIT_STRONG_RUNTIME_SOURCES:
+            allow = True
+            reason = "strong runtime evidence source"
+        elif any(
+            token in str(rationale or "").lower()
+            for token in ("collector", "admin", "rce", "sqli", "command", "xss")
+        ):
+            allow = True
+            reason = "runtime rationale carries exploit-specific evidence"
+        else:
+            allow = False
+            reason = "runtime evidence too weak for auto submit"
+
+        payload = {
+            "type": "submit_gate_decision",
+            "flag": flag,
+            "evidence_source": evidence_source,
+            "allow": allow,
+            "reason": reason,
+            "seen_before": seen_before,
+            "rate_limited_until": float(rate_limit.get("rate_limited_until") or 0.0),
+            "created_at": time.time(),
+        }
+        state.meta_reasonings.append(payload)
+        return payload
+
+    def _find_prior_submit_attempt(
+        self,
+        state: CTFState,
+        flag: str,
+    ) -> dict[str, object] | None:
+        normalized = str(flag or "").strip()
+        if not normalized:
+            return None
+        for item in reversed(state.meta_reasonings):
+            if not isinstance(item, dict):
+                continue
+            if item.get("type") != "flag_submit_attempt":
+                continue
+            if str(item.get("flag") or "").strip() != normalized:
+                continue
+            return item
+        return None
+
+    def _platform_challenge_already_solved(self, state: CTFState) -> bool:
+        for item in reversed(state.meta_reasonings):
+            if not isinstance(item, dict):
+                continue
+            if item.get("type") != "platform_challenge_alignment":
+                continue
+            return bool(item.get("already_solved"))
+        return False
+
+    async def _attempt_user_confirmation(
+        self,
+        state: CTFState,
+        *,
+        flag: str,
+        evidence_source: str,
+        rationale: str,
+        evidence_url: str = "",
+        evidence_snippet: str = "",
+        replayable: bool | None = None,
+        hypothesis_id: str | None = None,
+        strategy_kind: str | None = None,
+    ) -> VerificationResult | None:
+        if self.confirmation_callback is None:
+            return None
+
+        reply = self.confirmation_callback(flag)
+        if hasattr(reply, "__await__"):
+            reply = await reply  # type: ignore[assignment]
+
+        normalized = str(reply).strip().lower() if reply is not None else "skip"
+        if reply is True or normalized in {"yes", "y", "true", "verified", "correct"}:
+            runtime_strength = self._runtime_evidence_strength(evidence_source, rationale)
+            operator_rationale = rationale or "user confirmed runtime flag"
+            if runtime_strength == "weak":
+                operator_rationale += " (operator-confirmed weak runtime evidence; not platform-verified)"
+            proof = self._build_flag_proof(
+                evidence_source=evidence_source,
+                evidence_url=evidence_url,
+                evidence_snippet=evidence_snippet or flag,
+                replayable=replayable,
+                base_confidence=1.0,
+                source_trust="runtime",
+                hypothesis_id=hypothesis_id,
+                strategy_kind=strategy_kind,
+                proof_type="user_confirm",
+            )
+            state.add_flag(
+                flag,
+                level="verified",
+                evidence_source=evidence_source,
+                rationale=operator_rationale,
+                confidence=1.0,
+                proof=proof,
+                metadata={
+                    "verification_path": "operator_confirmation",
+                    "runtime_strength": runtime_strength,
+                    "platform_verified": False,
+                    "operator_confirmed": True,
+                },
+            )
+            return VerificationResult(
+                decision="verified",
+                flag=flag,
+                evidence_source=evidence_source,
+                confidence=1.0,
+                rationale=operator_rationale,
+                requires_followup=False,
+                proof=proof,
+                metadata={
+                    "verification_path": "operator_confirmation",
+                    "runtime_strength": runtime_strength,
+                    "platform_verified": False,
+                    "operator_confirmed": True,
+                },
+            )
+
+        if reply is False or normalized in {"no", "n", "false", "wrong", "reject"}:
+            return self.reject_flag(
+                state,
+                flag=flag,
+                evidence_source="user-feedback",
+                rationale="user rejected runtime flag",
+                evidence_url=evidence_url,
+                evidence_snippet=evidence_snippet or flag,
+                replayable=replayable,
+                hypothesis_id=hypothesis_id,
+                strategy_kind=strategy_kind,
+            )
+
+        deferred_confidence = 0.85 if self._runtime_evidence_strength(evidence_source, rationale) == "strong" else 0.45
+        proof = self._build_flag_proof(
+            evidence_source=evidence_source,
+            evidence_url=evidence_url,
+            evidence_snippet=evidence_snippet or flag,
+            replayable=replayable,
+            base_confidence=deferred_confidence,
+            source_trust="runtime",
+            hypothesis_id=hypothesis_id,
+            strategy_kind=strategy_kind,
+        )
+        return VerificationResult(
+            decision="runtime",
+            flag=flag,
+            evidence_source=evidence_source,
+            confidence=deferred_confidence,
+            rationale=rationale or "runtime-backed flag awaiting user confirmation",
+            requires_followup=True,
+            proof=proof,
+            metadata={
+                "verification_path": "operator_deferred",
+                "runtime_strength": self._runtime_evidence_strength(evidence_source, rationale),
+                "platform_verified": False,
+                "operator_confirmed": False,
+            },
+        )
+
+    def _build_flag_proof(
+        self,
+        *,
+        evidence_source: str,
+        evidence_url: str,
+        evidence_snippet: str,
+        replayable: bool | None,
+        base_confidence: float,
+        source_trust: str,
+        hypothesis_id: str | None,
+        strategy_kind: str | None,
+        proof_type: str | None = None,
+    ) -> FlagProof:
+        normalized_source = str(evidence_source or "").strip()
+        inferred_proof_type = proof_type or self._infer_proof_type(
+            evidence_source=normalized_source,
+            source_trust=source_trust,
+        )
+        replayable_value = (
+            bool(replayable)
+            if replayable is not None
+            else self._infer_replayable(normalized_source, inferred_proof_type)
+        )
+        submit_confidence = float(base_confidence or 0.0)
+        if source_trust == "source_only":
+            submit_confidence = max(0.0, submit_confidence - 0.4)
+        elif source_trust == "platform":
+            submit_confidence = 1.0
+        if not replayable_value:
+            submit_confidence = max(0.0, submit_confidence - 0.2)
+        snippet = str(evidence_snippet or "").strip() or normalized_source
+        return FlagProof(
+            proof_type=inferred_proof_type,  # type: ignore[arg-type]
+            evidence_source=normalized_source,
+            evidence_url=str(evidence_url or "").strip(),
+            evidence_snippet=snippet[:200],
+            replayable=replayable_value,
+            submit_confidence=round(submit_confidence, 4),
+            source_trust=str(source_trust or "runtime"),  # type: ignore[arg-type]
+            hypothesis_id=str(hypothesis_id or "").strip() or None,
+            strategy_kind=str(strategy_kind or "").strip() or None,
+            timestamp=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        )
+
+    def _infer_proof_type(self, *, evidence_source: str, source_trust: str) -> str:
+        source = str(evidence_source or "").strip().lower()
+        if source_trust == "source_only":
+            return "source_code_leak"
+        if source == "browser-rendered-page":
+            return "dom_element"
+        if source in {"command-output", "rce-output", "runtime-output"}:
+            return "runtime_command"
+        if source.startswith("collector-") or source == "collector-hit":
+            return "runtime_collector"
+        return "runtime_http"
+
+    def _infer_replayable(self, evidence_source: str, proof_type: str) -> bool:
+        source = str(evidence_source or "").strip().lower()
+        if proof_type == "platform_accept":
+            return True
+        if proof_type == "user_confirm":
+            return False
+        if source.startswith("collector-") or source in {"collector-hit", "browser-rendered-page"}:
+            return False
+        return True
+
+    def _runtime_evidence_strength(self, evidence_source: str, rationale: str) -> str:
+        source = str(evidence_source or "").strip().lower()
+        why = str(rationale or "").strip().lower()
+        if source in _AUTO_SUBMIT_STRONG_RUNTIME_SOURCES:
+            return "strong"
+        if any(token in why for token in ("collector", "admin", "rce", "sqli", "command", "xss")):
+            return "strong"
+        return "weak"
+
+    def _has_submit_channel(self, state: CTFState) -> bool:
+        endpoint = str(state.submit_endpoint or "").strip()
+        if endpoint and self.runtime is not None and hasattr(self.runtime, "proxy_action"):
+            return True
+        return self._resolve_platform_submit_profile(state) is not None
+
+    def _finalize_result(
+        self,
+        state: CTFState,
+        result: VerificationResult,
+    ) -> VerificationResult:
+        metadata = dict(result.metadata or {})
+        if result.decision in {"candidate", "runtime", "verified", "rejected"}:
+            metadata.setdefault("platform_verified", False)
+            metadata.setdefault("operator_confirmed", False)
+            metadata.setdefault("created_at", time.time())
+            result.metadata = metadata
+            state.meta_reasonings.append(
+                {
+                    "type": "flag_verification_decision",
+                    "flag": result.flag,
+                    "decision": result.decision,
+                    "evidence_source": result.evidence_source,
+                    "confidence": result.confidence,
+                    "requires_followup": result.requires_followup,
+                    "rationale": result.rationale,
+                    **metadata,
+                }
+            )
+        return result
+
+    def _compile_flag_patterns(self) -> tuple[re.Pattern[str], ...]:
+        extra = os.getenv("CTF_FLAG_PATTERNS", "")
+        pattern_values = list(_DEFAULT_FLAG_PATTERNS)
+        if extra.strip():
+            pattern_values.extend(
+                item.strip() for item in extra.splitlines() if item.strip()
+            )
+        return tuple(re.compile(rf"^(?:{pattern})$") for pattern in pattern_values)
+
+    def _matches_flag_pattern(self, text: str) -> bool:
+        return any(pattern.search(text) for pattern in self.flag_patterns)
+
+
+__all__ = ["CTFVerifier"]

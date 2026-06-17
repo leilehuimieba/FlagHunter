@@ -4,7 +4,7 @@ import json
 import subprocess
 from pathlib import Path
 
-from pentestagent.agents.pa_agent.phase05_baseline import PHASE05_SCENARIOS
+from flaghunter.agents.pa_agent.phase05_baseline import PHASE05_SCENARIOS
 
 
 def _shared_repo_root(repo_root: Path) -> Path:

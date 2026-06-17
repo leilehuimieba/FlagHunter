@@ -1,0 +1,715 @@
+"""Tool executor for PentestAgent."""
+
+import asyncio
+import json
+import os
+import random as _random
+import re as _re
+import time
+from dataclasses import dataclass
+from datetime import datetime
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from urllib.parse import urlparse
+
+if TYPE_CHECKING:
+    from ..runtime import Runtime
+    from .registry import Tool
+
+_FLAG_PATTERN = _re.compile(
+    r"(?:flag|ctf|CTF|FLAG)\{[^}\r\n]{1,200}\}",
+    _re.IGNORECASE,
+)
+_NOT_FOUND_PATTERNS = (
+    "not found",
+    "command not found",
+    "no such file",
+    "filenotfounderror",
+    "找不到",
+    "未安装",
+    "cannot find the file",
+    "winerror 2",
+)
+_COOKIE_AUTO_INJECT_TOOLS = {"sqlmap", "dirscan", "nuclei", "afrog"}
+_STEALTH_UA_POOL = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
+    "(KHTML, like Gecko) Version/17.4 Safari/605.1.15",
+    "Mozilla/5.0 (X11; Linux x86_64; rv:125.0) Gecko/20100101 Firefox/125.0",
+    "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+]
+_STEALTH_TOOLS = {"dirscan", "nuclei", "sqlmap", "afrog", "browser", "waf"}
+
+# Tool execution result cache — P5 performance optimization
+_TOOL_CACHE_TTL_SECONDS = 60
+_TOOL_CACHE_MAX_SIZE = 128
+
+
+class _ToolResultCache:
+    """Simple TTL cache for tool execution results.
+
+    Only caches successful executions to avoid masking transient failures.
+    Keys are (tool_name, canonical_args_json).
+    """
+
+    def __init__(self, ttl: float = _TOOL_CACHE_TTL_SECONDS, max_size: int = _TOOL_CACHE_MAX_SIZE):
+        self._ttl = ttl
+        self._max_size = max_size
+        self._store: dict[str, tuple[Any, float]] = {}
+
+    def _make_key(self, tool_name: str, arguments: dict) -> str:
+        # Canonicalize arguments for stable hashing
+        try:
+            canonical = json.dumps(arguments, sort_keys=True, default=str)
+        except (TypeError, ValueError):
+            canonical = str(arguments)
+        return f"{tool_name}:{canonical}"
+
+    def get(self, tool_name: str, arguments: dict) -> Any | None:
+        key = self._make_key(tool_name, arguments)
+        entry = self._store.get(key)
+        if entry is None:
+            return None
+        result, ts = entry
+        if time.time() - ts > self._ttl:
+            self._store.pop(key, None)
+            return None
+        return result
+
+    def set(self, tool_name: str, arguments: dict, result: Any) -> None:
+        # Evict oldest entries if over max size (simple FIFO)
+        if len(self._store) >= self._max_size:
+            oldest_key = next(iter(self._store))
+            self._store.pop(oldest_key, None)
+        key = self._make_key(tool_name, arguments)
+        self._store[key] = (result, time.time())
+
+    def clear(self) -> None:
+        self._store.clear()
+
+    def stats(self) -> dict[str, Any]:
+        return {
+            "size": len(self._store),
+            "max_size": self._max_size,
+            "ttl_seconds": self._ttl,
+        }
+
+
+async def _stealth_delay(delay_range: tuple[float, float] = (0.5, 2.0)) -> None:
+    """随机等待，避免速率检测。"""
+    await asyncio.sleep(_random.uniform(*delay_range))
+
+
+def _is_stealth_active(target_url: str = "") -> tuple[bool, tuple[float, float]]:
+    """
+    检查是否需要慢速模式。
+
+    1. 环境变量 PENTESTAGENT_STEALTH=1 → 强制开启
+    2. notes 里有 category=\"waf_detected\" 条目 → 自动开启
+    """
+    if os.getenv("PENTESTAGENT_STEALTH") == "1":
+        return True, (1.0, 3.0)
+
+    try:
+        from .notes import get_all_notes_sync
+
+        notes = get_all_notes_sync()
+        target_host = urlparse(target_url).netloc if target_url else ""
+        for key, note in reversed(list((notes or {}).items())):
+            if not isinstance(note, dict):
+                continue
+            if note.get("category") != "waf_detected":
+                continue
+            try:
+                if key == "waf_detected":
+                    matched = True
+                else:
+                    note_host = (note.get("metadata") or {}).get("host", "")
+                    matched = (
+                        not target_host
+                        or not note_host
+                        or note_host in target_host
+                        or target_host in note_host
+                    )
+                if not matched:
+                    continue
+            except Exception:
+                pass
+
+            metadata = note.get("metadata") or {}
+            delay_range = metadata.get("delay_range")
+            if (
+                isinstance(delay_range, (list, tuple))
+                and len(delay_range) == 2
+            ):
+                try:
+                    return True, (float(delay_range[0]), float(delay_range[1]))
+                except (TypeError, ValueError):
+                    return True, (0.5, 2.0)
+            return True, (0.5, 2.0)
+    except Exception:
+        pass
+
+    return False, (0.5, 2.0)
+
+
+@dataclass
+class ExecutionResult:
+    """Result of a tool execution."""
+
+    tool_name: str
+    arguments: dict
+    result: Optional[str] = None
+    error: Optional[str] = None
+    success: bool = True
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    duration_ms: float = 0.0
+
+    @property
+    def duration(self) -> float:
+        """Get execution duration in seconds."""
+        return self.duration_ms / 1000.0
+
+
+def _m4_scope_check(tool_name: str, args: dict) -> tuple[bool, str]:
+    """Run CPA M4 scope validation before tool execution.
+
+    Returns:
+        Tuple of (allowed, reason). If M4 is disabled, unavailable, or fails to
+        initialize, the executor degrades to allow-by-default behavior.
+    """
+    try:
+        import os
+
+        if os.getenv("CPA_M4_AUDIT_GUARD", "true").lower() == "false":
+            return True, ""
+
+        from flaghunter.cpa_modules.m4_audit_guard import get_audit_logger, get_scope_enforcer
+
+        target = (
+            args.get("target")
+            or args.get("url")
+            or args.get("host")
+            or args.get("ip")
+            or ""
+        )
+        if not target:
+            return True, ""
+
+        enforcer = get_scope_enforcer()
+        result = enforcer.validate_sync(
+            action=tool_name,
+            target=str(target),
+            tool=tool_name,
+            command=tool_name,
+        )
+        allowed = result.get("allowed", True)
+        reason = result.get("reason", "")
+
+        logger_m4 = get_audit_logger()
+        logger_m4.log_command(
+            command=tool_name,
+            target=str(target),
+            output_preview=f"scope_check target={target} allowed={allowed}",
+        )
+        return allowed, reason
+    except RuntimeError:
+        return True, ""
+    except Exception:
+        return True, ""
+
+
+def _looks_like_missing_tool_error(exc: Exception) -> bool:
+    """Return True when an execution error indicates the underlying tool is missing."""
+    haystack = f"{type(exc).__name__}: {exc}".lower()
+    return any(pattern in haystack for pattern in _NOT_FOUND_PATTERNS)
+
+
+def _build_tool_install_confirmation_message(
+    tool_name: str, path: str = "."
+) -> tuple[str, dict, dict]:
+    """构建缺失工具提示，包含安装建议、预估大小和磁盘空间。"""
+    from ._tool_env import check_disk_space, get_tool_install_info
+
+    disk = check_disk_space(path)
+    info = get_tool_install_info(tool_name)
+
+    confirm_msg = (
+        f"[Tool Required] '{tool_name}' is not installed.\n"
+        f"Install: {info['install_hint']}\n"
+        f"Estimated size: {info['estimated_display']}\n"
+        f"Disk free: {disk['free_gb']} GB ({disk['free_pct']}% free)\n"
+        f"Reply 'yes' in TUI to proceed, or install manually and retry."
+    )
+    if disk["free_gb"] < 1.0:
+        confirm_msg += "\n⚠ LOW DISK SPACE"
+
+    return confirm_msg, disk, info
+
+
+async def _handle_flag_discovery(
+    flags: list[str], tool_name: str, runtime: Any
+) -> None:
+    """Handle flag discovery: persist to notes + emit notification."""
+    import logging
+    import time
+    from datetime import datetime
+
+    log = logging.getLogger(__name__)
+
+    for idx, flag in enumerate(flags):
+        ctf_experience_saved = False
+        ctf_chtype = "web"
+
+        try:
+            # 写入 notes（导入放在函数内部避免循环依赖）
+            from .notes import _notes, _notes_lock, _save_notes_unlocked
+
+            key = f"flag_{tool_name}_{int(time.time() * 1000)}_{idx}"
+            async with _notes_lock:
+                _notes[key] = {
+                    "content": flag,
+                    "category": "credential",
+                    "confidence": "high",
+                    "status": "confirmed",
+                    "metadata": {
+                        "source_tool": tool_name,
+                        "found_at": datetime.now().isoformat(),
+                    },
+                }
+                _save_notes_unlocked()
+            log.info("FLAG FOUND by %s: %s", tool_name, flag)
+        except Exception as e:
+            log.warning("Flag note write failed: %s", e)
+
+        try:
+            if hasattr(runtime, "plan") and runtime.plan:
+                req = getattr(runtime.plan, "original_request", "")
+                if "[CTF MODE]" in req:
+                    _type_m = _re.search(r"Challenge type:\s*(\w+)", req)
+                    _hint_m = _re.search(r"Hint:\s*(.+)", req)
+                    ctf_chtype = _type_m.group(1) if _type_m else "web"
+                    ctf_hint = _hint_m.group(1).strip() if _hint_m else ""
+
+                    from ..knowledge.ctf_experience import save_ctf_experience
+                    from ..tools.finish import StepStatus
+
+                    ok_steps = [
+                        step.description
+                        for step in runtime.plan.steps
+                        if step.status == StepStatus.COMPLETE
+                    ]
+                    bad_steps = [
+                        step.description
+                        for step in runtime.plan.steps
+                        if step.status in (StepStatus.FAIL, StepStatus.SKIP)
+                    ]
+
+                    asyncio.ensure_future(
+                        save_ctf_experience(
+                            url=getattr(runtime, "target", ""),
+                            chtype=ctf_chtype,
+                            hint=ctf_hint,
+                            flag=flag,
+                            successful_steps=ok_steps,
+                            failed_steps=bad_steps,
+                        )
+                    )
+                    ctf_experience_saved = True
+        except Exception:
+            pass
+
+        try:
+            from ..knowledge.retrospective import add_retrospective_entry
+
+            add_retrospective_entry(
+                category="success_path",
+                description=f"Flag found via tool '{tool_name}' on {ctf_chtype} challenge",
+                context={
+                    "tool": tool_name,
+                    "chtype": ctf_chtype,
+                    "flag_preview": flag[:20],
+                },
+                suggestion="",
+            )
+        except Exception:
+            pass
+
+        try:
+            from ..interface.notifier import notify
+
+            notify("flag_found", flag)
+            if ctf_experience_saved:
+                notify("info", f"CTF experience saved for {ctf_chtype} challenge")
+        except Exception:
+            pass
+
+
+class ToolExecutor:
+    """Handles tool execution with error handling and logging."""
+
+    def __init__(self, runtime: "Runtime", timeout: int = 300, max_retries: int = 0):
+        """
+        Initialize the tool executor.
+
+        Args:
+            runtime: The runtime environment
+            timeout: Default timeout for tool execution in seconds
+            max_retries: Number of retries on failure
+        """
+        self.runtime = runtime
+        self.timeout = timeout
+        self.max_retries = max_retries
+        self.execution_history: List[ExecutionResult] = []
+        self._result_cache = _ToolResultCache()
+        self._batch_semaphore = asyncio.Semaphore(8)  # Limit concurrent tool executions
+
+    async def execute(
+        self, tool: "Tool", arguments: dict, timeout: Optional[int] = None
+    ) -> ExecutionResult:
+        """
+        Execute a tool with the given arguments.
+
+        Args:
+            tool: The tool to execute
+            arguments: The arguments to pass to the tool
+            timeout: Optional timeout override
+
+        Returns:
+            ExecutionResult with the outcome
+        """
+        execution_timeout = timeout or self.timeout
+        start_time = datetime.now()
+        arguments = arguments or {}
+
+        # Check cache for identical successful execution (P5 optimization)
+        # Skip cache for stateful tools (terminal/bash/shell) — their results
+        # depend on mutable system state and can change between identical calls.
+        _NON_CACHEABLE_TOOLS = {"terminal", "bash", "shell", "cmd", "powershell"}
+        cached = None
+        if tool.name not in _NON_CACHEABLE_TOOLS:
+            cached = self._result_cache.get(tool.name, arguments)
+        if cached is not None:
+            cached_result = cached
+            # Update timestamps for the cached result copy
+            cached_result.start_time = start_time
+            cached_result.end_time = datetime.now()
+            cached_result.duration_ms = 0.0
+            self.execution_history.append(cached_result)
+            return cached_result
+
+        # Validate arguments
+        is_valid, error_msg = tool.validate_arguments(arguments)
+        if not is_valid:
+            result = ExecutionResult(
+                tool_name=tool.name,
+                arguments=arguments,
+                error=error_msg,
+                success=False,
+                start_time=start_time,
+                end_time=datetime.now(),
+            )
+            result.duration_ms = (result.end_time - start_time).total_seconds() * 1000
+            self.execution_history.append(result)
+            return result
+
+        allowed, reason = _m4_scope_check(tool.name, arguments)
+        if not allowed:
+            end_time = datetime.now()
+            result = ExecutionResult(
+                tool_name=tool.name,
+                arguments=arguments,
+                error=f"[M4 BLOCKED] 作用域检查拒绝执行 '{tool.name}': {reason}",
+                success=False,
+                start_time=start_time,
+                end_time=end_time,
+                duration_ms=(end_time - start_time).total_seconds() * 1000,
+            )
+            self.execution_history.append(result)
+            return result
+
+        # Execute with retries
+        last_error = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                if tool.name in _COOKIE_AUTO_INJECT_TOOLS:
+                    # 从 notes 找最新的 credential 条目（含 cookie_string）
+                    try:
+                        from .notes import get_all_notes_sync
+
+                        _notes = get_all_notes_sync()
+                        _best_cookie = ""
+                        for _note in _notes.values():
+                            if _note.get("category") == "credential":
+                                _meta = _note.get("metadata") or {}
+                                _cs = _meta.get("cookie_string") or _note.get(
+                                    "content", ""
+                                )
+                                if _cs and "=" in _cs:
+                                    _best_cookie = _cs
+                                    break  # notes dict 通常按写入顺序，最新在前
+                        if _best_cookie:
+                            args = dict(arguments)  # 不改原始 dict
+                            if tool.name == "sqlmap" and "cookie" not in args:
+                                args["cookie"] = _best_cookie
+                            elif tool.name in ("dirscan", "nuclei", "afrog"):
+                                # headers dict 合并而非覆盖
+                                _h = dict(args.get("headers") or {})
+                                if "Cookie" not in _h:
+                                    _h["Cookie"] = _best_cookie
+                                args["headers"] = _h
+                            arguments = args  # 用注入后的 args 替换
+                    except Exception:
+                        pass  # 注入失败不影响主流程
+
+                try:
+                    if tool.name in _STEALTH_TOOLS:
+                        _target_url = str(
+                            arguments.get("url") or arguments.get("target") or ""
+                        )
+                        _stealth_on, _delay_range = _is_stealth_active(_target_url)
+                        if _stealth_on:
+                            await _stealth_delay(_delay_range)
+                            if "headers" in arguments or tool.name in (
+                                "dirscan",
+                                "nuclei",
+                                "afrog",
+                            ):
+                                _h = dict(arguments.get("headers") or {})
+                                if "User-Agent" not in _h:
+                                    _h["User-Agent"] = _random.choice(
+                                        _STEALTH_UA_POOL
+                                    )
+                                arguments = {**arguments, "headers": _h}
+                except Exception:
+                    pass
+
+                # Execute with timeout
+                output = await asyncio.wait_for(
+                    tool.execute(arguments, self.runtime), timeout=execution_timeout
+                )
+
+                # ── Flag scanner ──────────────────────────────────────────────────────
+                if isinstance(output, str) and output:
+                    try:
+                        _found_flags = _FLAG_PATTERN.findall(output)
+                        if _found_flags:
+                            await _handle_flag_discovery(
+                                flags=_found_flags,
+                                tool_name=tool.name,
+                                runtime=self.runtime,
+                            )
+                    except Exception:
+                        pass
+                # ──────────────────────────────────────────────────────────────────────
+
+                end_time = datetime.now()
+                result = ExecutionResult(
+                    tool_name=tool.name,
+                    arguments=arguments,
+                    result=output,
+                    success=True,
+                    start_time=start_time,
+                    end_time=end_time,
+                    duration_ms=(end_time - start_time).total_seconds() * 1000,
+                )
+                self.execution_history.append(result)
+                # Cache successful result (P5 optimization)
+                # Skip cache for stateful tools whose results change between calls.
+                if tool.name not in _NON_CACHEABLE_TOOLS:
+                    self._result_cache.set(tool.name, arguments, result)
+                return result
+
+            except asyncio.TimeoutError:
+                last_error = f"Execution timed out after {execution_timeout} seconds"
+            except Exception as e:
+                last_error = str(e)
+                if _looks_like_missing_tool_error(e):
+                    try:
+                        from ..interface.notifier import notify
+                        from .notes import _notes, _notes_lock, _save_notes_unlocked
+
+                        confirm_msg, disk, info = (
+                            _build_tool_install_confirmation_message(tool.name)
+                        )
+                        note_key = f"missing_tool_{tool.name}"
+
+                        notify(
+                            "tool_install_required",
+                            {
+                                "tool": tool.name,
+                                "message": confirm_msg,
+                                "install_hint": info["install_hint"],
+                                "size_mb": info["estimated_mb"],
+                                "disk_free_gb": disk["free_gb"],
+                                "disk_free_pct": disk["free_pct"],
+                            },
+                        )
+
+                        try:
+                            from ..knowledge.retrospective import (
+                                add_retrospective_entry,
+                            )
+
+                            req = ""
+                            if hasattr(self.runtime, "plan") and self.runtime.plan:
+                                req = getattr(
+                                    self.runtime.plan, "original_request", ""
+                                )
+                            if "[CTF MODE]" in req:
+                                add_retrospective_entry(
+                                    category="tool_failure",
+                                    description=(
+                                        f"Tool '{tool.name}' not available during CTF challenge"
+                                    ),
+                                    context={
+                                        "tool": tool.name,
+                                        "install_hint": info["install_hint"],
+                                        "size_mb": info["estimated_mb"],
+                                    },
+                                    suggestion=(
+                                        f"Pre-install {tool.name} before starting CTF sessions"
+                                    ),
+                                )
+                        except Exception:
+                            pass
+
+                        async with _notes_lock:
+                            _notes[note_key] = {
+                                "category": "artifact",
+                                "confidence": "high",
+                                "content": info["install_hint"],
+                                "metadata": {
+                                    "tool": tool.name,
+                                    "install_hint": info["install_hint"],
+                                    "estimated_mb": info["estimated_mb"],
+                                    "disk_free_gb": disk["free_gb"],
+                                    "disk_free_pct": disk["free_pct"],
+                                },
+                            }
+                            _save_notes_unlocked()
+
+                        last_error = f"{last_error}\n\n[Tool Advisor] {confirm_msg}"
+                    except Exception:
+                        pass
+
+            # Wait before retry
+            if attempt < self.max_retries:
+                await asyncio.sleep(1)
+
+        # All attempts failed
+        end_time = datetime.now()
+        result = ExecutionResult(
+            tool_name=tool.name,
+            arguments=arguments,
+            error=last_error,
+            success=False,
+            start_time=start_time,
+            end_time=end_time,
+            duration_ms=(end_time - start_time).total_seconds() * 1000,
+        )
+        self.execution_history.append(result)
+        return result
+
+    async def execute_batch(
+        self, executions: List[tuple["Tool", dict]], parallel: bool = False
+    ) -> List[ExecutionResult]:
+        """
+        Execute multiple tools.
+
+        Args:
+            executions: List of (tool, arguments) tuples
+            parallel: Whether to execute in parallel
+
+        Returns:
+            List of ExecutionResults
+        """
+        if parallel:
+            # P5: use semaphore to limit max concurrent executions
+            async def _bounded_execute(tool, args):
+                async with self._batch_semaphore:
+                    return await self.execute(tool, args)
+
+            tasks = [_bounded_execute(tool, args) for tool, args in executions]
+            return await asyncio.gather(*tasks)
+        else:
+            results = []
+            for tool, args in executions:
+                result = await self.execute(tool, args)
+                results.append(result)
+            return results
+
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """Get tool result cache statistics (P5 optimization)."""
+        return self._result_cache.stats()
+
+    def clear_cache(self) -> None:
+        """Clear the tool result cache."""
+        self._result_cache.clear()
+
+    def get_execution_stats(self) -> Dict[str, Any]:
+        """
+        Get statistics about tool executions.
+
+        Returns:
+            Dictionary with execution statistics
+        """
+        if not self.execution_history:
+            return {
+                "total_executions": 0,
+                "successful": 0,
+                "failed": 0,
+                "success_rate": 0.0,
+                "avg_duration_ms": 0.0,
+                "tools_used": {},
+            }
+
+        total = len(self.execution_history)
+        successful = sum(1 for r in self.execution_history if r.success)
+        failed = total - successful
+
+        # Calculate average duration
+        durations = [r.duration_ms for r in self.execution_history]
+        avg_duration = sum(durations) / len(durations) if durations else 0.0
+
+        # Count tool usage
+        tools_used: Dict[str, int] = {}
+        for result in self.execution_history:
+            tools_used[result.tool_name] = tools_used.get(result.tool_name, 0) + 1
+
+        return {
+            "total_executions": total,
+            "successful": successful,
+            "failed": failed,
+            "success_rate": successful / total if total > 0 else 0.0,
+            "avg_duration_ms": avg_duration,
+            "tools_used": tools_used,
+        }
+
+    def clear_history(self):
+        """Clear the execution history."""
+        self.execution_history.clear()
+
+    def get_last_result(
+        self, tool_name: Optional[str] = None
+    ) -> Optional[ExecutionResult]:
+        """
+        Get the last execution result.
+
+        Args:
+            tool_name: Optional filter by tool name
+
+        Returns:
+            The last ExecutionResult or None
+        """
+        if not self.execution_history:
+            return None
+
+        if tool_name:
+            for result in reversed(self.execution_history):
+                if result.tool_name == tool_name:
+                    return result
+            return None
+
+        return self.execution_history[-1]

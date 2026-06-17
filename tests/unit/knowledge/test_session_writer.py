@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from pentestagent.knowledge.session_writer import write_session_to_knowledge
+from flaghunter.knowledge.session_writer import write_session_to_knowledge
 
 
 @pytest.mark.asyncio
@@ -35,7 +35,7 @@ async def test_write_session_to_knowledge_writes_only_worthy_notes(tmp_path, mon
 
     assert out_path is not None
     assert out_path.exists()
-    assert out_path.parent == Path("pentestagent/knowledge/sessions")
+    assert out_path.parent == Path("flaghunter/knowledge/sessions")
 
     content = out_path.read_text(encoding="utf-8")
     assert "open_ports (finding)" in content

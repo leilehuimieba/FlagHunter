@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from pentestagent.tools.angr_solve import angr_solve
+from flaghunter.tools.angr_solve import angr_solve
 
 
 class _MockResult:

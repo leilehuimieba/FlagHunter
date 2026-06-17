@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from pentestagent.knowledge.embeddings import should_use_local_embeddings
+from flaghunter.knowledge.embeddings import should_use_local_embeddings
 
 
 class TestShouldUseLocalEmbeddings:

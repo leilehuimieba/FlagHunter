@@ -6,9 +6,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from pentestagent.agents.pa_agent.pa_agent import PentestAgentAgent
-from pentestagent.tools.notes import set_notes_file
-import pentestagent.tools.notes as notes_module
+from flaghunter.agents.pa_agent.pa_agent import PentestAgentAgent
+from flaghunter.tools.notes import set_notes_file
+import flaghunter.tools.notes as notes_module
 
 
 class _StubLLM:

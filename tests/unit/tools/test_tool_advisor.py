@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-import pentestagent.tools.notes as notes_module
-from pentestagent.tools._tool_env import suggest_missing_tool
-from pentestagent.tools.executor import ToolExecutor
-from pentestagent.tools.notes import set_notes_file
-from pentestagent.tools.registry import Tool, ToolSchema
+import flaghunter.tools.notes as notes_module
+from flaghunter.tools._tool_env import suggest_missing_tool
+from flaghunter.tools.executor import ToolExecutor
+from flaghunter.tools.notes import set_notes_file
+from flaghunter.tools.registry import Tool, ToolSchema
 
 
 @pytest.fixture

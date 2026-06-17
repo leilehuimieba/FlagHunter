@@ -7,8 +7,8 @@ as plain callbacks with return-value semantics.
 
 import pytest
 
-from pentestagent.interface import notifier
-from pentestagent.session.event_bus import EventBus
+from flaghunter.interface import notifier
+from flaghunter.session.event_bus import EventBus
 
 
 @pytest.fixture(autouse=True)
@@ -37,7 +37,7 @@ def test_notify_delivers_to_registered_callback():
 
 def test_clearing_callback_falls_back_to_logging(caplog):
     notifier.register_callback(None)
-    with caplog.at_level("INFO", logger="pentestagent.notifier"):
+    with caplog.at_level("INFO", logger="flaghunter.notifier"):
         notifier.notify("info", "fallback-msg")
     assert "fallback-msg" in caplog.text
 

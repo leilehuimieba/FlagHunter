@@ -7,12 +7,12 @@ from pathlib import Path
 
 import pytest
 
-import pentestagent.tools.notes as notes_module
-from pentestagent.tools import ToolExecutor
-from pentestagent.tools.notes import get_all_notes_sync, set_notes_file
-from pentestagent.tools.registry import clear_tools, get_tool
+import flaghunter.tools.notes as notes_module
+from flaghunter.tools import ToolExecutor
+from flaghunter.tools.notes import get_all_notes_sync, set_notes_file
+from flaghunter.tools.registry import clear_tools, get_tool
 
-import pentestagent.tools.http_request as http_request_module
+import flaghunter.tools.http_request as http_request_module
 
 
 class _FakeRuntime:

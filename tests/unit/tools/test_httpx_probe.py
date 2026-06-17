@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from pentestagent.tools.httpx_probe import (
+from flaghunter.tools.httpx_probe import (
     _build_base_args,
     _probe_single,
     _run_httpx,
@@ -104,7 +104,7 @@ class TestSummarize:
 
 
 class TestHttpxProbe:
-    @patch("pentestagent.tools.httpx_probe.find_tool")
+    @patch("flaghunter.tools.httpx_probe.find_tool")
     def test_binary_not_found(self, mock_find):
         mock_find.return_value = None
         result = asyncio.run(httpx_probe({"target": "https://example.com"}, None))
@@ -112,8 +112,8 @@ class TestHttpxProbe:
         assert parsed["status"] == "error"
         assert "not found" in parsed["message"]
 
-    @patch("pentestagent.tools.httpx_probe.find_tool")
-    @patch("pentestagent.tools.httpx_probe._run_httpx")
+    @patch("flaghunter.tools.httpx_probe.find_tool")
+    @patch("flaghunter.tools.httpx_probe._run_httpx")
     def test_single_mode_alive(self, mock_run, mock_find):
         mock_find.return_value = "/usr/bin/httpx"
         mock_run.return_value = [
@@ -137,8 +137,8 @@ class TestHttpxProbe:
         assert parsed["title"] == "Example"
         assert parsed["technologies"] == ["Nginx"]
 
-    @patch("pentestagent.tools.httpx_probe.find_tool")
-    @patch("pentestagent.tools.httpx_probe._run_httpx")
+    @patch("flaghunter.tools.httpx_probe.find_tool")
+    @patch("flaghunter.tools.httpx_probe._run_httpx")
     def test_single_mode_dead(self, mock_run, mock_find):
         mock_find.return_value = "/usr/bin/httpx"
         mock_run.return_value = []
@@ -146,8 +146,8 @@ class TestHttpxProbe:
         parsed = json.loads(result)
         assert parsed["status"] == "dead"
 
-    @patch("pentestagent.tools.httpx_probe.find_tool")
-    @patch("pentestagent.tools.httpx_probe._run_httpx")
+    @patch("flaghunter.tools.httpx_probe.find_tool")
+    @patch("flaghunter.tools.httpx_probe._run_httpx")
     def test_batch_mode(self, mock_run, mock_find):
         mock_find.return_value = "/usr/bin/httpx"
         mock_run.return_value = [
@@ -164,7 +164,7 @@ class TestHttpxProbe:
         assert parsed["alive_count"] == 2
         assert parsed["web_servers"] == {"nginx": 1, "apache": 1}
 
-    @patch("pentestagent.tools.httpx_probe.find_tool")
+    @patch("flaghunter.tools.httpx_probe.find_tool")
     def test_invalid_mode(self, mock_find):
         mock_find.return_value = "/usr/bin/httpx"
         result = asyncio.run(httpx_probe({"target": "https://example.com", "mode": "invalid"}, None))
@@ -172,7 +172,7 @@ class TestHttpxProbe:
         assert parsed["status"] == "error"
         assert "Unknown mode" in parsed["message"]
 
-    @patch("pentestagent.tools.httpx_probe.find_tool")
+    @patch("flaghunter.tools.httpx_probe.find_tool")
     def test_empty_targets(self, mock_find):
         mock_find.return_value = "/usr/bin/httpx"
         result = asyncio.run(httpx_probe({"target": ""}, None))
@@ -180,8 +180,8 @@ class TestHttpxProbe:
         assert parsed["status"] == "error"
         assert "No target" in parsed["message"]
 
-    @patch("pentestagent.tools.httpx_probe.find_tool")
-    @patch("pentestagent.tools.httpx_probe._run_httpx")
+    @patch("flaghunter.tools.httpx_probe.find_tool")
+    @patch("flaghunter.tools.httpx_probe._run_httpx")
     def test_include_response(self, mock_run, mock_find):
         mock_find.return_value = "/usr/bin/httpx"
         mock_run.return_value = [
@@ -199,8 +199,8 @@ class TestHttpxProbe:
         assert "headers" in parsed
         assert parsed["headers"]["Server"] == "nginx"
 
-    @patch("pentestagent.tools.httpx_probe.find_tool")
-    @patch("pentestagent.tools.httpx_probe._run_httpx")
+    @patch("flaghunter.tools.httpx_probe.find_tool")
+    @patch("flaghunter.tools.httpx_probe._run_httpx")
     def test_tls_in_single_mode(self, mock_run, mock_find):
         mock_find.return_value = "/usr/bin/httpx"
         mock_run.return_value = [
@@ -223,8 +223,8 @@ class TestHttpxProbe:
 
 
 class TestProbeSingle:
-    @patch("pentestagent.tools.httpx_probe.find_tool")
-    @patch("pentestagent.tools.httpx_probe._run_httpx")
+    @patch("flaghunter.tools.httpx_probe.find_tool")
+    @patch("flaghunter.tools.httpx_probe._run_httpx")
     def test_run_failure_returns_error(self, mock_run, mock_find):
         mock_find.return_value = "/usr/bin/httpx"
         mock_run.return_value = None
@@ -233,7 +233,7 @@ class TestProbeSingle:
 
 
 class TestRunHttpx:
-    @patch("pentestagent.tools.httpx_probe.find_tool")
+    @patch("flaghunter.tools.httpx_probe.find_tool")
     @patch("subprocess.run")
     def test_success(self, mock_subprocess, mock_find):
         mock_find.return_value = "/usr/bin/httpx"
@@ -246,13 +246,13 @@ class TestRunHttpx:
         assert result[0]["status_code"] == 200
         assert result[1]["status_code"] == 0
 
-    @patch("pentestagent.tools.httpx_probe.find_tool")
+    @patch("flaghunter.tools.httpx_probe.find_tool")
     def test_binary_not_found(self, mock_find):
         mock_find.return_value = None
         result = _run_httpx(["https://example.com"], [])
         assert result is None
 
-    @patch("pentestagent.tools.httpx_probe.find_tool")
+    @patch("flaghunter.tools.httpx_probe.find_tool")
     @patch("subprocess.run")
     def test_timeout(self, mock_subprocess, mock_find):
         import subprocess as sp
@@ -261,7 +261,7 @@ class TestRunHttpx:
         result = _run_httpx(["https://example.com"], [])
         assert result is None
 
-    @patch("pentestagent.tools.httpx_probe.find_tool")
+    @patch("flaghunter.tools.httpx_probe.find_tool")
     @patch("subprocess.run")
     def test_invalid_json_lines_ignored(self, mock_subprocess, mock_find):
         mock_find.return_value = "/usr/bin/httpx"
@@ -273,7 +273,7 @@ class TestRunHttpx:
         assert len(result) == 1
         assert result[0]["url"] == "https://a.com"
 
-    @patch("pentestagent.tools.httpx_probe.find_tool")
+    @patch("flaghunter.tools.httpx_probe.find_tool")
     @patch("subprocess.run")
     def test_cleanup_on_exception(self, mock_subprocess, mock_find):
         mock_find.return_value = "/usr/bin/httpx"

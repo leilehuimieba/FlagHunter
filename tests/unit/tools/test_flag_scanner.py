@@ -1,6 +1,6 @@
 import pytest
 
-from pentestagent.tools.executor import _FLAG_PATTERN
+from flaghunter.tools.executor import _FLAG_PATTERN
 
 
 @pytest.mark.parametrize(

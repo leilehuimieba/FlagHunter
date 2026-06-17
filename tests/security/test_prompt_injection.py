@@ -9,7 +9,7 @@ in a way that overrides the system instructions. These tests verify that:
 
 import pytest
 
-from pentestagent.llm.memory import ConversationMemory
+from flaghunter.llm.memory import ConversationMemory
 
 
 # ---------------------------------------------------------------------------
@@ -64,8 +64,8 @@ class TestNoteContentInjection:
     @pytest.mark.asyncio
     @pytest.mark.parametrize("payload", INJECTION_PAYLOADS)
     async def test_injection_in_note_value_stored_as_data(self, payload, tmp_path):
-        import pentestagent.tools.notes as notes_module
-        from pentestagent.tools.notes import set_notes_file, get_all_notes
+        import flaghunter.tools.notes as notes_module
+        from flaghunter.tools.notes import set_notes_file, get_all_notes
 
         notes_file = tmp_path / "notes.json"
         set_notes_file(notes_file)
@@ -135,7 +135,7 @@ class TestUserInputTreatedAsData:
 class TestWorkspaceOperatorNoteInjection:
     def test_operator_note_with_yaml_injection_stored_safely(self, tmp_path):
         """YAML injection in operator notes should not corrupt workspace metadata."""
-        from pentestagent.workspaces.manager import WorkspaceManager
+        from flaghunter.workspaces.manager import WorkspaceManager
 
         mgr = WorkspaceManager(root=tmp_path)
         mgr.create("ws")
@@ -150,7 +150,7 @@ class TestWorkspaceOperatorNoteInjection:
         assert yaml_injection in note
 
     def test_operator_note_with_json_injection_stored_safely(self, tmp_path):
-        from pentestagent.workspaces.manager import WorkspaceManager
+        from flaghunter.workspaces.manager import WorkspaceManager
 
         mgr = WorkspaceManager(root=tmp_path)
         mgr.create("ws")
@@ -160,7 +160,7 @@ class TestWorkspaceOperatorNoteInjection:
         assert json_injection in note
 
     def test_target_with_injection_payload_rejected(self, tmp_path):
-        from pentestagent.workspaces.manager import WorkspaceManager, WorkspaceError
+        from flaghunter.workspaces.manager import WorkspaceManager, WorkspaceError
 
         mgr = WorkspaceManager(root=tmp_path)
         mgr.create("ws")

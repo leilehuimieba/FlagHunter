@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from pentestagent.agents.pa_agent.phase05_baseline import build_phase05_baseline
+from flaghunter.agents.pa_agent.phase05_baseline import build_phase05_baseline
 
 
 def main() -> None:

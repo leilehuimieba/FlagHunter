@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
-from pentestagent.config.settings import Settings
+from flaghunter.config.settings import Settings
 
 
 # ---------------------------------------------------------------------------
@@ -119,7 +119,7 @@ class TestEnvVarHygiene:
 
 class TestMemoryApiKeyLeakage:
     def test_system_messages_excluded_from_format_for_summary(self):
-        from pentestagent.llm.memory import ConversationMemory
+        from flaghunter.llm.memory import ConversationMemory
 
         mem = ConversationMemory()
         messages = [
@@ -131,7 +131,7 @@ class TestMemoryApiKeyLeakage:
 
     @pytest.mark.asyncio
     async def test_summary_prompt_template_has_no_hardcoded_secrets(self):
-        from pentestagent.llm.memory import SUMMARY_PROMPT
+        from flaghunter.llm.memory import SUMMARY_PROMPT
 
         # Only check for actual hardcoded secret patterns, not operational terminology
         # (the prompt legitimately uses words like "token", "password" as field names to preserve)

@@ -1,4 +1,4 @@
-﻿"""Tests for pentestagent.config.settings and related constants."""
+﻿"""Tests for flaghunter.config.settings and related constants."""
 
 import os
 from pathlib import Path
@@ -6,8 +6,8 @@ from unittest.mock import patch
 
 import pytest
 
-from pentestagent.config.constants import get_openai_api_base
-from pentestagent.config.settings import Settings, get_settings, update_settings
+from flaghunter.config.constants import get_openai_api_base
+from flaghunter.config.settings import Settings, get_settings, update_settings
 
 
 class TestGetOpenaiApiBase:
@@ -155,20 +155,20 @@ class TestSettingsSecurityApiKeyLeakage:
 
 class TestGetSettings:
     def test_get_settings_returns_settings_instance(self):
-        import pentestagent.config.settings as settings_module
+        import flaghunter.config.settings as settings_module
         settings_module._settings = None
         result = get_settings()
         assert isinstance(result, Settings)
 
     def test_get_settings_returns_singleton(self):
-        import pentestagent.config.settings as settings_module
+        import flaghunter.config.settings as settings_module
         settings_module._settings = None
         s1 = get_settings()
         s2 = get_settings()
         assert s1 is s2
 
     def test_update_settings_replaces_singleton(self):
-        import pentestagent.config.settings as settings_module
+        import flaghunter.config.settings as settings_module
         settings_module._settings = None
         s1 = get_settings()
         s2 = update_settings(max_iterations=5)

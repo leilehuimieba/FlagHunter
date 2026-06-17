@@ -5,13 +5,13 @@ from types import SimpleNamespace
 import pytest
 import zipfile
 
-import pentestagent.tools.notes as notes_module
-from pentestagent.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
-from pentestagent.agents.pa_agent.ctf_state import CTFState
-from pentestagent.harness.artifact_registry import ArtifactRegistry
-from pentestagent.harness.session_ledger import SessionLedger
-from pentestagent.knowledge.session_context import SessionContextView
-from pentestagent.tools.notes import set_notes_file
+import flaghunter.tools.notes as notes_module
+from flaghunter.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
+from flaghunter.agents.pa_agent.ctf_state import CTFState
+from flaghunter.harness.artifact_registry import ArtifactRegistry
+from flaghunter.harness.session_ledger import SessionLedger
+from flaghunter.knowledge.session_context import SessionContextView
+from flaghunter.tools.notes import set_notes_file
 
 
 class _ArtifactRegistryRuntime:
@@ -34,7 +34,7 @@ async def test_dispatcher_registers_artifact_note_into_artifact_registry(
     tmp_path,
 ) -> None:
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_artifact_registry.json")
@@ -87,7 +87,7 @@ async def test_dispatcher_registers_artifact_forensics_note_with_truthful_source
     tmp_path,
 ) -> None:
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_artifact_forensics.json")
@@ -131,7 +131,7 @@ async def test_dispatcher_ingests_local_challenge_artifact_paths_into_artifact_r
     tmp_path,
 ) -> None:
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -180,7 +180,7 @@ async def test_dispatcher_local_challenge_artifact_registry_entries_are_visible_
     tmp_path,
 ) -> None:
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -220,7 +220,7 @@ async def test_dispatcher_registers_explicit_challenge_path_root_into_artifact_r
     tmp_path,
 ) -> None:
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -275,7 +275,7 @@ async def test_dispatcher_challenge_path_root_registry_entry_is_visible_in_sessi
     tmp_path,
 ) -> None:
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -318,7 +318,7 @@ async def test_dispatcher_registers_extracted_challenge_root_from_local_archive(
     tmp_path,
 ) -> None:
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -369,7 +369,7 @@ async def test_dispatcher_extracted_challenge_root_from_local_archive_is_visible
     tmp_path,
 ) -> None:
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -419,7 +419,7 @@ async def test_dispatcher_registers_compose_file_from_explicit_challenge_root(
     tmp_path,
 ) -> None:
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -466,7 +466,7 @@ async def test_dispatcher_registers_compose_file_from_extracted_challenge_root_i
     tmp_path,
 ) -> None:
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -516,7 +516,7 @@ async def test_dispatcher_registers_whitelisted_key_files_from_explicit_challeng
     tmp_path,
 ) -> None:
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -561,7 +561,7 @@ async def test_dispatcher_registers_whitelisted_key_files_from_extracted_challen
     tmp_path,
 ) -> None:
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -615,7 +615,7 @@ async def test_dispatcher_registers_local_challenge_root_summary_for_explicit_ro
     tmp_path,
 ) -> None:
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -662,7 +662,7 @@ async def test_dispatcher_registers_local_challenge_root_summary_for_extracted_r
     tmp_path,
 ) -> None:
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 

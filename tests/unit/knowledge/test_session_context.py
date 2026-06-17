@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from pentestagent.agents.pa_agent.ctf_state import CTFState
-from pentestagent.harness.artifact_registry import ArtifactRegistry
-from pentestagent.harness.checkpoint_store import CheckpointStore
-from pentestagent.harness.session_ledger import SessionLedger
-from pentestagent.knowledge.session_context import (
+from flaghunter.agents.pa_agent.ctf_state import CTFState
+from flaghunter.harness.artifact_registry import ArtifactRegistry
+from flaghunter.harness.checkpoint_store import CheckpointStore
+from flaghunter.harness.session_ledger import SessionLedger
+from flaghunter.knowledge.session_context import (
     SessionContextView,
     build_workspace_run_context,
 )

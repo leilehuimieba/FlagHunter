@@ -6,23 +6,23 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from pentestagent.tools.dalfox import dalfox
+from flaghunter.tools.dalfox import dalfox
 
 
 class TestDalfox:
-    @patch("pentestagent.tools.dalfox.find_tool")
+    @patch("flaghunter.tools.dalfox.find_tool")
     def test_empty_url(self, mock_find):
         mock_find.return_value = "/usr/bin/dalfox"
         result = asyncio.run(dalfox({"url": ""}, None))
         assert "Error: url is required" in result
 
-    @patch("pentestagent.tools.dalfox.find_tool")
+    @patch("flaghunter.tools.dalfox.find_tool")
     def test_binary_not_found(self, mock_find):
         mock_find.return_value = None
         result = asyncio.run(dalfox({"url": "https://example.com"}, None))
         assert "not installed" in result
 
-    @patch("pentestagent.tools.dalfox.find_tool")
+    @patch("flaghunter.tools.dalfox.find_tool")
     @patch("builtins.open")
     @patch("os.path.exists")
     @patch("os.remove")
@@ -42,7 +42,7 @@ class TestDalfox:
         result = asyncio.run(dalfox({"url": "https://example.com"}, runtime))
         assert "No XSS vulnerabilities detected" in result
 
-    @patch("pentestagent.tools.dalfox.find_tool")
+    @patch("flaghunter.tools.dalfox.find_tool")
     @patch("builtins.open")
     @patch("os.path.exists")
     @patch("os.remove")
@@ -72,7 +72,7 @@ class TestDalfox:
         assert "comment" in result
         assert "<script>alert(1)</script>" in result
 
-    @patch("pentestagent.tools.dalfox.find_tool")
+    @patch("flaghunter.tools.dalfox.find_tool")
     @patch("builtins.open")
     @patch("os.path.exists")
     @patch("os.remove")
@@ -94,7 +94,7 @@ class TestDalfox:
         assert "DOM" in result
         assert "id" in result
 
-    @patch("pentestagent.tools.dalfox.find_tool")
+    @patch("flaghunter.tools.dalfox.find_tool")
     @patch("builtins.open")
     @patch("os.path.exists")
     @patch("os.remove")
@@ -119,7 +119,7 @@ class TestDalfox:
         assert "Findings: 2" in result
         assert "BLIND" in result
 
-    @patch("pentestagent.tools.dalfox.find_tool")
+    @patch("flaghunter.tools.dalfox.find_tool")
     def test_post_method_and_options(self, mock_find):
         mock_find.return_value = "/usr/bin/dalfox"
 
@@ -155,7 +155,7 @@ class TestDalfox:
         assert "--only-custom-payload" in cmd
         assert "--waf-evasion" in cmd
 
-    @patch("pentestagent.tools.dalfox.find_tool")
+    @patch("flaghunter.tools.dalfox.find_tool")
     @patch("builtins.open")
     @patch("os.path.exists")
     def test_file_exception(self, mock_exists, mock_open, mock_find):

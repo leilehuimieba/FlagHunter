@@ -21,11 +21,11 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 
-import pentestagent.tools.notes as notes_module
-from pentestagent.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
-from pentestagent.runtime.runtime import LocalRuntime
-from pentestagent.tools.notes import get_all_notes_sync, set_notes_file
-from pentestagent.tools.tool_guard import ToolStatus
+import flaghunter.tools.notes as notes_module
+from flaghunter.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
+from flaghunter.runtime.runtime import LocalRuntime
+from flaghunter.tools.notes import get_all_notes_sync, set_notes_file
+from flaghunter.tools.tool_guard import ToolStatus
 
 
 FLAG_VALUE = "flag{acceptance_dispatcher_sqli_ok}"
@@ -211,7 +211,7 @@ async def test_ctf_dispatcher_acceptance_shortest_path_not_blocked_by_optional_t
             return ToolStatus(available=True, path=f"synthetic:{normalized}", version=None)
 
         monkeypatch.setattr(
-            "pentestagent.tools.tool_guard.ToolGuard.check",
+            "flaghunter.tools.tool_guard.ToolGuard.check",
             _check_with_optional_tools_missing,
         )
 

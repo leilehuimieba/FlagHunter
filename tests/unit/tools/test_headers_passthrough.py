@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from pentestagent.tools.dirscan import run_dirscan
-from pentestagent.tools.nuclei import run_nuclei
-from pentestagent.tools.sqlmap import run_sqlmap
+from flaghunter.tools.dirscan import run_dirscan
+from flaghunter.tools.nuclei import run_nuclei
+from flaghunter.tools.sqlmap import run_sqlmap
 
 
 class _CommandResult:

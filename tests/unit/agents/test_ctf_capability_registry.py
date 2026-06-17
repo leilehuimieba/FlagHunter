@@ -4,8 +4,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from pentestagent.agents.pa_agent.capability_registry import CapabilityRegistry
-from pentestagent.tools.tool_guard import ToolStatus
+from flaghunter.agents.pa_agent.capability_registry import CapabilityRegistry
+from flaghunter.tools.tool_guard import ToolStatus
 
 
 class _FakeToolGuard:

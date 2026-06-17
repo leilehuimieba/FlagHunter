@@ -10,10 +10,10 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 
-import pentestagent.tools.notes as notes_module
-from pentestagent.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
-from pentestagent.runtime.runtime import LocalRuntime
-from pentestagent.tools.notes import set_notes_file
+import flaghunter.tools.notes as notes_module
+from flaghunter.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
+from flaghunter.runtime.runtime import LocalRuntime
+from flaghunter.tools.notes import set_notes_file
 
 
 FLAG_VALUE = "flag{easy_jinja2_acceptance_ok}"

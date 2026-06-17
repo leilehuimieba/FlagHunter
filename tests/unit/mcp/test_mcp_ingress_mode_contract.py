@@ -2,21 +2,21 @@ from __future__ import annotations
 
 import sys
 import types
-import pentestagent.config.settings as settings_module
+import flaghunter.config.settings as settings_module
 
 from types import SimpleNamespace
 
 import pytest
 
-from pentestagent.agents.pa_agent.ctf_state import CTFState
-from pentestagent.harness.artifact_registry import ArtifactRegistry
-from pentestagent.harness.audit_events import (
+from flaghunter.agents.pa_agent.ctf_state import CTFState
+from flaghunter.harness.artifact_registry import ArtifactRegistry
+from flaghunter.harness.audit_events import (
     build_control_action_completed_event,
     build_control_action_started_event,
 )
-from pentestagent.harness.checkpoint_store import CheckpointStore
-from pentestagent.harness.session_ledger import SessionLedger
-from pentestagent.mcp.server import mcp_tools
+from flaghunter.harness.checkpoint_store import CheckpointStore
+from flaghunter.harness.session_ledger import SessionLedger
+from flaghunter.mcp.server import mcp_tools
 
 
 class _PrimaryAgentStub:
@@ -947,9 +947,9 @@ async def test_run_task_routes_ctf_mode_into_dispatcher_with_explicit_challenge_
             captured["ingress_handoff"] = ingress_handoff
             return SimpleNamespace(flag="flag{mcp_ctf_ok}", reason="ok", chain_used=["xss"], missing_tools=[], notes=[])
 
-    fake_dispatcher_module = types.ModuleType("pentestagent.agents.pa_agent.ctf_dispatcher")
+    fake_dispatcher_module = types.ModuleType("flaghunter.agents.pa_agent.ctf_dispatcher")
     fake_dispatcher_module.CTFTaskDispatcher = _FakeDispatcher
-    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent.ctf_dispatcher", fake_dispatcher_module)
+    monkeypatch.setitem(sys.modules, "flaghunter.agents.pa_agent.ctf_dispatcher", fake_dispatcher_module)
     monkeypatch.setattr(mcp_tools, "_make_agent", fake_make_agent)
     monkeypatch.setattr(mcp_tools, "resolve_mode_contract", fake_resolve_mode_contract, raising=False)
 
@@ -1021,9 +1021,9 @@ async def test_run_task_routes_structured_probe_endpoint_handoff_into_dispatcher
             captured["ingress_handoff"] = ingress_handoff
             return SimpleNamespace(flag="flag{mcp_structured_endpoint_ok}", reason="ok", chain_used=["recon"], missing_tools=[], notes=[])
 
-    fake_dispatcher_module = types.ModuleType("pentestagent.agents.pa_agent.ctf_dispatcher")
+    fake_dispatcher_module = types.ModuleType("flaghunter.agents.pa_agent.ctf_dispatcher")
     fake_dispatcher_module.CTFTaskDispatcher = _FakeDispatcher
-    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent.ctf_dispatcher", fake_dispatcher_module)
+    monkeypatch.setitem(sys.modules, "flaghunter.agents.pa_agent.ctf_dispatcher", fake_dispatcher_module)
     monkeypatch.setattr(mcp_tools, "_make_agent", fake_make_agent)
     monkeypatch.setattr(mcp_tools, "resolve_mode_contract", fake_resolve_mode_contract, raising=False)
 
@@ -1086,9 +1086,9 @@ async def test_run_task_async_background_ctf_path_uses_explicit_challenge_contex
         captured["scheduled_coro"] = coro
         return SimpleNamespace(done=lambda: False)
 
-    fake_dispatcher_module = types.ModuleType("pentestagent.agents.pa_agent.ctf_dispatcher")
+    fake_dispatcher_module = types.ModuleType("flaghunter.agents.pa_agent.ctf_dispatcher")
     fake_dispatcher_module.CTFTaskDispatcher = _FakeDispatcher
-    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent.ctf_dispatcher", fake_dispatcher_module)
+    monkeypatch.setitem(sys.modules, "flaghunter.agents.pa_agent.ctf_dispatcher", fake_dispatcher_module)
     monkeypatch.setattr(mcp_tools, "_make_agent", fake_make_agent)
     monkeypatch.setattr(mcp_tools.asyncio, "create_task", fake_create_task)
     monkeypatch.setattr(mcp_tools, "resolve_mode_contract", fake_resolve_mode_contract, raising=False)
@@ -1154,7 +1154,7 @@ async def test_run_task_persists_ctf_dispatcher_truth_fields_for_followup_inspec
 
     class _FakeDispatcher:
         def __init__(self, runtime, progress_callback=None, verification_callback=None):
-            from pentestagent.agents.pa_agent.ctf_state import CTFState
+            from flaghunter.agents.pa_agent.ctf_state import CTFState
 
             self.state = CTFState(target="http://challenge.test", goal="solve from MCP truth fields")
             self.state.add_observation(
@@ -1184,9 +1184,9 @@ async def test_run_task_persists_ctf_dispatcher_truth_fields_for_followup_inspec
                 notes=["reused admin sid", "collector hit /admin"],
             )
 
-    fake_dispatcher_module = types.ModuleType("pentestagent.agents.pa_agent.ctf_dispatcher")
+    fake_dispatcher_module = types.ModuleType("flaghunter.agents.pa_agent.ctf_dispatcher")
     fake_dispatcher_module.CTFTaskDispatcher = _FakeDispatcher
-    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent.ctf_dispatcher", fake_dispatcher_module)
+    monkeypatch.setitem(sys.modules, "flaghunter.agents.pa_agent.ctf_dispatcher", fake_dispatcher_module)
     monkeypatch.setattr(mcp_tools, "_make_agent", fake_make_agent)
     monkeypatch.setattr(mcp_tools, "resolve_mode_contract", fake_resolve_mode_contract, raising=False)
 

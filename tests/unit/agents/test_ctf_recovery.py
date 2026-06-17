@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from pentestagent.agents.pa_agent.ctf_state import CTFState, Hypothesis
-from pentestagent.agents.pa_agent.hypothesis_engine import HypothesisEngine
-from pentestagent.agents.pa_agent.recovery import RecoveryController
+from flaghunter.agents.pa_agent.ctf_state import CTFState, Hypothesis
+from flaghunter.agents.pa_agent.hypothesis_engine import HypothesisEngine
+from flaghunter.agents.pa_agent.recovery import RecoveryController
 
 
 def _state_with_xss_and_web_hypotheses() -> CTFState:

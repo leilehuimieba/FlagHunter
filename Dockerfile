@@ -45,26 +45,26 @@ WORKDIR /app
 
 # Install Python dependencies
 COPY pyproject.toml README.md ./
-RUN mkdir -p pentestagent && touch pentestagent/__init__.py && \
+RUN mkdir -p flaghunter && touch flaghunter/__init__.py && \
     pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -e ".[rag]"
 
 # Create non-root user for security
-RUN useradd -m -s /bin/bash pentestagent && \
-    chown -R pentestagent:pentestagent /app
+RUN useradd -m -s /bin/bash flaghunter && \
+    chown -R flaghunter:flaghunter /app
 
 RUN playwright install-deps
 
 # Switch to non-root user (can switch back for privileged operations)
-USER pentestagent
+USER flaghunter
 
 RUN playwright install
 
 # Copy application code
-COPY --chown=pentestagent:pentestagent . .
+COPY --chown=flaghunter:flaghunter . .
 
 # Expose any needed ports
 EXPOSE 8080
 
 # Default command
-CMD ["python", "-m", "pentestagent"]
+CMD ["python", "-m", "flaghunter"]

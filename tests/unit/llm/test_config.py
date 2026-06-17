@@ -1,8 +1,8 @@
-"""Tests for pentestagent.llm.config."""
+"""Tests for flaghunter.llm.config."""
 
 import pytest
 
-from pentestagent.llm.config import (
+from flaghunter.llm.config import (
     BALANCED_CONFIG,
     CREATIVE_CONFIG,
     PRECISE_CONFIG,

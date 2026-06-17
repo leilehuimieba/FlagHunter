@@ -7,8 +7,8 @@ import pytest
 pytest.importorskip("textual")
 from textual import events
 
-from pentestagent.agents.base_agent import AgentMessage
-from pentestagent.interface.tui import ChatInputTextArea, PentestAgentTUI
+from flaghunter.agents.base_agent import AgentMessage
+from flaghunter.interface.tui import ChatInputTextArea, PentestAgentTUI
 
 
 def test_chat_input_text_area_enter_posts_submitted_message(monkeypatch):
@@ -502,7 +502,7 @@ async def test_ctf_memory_subcommand_renders_audit_and_recent_entries(monkeypatc
             return [_FakeEntry()]
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.strategy_memory.StrategyMemoryStore",
+        "flaghunter.agents.pa_agent.strategy_memory.StrategyMemoryStore",
         _FakeStore,
     )
 
@@ -546,11 +546,11 @@ async def test_providers_command_alias_reuses_api_status(monkeypatch):
             }
 
     monkeypatch.setattr(
-        "pentestagent.cpa_modules.m1_api_hub.get_provider_manager",
+        "flaghunter.cpa_modules.m1_api_hub.get_provider_manager",
         lambda: _FakeProviderManager(),
     )
     monkeypatch.setattr(
-        "pentestagent.cpa_modules.m1_api_hub.get_cost_tracker",
+        "flaghunter.cpa_modules.m1_api_hub.get_cost_tracker",
         lambda: _FakeCostTracker(),
     )
 
@@ -595,7 +595,7 @@ async def test_ctf_hint_subcommand_records_hint_and_restarts_dispatcher(monkeypa
         return {"ok": True}
 
     monkeypatch.setattr(
-        "pentestagent.tools.notes.notes",
+        "flaghunter.tools.notes.notes",
         _fake_notes,
     )
 
@@ -699,7 +699,7 @@ async def test_ctf_hint_subcommand_restarts_crew_when_last_mode_is_crew(monkeypa
         notes_calls.append((payload, runtime))
         return {"ok": True}
 
-    monkeypatch.setattr("pentestagent.tools.notes.notes", _fake_notes)
+    monkeypatch.setattr("flaghunter.tools.notes.notes", _fake_notes)
 
     captured = {}
 
@@ -785,7 +785,7 @@ async def test_ctf_hint_subcommand_restarts_from_session_context_resume_payload_
         return {"ok": True}
 
     monkeypatch.setattr(
-        "pentestagent.tools.notes.notes",
+        "flaghunter.tools.notes.notes",
         _fake_notes,
     )
 
@@ -850,7 +850,7 @@ async def test_ctf_wrong_subcommand_restarts_crew_when_last_mode_is_crew(monkeyp
     async def _fake_wrong_feedback(flag: str):
         return f"wrong-flag recovery: {flag}"
 
-    monkeypatch.setattr("pentestagent.tools.notes.notes", _fake_notes)
+    monkeypatch.setattr("flaghunter.tools.notes.notes", _fake_notes)
     tui._apply_ctf_wrong_flag_feedback = _fake_wrong_feedback
     tui._show_ctf_memory_panel = lambda *args, **kwargs: None
 
@@ -941,8 +941,8 @@ async def test_save_current_conversation_persists_last_ctf_handoff_metadata(monk
     async def _fake_save_session_state():
         captured["saved_session_state"] = True
 
-    monkeypatch.setattr("pentestagent.workspaces.utils.get_conversations_base", lambda: Path("D:/tmp/conversations"))
-    monkeypatch.setattr("pentestagent.interface.conversation_store.ConversationStore", _FakeConversationStore)
+    monkeypatch.setattr("flaghunter.workspaces.utils.get_conversations_base", lambda: Path("D:/tmp/conversations"))
+    monkeypatch.setattr("flaghunter.interface.conversation_store.ConversationStore", _FakeConversationStore)
     tui._save_session_state = _fake_save_session_state
 
     await PentestAgentTUI._save_current_conversation(tui)
@@ -1009,8 +1009,8 @@ async def test_restore_conversation_hydrates_last_ctf_context_from_saved_handoff
         async def remove_children(self):
             return None
 
-    monkeypatch.setattr("pentestagent.workspaces.utils.get_conversations_base", lambda: Path("D:/tmp/conversations"))
-    monkeypatch.setattr("pentestagent.interface.conversation_store.ConversationStore", _FakeConversationStore)
+    monkeypatch.setattr("flaghunter.workspaces.utils.get_conversations_base", lambda: Path("D:/tmp/conversations"))
+    monkeypatch.setattr("flaghunter.interface.conversation_store.ConversationStore", _FakeConversationStore)
     tui.query_one = lambda *args, **kwargs: _FakeScroll()
 
     await PentestAgentTUI._restore_conversation(tui, "conv-restore")
@@ -1040,7 +1040,7 @@ async def test_ctf_override_subcommand_promotes_flag_to_verified(monkeypatch):
         return {"ok": True}
 
     monkeypatch.setattr(
-        "pentestagent.tools.notes.notes",
+        "flaghunter.tools.notes.notes",
         _fake_notes,
     )
 
@@ -1155,7 +1155,7 @@ async def test_ctf_memory_list_show_mute_commands(monkeypatch):
             return [_FakeEntry(status="muted")]
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.strategy_memory.StrategyMemoryStore",
+        "flaghunter.agents.pa_agent.strategy_memory.StrategyMemoryStore",
         _FakeStore,
     )
 
@@ -1233,7 +1233,7 @@ async def test_ctf_memory_activate_rollback_delete_export_clear_and_panel(monkey
             return 3
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.strategy_memory.StrategyMemoryStore",
+        "flaghunter.agents.pa_agent.strategy_memory.StrategyMemoryStore",
         _FakeStore,
     )
     tui._show_ctf_memory_panel = (
@@ -1310,7 +1310,7 @@ async def test_ctf_wrong_flag_feedback_updates_stop_report_and_memory(monkeypatc
             }
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.strategy_memory.StrategyMemoryStore",
+        "flaghunter.agents.pa_agent.strategy_memory.StrategyMemoryStore",
         _FakeStore,
     )
 
@@ -1426,9 +1426,9 @@ async def test_ctf_crew_dispatcher_mode_carries_platform_switch_context_across_a
         return None
 
     tui._save_current_conversation = _fake_save
-    monkeypatch.setattr("pentestagent.interface.tui.asyncio.sleep", _fast_sleep)
+    monkeypatch.setattr("flaghunter.interface.tui.asyncio.sleep", _fast_sleep)
 
-    from pentestagent.agents.pa_agent.ctf_state import CTFState
+    from flaghunter.agents.pa_agent.ctf_state import CTFState
 
     class _FakeCapabilityRegistry:
         async def full_check(self):
@@ -1519,7 +1519,7 @@ async def test_ctf_crew_dispatcher_mode_carries_platform_switch_context_across_a
             return "platform challenge already solved"
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.CTFTaskDispatcher",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.CTFTaskDispatcher",
         _FakeDispatcher,
     )
 
@@ -1577,7 +1577,7 @@ async def test_ctf_crew_dispatcher_mode_writes_platform_stop_summary_for_blocked
         return None
 
     tui._save_current_conversation = _fake_save
-    monkeypatch.setattr("pentestagent.interface.tui.asyncio.sleep", _fast_sleep)
+    monkeypatch.setattr("flaghunter.interface.tui.asyncio.sleep", _fast_sleep)
 
     class _FakeCapabilityRegistry:
         async def full_check(self):
@@ -1688,15 +1688,15 @@ async def test_ctf_crew_dispatcher_mode_writes_platform_stop_summary_for_blocked
             return _CrewSummary()
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.CTFTaskDispatcher",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.CTFTaskDispatcher",
         _FakeDispatcher,
     )
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_crew_coordinator.CTFCrewCoordinator",
+        "flaghunter.agents.pa_agent.ctf_crew_coordinator.CTFCrewCoordinator",
         _FakeCoordinator,
     )
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_planner.detect_type",
+        "flaghunter.agents.pa_agent.ctf_planner.detect_type",
         lambda page_source, url: "web",
     )
 

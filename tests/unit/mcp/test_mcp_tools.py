@@ -1,11 +1,11 @@
-"""Tests for pentestagent.mcp.tools (create_mcp_tool, format_mcp_result)."""
+"""Tests for flaghunter.mcp.tools (create_mcp_tool, format_mcp_result)."""
 
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from pentestagent.mcp.tools import create_mcp_tool, format_mcp_result
-from pentestagent.tools.registry import Tool
+from flaghunter.mcp.tools import create_mcp_tool, format_mcp_result
+from flaghunter.tools.registry import Tool
 
 
 # ---------------------------------------------------------------------------

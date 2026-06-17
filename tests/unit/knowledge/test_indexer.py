@@ -1,16 +1,16 @@
-"""Tests for pentestagent.knowledge.indexer (KnowledgeIndexer)."""
+"""Tests for flaghunter.knowledge.indexer (KnowledgeIndexer)."""
 
 import json
 from pathlib import Path
 
 import pytest
 
-from pentestagent.knowledge.indexer import (
+from flaghunter.knowledge.indexer import (
     IndexingResult,
     KnowledgeIndexer,
     resolve_knowledge_scan_paths,
 )
-from pentestagent.knowledge.rag import Document
+from flaghunter.knowledge.rag import Document
 
 
 # ---------------------------------------------------------------------------

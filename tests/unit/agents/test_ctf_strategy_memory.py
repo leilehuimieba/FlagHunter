@@ -4,8 +4,8 @@ import time
 
 import pytest
 
-from pentestagent.agents.pa_agent.ctf_state import CTFState
-from pentestagent.agents.pa_agent.strategy_memory import (
+from flaghunter.agents.pa_agent.ctf_state import CTFState
+from flaghunter.agents.pa_agent.strategy_memory import (
     ChallengeFingerprint,
     StrategyMemoryEntry,
     StrategyMemoryEntryMetadata,

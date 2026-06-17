@@ -68,7 +68,7 @@ RUN python3 -m venv /opt/venv && \
 # Install heavy dependencies first (helps with CI memory limits)
 RUN /opt/venv/bin/pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 RUN /opt/venv/bin/pip install --no-cache-dir sentence-transformers faiss-cpu
-RUN mkdir -p pentestagent && touch pentestagent/__init__.py && \
+RUN mkdir -p flaghunter && touch flaghunter/__init__.py && \
     /opt/venv/bin/pip install --no-cache-dir -e ".[rag]"
 
 # Add venv to PATH
@@ -89,4 +89,4 @@ COPY docker-entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["python3", "-m", "pentestagent"]
+CMD ["python3", "-m", "flaghunter"]

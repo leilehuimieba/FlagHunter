@@ -1,8 +1,8 @@
-"""Tests for pentestagent.tools.msf."""
+"""Tests for flaghunter.tools.msf."""
 
 import pytest
 
-from pentestagent.tools import msf as msf_module
+from flaghunter.tools import msf as msf_module
 
 
 class _DummyModule:

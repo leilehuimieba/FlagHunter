@@ -5,11 +5,11 @@ from types import SimpleNamespace
 
 import pytest
 
-import pentestagent.tools.notes as notes_module
-from pentestagent.agents.pa_agent.pa_agent import PentestAgentAgent
-from pentestagent.tools.executor import ToolExecutor
-from pentestagent.tools.notes import set_notes_file
-from pentestagent.tools.registry import Tool, ToolSchema
+import flaghunter.tools.notes as notes_module
+from flaghunter.agents.pa_agent.pa_agent import PentestAgentAgent
+from flaghunter.tools.executor import ToolExecutor
+from flaghunter.tools.notes import set_notes_file
+from flaghunter.tools.registry import Tool, ToolSchema
 
 
 class _PlannerAwareLLM:

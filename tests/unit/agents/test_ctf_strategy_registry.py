@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from pentestagent.agents.pa_agent.strategy_registry import (
+from flaghunter.agents.pa_agent.strategy_registry import (
     StrategyContext,
     StrategyRegistry,
 )

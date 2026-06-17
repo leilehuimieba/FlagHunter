@@ -2,38 +2,48 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import inspect
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
 
 import pytest
 
-from pentestagent.agents.pa_agent.ctf_dispatcher import (
+from flaghunter.agents.pa_agent.ctf_dispatcher import (
     CTFTaskDispatcher,
     _normalize_contact_captcha_text,
     _normalize_exploration_url,
     _quote_sql_identifier,
     _solve_contact_pow_solution,
 )
-from pentestagent.agents.pa_agent.capability_registry import CapabilityEntry
-from pentestagent.agents.pa_agent.ctf_planner import find_auth_form
-from pentestagent.agents.pa_agent.ctf_state import CTFState
-from pentestagent.agents.pa_agent.strategy_memory import (
+from flaghunter.agents.pa_agent.capability_registry import CapabilityEntry
+from flaghunter.agents.pa_agent.ctf_planner import find_auth_form
+from flaghunter.agents.pa_agent.ctf_state import CTFState
+from flaghunter.agents.pa_agent.strategy_memory import (
     ChallengeFingerprint,
     StrategyMemoryEntry,
     StrategyMemoryEntryMetadata,
     StrategyMemoryStore,
 )
-from pentestagent.tools.notes import set_notes_file
-import pentestagent.tools.notes as notes_module
-import pentestagent.agents.pa_agent.ctf_dispatcher as ctf_dispatcher
+from flaghunter.tools.notes import set_notes_file
+import flaghunter.tools.notes as notes_module
+import flaghunter.agents.pa_agent.ctf_dispatcher as ctf_dispatcher
+
+
+def test_execute_chain_routes_through_handler_map_without_chain_specific_branches():
+    source = inspect.getsource(CTFTaskDispatcher._execute_chain)
+
+    assert "_chain_handler_map" in source
+    assert "chain_name in" not in source
+    assert "chain_name ==" not in source
+    assert "elif chain_name" not in source
 
 
 def test_collector_public_host_prefers_host_docker_internal_for_local_targets(monkeypatch):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher._guess_local_ip",
+        "flaghunter.agents.pa_agent.ctf_dispatcher._guess_local_ip",
         lambda: "100.2.198.163",
     )
-    from pentestagent.agents.pa_agent.ctf_dispatcher import _collector_public_host_for_target
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _collector_public_host_for_target
 
     assert _collector_public_host_for_target("http://127.0.0.1:3000") == "host.docker.internal"
     assert _collector_public_host_for_target("http://localhost:3000") == "host.docker.internal"
@@ -1418,11 +1428,11 @@ class _FakeOwnedFailoverMonitor:
 @pytest.mark.asyncio
 async def test_ctf_dispatcher_solves_stored_xss(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher._guess_local_ip",
+        "flaghunter.agents.pa_agent.ctf_dispatcher._guess_local_ip",
         lambda: "127.0.0.1",
     )
     set_notes_file(tmp_path / "notes.json")
@@ -1462,7 +1472,7 @@ async def test_ctf_dispatcher_solves_stored_xss(monkeypatch, tmp_path):
 @pytest.mark.asyncio
 async def test_visit_url_modes_exhausted_without_sid_or_flag_is_not_progress(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_visit_url_exhausted.json")
@@ -1507,7 +1517,7 @@ async def test_visit_url_modes_exhausted_without_sid_or_flag_is_not_progress(mon
             return next(hits)
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher._CollectorServer",
+        "flaghunter.agents.pa_agent.ctf_dispatcher._CollectorServer",
         _FakeCollectorServer,
     )
 
@@ -1541,7 +1551,7 @@ async def test_visit_url_modes_exhausted_without_sid_or_flag_is_not_progress(mon
 @pytest.mark.asyncio
 async def test_visit_url_exhaustion_is_not_replayed_across_web_and_xss_chains(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_visit_url_dedupe.json")
@@ -1586,7 +1596,7 @@ async def test_visit_url_exhaustion_is_not_replayed_across_web_and_xss_chains(mo
             return next(hits)
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher._CollectorServer",
+        "flaghunter.agents.pa_agent.ctf_dispatcher._CollectorServer",
         _FakeCollectorServer,
     )
 
@@ -1594,7 +1604,7 @@ async def test_visit_url_exhaustion_is_not_replayed_across_web_and_xss_chains(mo
     dispatcher = CTFTaskDispatcher(runtime=runtime, progress_callback=None, verification_callback=lambda flag: "yes")
     dispatcher.state = CTFState(target="http://127.0.0.1:3000", goal="拿到flag", detected_type="web")
 
-    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _ChainOutcome
 
     async def _fake_execute_web_chain(target: str, page_features: dict[str, object], hint: str) -> _ChainOutcome:
         return _ChainOutcome(progress=False, reason="web exhausted")
@@ -1644,7 +1654,7 @@ async def test_visit_url_exhaustion_is_not_replayed_across_web_and_xss_chains(mo
 @pytest.mark.asyncio
 async def test_xss_chain_can_pivot_to_local_compose_logs_for_admin_login(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     challenge_dir = tmp_path / "easy_login"
@@ -1701,7 +1711,7 @@ async def test_local_compose_log_pivot_prefers_discovered_login_endpoint_over_ro
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     challenge_dir = tmp_path / "easy_login_js_form"
@@ -1753,7 +1763,7 @@ async def test_local_compose_log_pivot_prefers_registered_artifact_truth_over_mi
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     challenge_dir = tmp_path / "easy_login_registry"
@@ -1834,7 +1844,7 @@ async def test_local_compose_log_pivot_uses_source_hint_admin_route_when_endpoin
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     challenge_dir = tmp_path / "easy_login_source_admin"
@@ -1900,7 +1910,7 @@ async def test_local_compose_log_pivot_prefers_source_hint_login_route_over_root
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     challenge_dir = tmp_path / "easy_login_source_login"
@@ -1965,7 +1975,7 @@ async def test_local_compose_log_pivot_replays_generic_session_cookie_from_login
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     challenge_dir = tmp_path / "easy_login_session_cookie"
@@ -2673,7 +2683,7 @@ def test_select_primary_strategy_prefers_backup_source_leak_from_structured_trig
 async def test_execute_web_chain_runs_backup_source_before_contact_when_local_source_hints_exist(
     monkeypatch,
 ):
-    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _ChainOutcome
 
     dispatcher = CTFTaskDispatcher(
         runtime=_DispatcherRuntime(),
@@ -2700,7 +2710,7 @@ async def test_execute_web_chain_runs_backup_source_before_contact_when_local_so
 
     monkeypatch.setattr(dispatcher.strategy_registry, "execute", _wrapped_execute)
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -2725,7 +2735,7 @@ async def test_execute_web_chain_runs_backup_source_before_contact_when_local_so
 async def test_execute_web_chain_runs_hash_guarded_before_backup_when_filehash_source_hints_exist(
     monkeypatch,
 ):
-    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _ChainOutcome
 
     dispatcher = CTFTaskDispatcher(
         runtime=_DispatcherRuntime(),
@@ -2752,7 +2762,7 @@ async def test_execute_web_chain_runs_hash_guarded_before_backup_when_filehash_s
 
     monkeypatch.setattr(dispatcher.strategy_registry, "execute", _wrapped_execute)
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -2777,7 +2787,7 @@ async def test_execute_web_chain_runs_hash_guarded_before_backup_when_filehash_s
 async def test_execute_web_chain_replays_prefix_strategies_when_backup_source_leak_discovers_source_hints(
     monkeypatch,
 ):
-    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _ChainOutcome
 
     dispatcher = CTFTaskDispatcher(
         runtime=_DispatcherRuntime(),
@@ -2815,7 +2825,7 @@ async def test_execute_web_chain_replays_prefix_strategies_when_backup_source_le
     monkeypatch.setattr(dispatcher.strategy_registry, "get", lambda kind: _FakeStrategy(kind))
     monkeypatch.setattr(dispatcher, "_strategies_for_chain", lambda *args, **kwargs: [])
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -2840,7 +2850,7 @@ async def test_execute_web_chain_replays_prefix_strategies_when_backup_source_le
 async def test_execute_web_chain_runs_hash_reconstruction_before_backup_when_cookie_secret_observed(
     monkeypatch,
 ):
-    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _ChainOutcome
 
     dispatcher = CTFTaskDispatcher(
         runtime=_DispatcherRuntime(),
@@ -2867,7 +2877,7 @@ async def test_execute_web_chain_runs_hash_reconstruction_before_backup_when_coo
 
     monkeypatch.setattr(dispatcher.strategy_registry, "execute", _wrapped_execute)
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -2892,7 +2902,7 @@ async def test_execute_web_chain_runs_hash_reconstruction_before_backup_when_coo
 async def test_execute_web_chain_runs_hint_chain_from_structured_trigger_reason_when_endpoint_not_rendered(
     monkeypatch,
 ):
-    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _ChainOutcome
 
     dispatcher = CTFTaskDispatcher(
         runtime=_DispatcherRuntime(),
@@ -2921,7 +2931,7 @@ async def test_execute_web_chain_runs_hint_chain_from_structured_trigger_reason_
 
     monkeypatch.setattr(dispatcher.strategy_registry, "execute", _wrapped_execute)
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -2946,7 +2956,7 @@ async def test_execute_web_chain_runs_hint_chain_from_structured_trigger_reason_
 async def test_execute_web_chain_runs_backup_source_before_contact_from_structured_trigger_reason(
     monkeypatch,
 ):
-    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _ChainOutcome
 
     dispatcher = CTFTaskDispatcher(
         runtime=_DispatcherRuntime(),
@@ -2973,7 +2983,7 @@ async def test_execute_web_chain_runs_backup_source_before_contact_from_structur
 
     monkeypatch.setattr(dispatcher.strategy_registry, "execute", _wrapped_execute)
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -2998,7 +3008,7 @@ async def test_execute_web_chain_runs_backup_source_before_contact_from_structur
 async def test_execute_web_chain_runs_php_unserialize_before_backup_when_source_hints_exist(
     monkeypatch,
 ):
-    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _ChainOutcome
 
     dispatcher = CTFTaskDispatcher(
         runtime=_DispatcherRuntime(),
@@ -3028,7 +3038,7 @@ async def test_execute_web_chain_runs_php_unserialize_before_backup_when_source_
 
     monkeypatch.setattr(dispatcher.strategy_registry, "execute", _wrapped_execute)
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -3053,7 +3063,7 @@ async def test_execute_web_chain_runs_php_unserialize_before_backup_when_source_
 async def test_execute_web_chain_runs_php_unserialize_before_backup_when_observed_exploit_candidate_exists(
     monkeypatch,
 ):
-    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _ChainOutcome
 
     dispatcher = CTFTaskDispatcher(
         runtime=_DispatcherRuntime(),
@@ -3087,7 +3097,7 @@ async def test_execute_web_chain_runs_php_unserialize_before_backup_when_observe
 
     monkeypatch.setattr(dispatcher.strategy_registry, "execute", _wrapped_execute)
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -3128,11 +3138,11 @@ async def test_run_backup_analysis_stores_php_unserialize_exploit_candidate_obse
 
     monkeypatch.setattr(dispatcher, "_scan_and_store", _fake_scan_and_store)
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher._pick_python_command",
+        "flaghunter.agents.pa_agent.ctf_dispatcher._pick_python_command",
         lambda runtime: "python",
     )
 
@@ -3178,17 +3188,17 @@ async def test_run_backup_analysis_stores_profile_photo_poisoning_exploit_candid
         return None
 
     async def _fake_attempt_profile(*args, **kwargs):
-        from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+        from flaghunter.agents.pa_agent.ctf_dispatcher import _ChainOutcome
         return _ChainOutcome(progress=True, reason="profile photo poisoning candidate")
 
     monkeypatch.setattr(dispatcher, "_scan_and_store", _fake_scan_and_store)
     monkeypatch.setattr(dispatcher, "_attempt_profile_photo_poisoning_chain", _fake_attempt_profile)
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher._pick_python_command",
+        "flaghunter.agents.pa_agent.ctf_dispatcher._pick_python_command",
         lambda runtime: "python",
     )
 
@@ -3228,18 +3238,18 @@ async def test_run_backup_analysis_stores_source_fetch_write_ssrf_observation(mo
         return None
 
     async def _fake_attempt_source_fetch(*args, **kwargs):
-        from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+        from flaghunter.agents.pa_agent.ctf_dispatcher import _ChainOutcome
 
         return _ChainOutcome(progress=True, reason="source fetch/write candidate")
 
     monkeypatch.setattr(dispatcher, "_scan_and_store", _fake_scan_and_store)
     monkeypatch.setattr(dispatcher, "_attempt_source_fetch_write_ssrf_chain", _fake_attempt_source_fetch)
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher._pick_python_command",
+        "flaghunter.agents.pa_agent.ctf_dispatcher._pick_python_command",
         lambda runtime: "python",
     )
 
@@ -3309,7 +3319,7 @@ def test_recent_local_profile_photo_poisoning_source_exploit_derives_exploit_inf
 @pytest.mark.asyncio
 async def test_profile_photo_poisoning_returns_runtime_flag(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_profile_photo_runtime_flag.json")
@@ -3365,7 +3375,7 @@ async def test_profile_photo_poisoning_returns_runtime_flag(monkeypatch, tmp_pat
 async def test_execute_web_chain_runs_profile_photo_poisoning_before_backup_when_source_hints_exist(
     monkeypatch,
 ):
-    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _ChainOutcome
 
     dispatcher = CTFTaskDispatcher(
         runtime=_DispatcherRuntime(),
@@ -3409,7 +3419,7 @@ async def test_execute_web_chain_runs_profile_photo_poisoning_before_backup_when
     monkeypatch.setattr(dispatcher, "_attempt_profile_photo_poisoning_chain", _fake_attempt_profile)
     monkeypatch.setattr(dispatcher.strategy_registry, "execute", _wrapped_execute)
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -3436,7 +3446,7 @@ async def test_execute_web_chain_runs_profile_photo_poisoning_before_backup_when
 async def test_execute_web_chain_runs_profile_photo_poisoning_before_backup_when_observed_exploit_candidate_exists(
     monkeypatch,
 ):
-    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _ChainOutcome
 
     dispatcher = CTFTaskDispatcher(
         runtime=_DispatcherRuntime(),
@@ -3474,7 +3484,7 @@ async def test_execute_web_chain_runs_profile_photo_poisoning_before_backup_when
 
     monkeypatch.setattr(dispatcher, "_attempt_profile_photo_poisoning_chain", _fake_attempt_profile)
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -3500,7 +3510,7 @@ async def test_execute_web_chain_runs_profile_photo_poisoning_before_backup_when
 async def test_execute_xss_chain_runs_stored_xss_when_source_hints_expose_visit_admin_routes(
     monkeypatch,
 ):
-    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _ChainOutcome
 
     dispatcher = CTFTaskDispatcher(
         runtime=_DispatcherRuntime(),
@@ -3527,7 +3537,7 @@ async def test_execute_xss_chain_runs_stored_xss_when_source_hints_expose_visit_
 
     monkeypatch.setattr(dispatcher.strategy_registry, "execute", _wrapped_execute)
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -3560,7 +3570,7 @@ async def test_execute_xss_chain_runs_stored_xss_when_source_hints_expose_visit_
 async def test_execute_chain_web_returns_xss_progress_from_source_hints_before_web_fallback(
     monkeypatch,
 ):
-    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _ChainOutcome
 
     dispatcher = CTFTaskDispatcher(
         runtime=_DispatcherRuntime(),
@@ -3595,7 +3605,7 @@ async def test_execute_chain_web_returns_xss_progress_from_source_hints_before_w
     monkeypatch.setattr(dispatcher.strategy_registry, "execute", _wrapped_execute)
     monkeypatch.setattr(dispatcher, "_execute_web_chain", _fake_web_chain)
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -3633,7 +3643,7 @@ async def test_execute_chain_web_returns_xss_progress_from_source_hints_before_w
 async def test_execute_xss_chain_runs_visit_url_fallback_from_source_hints_when_endpoint_not_rendered(
     monkeypatch,
 ):
-    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _ChainOutcome
 
     dispatcher = CTFTaskDispatcher(
         runtime=_DispatcherRuntime(),
@@ -3653,7 +3663,7 @@ async def test_execute_xss_chain_runs_visit_url_fallback_from_source_hints_when_
     )
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -3682,7 +3692,7 @@ async def test_execute_xss_chain_runs_visit_url_fallback_from_source_hints_when_
 async def test_execute_xss_chain_runs_visit_url_fallback_from_structured_trigger_reason(
     monkeypatch,
 ):
-    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _ChainOutcome
 
     dispatcher = CTFTaskDispatcher(
         runtime=_DispatcherRuntime(),
@@ -3702,7 +3712,7 @@ async def test_execute_xss_chain_runs_visit_url_fallback_from_structured_trigger
     }
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -3730,7 +3740,7 @@ async def test_execute_xss_chain_runs_visit_url_fallback_from_structured_trigger
 @pytest.mark.asyncio
 async def test_ctf_dispatcher_solves_auth_form_sqli(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_sqli.json")
@@ -3770,7 +3780,7 @@ async def test_ctf_dispatcher_solves_auth_form_sqli(monkeypatch, tmp_path):
 @pytest.mark.asyncio
 async def test_ctf_dispatcher_auto_primes_capabilities_for_generic_get_sqli(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_generic_get_sqli.json")
@@ -3816,10 +3826,10 @@ async def test_ctf_dispatcher_auto_primes_capabilities_for_generic_get_sqli(monk
         }
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.capability_registry.CapabilityRegistry.full_check",
+        "flaghunter.agents.pa_agent.capability_registry.CapabilityRegistry.full_check",
         _fake_full_check,
     )
-    monkeypatch.setattr("pentestagent.tools.sqlmap.run_sqlmap", _fake_run_sqlmap)
+    monkeypatch.setattr("flaghunter.tools.sqlmap.run_sqlmap", _fake_run_sqlmap)
 
     result = await dispatcher.run(
         target="http://ctf.local/",
@@ -3843,7 +3853,7 @@ async def test_ctf_dispatcher_auto_primes_capabilities_for_generic_get_sqli(monk
 @pytest.mark.asyncio
 async def test_ctf_dispatcher_falls_back_to_stacked_query_generic_get_sqli(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_generic_get_stacked_sqli.json")
@@ -3881,10 +3891,10 @@ async def test_ctf_dispatcher_falls_back_to_stacked_query_generic_get_sqli(monke
         }
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.capability_registry.CapabilityRegistry.full_check",
+        "flaghunter.agents.pa_agent.capability_registry.CapabilityRegistry.full_check",
         _fake_full_check,
     )
-    monkeypatch.setattr("pentestagent.tools.sqlmap.run_sqlmap", _fake_run_sqlmap)
+    monkeypatch.setattr("flaghunter.tools.sqlmap.run_sqlmap", _fake_run_sqlmap)
 
     result = await dispatcher.run(
         target="http://ctf.local/",
@@ -3908,7 +3918,7 @@ async def test_ctf_dispatcher_falls_back_to_stacked_query_generic_get_sqli(monke
 @pytest.mark.asyncio
 async def test_ctf_dispatcher_uses_stacked_query_fallback_without_sqlmap(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_generic_get_no_sqlmap.json")
@@ -3941,10 +3951,10 @@ async def test_ctf_dispatcher_uses_stacked_query_fallback_without_sqlmap(monkeyp
         raise AssertionError("sqlmap should not be called when only manual_payload_via_requests is available")
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.capability_registry.CapabilityRegistry.full_check",
+        "flaghunter.agents.pa_agent.capability_registry.CapabilityRegistry.full_check",
         _fake_full_check,
     )
-    monkeypatch.setattr("pentestagent.tools.sqlmap.run_sqlmap", _unexpected_run_sqlmap)
+    monkeypatch.setattr("flaghunter.tools.sqlmap.run_sqlmap", _unexpected_run_sqlmap)
 
     result = await dispatcher.run(
         target="http://ctf.local/",
@@ -3987,7 +3997,7 @@ def test_quote_sql_identifier_escapes_backticks_for_stacked_sqli():
 @pytest.mark.asyncio
 async def test_ctf_dispatcher_solves_unicode_numeric_form_bypass(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_unicode_numeric.json")
@@ -4033,11 +4043,11 @@ async def test_ctf_dispatcher_solves_auth_form_sqli_via_proxy_fallback(
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.check",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.check",
         lambda self, tool_name: SimpleNamespace(
             available=tool_name in {"http_request", "terminal"},
             path=f"fake:{tool_name}" if tool_name in {"http_request", "terminal"} else None,
@@ -4088,7 +4098,7 @@ async def test_ctf_dispatcher_does_not_repeat_same_render_surface_after_exhausti
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_render_surface.json")
@@ -4242,7 +4252,7 @@ async def test_ctf_dispatcher_phase_recon_bootstraps_post_auth_surface():
 @pytest.mark.asyncio
 async def test_ctf_dispatcher_auto_registers_then_solves_post_auth_upload(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_post_auth_upload.json")
@@ -4255,7 +4265,7 @@ async def test_ctf_dispatcher_auto_registers_then_solves_post_auth_upload(monkey
         return self
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.capability_registry.CapabilityRegistry.full_check",
+        "flaghunter.agents.pa_agent.capability_registry.CapabilityRegistry.full_check",
         _skip_capability_check,
     )
 
@@ -4356,7 +4366,7 @@ async def test_ctf_dispatcher_post_auth_recon_rejects_csrf_403_surface():
 
 @pytest.mark.asyncio
 async def test_ctf_dispatcher_failover_monitor_start_failure_does_not_break_run(monkeypatch, tmp_path):
-    import pentestagent.cpa_modules.m1_api_hub as m1_api_hub
+    import flaghunter.cpa_modules.m1_api_hub as m1_api_hub
 
     set_notes_file(tmp_path / "notes_failover_start_fail.json")
     notes_module._notes.clear()
@@ -4387,7 +4397,7 @@ async def test_ctf_dispatcher_failover_monitor_start_failure_does_not_break_run(
 
 @pytest.mark.asyncio
 async def test_ctf_dispatcher_stops_owned_failover_monitor_after_run(monkeypatch, tmp_path):
-    import pentestagent.cpa_modules.m1_api_hub as m1_api_hub
+    import flaghunter.cpa_modules.m1_api_hub as m1_api_hub
 
     set_notes_file(tmp_path / "notes_failover_owned_stop.json")
     notes_module._notes.clear()
@@ -4429,7 +4439,7 @@ async def test_ctf_dispatcher_runtime_flag_requires_verification_without_callbac
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_runtime_pending.json")
@@ -4461,7 +4471,7 @@ async def test_ctf_dispatcher_auto_verifies_runtime_flag_for_local_challenge_hin
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     challenge_dir = tmp_path / "easy_login_local_verify"
@@ -4499,7 +4509,7 @@ async def test_ctf_dispatcher_auto_submit_rejection_triggers_wrong_flag_recovery
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_submit_reject.json")
@@ -4529,7 +4539,7 @@ async def test_ctf_dispatcher_auto_submit_rejection_triggers_wrong_flag_recovery
         )
     )
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.StrategyMemoryStore",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.StrategyMemoryStore",
         lambda: memory_store,
     )
 
@@ -4592,7 +4602,7 @@ async def test_ctf_dispatcher_records_platform_profile_and_sync_snapshot(
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_platform_snapshot.json")
@@ -4611,7 +4621,7 @@ async def test_ctf_dispatcher_records_platform_profile_and_sync_snapshot(
         }
 
     monkeypatch.setattr(
-        "pentestagent.cpa_modules.m2_ctf_kit.flag_submitter.get_platform_snapshot",
+        "flaghunter.cpa_modules.m2_ctf_kit.flag_submitter.get_platform_snapshot",
         _fake_snapshot,
     )
 
@@ -4654,7 +4664,7 @@ async def test_ctf_dispatcher_aligns_platform_challenge_and_stops_if_already_sol
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_platform_solved.json")
@@ -4680,7 +4690,7 @@ async def test_ctf_dispatcher_aligns_platform_challenge_and_stops_if_already_sol
         }
 
     monkeypatch.setattr(
-        "pentestagent.cpa_modules.m2_ctf_kit.flag_submitter.get_platform_snapshot",
+        "flaghunter.cpa_modules.m2_ctf_kit.flag_submitter.get_platform_snapshot",
         _fake_snapshot,
     )
 
@@ -4752,7 +4762,7 @@ def test_ctf_dispatcher_extracts_warmup_flag_filename_hint():
 @pytest.mark.asyncio
 async def test_ctf_dispatcher_solves_warmup_comment_source_include_bypass(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_warmup_include.json")
@@ -4775,7 +4785,7 @@ async def test_ctf_dispatcher_solves_warmup_comment_source_include_bypass(monkey
         return self
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.capability_registry.CapabilityRegistry.full_check",
+        "flaghunter.agents.pa_agent.capability_registry.CapabilityRegistry.full_check",
         _fake_full_check,
     )
 
@@ -4805,7 +4815,7 @@ async def test_ctf_dispatcher_solves_warmup_comment_source_include_bypass(monkey
 @pytest.mark.asyncio
 async def test_ctf_dispatcher_solves_easy_tornado_handler_settings_hash_chain(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_easy_tornado_handler_settings.json")
@@ -4824,7 +4834,7 @@ async def test_ctf_dispatcher_solves_easy_tornado_handler_settings_hash_chain(mo
         return self
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.capability_registry.CapabilityRegistry.full_check",
+        "flaghunter.agents.pa_agent.capability_registry.CapabilityRegistry.full_check",
         _fake_full_check,
     )
 
@@ -4901,7 +4911,7 @@ def test_ctf_dispatcher_exploration_agenda_filters_css_and_html_noise():
 
 
 def test_auth_success_change_does_not_treat_mere_response_diff_as_success():
-    from pentestagent.agents.pa_agent.ctf_dispatcher import (
+    from flaghunter.agents.pa_agent.ctf_dispatcher import (
         _looks_like_successful_auth_change,
     )
 
@@ -4924,7 +4934,7 @@ def test_auth_success_change_does_not_treat_mere_response_diff_as_success():
 
 
 def test_auth_success_change_accepts_redirect_or_cookie_success_signals():
-    from pentestagent.agents.pa_agent.ctf_dispatcher import (
+    from flaghunter.agents.pa_agent.ctf_dispatcher import (
         _looks_like_successful_auth_change,
     )
 
@@ -4957,7 +4967,7 @@ def test_auth_success_change_accepts_redirect_or_cookie_success_signals():
 @pytest.mark.asyncio
 async def test_ctf_dispatcher_tornado_ssti_uses_distinct_surface_key(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_tornado_ssti.json")
@@ -5001,7 +5011,7 @@ async def test_ctf_dispatcher_backup_source_leak_probes_django_static_confusion_
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_static_source_leak.json")
@@ -5033,7 +5043,7 @@ async def test_ctf_dispatcher_backup_source_leak_prefers_app_py_candidates_from_
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_source_hint_backup.json")
@@ -5069,7 +5079,7 @@ async def test_ctf_dispatcher_backup_source_leak_ignores_login_html_candidates(
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_backup_html_filter.json")
@@ -5097,7 +5107,7 @@ async def test_ctf_dispatcher_generic_upload_chain_follows_uploaded_payload(
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_generic_upload.json")
@@ -5204,7 +5214,7 @@ async def test_ctf_dispatcher_upload_chain_uses_htaccess_bypass_when_php_filtere
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_htaccess_upload.json")
@@ -5282,7 +5292,7 @@ async def test_web_chain_reaches_generic_param_cmdi_on_get_param(monkeypatch, tm
     """A ping tool classified "web" must still get command-injected via the
     web chain (detect_type never emits cmdi)."""
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_cmdi.json")
@@ -5340,7 +5350,7 @@ async def test_web_chain_reaches_generic_param_ssrf_on_get_param(monkeypatch, tm
     """A fetcher tool classified "web" must still be SSRF-probed via the web
     chain (detect_type only flags ssrf on a visible ?url=)."""
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_ssrf.json")
@@ -5372,13 +5382,13 @@ async def test_web_chain_reaches_jwt_manipulation_when_token_only_in_cookie(monk
     """detect_type only inspects body/URL, so a JWT carried in a Cookie is
     classified "web"; the web chain must still reach jwt_manipulation."""
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_jwt_reach.json")
     notes_module._notes.clear()
 
-    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _ChainOutcome
 
     dispatcher = CTFTaskDispatcher(runtime=_DispatcherAll404Runtime(), progress_callback=None)
     dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="web")
@@ -5415,7 +5425,7 @@ async def test_ctf_dispatcher_backup_source_leak_analyzes_inline_source_on_curre
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_inline_source_ssrf.json")
@@ -5435,7 +5445,7 @@ async def test_ctf_dispatcher_backup_source_leak_analyzes_inline_source_on_curre
         return {"status_code": 404, "body": ""}
 
     async def _fake_download_and_analyze(artifact_url: str, target: str):
-        from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+        from flaghunter.agents.pa_agent.ctf_dispatcher import _ChainOutcome
 
         called_urls.append(artifact_url)
         return _ChainOutcome(progress=True, reason="inline-source-analyzed")
@@ -5518,7 +5528,7 @@ async def test_php_upload_cookie_pop_chain_copies_polyglot_to_runtime_shell(
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_php_upload_cookie_pop.json")
@@ -5567,7 +5577,7 @@ async def test_ctf_dispatcher_contact_report_chain_records_captcha_blocker(
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_contact_report.json")
@@ -5609,7 +5619,7 @@ async def test_ctf_dispatcher_contact_report_chain_skips_after_prior_submission(
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_contact_skip_prior.json")
@@ -5643,7 +5653,7 @@ async def test_ctf_dispatcher_contact_report_chain_prefers_real_contact_over_log
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_contact_prefer_real.json")
@@ -5686,7 +5696,7 @@ async def test_ctf_dispatcher_contact_report_chain_uses_captcha_and_pow_solvers(
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -5697,11 +5707,11 @@ async def test_ctf_dispatcher_contact_report_chain_uses_captcha_and_pow_solvers(
         return 0
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher._solve_contact_captcha_solution",
+        "flaghunter.agents.pa_agent.ctf_dispatcher._solve_contact_captcha_solution",
         _fake_captcha_solver,
     )
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher._solve_contact_pow_solution",
+        "flaghunter.agents.pa_agent.ctf_dispatcher._solve_contact_pow_solution",
         _fake_pow_solver,
     )
     set_notes_file(tmp_path / "notes_contact_solved.json")
@@ -5745,7 +5755,7 @@ async def test_ctf_dispatcher_contact_report_chain_treats_urlstorage_return_as_s
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -5753,11 +5763,11 @@ async def test_ctf_dispatcher_contact_report_chain_treats_urlstorage_return_as_s
         return None
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher._solve_contact_captcha_solution",
+        "flaghunter.agents.pa_agent.ctf_dispatcher._solve_contact_captcha_solution",
         _no_captcha_solver,
     )
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher._solve_contact_pow_solution",
+        "flaghunter.agents.pa_agent.ctf_dispatcher._solve_contact_pow_solution",
         lambda challenge: None,
     )
     set_notes_file(tmp_path / "notes_contact_bypass.json")
@@ -5817,7 +5827,7 @@ def test_contact_pow_solver_handles_trivial_hardness():
 
 
 def test_hypothesis_engine_generates_generic_param_sqli_for_get_form_surface():
-    from pentestagent.agents.pa_agent.hypothesis_engine import HypothesisEngine
+    from flaghunter.agents.pa_agent.hypothesis_engine import HypothesisEngine
 
     state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="sqli")
     state.add_observation(
@@ -5847,7 +5857,7 @@ async def test_ctf_dispatcher_uses_strategy_registry_for_auth_form_sqli(
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_strategy_registry.json")
@@ -5888,7 +5898,7 @@ async def test_ctf_dispatcher_uses_strategy_registry_for_generic_param_sqli(
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_strategy_registry_generic_sqli.json")
@@ -5926,10 +5936,10 @@ async def test_ctf_dispatcher_uses_strategy_registry_for_generic_param_sqli(
         }
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.capability_registry.CapabilityRegistry.full_check",
+        "flaghunter.agents.pa_agent.capability_registry.CapabilityRegistry.full_check",
         _fake_full_check,
     )
-    monkeypatch.setattr("pentestagent.tools.sqlmap.run_sqlmap", _fake_run_sqlmap)
+    monkeypatch.setattr("flaghunter.tools.sqlmap.run_sqlmap", _fake_run_sqlmap)
 
     called_kinds: list[str] = []
     original_execute = dispatcher.strategy_registry.execute
@@ -5957,7 +5967,7 @@ async def test_ctf_dispatcher_uses_strategy_registry_for_generic_param_sqli(
 @pytest.mark.asyncio
 async def test_ctf_dispatcher_writes_strategy_memory_audit(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_memory_audit.json")
@@ -5982,7 +5992,7 @@ async def test_ctf_dispatcher_writes_strategy_memory_audit(monkeypatch, tmp_path
     )
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.StrategyMemoryStore",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.StrategyMemoryStore",
         lambda: memory_store,
     )
 
@@ -6374,7 +6384,7 @@ async def test_harvest_auth_forms_from_conventional_routes_when_homepage_formles
     """The auth-flow fix: when the landing page has no form, the login/register
     forms must be harvested from /login and /register so post-auth recon can
     still run register→login instead of dead-ending."""
-    from pentestagent.agents.pa_agent.ctf_planner import find_auth_form
+    from flaghunter.agents.pa_agent.ctf_planner import find_auth_form
 
     rt = _AuthPagesRuntime()
     dispatcher = CTFTaskDispatcher(runtime=rt)
@@ -6667,9 +6677,9 @@ def test_derive_progress_delta_returns_none_not_rejected_when_chain_made_progres
     hypothesis exhaustion even when another sub-strategy (e.g.
     hint_chain_followup) had already made real progress in the same chain.
     """
-    import pentestagent.tools.notes as _notes_mod
+    import flaghunter.tools.notes as _notes_mod
     from pathlib import Path as _Path
-    from pentestagent.tools.notes import set_notes_file as _set_notes_file
+    from flaghunter.tools.notes import set_notes_file as _set_notes_file
     from types import SimpleNamespace as _NS
 
     _set_notes_file(_Path(tmp_path) / "notes.json")
@@ -6683,7 +6693,7 @@ def test_derive_progress_delta_returns_none_not_rejected_when_chain_made_progres
         async def start(self): pass
         async def stop(self): pass
 
-    from pentestagent.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher, _ChainOutcome
+    from flaghunter.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher, _ChainOutcome
 
     dispatcher = CTFTaskDispatcher(runtime=_MinimalRuntime())
     dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="web")
@@ -6723,7 +6733,7 @@ def test_derive_progress_delta_returns_none_not_rejected_when_chain_made_progres
 
 def test_p7_stop_01_is_stuck_trajectory_returns_true_on_repeated_observations():
     """P7-STOP-01: same watched observation repeated ≥ 3 times → _is_stuck_trajectory True"""
-    from pentestagent.agents.pa_agent.ctf_dispatcher import _is_stuck_trajectory
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _is_stuck_trajectory
 
     state = CTFState(target="http://ctf.local", goal="拿到flag")
     # Add 3 identical http_response observations (one of the watched kinds)
@@ -6735,7 +6745,7 @@ def test_p7_stop_01_is_stuck_trajectory_returns_true_on_repeated_observations():
 
 def test_p7_stop_02_stuck_trajectory_sets_stop_report_reason():
     """P7-STOP-02: when detector fires, stop_report reason is set to 'stuck_trajectory'"""
-    from pentestagent.agents.pa_agent.ctf_dispatcher import _is_stuck_trajectory
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _is_stuck_trajectory
 
     state = CTFState(target="http://ctf.local", goal="拿到flag")
     state.stop_report = {}  # type: ignore[assignment]
@@ -6764,7 +6774,7 @@ def test_p7_stop_02_stuck_trajectory_sets_stop_report_reason():
 
 def test_p7_stop_03_non_repeated_observations_not_stuck():
     """P7-STOP-03: diverse watched observations don't trigger detector; static logic unchanged"""
-    from pentestagent.agents.pa_agent.ctf_dispatcher import _is_stuck_trajectory
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _is_stuck_trajectory
 
     state = CTFState(target="http://ctf.local", goal="拿到flag")
     # 6 distinct http_response observations — no key appears ≥ 3 times
@@ -6873,7 +6883,7 @@ class _SSTIJinja2Runtime:
 async def test_p7_ssti_01_probe_sends_4_payloads_and_records_ssti_probe_hit(monkeypatch, tmp_path):
     """P7-SSTI-01: ssti_probe sends 4 probe payloads; when 49 found → ssti_probe_hit recorded"""
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_ssti01.json")
@@ -6909,7 +6919,7 @@ async def test_p7_ssti_01_probe_sends_4_payloads_and_records_ssti_probe_hit(monk
 async def test_p7_ssti_02_identify_records_tornado_engine_when_cookie_secret_found(monkeypatch, tmp_path):
     """P7-SSTI-02: ssti_identify records ssti_engine_identified=tornado when {{handler.settings}} contains cookie_secret"""
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_ssti02.json")
@@ -6949,11 +6959,11 @@ async def test_p7_ssti_02_identify_records_tornado_engine_when_cookie_secret_fou
 @pytest.mark.asyncio
 async def test_p7_ssti_03_exploit_uses_tornado_path_and_hash_reconstruction(monkeypatch, tmp_path):
     """P7-SSTI-03: ssti_exploit Tornado path uses existing cookie_secret for hash reconstruction"""
-    from pentestagent.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
+    from flaghunter.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
     import hashlib
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_ssti03.json")
@@ -7029,7 +7039,7 @@ async def test_p7_ssti_03_exploit_uses_tornado_path_and_hash_reconstruction(monk
 async def test_p7_ssti_04_exploit_takes_jinja2_path_for_jinja2_engine(monkeypatch, tmp_path):
     """P7-SSTI-04: when engine=jinja2, ssti_exploit tries {{config}} dump path"""
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_ssti04.json")
@@ -7064,11 +7074,11 @@ async def test_p7_ssti_04_exploit_takes_jinja2_path_for_jinja2_engine(monkeypatc
 def test_p7_ssti_05_old_strategies_removed_from_web_strategy_order():
     """P7-SSTI-05: ssti_via_render_parameter and tornado_ssti are NOT in _WEB_STRATEGY_ORDER"""
     # Import the dispatcher module to inspect the constant
-    from pentestagent.agents.pa_agent import ctf_dispatcher as disp_module
+    from flaghunter.agents.pa_agent import ctf_dispatcher as disp_module
 
     # The _WEB_STRATEGY_ORDER is a local variable, not accessible directly.
     # Instead, verify via the strategy_registry chain_names.
-    from pentestagent.agents.pa_agent.strategy_registry import StrategyRegistry
+    from flaghunter.agents.pa_agent.strategy_registry import StrategyRegistry
     registry = StrategyRegistry.build_default()
 
     # Old strategies should still be registered (backward compat) but in "web-legacy"
@@ -7099,8 +7109,8 @@ def test_p7_ssti_05_old_strategies_removed_from_web_strategy_order():
 
 def test_p7_rec_01_verbal_reflection_writes_to_meta_reasonings():
     """P7-REC-01: verbal_reflection() → state.meta_reasonings 中出现 verbal_reflection 条目。"""
-    from pentestagent.agents.pa_agent.recovery import RecoveryController
-    from pentestagent.agents.pa_agent.hypothesis_engine import HypothesisEngine
+    from flaghunter.agents.pa_agent.recovery import RecoveryController
+    from flaghunter.agents.pa_agent.hypothesis_engine import HypothesisEngine
 
     state = CTFState(target="http://ctf.local", goal="拿到flag")
     controller = RecoveryController(HypothesisEngine())
@@ -7125,8 +7135,8 @@ def test_p7_rec_01_verbal_reflection_writes_to_meta_reasonings():
 
 def test_p7_rec_02_verbal_reflection_content_covers_three_parts():
     """P7-REC-02: reflection ≤ 256 字符；各 evidence_source 路径产生对应关键词。"""
-    from pentestagent.agents.pa_agent.recovery import RecoveryController
-    from pentestagent.agents.pa_agent.hypothesis_engine import HypothesisEngine
+    from flaghunter.agents.pa_agent.recovery import RecoveryController
+    from flaghunter.agents.pa_agent.hypothesis_engine import HypothesisEngine
 
     controller = RecoveryController(HypothesisEngine())
 
@@ -7197,7 +7207,7 @@ async def test_p7_rec_03_strategy_memory_write_reflection_retrievable_by_query()
 
 def test_p7_hyp_01_hypothesis_has_abort_condition_and_value_score_fields():
     """P7-HYP-01: Hypothesis dataclass 包含 abort_condition / fallback_plan / value_score 字段。"""
-    from pentestagent.agents.pa_agent.ctf_state import Hypothesis
+    from flaghunter.agents.pa_agent.ctf_state import Hypothesis
 
     hyp = Hypothesis(
         id="test_hyp",
@@ -7221,8 +7231,8 @@ def test_p7_hyp_01_hypothesis_has_abort_condition_and_value_score_fields():
 
 def test_p7_hyp_02_update_after_chain_aborts_hypothesis_on_condition_match():
     """P7-HYP-02: update_after_chain() 在 counter_evidence 满足 abort_condition 时标记 exhausted。"""
-    from pentestagent.agents.pa_agent.hypothesis_engine import HypothesisEngine
-    from pentestagent.agents.pa_agent.ctf_state import Hypothesis
+    from flaghunter.agents.pa_agent.hypothesis_engine import HypothesisEngine
+    from flaghunter.agents.pa_agent.ctf_state import Hypothesis
 
     engine = HypothesisEngine()
     state = CTFState(target="http://ctf.local", goal="拿到flag")
@@ -7248,8 +7258,8 @@ def test_p7_hyp_02_update_after_chain_aborts_hypothesis_on_condition_match():
 
 def test_p7_hyp_03_update_after_chain_does_not_abort_below_threshold():
     """P7-HYP-03: counter_evidence 不足阈值时 update_after_chain() 不改变假设状态。"""
-    from pentestagent.agents.pa_agent.hypothesis_engine import HypothesisEngine
-    from pentestagent.agents.pa_agent.ctf_state import Hypothesis
+    from flaghunter.agents.pa_agent.hypothesis_engine import HypothesisEngine
+    from flaghunter.agents.pa_agent.ctf_state import Hypothesis
 
     engine = HypothesisEngine()
     state = CTFState(target="http://ctf.local", goal="拿到flag")
@@ -7383,7 +7393,7 @@ async def test_p7_mem_03_record_failure_returns_none_for_missing_entry():
 
 def test_p7_proof_01_flag_proof_has_reproduction_steps_and_related_observations():
     """P7-PROOF-01: FlagProof 包含 reproduction_steps 和 related_observations，默认为空列表。"""
-    from pentestagent.agents.pa_agent.ctf_state import FlagProof
+    from flaghunter.agents.pa_agent.ctf_state import FlagProof
 
     proof = FlagProof(
         proof_type="runtime_http",
@@ -7402,7 +7412,7 @@ def test_p7_proof_01_flag_proof_has_reproduction_steps_and_related_observations(
 
 def test_p7_proof_02_flag_proof_reproduction_steps_and_observations_settable():
     """P7-PROOF-02: reproduction_steps 和 related_observations 在构造时可赋值。"""
-    from pentestagent.agents.pa_agent.ctf_state import FlagProof
+    from flaghunter.agents.pa_agent.ctf_state import FlagProof
 
     proof = FlagProof(
         proof_type="runtime_http",
@@ -7432,7 +7442,7 @@ def test_p7_proof_02_flag_proof_reproduction_steps_and_observations_settable():
 
 def test_p7_hash_01_discover_hash_params_from_url():
     """P7-HASH-01: _discover_hash_params 从 URL 查询字符串中找到 filename+filehash 参数。"""
-    from pentestagent.agents.pa_agent.ctf_dispatcher import _discover_hash_params
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _discover_hash_params
 
     # 标准 Tornado URL 模式
     url = "http://ctf.local/file?filename=flag.txt&filehash=abc123"
@@ -7452,7 +7462,7 @@ def test_p7_hash_01_discover_hash_params_from_url():
 
 def test_p7_hash_02_infer_hash_format_md5_and_sha256():
     """P7-HASH-02: _infer_hash_format 根据长度识别 md5（32 hex）和 sha256（64 hex）。"""
-    from pentestagent.agents.pa_agent.ctf_dispatcher import _infer_hash_format
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _infer_hash_format
 
     # 32 hex chars → md5
     md5_hash = "d41d8cd98f00b204e9800998ecf8427e"
@@ -7473,7 +7483,7 @@ def test_p7_hash_02_infer_hash_format_md5_and_sha256():
 def test_p7_hash_03_compute_signed_hash_md5_matches_tornado_pattern():
     """P7-HASH-03: _compute_signed_hash md5 路径重现 md5(secret+md5(filename))，key-guess 成功。"""
     import hashlib
-    from pentestagent.agents.pa_agent.ctf_dispatcher import _compute_signed_hash
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _compute_signed_hash
 
     secret = "my_tornado_secret"
     filename = "flag.txt"
@@ -7493,7 +7503,7 @@ def test_p7_hash_03_compute_signed_hash_md5_matches_tornado_pattern():
 def test_p7_hash_04_compute_signed_hash_sha256_path():
     """P7-HASH-04: _compute_signed_hash sha256 路径重现 sha256(secret+sha256(filename))。"""
     import hashlib
-    from pentestagent.agents.pa_agent.ctf_dispatcher import _compute_signed_hash
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _compute_signed_hash
 
     secret = "sha256_secret"
     filename = "secret.txt"
@@ -7508,7 +7518,7 @@ def test_p7_hash_04_compute_signed_hash_sha256_path():
 
 
 def test_p7_hash_05_infer_hash_format_supports_jwt_and_compute_hs256_hs512():
-    from pentestagent.agents.pa_agent.ctf_dispatcher import (
+    from flaghunter.agents.pa_agent.ctf_dispatcher import (
         _compute_signed_hash,
         _infer_hash_format,
         _jwt_decode_verified,
@@ -7528,7 +7538,7 @@ def test_p7_hash_05_infer_hash_format_supports_jwt_and_compute_hs256_hs512():
 
 def _infer_hash_format_helper(h: str) -> str:
     """Test helper: call _infer_hash_format directly."""
-    from pentestagent.agents.pa_agent.ctf_dispatcher import _infer_hash_format
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _infer_hash_format
     return _infer_hash_format(h)
 
 
@@ -7537,7 +7547,7 @@ async def test_p2_record_uniform_failure_surface_appends_strategy_memory_failure
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_uniform_failure.json")
@@ -7552,7 +7562,7 @@ async def test_p2_record_uniform_failure_surface_appends_strategy_memory_failure
         )
     )
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.StrategyMemoryStore",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.StrategyMemoryStore",
         lambda: memory_store,
     )
 
@@ -7586,7 +7596,7 @@ async def test_p2_observe_flag_hydrates_proof_reproduction_steps_and_related_obs
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_proof_hydration.json")
@@ -7662,7 +7672,7 @@ class _JWTManipulationRuntime:
         elif "=" in cookie:
             token = cookie.split("=", 1)[1].strip()
         if token:
-            from pentestagent.agents.pa_agent.ctf_dispatcher import _jwt_decode_verified
+            from flaghunter.agents.pa_agent.ctf_dispatcher import _jwt_decode_verified
 
             try:
                 payload = _jwt_decode_verified(
@@ -7684,10 +7694,10 @@ class _JWTManipulationRuntime:
 async def test_p3_jwt_manipulation_strategy_escalates_seed_token_to_runtime_flag(
     monkeypatch, tmp_path
 ):
-    from pentestagent.agents.pa_agent.ctf_dispatcher import _jwt_encode
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _jwt_encode
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_jwt_strategy.json")
@@ -7721,10 +7731,10 @@ async def test_p3_jwt_manipulation_strategy_escalates_seed_token_to_runtime_flag
 async def test_jwt_manipulation_strategy_uses_source_hint_secret_candidates(
     monkeypatch, tmp_path
 ):
-    from pentestagent.agents.pa_agent.ctf_dispatcher import _jwt_encode
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _jwt_encode
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_jwt_source_hint.json")
@@ -7774,10 +7784,10 @@ async def test_jwt_manipulation_strategy_uses_source_hint_secret_candidates(
 async def test_jwt_manipulation_strategy_prefers_source_hint_protected_targets(
     monkeypatch, tmp_path
 ):
-    from pentestagent.agents.pa_agent.ctf_dispatcher import _jwt_encode
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _jwt_encode
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_jwt_source_hint_target.json")
@@ -8015,7 +8025,7 @@ class _JWTSourceHintSecretRuntime:
         if auth.lower().startswith("bearer "):
             token = auth.split(" ", 1)[1].strip()
         if token:
-            from pentestagent.agents.pa_agent.ctf_dispatcher import _jwt_decode_verified
+            from flaghunter.agents.pa_agent.ctf_dispatcher import _jwt_decode_verified
 
             try:
                 payload = _jwt_decode_verified(
@@ -8052,7 +8062,7 @@ class _JWTSourceHintTargetRuntime:
         if auth.lower().startswith("bearer "):
             token = auth.split(" ", 1)[1].strip()
         if token and url.endswith("/api/admin"):
-            from pentestagent.agents.pa_agent.ctf_dispatcher import _jwt_decode_verified
+            from flaghunter.agents.pa_agent.ctf_dispatcher import _jwt_decode_verified
 
             try:
                 payload = _jwt_decode_verified(
@@ -8154,7 +8164,7 @@ class _ExploitAuditRuntime:
 @pytest.mark.asyncio
 async def test_ctf_dispatcher_records_resume_bootstrap_hint_observation(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_resume_bootstrap_hint.json")
@@ -8200,7 +8210,7 @@ async def test_ctf_dispatcher_records_resume_bootstrap_hint_observation(monkeypa
 @pytest.mark.asyncio
 async def test_ctf_dispatcher_does_not_record_resume_bootstrap_hint_without_handoff(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_no_resume_bootstrap_hint.json")
@@ -8231,10 +8241,10 @@ async def test_dispatcher_writes_session_ledger_events_for_verified_flag(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ) -> None:
-    from pentestagent.harness.session_ledger import SessionLedger
+    from flaghunter.harness.session_ledger import SessionLedger
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_ledger_verified.json")
@@ -8286,7 +8296,7 @@ async def test_dispatcher_writes_missing_tools_event_to_session_ledger(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ) -> None:
-    from pentestagent.harness.session_ledger import SessionLedger
+    from flaghunter.harness.session_ledger import SessionLedger
 
     set_notes_file(tmp_path / "notes_ledger_missing.json")
     notes_module._notes.clear()
@@ -8306,7 +8316,7 @@ async def test_dispatcher_writes_missing_tools_event_to_session_ledger(
         fake_phase_recon,
     )
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -8341,10 +8351,10 @@ async def test_execute_terminal_commands_writes_execute_command_tool_audit_event
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ) -> None:
-    from pentestagent.harness.session_ledger import SessionLedger
+    from flaghunter.harness.session_ledger import SessionLedger
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_helper_terminal.json")
@@ -8374,10 +8384,10 @@ async def test_submit_form_request_writes_proxy_tool_audit_events(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ) -> None:
-    from pentestagent.harness.session_ledger import SessionLedger
+    from flaghunter.harness.session_ledger import SessionLedger
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_helper_form.json")
@@ -8412,10 +8422,10 @@ async def test_fetch_admin_with_sid_writes_proxy_tool_audit_events(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ) -> None:
-    from pentestagent.harness.session_ledger import SessionLedger
+    from flaghunter.harness.session_ledger import SessionLedger
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_helper_admin.json")
@@ -8455,14 +8465,14 @@ async def test_download_and_analyze_backup_artifact_writes_execute_command_tool_
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ) -> None:
-    from pentestagent.harness.session_ledger import SessionLedger
+    from flaghunter.harness.session_ledger import SessionLedger
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher._pick_python_command",
+        "flaghunter.agents.pa_agent.ctf_dispatcher._pick_python_command",
         lambda runtime: "python",
     )
     set_notes_file(tmp_path / "notes_backup_audit.json")
@@ -8506,10 +8516,10 @@ async def test_attempt_docker_loopback_visit_chain_writes_tool_audit_events(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ) -> None:
-    from pentestagent.harness.session_ledger import SessionLedger
+    from flaghunter.harness.session_ledger import SessionLedger
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_loopback_audit.json")

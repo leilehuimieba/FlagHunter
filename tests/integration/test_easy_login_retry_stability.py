@@ -21,11 +21,11 @@ from types import SimpleNamespace
 
 import pytest
 
-import pentestagent.tools.notes as notes_module
-from pentestagent.agents.pa_agent.pa_agent import PentestAgentAgent
-from pentestagent.tools.notes import get_all_notes_sync, set_notes_file
-from pentestagent.tools.registry import get_tool
-from pentestagent.workspaces.manager import WorkspaceManager
+import flaghunter.tools.notes as notes_module
+from flaghunter.agents.pa_agent.pa_agent import PentestAgentAgent
+from flaghunter.tools.notes import get_all_notes_sync, set_notes_file
+from flaghunter.tools.registry import get_tool
+from flaghunter.workspaces.manager import WorkspaceManager
 from tests.integration.easy_login_acceptance import (
     EasyLoginEvidence,
     EasyLoginLevel,
@@ -516,18 +516,18 @@ async def test_easy_login_collector_first_receive_failure_recovers(
     async def _noop(*args, **kwargs):
         return None
 
-    monkeypatch.setattr("pentestagent.tools.finish._persist_session_knowledge", _noop)
-    monkeypatch.setattr("pentestagent.tools.finish._generate_auto_report", _noop)
+    monkeypatch.setattr("flaghunter.tools.finish._persist_session_knowledge", _noop)
+    monkeypatch.setattr("flaghunter.tools.finish._generate_auto_report", _noop)
 
     mgr = WorkspaceManager(root=tmp_path)
     mgr.create("easy_login_retry_eval")
     mgr.add_targets("easy_login_retry_eval", ["http://127.0.0.1:3000"])
     mgr.set_active("easy_login_retry_eval")
 
-    import pentestagent.tools.browser  # noqa: F401
-    import pentestagent.tools.finish  # noqa: F401
-    import pentestagent.tools.notes  # noqa: F401
-    import pentestagent.tools.terminal  # noqa: F401
+    import flaghunter.tools.browser  # noqa: F401
+    import flaghunter.tools.finish  # noqa: F401
+    import flaghunter.tools.notes  # noqa: F401
+    import flaghunter.tools.terminal  # noqa: F401
 
     browser_tool = get_tool("browser")
     terminal_tool = get_tool("terminal")

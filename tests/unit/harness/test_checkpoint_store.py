@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from pentestagent.agents.pa_agent.ctf_state import CTFState
-from pentestagent.harness.checkpoint_store import CheckpointStore
+from flaghunter.agents.pa_agent.ctf_state import CTFState
+from flaghunter.harness.checkpoint_store import CheckpointStore
 
 
 def test_ctf_state_snapshot_roundtrip_preserves_artifacts_flags_and_stop_reason() -> None:

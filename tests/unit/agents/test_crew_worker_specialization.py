@@ -5,10 +5,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from pentestagent.agents.crew.models import AgentStatus, AgentWorker
-from pentestagent.agents.crew.tools import create_crew_tools
-from pentestagent.agents.crew.worker_pool import WorkerPool
-from pentestagent.tools.registry import Tool, ToolSchema
+from flaghunter.agents.crew.models import AgentStatus, AgentWorker
+from flaghunter.agents.crew.tools import create_crew_tools
+from flaghunter.agents.crew.worker_pool import WorkerPool
+from flaghunter.tools.registry import Tool, ToolSchema
 
 
 def _make_tool(name: str) -> Tool:
@@ -110,15 +110,15 @@ async def test_run_worker_filters_tools_and_applies_specialized_prompt(monkeypat
         return None
 
     monkeypatch.setattr(
-        "pentestagent.runtime.runtime.LocalRuntime",
+        "flaghunter.runtime.runtime.LocalRuntime",
         _FakeLocalRuntime,
     )
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.PentestAgentAgent",
+        "flaghunter.agents.pa_agent.PentestAgentAgent",
         _FakeAgent,
     )
     monkeypatch.setattr(
-        "pentestagent.agents.crew.worker_pool.on_worker_complete",
+        "flaghunter.agents.crew.worker_pool.on_worker_complete",
         _noop_on_complete,
     )
 

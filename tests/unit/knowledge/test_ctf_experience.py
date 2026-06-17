@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from pentestagent.knowledge.ctf_experience import save_ctf_experience
-from pentestagent.knowledge.indexer import resolve_knowledge_scan_paths
+from flaghunter.knowledge.ctf_experience import save_ctf_experience
+from flaghunter.knowledge.indexer import resolve_knowledge_scan_paths
 
 
 @pytest.mark.asyncio

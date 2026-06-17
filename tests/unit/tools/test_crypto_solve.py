@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from pentestagent.tools.crypto_solve import crypto_solve
+from flaghunter.tools.crypto_solve import crypto_solve
 
 
 class _MockResult:

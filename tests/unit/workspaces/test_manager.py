@@ -1,8 +1,8 @@
-"""Tests for pentestagent.workspaces.manager (WorkspaceManager, TargetManager)."""
+"""Tests for flaghunter.workspaces.manager (WorkspaceManager, TargetManager)."""
 
 import pytest
 
-from pentestagent.workspaces.manager import (
+from flaghunter.workspaces.manager import (
     TargetManager,
     WorkspaceError,
     WorkspaceManager,

@@ -6,15 +6,15 @@ from types import SimpleNamespace
 
 import pytest
 
-import pentestagent.tools.notes as notes_module
-from pentestagent.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher, SolveResult
-from pentestagent.agents.pa_agent.coordinator import CTFCoordinator
-from pentestagent.agents.pa_agent.ctf_state import Hypothesis
-from pentestagent.agents.pa_agent.recovery import RecoveryDecision
-from pentestagent.agents.pa_agent.ctf_state import CTFState
-from pentestagent.harness.checkpoint_store import CheckpointStore
-from pentestagent.harness.session_ledger import SessionLedger
-from pentestagent.tools.notes import set_notes_file
+import flaghunter.tools.notes as notes_module
+from flaghunter.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher, SolveResult
+from flaghunter.agents.pa_agent.coordinator import CTFCoordinator
+from flaghunter.agents.pa_agent.ctf_state import Hypothesis
+from flaghunter.agents.pa_agent.recovery import RecoveryDecision
+from flaghunter.agents.pa_agent.ctf_state import CTFState
+from flaghunter.harness.checkpoint_store import CheckpointStore
+from flaghunter.harness.session_ledger import SessionLedger
+from flaghunter.tools.notes import set_notes_file
 
 
 class _Runtime:
@@ -1424,7 +1424,7 @@ async def test_coordinator_applies_post_recon_contract_before_inner_run(
     monkeypatch, tmp_path: Path
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.detect_type",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.detect_type",
         lambda content, target: "misc",
     )
     coordinator = CTFCoordinator()
@@ -2463,7 +2463,7 @@ async def test_coordinator_verified_flag_early_finish_emits_verification_and_ali
     tmp_path: Path,
 ) -> None:
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     _clear_test_notes(tmp_path / "notes_coordinator_verified_early.json")
@@ -2529,7 +2529,7 @@ async def test_coordinator_runtime_flag_early_finish_keeps_verification_and_fina
     tmp_path: Path,
 ) -> None:
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     _clear_test_notes(tmp_path / "notes_coordinator_runtime_early.json")

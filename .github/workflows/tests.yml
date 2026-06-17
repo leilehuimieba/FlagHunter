@@ -52,7 +52,7 @@ jobs:
           pytest tests/unit/ tests/security/ \
             --tb=short \
             -v \
-            --cov=pentestagent \
+            --cov=flaghunter \
             --cov-report=xml:coverage-unit.xml \
             --cov-report=term-missing \
             --cov-fail-under=30
@@ -96,7 +96,7 @@ jobs:
           pytest tests/integration/ \
             --tb=short \
             -v \
-            --cov=pentestagent \
+            --cov=flaghunter \
             --cov-report=xml:coverage-integration.xml
 
       - name: Upload integration coverage report
@@ -144,7 +144,7 @@ jobs:
           pytest tests/ \
             --tb=short \
             -q \
-            --cov=pentestagent \
+            --cov=flaghunter \
             --cov-report=xml:coverage-combined.xml \
             --cov-report=term-missing \
             --cov-fail-under=30
@@ -178,9 +178,9 @@ jobs:
           pip install ruff black
 
       - name: Run ruff
-        run: ruff check pentestagent/ --output-format=github
+        run: ruff check flaghunter/ --output-format=github
         continue-on-error: true
 
       - name: Check formatting with black
-        run: black --check pentestagent/
+        run: black --check flaghunter/
         continue-on-error: true

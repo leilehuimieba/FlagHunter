@@ -4,7 +4,7 @@ import pytest
 @pytest.mark.asyncio
 async def test_binary_no_runtime_returns_valid_structure():
     """二进制不存在时，应返回有 error 字段的合法 JSON"""
-    from pentestagent.tools.binary import analyze_binary
+    from flaghunter.tools.binary import analyze_binary
 
     result = await analyze_binary("/nonexistent/binary", runtime=None, timeout=5)
 
@@ -17,7 +17,7 @@ async def test_binary_no_runtime_returns_valid_structure():
 
 def test_binary_suggestions_rule_engine():
     """suggestions 规则引擎独立测试"""
-    from pentestagent.tools.binary import _generate_suggestions
+    from flaghunter.tools.binary import _generate_suggestions
 
     result = _generate_suggestions(
         protections={

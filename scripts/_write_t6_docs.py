@@ -1,5 +1,5 @@
 from pathlib import Path
-base = Path(r'D:\webstudy\FlagHunter\pentestagent\knowledge\sources')
+base = Path(r'D:\webstudy\FlagHunter\flaghunter\knowledge\sources')
 base.mkdir(parents=True, exist_ok=True)
 files = {
 'web_sqli.md': '''# SQL 注入速查

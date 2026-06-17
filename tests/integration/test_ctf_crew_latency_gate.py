@@ -5,8 +5,8 @@ import time
 
 import pytest
 
-from pentestagent.agents.pa_agent.ctf_crew_coordinator import CTFCrewCoordinator
-from pentestagent.agents.pa_agent.ctf_state import CTFState, Hypothesis
+from flaghunter.agents.pa_agent.ctf_crew_coordinator import CTFCrewCoordinator
+from flaghunter.agents.pa_agent.ctf_state import CTFState, Hypothesis
 
 
 class _NoopVerifier:

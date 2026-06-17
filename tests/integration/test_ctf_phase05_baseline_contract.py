@@ -5,7 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-from pentestagent.agents.pa_agent.phase05_baseline import (
+from flaghunter.agents.pa_agent.phase05_baseline import (
     PHASE05_SCENARIOS,
     build_phase05_baseline,
 )

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from pentestagent.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
+from flaghunter.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
 
 
 pytestmark = pytest.mark.integration
@@ -135,7 +135,7 @@ class _DockerLoopbackFallbackRuntime:
 @pytest.mark.asyncio
 async def test_runtime_only_loopback_target_falls_back_to_container_local_probe(monkeypatch):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     runtime = _DockerLoopbackFallbackRuntime()
@@ -163,7 +163,7 @@ async def test_runtime_only_loopback_target_falls_back_to_container_local_probe(
 @pytest.mark.asyncio
 async def test_loopback_container_fallback_survives_external_collector_bind_conflict(monkeypatch):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
 
@@ -171,7 +171,7 @@ async def test_loopback_container_fallback_survives_external_collector_bind_conf
         raise OSError(10048, "address already in use")
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher._CollectorServer.start",
+        "flaghunter.agents.pa_agent.ctf_dispatcher._CollectorServer.start",
         _port_conflict,
     )
 
@@ -193,7 +193,7 @@ async def test_loopback_container_fallback_survives_external_collector_bind_conf
 @pytest.mark.asyncio
 async def test_loopback_container_fallback_ignores_favicon_noise_in_probe_log(monkeypatch):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     runtime = _DockerLoopbackFallbackRuntime()

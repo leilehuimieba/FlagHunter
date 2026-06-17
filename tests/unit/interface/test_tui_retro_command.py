@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from pentestagent.interface.tui import PentestAgentTUI
+from flaghunter.interface.tui import PentestAgentTUI
 
 
 @pytest.mark.asyncio
@@ -14,7 +14,7 @@ async def test_handle_retro_command_lists_unresolved(monkeypatch):
     tui._add_system = messages.append  # type: ignore[method-assign]
 
     monkeypatch.setattr(
-        "pentestagent.knowledge.retrospective.get_unresolved_entries",
+        "flaghunter.knowledge.retrospective.get_unresolved_entries",
         lambda: [
             {
                 "id": 1,
@@ -41,7 +41,7 @@ async def test_handle_retro_command_resolve(monkeypatch):
     marker = MagicMock()
 
     monkeypatch.setattr(
-        "pentestagent.knowledge.retrospective.mark_resolved",
+        "flaghunter.knowledge.retrospective.mark_resolved",
         marker,
     )
 

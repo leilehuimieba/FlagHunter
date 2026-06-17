@@ -32,7 +32,7 @@ For authentication:
 2. Execute the docker commands.
 
 ```bash
-docker-compose run --rm pentestagent
+docker-compose run --rm flaghunter
 ```
 
 The n8n MCP server should be available:

@@ -1,0 +1,418 @@
+"""Metasploit RPC tool for PentestAgent."""
+
+from __future__ import annotations
+
+import asyncio
+import base64
+import json
+import os
+import re
+import shlex
+import textwrap
+from typing import TYPE_CHECKING, Any
+
+from ..registry import ToolSchema, register_tool
+
+if TYPE_CHECKING:
+    from ...runtime import Runtime
+
+_PIP_INSTALL_HINT = "pymetasploit3 is not installed. Install it with: pip install pymetasploit3"
+_RUN_POLL_LIMIT = 60
+_RUN_POLL_INTERVAL = 2
+
+
+def _truthy(value: Any, default: bool = True) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() not in {"0", "false", "no", "off", ""}
+
+
+def _sanitize_text(text: Any) -> str:
+    value = "" if text is None else str(text)
+    secret = os.getenv("MSF_PASS", "msf")
+    if secret:
+        value = value.replace(secret, "***")
+    return value
+
+
+def _result(success: bool, **kwargs) -> dict[str, Any]:
+    payload = {"success": success}
+    payload.update(kwargs)
+    return payload
+
+
+def _split_module(module: str) -> tuple[str, str]:
+    raw = (module or "").strip().strip("/")
+    if not raw or "/" not in raw:
+        raise ValueError(
+            "module must look like 'exploit/multi/handler' or 'auxiliary/scanner/http/http_version'"
+        )
+    module_type, module_name = raw.split("/", 1)
+    if not module_type or not module_name:
+        raise ValueError(
+            "module must look like 'exploit/multi/handler' or 'auxiliary/scanner/http/http_version'"
+        )
+    return module_type, module_name
+
+
+def _get_conn_config(remote: bool = False) -> dict[str, Any]:
+    default_host = "127.0.0.1" if remote else (os.getenv("KALI_SSH_HOST") or "127.0.0.1")
+    return {
+        "host": os.getenv("MSF_HOST", default_host),
+        "port": int(os.getenv("MSF_PORT", "55553")),
+        "user": os.getenv("MSF_USER", "msf"),
+        "password": os.getenv("MSF_PASS", "msf"),
+        "ssl": _truthy(os.getenv("MSF_SSL", "true"), default=True),
+    }
+
+
+def _import_msf_rpc_client():
+    from pymetasploit3.msfrpc import MsfRpcClient
+
+    return MsfRpcClient
+
+
+def _create_msf_client(*, remote: bool = False):
+    client_cls = _import_msf_rpc_client()
+    cfg = _get_conn_config(remote=remote)
+    return client_cls(
+        cfg["password"],
+        username=cfg["user"],
+        server=cfg["host"],
+        port=cfg["port"],
+        ssl=cfg["ssl"],
+    )
+
+
+def _apply_options(module_obj: Any, options: dict[str, Any]) -> dict[str, str]:
+    applied: dict[str, str] = {}
+    for key, value in (options or {}).items():
+        normalized = str(value)
+        try:
+            module_obj[key] = normalized
+        except Exception:
+            try:
+                setattr(module_obj, key, normalized)
+            except Exception:
+                continue
+        applied[str(key)] = normalized
+    return applied
+
+
+def _set_global_options(client: Any, options: dict[str, Any]) -> None:
+    if not options:
+        return
+    console_manager = getattr(client, "consoles", None)
+    if console_manager is None or not hasattr(console_manager, "console"):
+        return
+
+    console = console_manager.console()
+    try:
+        for key, value in options.items():
+            console.write(f"setg {key} {value}\n")
+        if hasattr(console, "read"):
+            console.read()
+    finally:
+        if hasattr(console, "destroy"):
+            try:
+                console.destroy()
+            except Exception:
+                pass
+
+
+def _extract_job_id(text: str) -> str:
+    patterns = [
+        r"job\s+(\d+)",
+        r"background\s+job\s+(\d+)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if match:
+            return match.group(1)
+    return ""
+
+
+def _extract_session_id(text: str) -> str:
+    patterns = [
+        r"session\s+(\d+)\s+opened",
+        r"meterpreter\s+session\s+(\d+)",
+        r"shell\s+session\s+(\d+)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if match:
+            return match.group(1)
+    return ""
+
+
+def _format_sessions_output(sessions: dict[str, dict[str, Any]]) -> str:
+    if not sessions:
+        return "No active Metasploit sessions."
+
+    lines = []
+    for session_id, info in sorted(
+        sessions.items(),
+        key=lambda item: int(item[0]) if str(item[0]).isdigit() else str(item[0]),
+    ):
+        session_type = info.get("type", "")
+        tunnel_local = info.get("tunnel_local", "")
+        tunnel_peer = info.get("tunnel_peer", "")
+        summary = info.get("info", "")
+        lines.append(
+            f"{session_id} | {session_type} | {tunnel_local} | {tunnel_peer} | {summary}".rstrip()
+        )
+    return "\n".join(lines)
+
+
+async def _run_console_module(client: Any, module: str, options: dict[str, Any]) -> dict[str, Any]:
+    console_manager = getattr(client, "consoles", None)
+    if console_manager is None or not hasattr(console_manager, "console"):
+        return _result(False, error="Metasploit RPC client does not expose consoles.console()")
+
+    console = console_manager.console()
+    outputs: list[str] = []
+    timed_out = False
+
+    try:
+        console.write(f"use {module}\n")
+        for key, value in (options or {}).items():
+            console.write(f"set {key} {value}\n")
+        console.write("run\n")
+
+        for _ in range(_RUN_POLL_LIMIT):
+            chunk = console.read() if hasattr(console, "read") else {}
+            if isinstance(chunk, dict):
+                data = _sanitize_text(chunk.get("data", ""))
+                busy = bool(chunk.get("busy", False))
+            else:
+                data = _sanitize_text(chunk)
+                busy = False
+            if data:
+                outputs.append(data)
+            if not busy:
+                break
+            await asyncio.sleep(_RUN_POLL_INTERVAL)
+        else:
+            timed_out = True
+
+        combined = "".join(outputs).strip()
+        if timed_out:
+            combined = f"{combined}\n(timeout)".strip()
+        return _result(
+            True,
+            output=combined,
+            job_id=_extract_job_id(combined),
+            session_id=_extract_session_id(combined),
+            timeout=timed_out,
+        )
+    finally:
+        if hasattr(console, "destroy"):
+            try:
+                console.destroy()
+            except Exception:
+                pass
+
+
+async def _run_msf_local(
+    *,
+    action: str,
+    module: str = "",
+    options: dict[str, Any] | None = None,
+    session_id: str = "",
+    cmd: str = "",
+) -> dict[str, Any]:
+    try:
+        client = _create_msf_client(remote=False)
+    except ImportError:
+        return _result(False, error=_PIP_INSTALL_HINT)
+    except Exception as exc:
+        cfg = _get_conn_config(remote=False)
+        return _result(
+            False,
+            error=f"Failed to connect to msfrpcd at {cfg['host']}:{cfg['port']}: {_sanitize_text(exc)}",
+        )
+
+    try:
+        if action == "sessions":
+            sessions = getattr(client.sessions, "list", {})
+            if callable(sessions):
+                sessions = sessions()
+            sessions = sessions or {}
+            return _result(
+                True,
+                sessions=sessions,
+                output=_format_sessions_output(sessions),
+            )
+
+        if action == "exec":
+            if not session_id:
+                return _result(False, error="session_id is required for action=exec")
+            if not cmd:
+                return _result(False, error="cmd is required for action=exec")
+            session = client.sessions.session(str(session_id))
+            output = session.run_with_output(cmd)
+            return _result(True, session_id=str(session_id), output=_sanitize_text(output))
+
+        if action in {"use", "run"}:
+            if not module:
+                return _result(False, error=f"module is required for action={action}")
+            module_type, module_name = _split_module(module)
+            module_obj = client.modules.use(module_type, module_name)
+
+            normalized_options = dict(options or {})
+            _set_global_options(client, normalized_options)
+            applied_options = _apply_options(module_obj, normalized_options)
+
+            if action == "use":
+                return _result(
+                    True,
+                    module=module,
+                    module_type=module_type,
+                    options=applied_options,
+                    info=getattr(module_obj, "info", {}),
+                )
+
+            return await _run_console_module(client, module, normalized_options)
+
+        return _result(False, error=f"Unsupported action: {action}")
+    except Exception as exc:
+        return _result(False, error=_sanitize_text(exc))
+
+
+def _build_remote_python(action: str, module: str, options: dict[str, Any], session_id: str, cmd: str) -> str:
+    payload = {
+        "action": action,
+        "module": module,
+        "options": options or {},
+        "session_id": session_id,
+        "cmd": cmd,
+    }
+    payload_b64 = base64.b64encode(json.dumps(payload).encode("utf-8")).decode("ascii")
+    script = textwrap.dedent(
+        f"""
+        import base64, json
+        from flaghunter.tools.msf import _run_msf_local
+
+        payload = json.loads(base64.b64decode({payload_b64!r}).decode("utf-8"))
+        result = __import__("asyncio").run(
+            _run_msf_local(
+                action=payload.get("action", ""),
+                module=payload.get("module", ""),
+                options=payload.get("options", {{}}),
+                session_id=payload.get("session_id", ""),
+                cmd=payload.get("cmd", ""),
+            )
+        )
+        print(json.dumps(result, ensure_ascii=False))
+        """
+    ).strip()
+    return f"python3 -c {shlex.quote(script)}"
+
+
+async def _run_msf_via_ssh_runtime(
+    *,
+    runtime: "Runtime",
+    action: str,
+    module: str = "",
+    options: dict[str, Any] | None = None,
+    session_id: str = "",
+    cmd: str = "",
+) -> dict[str, Any]:
+    command = _build_remote_python(
+        action=action,
+        module=module,
+        options=dict(options or {}),
+        session_id=session_id,
+        cmd=cmd,
+    )
+    result = await runtime.execute_command(command, timeout=150)
+    stdout = _sanitize_text(getattr(result, "stdout", ""))
+    stderr = _sanitize_text(getattr(result, "stderr", ""))
+
+    if getattr(result, "exit_code", 1) != 0:
+        return _result(
+            False,
+            error=f"Failed to run msf via SSHRuntime: {(stderr or stdout or 'unknown error').strip()}",
+        )
+
+    try:
+        return json.loads(stdout.strip() or "{}")
+    except json.JSONDecodeError:
+        return _result(
+            False,
+            error=f"Failed to parse msf SSH response: {(stdout or stderr or 'empty response').strip()}",
+        )
+
+
+async def run_msf(
+    action: str,
+    module: str = "",
+    options: dict[str, Any] | None = None,
+    session_id: str = "",
+    cmd: str = "",
+    runtime: "Runtime | None" = None,
+) -> dict[str, Any]:
+    normalized_options = dict(options or {})
+    if runtime is not None and type(runtime).__name__ == "SSHRuntime":
+        return await _run_msf_via_ssh_runtime(
+            runtime=runtime,
+            action=action,
+            module=module,
+            options=normalized_options,
+            session_id=session_id,
+            cmd=cmd,
+        )
+
+    return await _run_msf_local(
+        action=action,
+        module=module,
+        options=normalized_options,
+        session_id=session_id,
+        cmd=cmd,
+    )
+
+
+@register_tool(
+    name="msf",
+    category="exploit",
+    description="Run a Metasploit module via msfrpcd. Actions: use/run/sessions/exec.",
+    schema=ToolSchema(
+        properties={
+            "action": {
+                "type": "string",
+                "enum": ["use", "run", "sessions", "exec"],
+                "description": "use=set module+options, run=execute module, sessions=list active sessions, exec=run a command in a session",
+            },
+            "module": {
+                "type": "string",
+                "description": "Metasploit module path, e.g. exploit/multi/handler",
+            },
+            "options": {
+                "type": "object",
+                "description": "Module options like RHOSTS, RPORT, PAYLOAD, LHOST, LPORT",
+            },
+            "session_id": {
+                "type": "string",
+                "description": "Metasploit session id, used by action=exec",
+            },
+            "cmd": {
+                "type": "string",
+                "description": "Command to run in a session, used by action=exec",
+            },
+        },
+        required=["action"],
+    ),
+)
+async def msf(arguments: dict, runtime: "Runtime") -> str:
+    """Registered tool entrypoint for Metasploit RPC actions."""
+    result = await run_msf(
+        action=arguments.get("action", ""),
+        module=arguments.get("module", ""),
+        options=arguments.get("options") or {},
+        session_id=arguments.get("session_id", ""),
+        cmd=arguments.get("cmd", ""),
+        runtime=runtime,
+    )
+    return json.dumps(result, ensure_ascii=False)

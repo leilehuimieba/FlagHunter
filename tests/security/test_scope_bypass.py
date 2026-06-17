@@ -6,8 +6,8 @@ to reach out-of-scope hosts through edge cases in IP/CIDR comparison logic.
 
 import pytest
 
-from pentestagent.workspaces.validation import is_target_in_scope
-from pentestagent.workspaces.manager import TargetManager, WorkspaceError
+from flaghunter.workspaces.validation import is_target_in_scope
+from flaghunter.workspaces.manager import TargetManager, WorkspaceError
 
 
 # ---------------------------------------------------------------------------

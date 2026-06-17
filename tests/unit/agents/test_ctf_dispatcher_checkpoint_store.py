@@ -4,18 +4,18 @@ from types import SimpleNamespace
 
 import pytest
 
-import pentestagent.tools.notes as notes_module
-from pentestagent.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
-from pentestagent.agents.pa_agent.ctf_state import CTFState
-from pentestagent.agents.pa_agent.strategy_memory import (
+import flaghunter.tools.notes as notes_module
+from flaghunter.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
+from flaghunter.agents.pa_agent.ctf_state import CTFState
+from flaghunter.agents.pa_agent.strategy_memory import (
     ChallengeFingerprint,
     StrategyMemoryEntry,
     StrategyMemoryEntryMetadata,
     StrategyMemoryStore,
 )
-from pentestagent.harness.checkpoint_store import CheckpointStore
-from pentestagent.harness.session_ledger import SessionLedger
-from pentestagent.tools.notes import set_notes_file
+from flaghunter.harness.checkpoint_store import CheckpointStore
+from flaghunter.harness.session_ledger import SessionLedger
+from flaghunter.tools.notes import set_notes_file
 
 
 class _CheckpointRuntime:
@@ -94,7 +94,7 @@ async def test_dispatcher_writes_start_and_finish_checkpoints(
     tmp_path,
 ) -> None:
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_checkpoint.json")
@@ -159,7 +159,7 @@ async def test_dispatcher_persists_resume_ingress_into_start_event_and_checkpoin
     tmp_path,
 ) -> None:
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_checkpoint_resume.json")
@@ -281,7 +281,7 @@ async def test_dispatcher_wrong_flag_feedback_writes_rejected_flags_into_final_c
     tmp_path,
 ) -> None:
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     set_notes_file(tmp_path / "notes_checkpoint_wrong_flag.json")
@@ -305,7 +305,7 @@ async def test_dispatcher_wrong_flag_feedback_writes_rejected_flags_into_final_c
         )
     )
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.StrategyMemoryStore",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.StrategyMemoryStore",
         lambda: memory_store,
     )
 

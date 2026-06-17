@@ -46,11 +46,11 @@ mkdir -p "$OUTPUT_DIR"
 if [ "$(id -u)" = "0" ] && [ "${CHOWN_ON_START,,}" = "true" ]; then
     # If PUID/PGID supplied use them, otherwise keep default permissions
     if [ -n "${PUID:-}" ] && [ -n "${PGID:-}" ]; then
-        groupadd -g ${PGID} pentestagent 2>/dev/null || true
-        useradd -u ${PUID} -g ${PGID} -m pentestagent 2>/dev/null || true
+        groupadd -g ${PGID} flaghunter 2>/dev/null || true
+        useradd -u ${PUID} -g ${PGID} -m flaghunter 2>/dev/null || true
         chown -R ${PUID}:${PGID} /app/loot || true
     else
-        chown -R pentestagent:pentestagent /app/loot 2>/dev/null || true
+        chown -R flaghunter:flaghunter /app/loot 2>/dev/null || true
     fi
 fi
 

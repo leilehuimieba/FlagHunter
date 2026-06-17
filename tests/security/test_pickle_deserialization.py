@@ -99,7 +99,7 @@ class TestRAGPickleRisk:
     def test_rag_module_imports_pickle(self):
         """Verify that the RAG module uses pickle (documents the attack surface)."""
         import inspect
-        import pentestagent.knowledge.rag as rag_module
+        import flaghunter.knowledge.rag as rag_module
         source = inspect.getsource(rag_module)
         assert "pickle" in source, (
             "RAG module no longer uses pickle — update this test and "
@@ -108,26 +108,26 @@ class TestRAGPickleRisk:
 
     def test_rag_has_load_index_method(self):
         """RAGEngine.load_index exists and would call pickle.load."""
-        from pentestagent.knowledge.rag import RAGEngine
+        from flaghunter.knowledge.rag import RAGEngine
         engine = RAGEngine()
         assert hasattr(engine, "load_index"), "RAGEngine has no load_index method"
         assert callable(engine.load_index)
 
     def test_rag_has_save_index_method(self):
-        from pentestagent.knowledge.rag import RAGEngine
+        from flaghunter.knowledge.rag import RAGEngine
         engine = RAGEngine()
         assert hasattr(engine, "save_index"), "RAGEngine has no save_index method"
 
     def test_rag_load_index_uses_pickle(self):
         """Verify that load_index reads pickle (not json/yaml)."""
         import inspect
-        from pentestagent.knowledge.rag import RAGEngine
+        from flaghunter.knowledge.rag import RAGEngine
         source = inspect.getsource(RAGEngine.load_index)
         assert "pickle" in source, "load_index no longer uses pickle"
 
     def test_rag_save_uses_pickle(self, tmp_path):
         """Verify that save_index writes a pickle file."""
-        from pentestagent.knowledge.rag import Document, RAGEngine
+        from flaghunter.knowledge.rag import Document, RAGEngine
         import numpy as np
 
         engine = RAGEngine(knowledge_path=tmp_path)
@@ -149,7 +149,7 @@ class TestRAGPickleRisk:
 
     def test_loading_benign_pickle_via_rag(self, tmp_path):
         """RAGEngine.load_index can load a benign pickle created by save_index."""
-        from pentestagent.knowledge.rag import Document, RAGEngine
+        from flaghunter.knowledge.rag import Document, RAGEngine
         import numpy as np
 
         engine = RAGEngine(knowledge_path=tmp_path)

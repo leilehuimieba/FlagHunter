@@ -6,9 +6,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from pentestagent.agents.base_agent import AgentMessage, BaseAgent, ToolCall, ToolResult
-from pentestagent.agents.state import AgentState
-from pentestagent.tools.registry import Tool, ToolSchema
+from flaghunter.agents.base_agent import AgentMessage, BaseAgent, ToolCall, ToolResult
+from flaghunter.agents.state import AgentState
+from flaghunter.tools.registry import Tool, ToolSchema
 
 
 # ---------------------------------------------------------------------------
@@ -224,8 +224,8 @@ class TestAgentStateTransitions:
 class TestWorkspaceToolExecutorFlow:
     @pytest.mark.asyncio
     async def test_tool_executor_runs_tool_successfully(self, tmp_path):
-        from pentestagent.tools.executor import ToolExecutor
-        from pentestagent.runtime.runtime import LocalRuntime
+        from flaghunter.tools.executor import ToolExecutor
+        from flaghunter.runtime.runtime import LocalRuntime
 
         rt = LocalRuntime()
         await rt.start()
@@ -238,8 +238,8 @@ class TestWorkspaceToolExecutorFlow:
 
     @pytest.mark.asyncio
     async def test_workspace_created_and_targets_validated(self, tmp_path):
-        from pentestagent.workspaces.manager import WorkspaceManager
-        from pentestagent.workspaces.validation import is_target_in_scope
+        from flaghunter.workspaces.manager import WorkspaceManager
+        from flaghunter.workspaces.validation import is_target_in_scope
 
         mgr = WorkspaceManager(root=tmp_path)
         mgr.create("test_op")
@@ -253,8 +253,8 @@ class TestWorkspaceToolExecutorFlow:
 
     @pytest.mark.asyncio
     async def test_scope_enforcement_with_workspace(self, tmp_path):
-        from pentestagent.workspaces.manager import WorkspaceManager
-        from pentestagent.workspaces.validation import (
+        from flaghunter.workspaces.manager import WorkspaceManager
+        from flaghunter.workspaces.validation import (
             gather_candidate_targets, is_target_in_scope
         )
 

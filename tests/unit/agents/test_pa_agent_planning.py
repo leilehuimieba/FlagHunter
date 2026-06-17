@@ -5,8 +5,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from pentestagent.agents.pa_agent.pa_agent import PentestAgentAgent
-from pentestagent.agents.pa_agent.planner import generate_plan
+from flaghunter.agents.pa_agent.pa_agent import PentestAgentAgent
+from flaghunter.agents.pa_agent.planner import generate_plan
 
 
 class _PromptCaptureLLM:
@@ -99,11 +99,11 @@ async def test_auto_generate_plan_extracts_known_credentials_and_redacts_passwor
         }
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.pa_agent.generate_plan",
+        "flaghunter.agents.pa_agent.pa_agent.generate_plan",
         _fake_generate_plan,
     )
     monkeypatch.setattr(
-        "pentestagent.tools.notes.get_all_notes_sync",
+        "flaghunter.tools.notes.get_all_notes_sync",
         lambda: {
             "dvwa_session": {
                 "category": "credential",
@@ -149,7 +149,7 @@ async def test_auto_generate_plan_extracts_known_credentials_and_redacts_passwor
 
 def test_get_system_prompt_includes_missing_tool_install_hints(monkeypatch):
     monkeypatch.setattr(
-        "pentestagent.tools.notes.get_all_notes_sync",
+        "flaghunter.tools.notes.get_all_notes_sync",
         lambda: {
             "missing_tool_sqlmap": {
                 "category": "artifact",

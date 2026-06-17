@@ -8,8 +8,8 @@ parsing and validation layers.
 
 import pytest
 
-from pentestagent.workspaces.validation import gather_candidate_targets, is_target_in_scope
-from pentestagent.workspaces.manager import TargetManager, WorkspaceError
+from flaghunter.workspaces.validation import gather_candidate_targets, is_target_in_scope
+from flaghunter.workspaces.manager import TargetManager, WorkspaceError
 
 
 # ---------------------------------------------------------------------------
@@ -76,7 +76,7 @@ WORKSPACE_NAME_PAYLOADS = [
 class TestCommandInjectionInWorkspaceNames:
     @pytest.mark.parametrize("payload", WORKSPACE_NAME_PAYLOADS)
     def test_workspace_name_injection_rejected(self, tmp_path, payload):
-        from pentestagent.workspaces.manager import WorkspaceManager
+        from flaghunter.workspaces.manager import WorkspaceManager
         mgr = WorkspaceManager(root=tmp_path)
         with pytest.raises(WorkspaceError):
             mgr.validate_name(payload)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from pentestagent.harness.audit_events import (
+from flaghunter.harness.audit_events import (
     build_artifact_registered_event,
     build_control_action_completed_event,
     build_control_action_started_event,

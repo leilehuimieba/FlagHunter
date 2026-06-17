@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-import pentestagent.tools.notes as notes_module
-from pentestagent.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
-from pentestagent.tools.notes import get_all_notes_sync, set_notes_file
+import flaghunter.tools.notes as notes_module
+from flaghunter.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
+from flaghunter.tools.notes import get_all_notes_sync, set_notes_file
 from tests.integration.local_challenge_catalog import (
     build_challenge_context,
     get_local_challenge_sample,
@@ -80,7 +80,7 @@ async def test_backup_node_app_zip_candidate_eval_consumes_local_artifact_withou
     isolated_notes,
 ):
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
         lambda self, tools: {},
     )
     sample = get_local_challenge_sample("backup_node_app")

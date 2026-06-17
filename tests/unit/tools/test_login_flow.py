@@ -4,14 +4,14 @@ from pathlib import Path
 
 import pytest
 
-from pentestagent.tools.notes import set_notes_file
+from flaghunter.tools.notes import set_notes_file
 
-import pentestagent.tools.notes as notes_module
+import flaghunter.tools.notes as notes_module
 
 
 @pytest.mark.asyncio
 async def test_login_flow_no_runtime():
-    from pentestagent.tools.login_flow import run_login_flow
+    from flaghunter.tools.login_flow import run_login_flow
 
     result = await run_login_flow(
         "http://x",
@@ -28,7 +28,7 @@ async def test_login_flow_no_runtime():
 
 @pytest.mark.asyncio
 async def test_login_flow_ssh_runtime_rejected():
-    from pentestagent.tools.login_flow import run_login_flow
+    from flaghunter.tools.login_flow import run_login_flow
 
     FakeSSH = type("SSHRuntime", (), {})
 
@@ -47,7 +47,7 @@ async def test_login_flow_ssh_runtime_rejected():
 
 @pytest.mark.asyncio
 async def test_login_flow_browser_error_propagates():
-    from pentestagent.tools.login_flow import run_login_flow
+    from flaghunter.tools.login_flow import run_login_flow
 
     class FakeRuntime:
         async def browser_action(self, action, **kw):
@@ -81,7 +81,7 @@ def isolated_notes(tmp_path: Path):
 async def test_login_flow_success_returns_structured_cookie_payload(
     isolated_notes, monkeypatch
 ):
-    from pentestagent.tools.login_flow import run_login_flow
+    from flaghunter.tools.login_flow import run_login_flow
 
     class _DummyAsyncLock:
         async def __aenter__(self):

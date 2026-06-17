@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from pentestagent.interface.control_contract import build_decision_record, resolve_control_decision
+from flaghunter.interface.control_contract import build_decision_record, resolve_control_decision
 
 
 def test_resume_context_prefers_resume_execute() -> None:

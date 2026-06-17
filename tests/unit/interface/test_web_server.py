@@ -11,11 +11,11 @@ import pytest
 from aiohttp import FormData
 from aiohttp.test_utils import TestClient, TestServer
 
-from pentestagent.agents.pa_agent.ctf_state import CTFState
-from pentestagent.interface import web_server
-import pentestagent.config.settings as settings_module
-import pentestagent.knowledge as knowledge_module
-import pentestagent.interface.initializer as initializer_module
+from flaghunter.agents.pa_agent.ctf_state import CTFState
+from flaghunter.interface import web_server
+import flaghunter.config.settings as settings_module
+import flaghunter.knowledge as knowledge_module
+import flaghunter.interface.initializer as initializer_module
 
 
 class _NoopThread:
@@ -60,7 +60,7 @@ def _fake_build_agent_components_for(fake_pa_agent, runtime_cls):
 def test_web_event_bus_is_built_on_neutral_core():
     """I3: web's SSE bus reuses the single neutral EventBus implementation,
     while keeping its dict-in / queue-out adapter API intact."""
-    from pentestagent.session.event_bus import EventBus as _CoreEventBus
+    from flaghunter.session.event_bus import EventBus as _CoreEventBus
 
     bus = web_server.EventBus()
     assert isinstance(bus, _CoreEventBus)
@@ -2297,11 +2297,11 @@ def test_run_agent_task_uses_pentest_default_goal_when_mode_is_pentest(
         def save_session(self):
             return self._session_id
 
-    fake_pa_agent = types.ModuleType("pentestagent.agents.pa_agent")
+    fake_pa_agent = types.ModuleType("flaghunter.agents.pa_agent")
     fake_pa_agent.PentestAgentAgent = _FakeAgent
-    fake_settings = types.ModuleType("pentestagent.config.settings")
+    fake_settings = types.ModuleType("flaghunter.config.settings")
     fake_settings.get_settings = lambda: types.SimpleNamespace(model="test-model")
-    fake_initializer = types.ModuleType("pentestagent.interface.initializer")
+    fake_initializer = types.ModuleType("flaghunter.interface.initializer")
     fake_initializer.activate_workspace_for_target = lambda target: "workspace"
 
     async def _fake_build_runtime(**kwargs):
@@ -2309,16 +2309,16 @@ def test_run_agent_task_uses_pentest_default_goal_when_mode_is_pentest(
 
     fake_initializer.build_runtime = _fake_build_runtime
     fake_initializer.build_agent_components = _fake_build_agent_components_for(fake_pa_agent, _FakeRuntime)
-    fake_llm = types.ModuleType("pentestagent.llm")
+    fake_llm = types.ModuleType("flaghunter.llm")
     fake_llm.LLM = lambda model, rag_engine=None: object()
-    fake_tools = types.ModuleType("pentestagent.tools")
+    fake_tools = types.ModuleType("flaghunter.tools")
     fake_tools.get_all_tools = lambda: []
 
-    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent", fake_pa_agent)
-    monkeypatch.setitem(sys.modules, "pentestagent.config.settings", fake_settings)
-    monkeypatch.setitem(sys.modules, "pentestagent.interface.initializer", fake_initializer)
-    monkeypatch.setitem(sys.modules, "pentestagent.llm", fake_llm)
-    monkeypatch.setitem(sys.modules, "pentestagent.tools", fake_tools)
+    monkeypatch.setitem(sys.modules, "flaghunter.agents.pa_agent", fake_pa_agent)
+    monkeypatch.setitem(sys.modules, "flaghunter.config.settings", fake_settings)
+    monkeypatch.setitem(sys.modules, "flaghunter.interface.initializer", fake_initializer)
+    monkeypatch.setitem(sys.modules, "flaghunter.llm", fake_llm)
+    monkeypatch.setitem(sys.modules, "flaghunter.tools", fake_tools)
     monkeypatch.setattr(web_server, "emit_log", lambda *args, **kwargs: None)
     monkeypatch.setattr(web_server, "_persist_tasks", lambda project_root: None)
     monkeypatch.setattr(web_server._bus, "emit", lambda event: None)
@@ -2395,11 +2395,11 @@ def test_run_agent_task_attaches_run_id_and_project_root_to_agent(
                 yield None
             return
 
-    fake_pa_agent = types.ModuleType("pentestagent.agents.pa_agent")
+    fake_pa_agent = types.ModuleType("flaghunter.agents.pa_agent")
     fake_pa_agent.PentestAgentAgent = _FakeAgent
-    fake_settings = types.ModuleType("pentestagent.config.settings")
+    fake_settings = types.ModuleType("flaghunter.config.settings")
     fake_settings.get_settings = lambda: types.SimpleNamespace(model="test-model")
-    fake_initializer = types.ModuleType("pentestagent.interface.initializer")
+    fake_initializer = types.ModuleType("flaghunter.interface.initializer")
     fake_initializer.activate_workspace_for_target = lambda target: "workspace"
 
     async def _fake_build_runtime(**kwargs):
@@ -2407,19 +2407,19 @@ def test_run_agent_task_attaches_run_id_and_project_root_to_agent(
 
     fake_initializer.build_runtime = _fake_build_runtime
     fake_initializer.build_agent_components = _fake_build_agent_components_for(fake_pa_agent, _FakeRuntime)
-    fake_llm = types.ModuleType("pentestagent.llm")
+    fake_llm = types.ModuleType("flaghunter.llm")
     fake_llm.LLM = lambda model, rag_engine=None: object()
-    fake_tools = types.ModuleType("pentestagent.tools")
+    fake_tools = types.ModuleType("flaghunter.tools")
     fake_tools.get_all_tools = lambda: []
-    fake_knowledge = types.ModuleType("pentestagent.knowledge")
+    fake_knowledge = types.ModuleType("flaghunter.knowledge")
     fake_knowledge.RAGEngine = lambda *args, **kwargs: None
 
-    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent", fake_pa_agent)
-    monkeypatch.setitem(sys.modules, "pentestagent.config.settings", fake_settings)
-    monkeypatch.setitem(sys.modules, "pentestagent.interface.initializer", fake_initializer)
-    monkeypatch.setitem(sys.modules, "pentestagent.llm", fake_llm)
-    monkeypatch.setitem(sys.modules, "pentestagent.tools", fake_tools)
-    monkeypatch.setitem(sys.modules, "pentestagent.knowledge", fake_knowledge)
+    monkeypatch.setitem(sys.modules, "flaghunter.agents.pa_agent", fake_pa_agent)
+    monkeypatch.setitem(sys.modules, "flaghunter.config.settings", fake_settings)
+    monkeypatch.setitem(sys.modules, "flaghunter.interface.initializer", fake_initializer)
+    monkeypatch.setitem(sys.modules, "flaghunter.llm", fake_llm)
+    monkeypatch.setitem(sys.modules, "flaghunter.tools", fake_tools)
+    monkeypatch.setitem(sys.modules, "flaghunter.knowledge", fake_knowledge)
     monkeypatch.setattr(web_server, "_persist_tasks", lambda project_root: None)
     monkeypatch.setattr(web_server._bus, "emit", lambda event: None)
     monkeypatch.setattr(web_server, "emit_log", lambda *args, **kwargs: None)
@@ -2520,13 +2520,13 @@ def test_run_agent_task_routes_ctf_mode_to_ctf_dispatcher(
             if False:  # pragma: no cover
                 yield None
 
-    fake_pa_agent = types.ModuleType("pentestagent.agents.pa_agent")
+    fake_pa_agent = types.ModuleType("flaghunter.agents.pa_agent")
     fake_pa_agent.PentestAgentAgent = _ForbiddenAgent
-    fake_dispatcher_module = types.ModuleType("pentestagent.agents.pa_agent.ctf_dispatcher")
+    fake_dispatcher_module = types.ModuleType("flaghunter.agents.pa_agent.ctf_dispatcher")
     fake_dispatcher_module.CTFTaskDispatcher = _FakeDispatcher
-    fake_settings = types.ModuleType("pentestagent.config.settings")
+    fake_settings = types.ModuleType("flaghunter.config.settings")
     fake_settings.get_settings = lambda: types.SimpleNamespace(model="test-model")
-    fake_initializer = types.ModuleType("pentestagent.interface.initializer")
+    fake_initializer = types.ModuleType("flaghunter.interface.initializer")
     fake_initializer.activate_workspace_for_target = lambda target: "workspace"
 
     async def _fake_build_runtime(**kwargs):
@@ -2534,17 +2534,17 @@ def test_run_agent_task_routes_ctf_mode_to_ctf_dispatcher(
 
     fake_initializer.build_runtime = _fake_build_runtime
     fake_initializer.build_agent_components = _fake_build_agent_components_for(fake_pa_agent, _FakeRuntime)
-    fake_llm = types.ModuleType("pentestagent.llm")
+    fake_llm = types.ModuleType("flaghunter.llm")
     fake_llm.LLM = lambda model, rag_engine=None: object()
-    fake_tools = types.ModuleType("pentestagent.tools")
+    fake_tools = types.ModuleType("flaghunter.tools")
     fake_tools.get_all_tools = lambda: []
 
-    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent", fake_pa_agent)
-    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent.ctf_dispatcher", fake_dispatcher_module)
-    monkeypatch.setitem(sys.modules, "pentestagent.config.settings", fake_settings)
-    monkeypatch.setitem(sys.modules, "pentestagent.interface.initializer", fake_initializer)
-    monkeypatch.setitem(sys.modules, "pentestagent.llm", fake_llm)
-    monkeypatch.setitem(sys.modules, "pentestagent.tools", fake_tools)
+    monkeypatch.setitem(sys.modules, "flaghunter.agents.pa_agent", fake_pa_agent)
+    monkeypatch.setitem(sys.modules, "flaghunter.agents.pa_agent.ctf_dispatcher", fake_dispatcher_module)
+    monkeypatch.setitem(sys.modules, "flaghunter.config.settings", fake_settings)
+    monkeypatch.setitem(sys.modules, "flaghunter.interface.initializer", fake_initializer)
+    monkeypatch.setitem(sys.modules, "flaghunter.llm", fake_llm)
+    monkeypatch.setitem(sys.modules, "flaghunter.tools", fake_tools)
     monkeypatch.setattr(web_server, "emit_log", lambda *args, **kwargs: None)
     monkeypatch.setattr(web_server, "_persist_tasks", lambda project_root: None)
     monkeypatch.setattr(web_server._bus, "emit", lambda event: None)
@@ -2628,13 +2628,13 @@ def test_run_agent_task_routes_ctf_progress_messages_into_logs(
                 missing_tools=[],
             )
 
-    fake_pa_agent = types.ModuleType("pentestagent.agents.pa_agent")
+    fake_pa_agent = types.ModuleType("flaghunter.agents.pa_agent")
     fake_pa_agent.PentestAgentAgent = _NeverRunAgent
-    fake_dispatcher_module = types.ModuleType("pentestagent.agents.pa_agent.ctf_dispatcher")
+    fake_dispatcher_module = types.ModuleType("flaghunter.agents.pa_agent.ctf_dispatcher")
     fake_dispatcher_module.CTFTaskDispatcher = _FakeDispatcher
-    fake_settings = types.ModuleType("pentestagent.config.settings")
+    fake_settings = types.ModuleType("flaghunter.config.settings")
     fake_settings.get_settings = lambda: types.SimpleNamespace(model="test-model")
-    fake_initializer = types.ModuleType("pentestagent.interface.initializer")
+    fake_initializer = types.ModuleType("flaghunter.interface.initializer")
     fake_initializer.activate_workspace_for_target = lambda target: "workspace"
 
     async def _fake_build_runtime(**kwargs):
@@ -2642,19 +2642,19 @@ def test_run_agent_task_routes_ctf_progress_messages_into_logs(
 
     fake_initializer.build_runtime = _fake_build_runtime
     fake_initializer.build_agent_components = _fake_build_agent_components_for(fake_pa_agent, _FakeRuntime)
-    fake_llm = types.ModuleType("pentestagent.llm")
+    fake_llm = types.ModuleType("flaghunter.llm")
     fake_llm.LLM = lambda model, rag_engine=None: object()
-    fake_tools = types.ModuleType("pentestagent.tools")
+    fake_tools = types.ModuleType("flaghunter.tools")
     fake_tools.get_all_tools = lambda: []
 
     captured_logs: list[tuple[str, str, str]] = []
 
-    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent", fake_pa_agent)
-    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent.ctf_dispatcher", fake_dispatcher_module)
-    monkeypatch.setitem(sys.modules, "pentestagent.config.settings", fake_settings)
-    monkeypatch.setitem(sys.modules, "pentestagent.interface.initializer", fake_initializer)
-    monkeypatch.setitem(sys.modules, "pentestagent.llm", fake_llm)
-    monkeypatch.setitem(sys.modules, "pentestagent.tools", fake_tools)
+    monkeypatch.setitem(sys.modules, "flaghunter.agents.pa_agent", fake_pa_agent)
+    monkeypatch.setitem(sys.modules, "flaghunter.agents.pa_agent.ctf_dispatcher", fake_dispatcher_module)
+    monkeypatch.setitem(sys.modules, "flaghunter.config.settings", fake_settings)
+    monkeypatch.setitem(sys.modules, "flaghunter.interface.initializer", fake_initializer)
+    monkeypatch.setitem(sys.modules, "flaghunter.llm", fake_llm)
+    monkeypatch.setitem(sys.modules, "flaghunter.tools", fake_tools)
     monkeypatch.setattr(web_server, "emit_log", lambda level, source, message: captured_logs.append((level, source, message)))
     monkeypatch.setattr(web_server, "_persist_tasks", lambda project_root: None)
     monkeypatch.setattr(web_server._bus, "emit", lambda event: None)
@@ -2731,13 +2731,13 @@ def test_run_agent_task_emits_ctf_dispatcher_lifecycle_summary_logs(
                 missing_tools=[],
             )
 
-    fake_pa_agent = types.ModuleType("pentestagent.agents.pa_agent")
+    fake_pa_agent = types.ModuleType("flaghunter.agents.pa_agent")
     fake_pa_agent.PentestAgentAgent = _NeverRunAgent
-    fake_dispatcher_module = types.ModuleType("pentestagent.agents.pa_agent.ctf_dispatcher")
+    fake_dispatcher_module = types.ModuleType("flaghunter.agents.pa_agent.ctf_dispatcher")
     fake_dispatcher_module.CTFTaskDispatcher = _FakeDispatcher
-    fake_settings = types.ModuleType("pentestagent.config.settings")
+    fake_settings = types.ModuleType("flaghunter.config.settings")
     fake_settings.get_settings = lambda: types.SimpleNamespace(model="test-model")
-    fake_initializer = types.ModuleType("pentestagent.interface.initializer")
+    fake_initializer = types.ModuleType("flaghunter.interface.initializer")
     fake_initializer.activate_workspace_for_target = lambda target: "workspace"
 
     async def _fake_build_runtime(**kwargs):
@@ -2745,19 +2745,19 @@ def test_run_agent_task_emits_ctf_dispatcher_lifecycle_summary_logs(
 
     fake_initializer.build_runtime = _fake_build_runtime
     fake_initializer.build_agent_components = _fake_build_agent_components_for(fake_pa_agent, _FakeRuntime)
-    fake_llm = types.ModuleType("pentestagent.llm")
+    fake_llm = types.ModuleType("flaghunter.llm")
     fake_llm.LLM = lambda model, rag_engine=None: object()
-    fake_tools = types.ModuleType("pentestagent.tools")
+    fake_tools = types.ModuleType("flaghunter.tools")
     fake_tools.get_all_tools = lambda: []
 
     captured_logs: list[tuple[str, str, str]] = []
 
-    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent", fake_pa_agent)
-    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent.ctf_dispatcher", fake_dispatcher_module)
-    monkeypatch.setitem(sys.modules, "pentestagent.config.settings", fake_settings)
-    monkeypatch.setitem(sys.modules, "pentestagent.interface.initializer", fake_initializer)
-    monkeypatch.setitem(sys.modules, "pentestagent.llm", fake_llm)
-    monkeypatch.setitem(sys.modules, "pentestagent.tools", fake_tools)
+    monkeypatch.setitem(sys.modules, "flaghunter.agents.pa_agent", fake_pa_agent)
+    monkeypatch.setitem(sys.modules, "flaghunter.agents.pa_agent.ctf_dispatcher", fake_dispatcher_module)
+    monkeypatch.setitem(sys.modules, "flaghunter.config.settings", fake_settings)
+    monkeypatch.setitem(sys.modules, "flaghunter.interface.initializer", fake_initializer)
+    monkeypatch.setitem(sys.modules, "flaghunter.llm", fake_llm)
+    monkeypatch.setitem(sys.modules, "flaghunter.tools", fake_tools)
     monkeypatch.setattr(web_server, "emit_log", lambda level, source, message: captured_logs.append((level, source, message)))
     monkeypatch.setattr(web_server, "_persist_tasks", lambda project_root: None)
     monkeypatch.setattr(web_server._bus, "emit", lambda event: None)
@@ -2843,13 +2843,13 @@ def test_run_agent_task_emits_ctf_dispatcher_missing_tools_log_on_stop(
                 missing_tools=["browser", "sqlmap"],
             )
 
-    fake_pa_agent = types.ModuleType("pentestagent.agents.pa_agent")
+    fake_pa_agent = types.ModuleType("flaghunter.agents.pa_agent")
     fake_pa_agent.PentestAgentAgent = _NeverRunAgent
-    fake_dispatcher_module = types.ModuleType("pentestagent.agents.pa_agent.ctf_dispatcher")
+    fake_dispatcher_module = types.ModuleType("flaghunter.agents.pa_agent.ctf_dispatcher")
     fake_dispatcher_module.CTFTaskDispatcher = _FakeDispatcher
-    fake_settings = types.ModuleType("pentestagent.config.settings")
+    fake_settings = types.ModuleType("flaghunter.config.settings")
     fake_settings.get_settings = lambda: types.SimpleNamespace(model="test-model")
-    fake_initializer = types.ModuleType("pentestagent.interface.initializer")
+    fake_initializer = types.ModuleType("flaghunter.interface.initializer")
     fake_initializer.activate_workspace_for_target = lambda target: "workspace"
 
     async def _fake_build_runtime(**kwargs):
@@ -2857,19 +2857,19 @@ def test_run_agent_task_emits_ctf_dispatcher_missing_tools_log_on_stop(
 
     fake_initializer.build_runtime = _fake_build_runtime
     fake_initializer.build_agent_components = _fake_build_agent_components_for(fake_pa_agent, _FakeRuntime)
-    fake_llm = types.ModuleType("pentestagent.llm")
+    fake_llm = types.ModuleType("flaghunter.llm")
     fake_llm.LLM = lambda model, rag_engine=None: object()
-    fake_tools = types.ModuleType("pentestagent.tools")
+    fake_tools = types.ModuleType("flaghunter.tools")
     fake_tools.get_all_tools = lambda: []
 
     captured_logs: list[tuple[str, str, str]] = []
 
-    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent", fake_pa_agent)
-    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent.ctf_dispatcher", fake_dispatcher_module)
-    monkeypatch.setitem(sys.modules, "pentestagent.config.settings", fake_settings)
-    monkeypatch.setitem(sys.modules, "pentestagent.interface.initializer", fake_initializer)
-    monkeypatch.setitem(sys.modules, "pentestagent.llm", fake_llm)
-    monkeypatch.setitem(sys.modules, "pentestagent.tools", fake_tools)
+    monkeypatch.setitem(sys.modules, "flaghunter.agents.pa_agent", fake_pa_agent)
+    monkeypatch.setitem(sys.modules, "flaghunter.agents.pa_agent.ctf_dispatcher", fake_dispatcher_module)
+    monkeypatch.setitem(sys.modules, "flaghunter.config.settings", fake_settings)
+    monkeypatch.setitem(sys.modules, "flaghunter.interface.initializer", fake_initializer)
+    monkeypatch.setitem(sys.modules, "flaghunter.llm", fake_llm)
+    monkeypatch.setitem(sys.modules, "flaghunter.tools", fake_tools)
     monkeypatch.setattr(web_server, "emit_log", lambda level, source, message: captured_logs.append((level, source, message)))
     monkeypatch.setattr(web_server, "_persist_tasks", lambda project_root: None)
     monkeypatch.setattr(web_server._bus, "emit", lambda event: None)
@@ -2965,13 +2965,13 @@ def test_run_agent_task_passes_latest_user_hint_to_ctf_dispatcher(
                 missing_tools=[],
             )
 
-    fake_pa_agent = types.ModuleType("pentestagent.agents.pa_agent")
+    fake_pa_agent = types.ModuleType("flaghunter.agents.pa_agent")
     fake_pa_agent.PentestAgentAgent = _NeverRunAgent
-    fake_dispatcher_module = types.ModuleType("pentestagent.agents.pa_agent.ctf_dispatcher")
+    fake_dispatcher_module = types.ModuleType("flaghunter.agents.pa_agent.ctf_dispatcher")
     fake_dispatcher_module.CTFTaskDispatcher = _FakeDispatcher
-    fake_settings = types.ModuleType("pentestagent.config.settings")
+    fake_settings = types.ModuleType("flaghunter.config.settings")
     fake_settings.get_settings = lambda: types.SimpleNamespace(model="test-model")
-    fake_initializer = types.ModuleType("pentestagent.interface.initializer")
+    fake_initializer = types.ModuleType("flaghunter.interface.initializer")
     fake_initializer.activate_workspace_for_target = lambda target: "workspace"
 
     async def _fake_build_runtime(**kwargs):
@@ -2979,17 +2979,17 @@ def test_run_agent_task_passes_latest_user_hint_to_ctf_dispatcher(
 
     fake_initializer.build_runtime = _fake_build_runtime
     fake_initializer.build_agent_components = _fake_build_agent_components_for(fake_pa_agent, _FakeRuntime)
-    fake_llm = types.ModuleType("pentestagent.llm")
+    fake_llm = types.ModuleType("flaghunter.llm")
     fake_llm.LLM = lambda model, rag_engine=None: object()
-    fake_tools = types.ModuleType("pentestagent.tools")
+    fake_tools = types.ModuleType("flaghunter.tools")
     fake_tools.get_all_tools = lambda: []
 
-    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent", fake_pa_agent)
-    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent.ctf_dispatcher", fake_dispatcher_module)
-    monkeypatch.setitem(sys.modules, "pentestagent.config.settings", fake_settings)
-    monkeypatch.setitem(sys.modules, "pentestagent.interface.initializer", fake_initializer)
-    monkeypatch.setitem(sys.modules, "pentestagent.llm", fake_llm)
-    monkeypatch.setitem(sys.modules, "pentestagent.tools", fake_tools)
+    monkeypatch.setitem(sys.modules, "flaghunter.agents.pa_agent", fake_pa_agent)
+    monkeypatch.setitem(sys.modules, "flaghunter.agents.pa_agent.ctf_dispatcher", fake_dispatcher_module)
+    monkeypatch.setitem(sys.modules, "flaghunter.config.settings", fake_settings)
+    monkeypatch.setitem(sys.modules, "flaghunter.interface.initializer", fake_initializer)
+    monkeypatch.setitem(sys.modules, "flaghunter.llm", fake_llm)
+    monkeypatch.setitem(sys.modules, "flaghunter.tools", fake_tools)
     monkeypatch.setattr(web_server, "emit_log", lambda *args, **kwargs: None)
     monkeypatch.setattr(web_server, "_persist_tasks", lambda project_root: None)
     monkeypatch.setattr(web_server._bus, "emit", lambda event: None)
@@ -3058,7 +3058,7 @@ def test_run_agent_task_bridges_ctf_local_asset_contract_into_dispatcher_hint(
         calls: list[dict[str, object]] = []
 
         def __init__(self, runtime, progress_callback=None, **kwargs):
-            from pentestagent.agents.pa_agent.ctf_state import CTFState
+            from flaghunter.agents.pa_agent.ctf_state import CTFState
 
             self.runtime = runtime
             self.progress_callback = progress_callback
@@ -3101,13 +3101,13 @@ def test_run_agent_task_bridges_ctf_local_asset_contract_into_dispatcher_hint(
                 missing_tools=["browser"],
             )
 
-    fake_pa_agent = types.ModuleType("pentestagent.agents.pa_agent")
+    fake_pa_agent = types.ModuleType("flaghunter.agents.pa_agent")
     fake_pa_agent.PentestAgentAgent = _NeverRunAgent
-    fake_dispatcher_module = types.ModuleType("pentestagent.agents.pa_agent.ctf_dispatcher")
+    fake_dispatcher_module = types.ModuleType("flaghunter.agents.pa_agent.ctf_dispatcher")
     fake_dispatcher_module.CTFTaskDispatcher = _FakeDispatcher
-    fake_settings = types.ModuleType("pentestagent.config.settings")
+    fake_settings = types.ModuleType("flaghunter.config.settings")
     fake_settings.get_settings = lambda: types.SimpleNamespace(model="test-model")
-    fake_initializer = types.ModuleType("pentestagent.interface.initializer")
+    fake_initializer = types.ModuleType("flaghunter.interface.initializer")
     fake_initializer.activate_workspace_for_target = lambda target: "workspace"
 
     async def _fake_build_runtime(**kwargs):
@@ -3115,17 +3115,17 @@ def test_run_agent_task_bridges_ctf_local_asset_contract_into_dispatcher_hint(
 
     fake_initializer.build_runtime = _fake_build_runtime
     fake_initializer.build_agent_components = _fake_build_agent_components_for(fake_pa_agent, _FakeRuntime)
-    fake_llm = types.ModuleType("pentestagent.llm")
+    fake_llm = types.ModuleType("flaghunter.llm")
     fake_llm.LLM = lambda model, rag_engine=None: object()
-    fake_tools = types.ModuleType("pentestagent.tools")
+    fake_tools = types.ModuleType("flaghunter.tools")
     fake_tools.get_all_tools = lambda: []
 
-    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent", fake_pa_agent)
-    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent.ctf_dispatcher", fake_dispatcher_module)
-    monkeypatch.setitem(sys.modules, "pentestagent.config.settings", fake_settings)
-    monkeypatch.setitem(sys.modules, "pentestagent.interface.initializer", fake_initializer)
-    monkeypatch.setitem(sys.modules, "pentestagent.llm", fake_llm)
-    monkeypatch.setitem(sys.modules, "pentestagent.tools", fake_tools)
+    monkeypatch.setitem(sys.modules, "flaghunter.agents.pa_agent", fake_pa_agent)
+    monkeypatch.setitem(sys.modules, "flaghunter.agents.pa_agent.ctf_dispatcher", fake_dispatcher_module)
+    monkeypatch.setitem(sys.modules, "flaghunter.config.settings", fake_settings)
+    monkeypatch.setitem(sys.modules, "flaghunter.interface.initializer", fake_initializer)
+    monkeypatch.setitem(sys.modules, "flaghunter.llm", fake_llm)
+    monkeypatch.setitem(sys.modules, "flaghunter.tools", fake_tools)
     monkeypatch.setattr(web_server, "emit_log", lambda *args, **kwargs: None)
     monkeypatch.setattr(web_server, "_persist_tasks", lambda project_root: None)
     monkeypatch.setattr(web_server._bus, "emit", lambda event: None)
@@ -5571,10 +5571,10 @@ def test_task_detail_payload_prefers_task_session_id_over_metrics_session_id(
 def test_task_detail_payload_exposes_harness_session_context_when_run_artifacts_exist(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    from pentestagent.agents.pa_agent.ctf_state import CTFState
-    from pentestagent.harness.artifact_registry import ArtifactRegistry
-    from pentestagent.harness.checkpoint_store import CheckpointStore
-    from pentestagent.harness.session_ledger import SessionLedger
+    from flaghunter.agents.pa_agent.ctf_state import CTFState
+    from flaghunter.harness.artifact_registry import ArtifactRegistry
+    from flaghunter.harness.checkpoint_store import CheckpointStore
+    from flaghunter.harness.session_ledger import SessionLedger
 
     task = {
         "id": "task_harness_context",
@@ -5650,9 +5650,9 @@ def test_task_detail_payload_exposes_harness_session_context_when_run_artifacts_
 def test_task_detail_payload_includes_harness_resume_ingress(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    from pentestagent.agents.pa_agent.ctf_state import CTFState
-    from pentestagent.harness.checkpoint_store import CheckpointStore
-    from pentestagent.harness.session_ledger import SessionLedger
+    from flaghunter.agents.pa_agent.ctf_state import CTFState
+    from flaghunter.harness.checkpoint_store import CheckpointStore
+    from flaghunter.harness.session_ledger import SessionLedger
 
     task = {
         "id": "task_resume_ingress",
@@ -5854,11 +5854,11 @@ def test_run_agent_task_persists_session_more_than_once_when_tool_results_are_ob
             self.save_calls += 1
             return self._session_id
 
-    fake_pa_agent = types.ModuleType("pentestagent.agents.pa_agent")
+    fake_pa_agent = types.ModuleType("flaghunter.agents.pa_agent")
     fake_pa_agent.PentestAgentAgent = _FakeAgent
-    fake_settings = types.ModuleType("pentestagent.config.settings")
+    fake_settings = types.ModuleType("flaghunter.config.settings")
     fake_settings.get_settings = lambda: types.SimpleNamespace(model="test-model")
-    fake_initializer = types.ModuleType("pentestagent.interface.initializer")
+    fake_initializer = types.ModuleType("flaghunter.interface.initializer")
     fake_initializer.activate_workspace_for_target = lambda target: "workspace"
 
     async def _fake_build_runtime(**kwargs):
@@ -5866,16 +5866,16 @@ def test_run_agent_task_persists_session_more_than_once_when_tool_results_are_ob
 
     fake_initializer.build_runtime = _fake_build_runtime
     fake_initializer.build_agent_components = _fake_build_agent_components_for(fake_pa_agent, _FakeRuntime)
-    fake_llm = types.ModuleType("pentestagent.llm")
+    fake_llm = types.ModuleType("flaghunter.llm")
     fake_llm.LLM = lambda model, rag_engine=None: object()
-    fake_tools = types.ModuleType("pentestagent.tools")
+    fake_tools = types.ModuleType("flaghunter.tools")
     fake_tools.get_all_tools = lambda: []
 
-    monkeypatch.setitem(sys.modules, "pentestagent.agents.pa_agent", fake_pa_agent)
-    monkeypatch.setitem(sys.modules, "pentestagent.config.settings", fake_settings)
-    monkeypatch.setitem(sys.modules, "pentestagent.interface.initializer", fake_initializer)
-    monkeypatch.setitem(sys.modules, "pentestagent.llm", fake_llm)
-    monkeypatch.setitem(sys.modules, "pentestagent.tools", fake_tools)
+    monkeypatch.setitem(sys.modules, "flaghunter.agents.pa_agent", fake_pa_agent)
+    monkeypatch.setitem(sys.modules, "flaghunter.config.settings", fake_settings)
+    monkeypatch.setitem(sys.modules, "flaghunter.interface.initializer", fake_initializer)
+    monkeypatch.setitem(sys.modules, "flaghunter.llm", fake_llm)
+    monkeypatch.setitem(sys.modules, "flaghunter.tools", fake_tools)
     monkeypatch.setattr(web_server, "emit_log", lambda *args, **kwargs: None)
     monkeypatch.setattr(web_server, "_persist_tasks", lambda project_root: None)
     monkeypatch.setattr(web_server._bus, "emit", lambda event: None)
@@ -6395,9 +6395,9 @@ async def test_task_detail_surfaces_blackboard_readable_summaries(web_client: Te
 async def test_trace_replay_inherits_resume_context_lineage_and_detail_seed(
     web_client: TestClient, tmp_path: Path
 ):
-    from pentestagent.agents.pa_agent.ctf_state import CTFState
-    from pentestagent.harness.checkpoint_store import CheckpointStore
-    from pentestagent.harness.session_ledger import SessionLedger
+    from flaghunter.agents.pa_agent.ctf_state import CTFState
+    from flaghunter.harness.checkpoint_store import CheckpointStore
+    from flaghunter.harness.session_ledger import SessionLedger
 
     created = await web_client.post(
         "/api/tasks",
@@ -6536,9 +6536,9 @@ async def test_task_retry_creates_new_task_from_finished_task(web_client: TestCl
 async def test_task_retry_inherits_resume_context_lineage_and_detail_seed(
     web_client: TestClient, tmp_path: Path
 ):
-    from pentestagent.agents.pa_agent.ctf_state import CTFState
-    from pentestagent.harness.checkpoint_store import CheckpointStore
-    from pentestagent.harness.session_ledger import SessionLedger
+    from flaghunter.agents.pa_agent.ctf_state import CTFState
+    from flaghunter.harness.checkpoint_store import CheckpointStore
+    from flaghunter.harness.session_ledger import SessionLedger
 
     created = await web_client.post(
         "/api/tasks",
@@ -6692,9 +6692,9 @@ async def test_task_continue_accepts_running_task_without_creating_new_task(
         },
     }
 
-    from pentestagent.agents.pa_agent.ctf_state import CTFState
-    from pentestagent.harness.checkpoint_store import CheckpointStore
-    from pentestagent.harness.session_ledger import SessionLedger
+    from flaghunter.agents.pa_agent.ctf_state import CTFState
+    from flaghunter.harness.checkpoint_store import CheckpointStore
+    from flaghunter.harness.session_ledger import SessionLedger
 
     SessionLedger(tmp_path / "loot" / "session_ledgers").append_event(
         run_id,

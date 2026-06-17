@@ -5,8 +5,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from pentestagent.tools import knowledge_search as ks_module
-from pentestagent.tools.knowledge_search import knowledge_search
+from flaghunter.tools import knowledge_search as ks_module
+from flaghunter.tools.knowledge_search import knowledge_search
 
 
 class TestKnowledgeSearch:
@@ -24,7 +24,7 @@ class TestKnowledgeSearch:
         result = asyncio.run(knowledge_search({}, None))
         assert "Error: query is required" in result
 
-    @patch("pentestagent.tools.knowledge_search.RAGEngine")
+    @patch("flaghunter.tools.knowledge_search.RAGEngine")
     def test_successful_search(self, mock_engine_cls):
         mock_engine = MagicMock()
         mock_engine.document_count = 42
@@ -42,7 +42,7 @@ class TestKnowledgeSearch:
         mock_engine.index.assert_called_once()
         mock_engine.search.assert_called_once_with("SQL injection", k=5, threshold=0.35, max_tokens=1500)
 
-    @patch("pentestagent.tools.knowledge_search.RAGEngine")
+    @patch("flaghunter.tools.knowledge_search.RAGEngine")
     def test_custom_params(self, mock_engine_cls):
         mock_engine = MagicMock()
         mock_engine.document_count = 10
@@ -57,7 +57,7 @@ class TestKnowledgeSearch:
         }, None))
         mock_engine.search.assert_called_once_with("XSS", k=3, threshold=0.5, max_tokens=800)
 
-    @patch("pentestagent.tools.knowledge_search.RAGEngine")
+    @patch("flaghunter.tools.knowledge_search.RAGEngine")
     def test_no_results(self, mock_engine_cls):
         mock_engine = MagicMock()
         mock_engine.document_count = 100
@@ -69,7 +69,7 @@ class TestKnowledgeSearch:
         assert "obscure topic" in result
         assert "Tips:" in result
 
-    @patch("pentestagent.tools.knowledge_search.RAGEngine")
+    @patch("flaghunter.tools.knowledge_search.RAGEngine")
     def test_engine_exception(self, mock_engine_cls):
         mock_engine_cls.side_effect = ImportError("No module named 'sentence_transformers'")
 

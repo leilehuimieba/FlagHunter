@@ -10,11 +10,11 @@ if exist "%FALLBACK_VENV%" goto run_venv
 goto missing_runtime
 
 :run_flaghunter311
-"%FLAGHUNTER_PYTHON%" -m pentestagent %*
+"%FLAGHUNTER_PYTHON%" -m flaghunter %*
 exit /b %errorlevel%
 
 :run_venv
-"%FALLBACK_VENV%" -m pentestagent %*
+"%FALLBACK_VENV%" -m flaghunter %*
 exit /b %errorlevel%
 
 :missing_runtime

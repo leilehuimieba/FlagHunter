@@ -5,8 +5,8 @@ import json
 
 import pytest
 
-from pentestagent.tools.registry import clear_tools, get_tool
-from pentestagent.tools.sqlmap import run_sqlmap
+from flaghunter.tools.registry import clear_tools, get_tool
+from flaghunter.tools.sqlmap import run_sqlmap
 
 
 class _CommandResult:
@@ -86,7 +86,7 @@ available databases [2]:
 @pytest.mark.asyncio
 async def test_registered_tool_returns_json_string():
     clear_tools()
-    import pentestagent.tools.sqlmap as sqlmap_module
+    import flaghunter.tools.sqlmap as sqlmap_module
 
     importlib.reload(sqlmap_module)
     runtime = _FakeRuntime(

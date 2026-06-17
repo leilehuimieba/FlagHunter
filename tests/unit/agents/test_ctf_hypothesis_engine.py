@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from pentestagent.agents.pa_agent.ctf_state import CTFState, FlagProof, Hypothesis
-from pentestagent.agents.pa_agent.hypothesis_engine import HypothesisEngine
+from flaghunter.agents.pa_agent.ctf_state import CTFState, FlagProof, Hypothesis
+from flaghunter.agents.pa_agent.hypothesis_engine import HypothesisEngine
 
 
 def test_hypothesis_engine_generates_rule_based_hypotheses_from_state():

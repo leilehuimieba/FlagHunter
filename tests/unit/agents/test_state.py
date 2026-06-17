@@ -1,10 +1,10 @@
-"""Tests for pentestagent.agents.state."""
+"""Tests for flaghunter.agents.state."""
 
 import time
 
 import pytest
 
-from pentestagent.agents.state import AgentState, AgentStateManager, StateTransition
+from flaghunter.agents.state import AgentState, AgentStateManager, StateTransition
 
 
 class TestAgentStateEnum:

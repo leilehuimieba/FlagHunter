@@ -7,8 +7,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from pentestagent.agents.pa_agent.pa_agent import PentestAgentAgent
-from pentestagent.knowledge import retrospective as retro
+from flaghunter.agents.pa_agent.pa_agent import PentestAgentAgent
+from flaghunter.knowledge import retrospective as retro
 
 
 class _DummyRuntime:
@@ -24,7 +24,7 @@ class _DummyLLM:
 
 @pytest.fixture
 def retro_paths(tmp_path, monkeypatch):
-    retro_json = tmp_path / "pentestagent" / "knowledge" / "retrospective.json"
+    retro_json = tmp_path / "flaghunter" / "knowledge" / "retrospective.json"
     knowledge_base = tmp_path / "knowledge"
 
     monkeypatch.setattr(retro, "RETRO_PATH", retro_json)
@@ -107,7 +107,7 @@ async def test_consecutive_fails_triggers(monkeypatch):
     calls: list[dict] = []
 
     monkeypatch.setattr(
-        "pentestagent.knowledge.retrospective.add_retrospective_entry",
+        "flaghunter.knowledge.retrospective.add_retrospective_entry",
         lambda **kwargs: calls.append(kwargs),
     )
 

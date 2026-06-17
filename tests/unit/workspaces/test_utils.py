@@ -1,11 +1,11 @@
-"""Tests for pentestagent.workspaces.utils (get_conversations_base, get_loot_base)."""
+"""Tests for flaghunter.workspaces.utils (get_conversations_base, get_loot_base)."""
 
 from pathlib import Path
 
 import pytest
 
-from pentestagent.workspaces.manager import WorkspaceManager
-import pentestagent.workspaces.utils as ws_utils
+from flaghunter.workspaces.manager import WorkspaceManager
+import flaghunter.workspaces.utils as ws_utils
 
 
 @pytest.fixture(autouse=True)

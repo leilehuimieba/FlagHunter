@@ -5,9 +5,9 @@ import json
 
 import pytest
 
-import pentestagent.tools.dirscan as dirscan_module
-from pentestagent.tools.dirscan import run_dirscan
-from pentestagent.tools.registry import clear_tools, get_tool
+import flaghunter.tools.dirscan as dirscan_module
+from flaghunter.tools.dirscan import run_dirscan
+from flaghunter.tools.registry import clear_tools, get_tool
 
 
 class _CommandResult:

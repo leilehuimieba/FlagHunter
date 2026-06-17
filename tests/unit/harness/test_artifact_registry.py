@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pentestagent.harness.artifact_registry import ArtifactRegistry
+from flaghunter.harness.artifact_registry import ArtifactRegistry
 
 
 def test_artifact_registry_registers_and_lists_run_records_in_write_order(tmp_path) -> None:

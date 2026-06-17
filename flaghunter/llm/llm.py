@@ -1,0 +1,744 @@
+"""LiteLLM wrapper for PentestAgent."""
+
+import asyncio
+import os
+import random
+from dataclasses import dataclass
+from datetime import datetime
+from enum import Enum
+from typing import TYPE_CHECKING, Any, AsyncIterator, List, Optional
+
+from ..config.constants import DEFAULT_MODEL
+from .config import ModelConfig
+from .memory import ConversationMemory
+
+if TYPE_CHECKING:
+    from ..knowledge import RAGEngine
+    from ..tools import Tool
+
+
+@dataclass
+class LLMResponse:
+    """Response from LLM."""
+
+    content: Optional[str]
+    tool_calls: Optional[List[Any]]
+    usage: Optional[dict]
+    model: str = ""
+    finish_reason: str = ""
+    reasoning_content: Optional[str] = None
+
+
+def _extract_content(message) -> str:
+    """Extract text content from an LLM message, with reasoning model fallback.
+
+    Some reasoning models (e.g. DeepSeek v4) return empty ``content`` but
+    populate ``reasoning_content`` (or put it in
+    ``provider_specific_fields``).  This helper prefers the standard field
+    and falls back to the reasoning field so the agent never receives an
+    empty string when the model actually produced output.
+    """
+    # 1. Standard content
+    if message.content:
+        return message.content
+
+    # 2. Direct reasoning_content attribute (litellm >= 1.60)
+    reasoning = getattr(message, "reasoning_content", None)
+    if reasoning:
+        return reasoning
+
+    # 3. Nested in provider_specific_fields (older litellm or certain providers)
+    psf = getattr(message, "provider_specific_fields", None) or {}
+    if isinstance(psf, dict):
+        reasoning = psf.get("reasoning_content") or psf.get("reasoning")
+        if reasoning:
+            return reasoning
+
+    return ""
+
+
+class ErrorClass(str, Enum):
+    TRANSIENT = "transient"
+    PERMANENT_DAY = "permanent_day"
+    PERMANENT = "permanent"
+    TRANSIENT_NETWORK = "transient_network"
+    TRANSIENT_REMOTE = "transient_remote"
+    LOGIC = "logic"
+    UNKNOWN = "unknown"
+
+
+class LLM:
+    """LiteLLM wrapper with tool calling support."""
+
+    def __init__(
+        self,
+        model: str = None,
+        config: Optional[ModelConfig] = None,
+        rag_engine: Optional["RAGEngine"] = None,
+    ):
+        """
+        Initialize the LLM wrapper.
+
+        Args:
+            model: The model to use (supports LiteLLM model names)
+            config: Model configuration
+            rag_engine: Optional RAG engine for context injection
+        """
+        self.model = model or DEFAULT_MODEL
+        self.config = config or ModelConfig()
+        self.rag_engine = rag_engine
+        self.memory = ConversationMemory(max_tokens=self.config.max_context_tokens)
+
+        # Ensure litellm is available
+        try:
+            # If user provided an Ollama base URL (e.g. via .env), map it to
+            # several common environment variable names that LiteLLM or
+            # underlying Ollama clients may read. This helps when different
+            # naming conventions are used (OLLAMA_BASE_URL vs LITELLM_OLLAMA_*).
+            ollama_base = os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_URL")
+            if ollama_base:
+                # Populate a few possible names without overwriting any that
+                # are already set by the environment.
+                os.environ.setdefault("OLLAMA_BASE_URL", ollama_base)
+                os.environ.setdefault("OLLAMA_URL", ollama_base)
+                os.environ.setdefault("OLLAMA_API_URL", ollama_base)
+                os.environ.setdefault("LITELLM_OLLAMA_BASE_URL", ollama_base)
+                os.environ.setdefault("LITELLM_OLLAMA_URL", ollama_base)
+                # Some clients expect a host without scheme
+                host_only = ollama_base.replace("http://", "").replace("https://", "")
+                os.environ.setdefault("OLLAMA_HOST", host_only)
+
+            import litellm
+
+            # Drop unsupported params for models that don't support them
+            litellm.drop_params = True
+
+            # Enable debug mode if PENTESTAGENT_DEBUG is set
+            if os.getenv("PENTESTAGENT_DEBUG", "false").lower() in ("true", "1", "yes"):
+                litellm.set_verbose = True
+                import logging
+
+                logging.basicConfig(level=logging.DEBUG)
+
+            self._litellm = litellm
+        except ImportError as e:
+            raise ImportError(
+                "litellm is required for LLM functionality. "
+                "Install with: pip install litellm"
+            ) from e
+
+    def _is_anthropic_model(self) -> bool:
+        """Check if the current model is an Anthropic/Claude model."""
+        model_lower = self.model.lower()
+        return "claude" in model_lower or "anthropic" in model_lower
+
+    def _is_openai_compatible_model(self) -> bool:
+        """Return True for models that route through an OpenAI-compatible endpoint."""
+        model_lower = (self.model or "").lower()
+        return model_lower.startswith((
+            "openai/",    # explicit openai/ prefix — most reliable for relays
+            "gpt-",       # native OpenAI GPT series
+            "o1",         # OpenAI o1 reasoning series
+            "o3",         # OpenAI o3 series
+            "o4",         # OpenAI o4 series
+            "chatgpt-",   # ChatGPT-branded models
+        ))
+
+    def _apply_api_base(self, kwargs: dict) -> dict:
+        """Attach the configured OpenAI-compatible API base URL to LiteLLM kwargs.
+
+        Only applied when:
+        - ``config.openai_api_base`` is set (i.e. OPENAI_API_BASE env var is present), and
+        - the model is routed through an OpenAI-compatible endpoint.
+        """
+        if self.config.openai_api_base and self._is_openai_compatible_model():
+            kwargs["api_base"] = self.config.openai_api_base
+        return kwargs
+
+    def _sanitize_messages_for_anthropic(self, messages: list) -> list:
+        """Ensure messages don't end with an assistant message (Anthropic rejects prefill)."""
+        if not self._is_anthropic_model() or not messages:
+            return messages
+        while messages and messages[-1].get("role") == "assistant":
+            messages = messages[:-1]
+        return messages
+
+    def _is_rate_limit_error(self, error: Exception) -> bool:
+        """Check if an error is a rate limit error."""
+        error_str = str(error).lower()
+        error_type = type(error).__name__.lower()
+        return (
+            "rate" in error_str
+            and "limit" in error_str
+            or "ratelimit" in error_type
+            or "429" in error_str
+            or "too many requests" in error_str
+        )
+
+    def _classify_error(self, error: Exception) -> ErrorClass:
+        error_str = str(error).lower()
+        error_type = type(error).__name__.lower()
+
+        if any(token in error_str for token in ("insufficient_quota", "billing", "quota exceeded")):
+            return ErrorClass.PERMANENT_DAY
+
+        if (
+            any(token in error_str for token in ("invalid_api_key", "incorrect api key", "unauthorized", "forbidden"))
+            or "authentication" in error_type
+            or "permission" in error_type
+            or "401" in error_str
+            or "403" in error_str
+        ):
+            return ErrorClass.PERMANENT
+
+        if any(token in error_str for token in ("context_length_exceeded", "maximum context length", "context length")):
+            return ErrorClass.LOGIC
+
+        if any(token in error_str for token in ("timeout", "timed out", "connection error", "connectionerror", "temporarily unavailable", "dns")):
+            return ErrorClass.TRANSIENT_NETWORK
+
+        if any(token in error_str for token in ("500", "502", "503", "504", "server error", "bad gateway", "gateway timeout")):
+            return ErrorClass.TRANSIENT_REMOTE
+
+        if self._is_rate_limit_error(error):
+            return ErrorClass.TRANSIENT
+
+        return ErrorClass.UNKNOWN
+
+    def _provider_fail_threshold(self) -> int:
+        try:
+            return max(1, int(os.getenv("CPA_M1_FAIL_THRESHOLD", "3")))
+        except Exception:
+            return 3
+
+    async def _select_provider_for_call(
+        self,
+        *,
+        provider_manager: Any,
+        routed_model: str,
+        task_hint: str,
+        excluded_provider_ids: set[str],
+    ):
+        return await provider_manager.select_provider(
+            model_hint=routed_model,
+            task_hint=task_hint,
+            exclude_ids=excluded_provider_ids,
+        )
+
+    async def _sleep_with_jitter(self, base_delay: float, attempt: int) -> None:
+        delay = max(0.0, base_delay * (2**attempt) + random.uniform(0, 0.25))
+        await asyncio.sleep(delay)
+
+    def _mark_provider_for_error(
+        self,
+        provider_manager: Any,
+        *,
+        provider_id: str,
+        error_class: ErrorClass,
+        error: Exception,
+    ) -> None:
+        from flaghunter.cpa_modules.m1_api_hub.models import ProviderState
+
+        threshold = self._provider_fail_threshold()
+        status = provider_manager.get_status(provider_id)
+        reason = str(error)
+
+        if status is None:
+            return
+
+        if error_class == ErrorClass.PERMANENT_DAY:
+            provider_manager.mark_provider_status(provider_id, ProviderState.DOWN, reason)
+            return
+
+        if error_class == ErrorClass.PERMANENT:
+            provider_manager.mark_provider_enabled(provider_id, False)
+            provider_manager.mark_provider_status(provider_id, ProviderState.DISABLED, reason)
+            return
+
+        if error_class == ErrorClass.TRANSIENT_NETWORK:
+            status.consecutive_failures += 1
+            status.consecutive_successes = 0
+            status.last_error = reason
+            status.last_check_time = datetime.now()
+            if status.consecutive_failures >= threshold:
+                status.state = ProviderState.DOWN
+            return
+
+        if error_class == ErrorClass.TRANSIENT_REMOTE:
+            status.consecutive_failures += 1
+            status.consecutive_successes = 0
+            status.last_error = reason
+            status.last_check_time = datetime.now()
+            if status.consecutive_failures >= threshold:
+                status.state = ProviderState.DEGRADED
+            return
+
+        if error_class == ErrorClass.TRANSIENT:
+            provider_manager.mark_provider_status(provider_id, ProviderState.DEGRADED, reason)
+            return
+
+        status.consecutive_failures += 1
+        status.consecutive_successes = 0
+        status.last_error = reason
+        status.last_check_time = datetime.now()
+
+    async def _call_with_provider_failover(
+        self,
+        *,
+        call_kwargs: dict[str, Any],
+        task_hint: str,
+    ):
+        import flaghunter.cpa_modules.m1_api_hub as m1_api_hub
+        from flaghunter.cpa_modules.m1_api_hub.cost_tracker import BudgetExhausted
+        from flaghunter.cpa_modules.m1_api_hub.provider_manager import NoProviderAvailable
+        from flaghunter.cpa_modules.m1_api_hub.model_router import route
+
+        if os.getenv("CPA_M1_API_HUB", "true").lower() == "false" or not m1_api_hub.is_m1_enabled():
+            async def _plain_call():
+                return await self._litellm.acompletion(**call_kwargs)
+
+            response = await self._retry_with_backoff(_plain_call)
+            return response, "", None
+
+        try:
+            provider_manager = m1_api_hub.get_provider_manager()
+            cost_tracker = m1_api_hub.get_cost_tracker()
+        except RuntimeError:
+            try:
+                await m1_api_hub.init_m1()
+            except RuntimeError as init_exc:
+                if "已初始化" not in str(init_exc):
+                    raise
+            provider_manager = m1_api_hub.get_provider_manager()
+            cost_tracker = m1_api_hub.get_cost_tracker()
+        cost_tracker.raise_if_budget_exceeded()
+
+        available = provider_manager.list_healthy_providers() or provider_manager.list_providers()
+        available_models = [
+            provider.model for provider in available if getattr(provider, "model", "")
+        ]
+        routed_model = call_kwargs.get("model", self.model)
+        if available_models:
+            try:
+                candidate = route(task_hint=task_hint, available_providers=available_models)
+                if candidate:
+                    routed_model = candidate
+            except Exception:
+                pass
+
+        excluded_provider_ids: set[str] = set()
+        local_retry_counts: dict[tuple[str, ErrorClass], int] = {}
+        provider_count = max(1, len(provider_manager.list_providers()))
+        attempts = 0
+
+        while attempts < provider_count + 4:
+            attempts += 1
+            provider = await self._select_provider_for_call(
+                provider_manager=provider_manager,
+                routed_model=str(routed_model),
+                task_hint=task_hint,
+                excluded_provider_ids=excluded_provider_ids,
+            )
+
+            provider_kwargs = dict(call_kwargs)
+            provider_kwargs["model"] = provider.model
+            provider_kwargs["api_base"] = provider.api_base
+            provider_kwargs["api_key"] = provider.api_key
+            if getattr(provider, "headers", None):
+                provider_kwargs["extra_headers"] = dict(provider.headers)
+            else:
+                provider_kwargs.pop("extra_headers", None)
+
+            try:
+                response = await self._litellm.acompletion(**provider_kwargs)
+                return response, provider.id, provider
+            except BudgetExhausted:
+                raise
+            except Exception as exc:
+                error_class = self._classify_error(exc)
+                if error_class == ErrorClass.LOGIC:
+                    raise
+
+                retry_key = (provider.id, error_class)
+                retry_count = local_retry_counts.get(retry_key, 0)
+
+                if error_class == ErrorClass.TRANSIENT and retry_count < 2:
+                    local_retry_counts[retry_key] = retry_count + 1
+                    await self._sleep_with_jitter(self.config.retry_delay, retry_count)
+                    continue
+
+                if error_class == ErrorClass.UNKNOWN and retry_count < 1:
+                    local_retry_counts[retry_key] = retry_count + 1
+                    await self._sleep_with_jitter(self.config.retry_delay, retry_count)
+                    continue
+
+                self._mark_provider_for_error(
+                    provider_manager,
+                    provider_id=provider.id,
+                    error_class=error_class,
+                    error=exc,
+                )
+                excluded_provider_ids.add(provider.id)
+                if len(excluded_provider_ids) >= provider_count:
+                    raise NoProviderAvailable(
+                        f"all providers unavailable after {error_class.value}: {exc}"
+                    ) from exc
+                continue
+
+        raise NoProviderAvailable("provider failover exhausted all retry attempts")
+
+    async def _retry_with_backoff(self, coro_factory, max_retries: int = None):
+        """
+        Retry a coroutine with exponential backoff for rate limits.
+
+        Args:
+            coro_factory: A callable that returns a new coroutine each call
+            max_retries: Max retry attempts (uses config if not specified)
+        """
+        retries = max_retries or self.config.max_retries
+        base_delay = self.config.retry_delay
+
+        for attempt in range(retries + 1):
+            try:
+                return await coro_factory()
+            except Exception as e:
+                if not self._is_rate_limit_error(e) or attempt >= retries:
+                    raise
+
+                # Exponential backoff with jitter
+                delay = base_delay * (2**attempt) + random.uniform(0, 1)
+                await asyncio.sleep(delay)
+
+        # Should not reach here
+        raise RuntimeError("Retry logic failed unexpectedly")
+
+    async def generate(
+        self,
+        system_prompt: str,
+        messages: List[dict],
+        tools: Optional[List["Tool"]] = None,
+        stream: bool = False,
+        max_tokens: Optional[int] = None,
+        task_hint: str = "default",
+    ) -> LLMResponse:
+        """
+        Generate a response from the LLM.
+
+        Args:
+            system_prompt: The system prompt
+            messages: Conversation messages
+            tools: Available tools for function calling
+            stream: Whether to stream the response
+            max_tokens: Override max_tokens for this call (default: use config)
+            task_hint: Optional routing hint for model/provider selection
+
+        Returns:
+            LLMResponse with the result
+        """
+        # Build messages list
+        llm_messages = [{"role": "system", "content": system_prompt}]
+
+        # Add conversation history with summarization if needed
+        history = await self.memory.get_messages_with_summary(
+            messages, llm_call=self._summarize_call
+        )
+        llm_messages.extend(history)
+
+        # Anthropic rejects conversations ending with assistant messages
+        llm_messages = self._sanitize_messages_for_anthropic(llm_messages)
+
+        # Build tools list
+        llm_tools = None
+        if tools:
+            llm_tools = [tool.to_llm_format() for tool in tools if tool.enabled]
+
+        try:
+            # Build call kwargs - only pass non-default optional params
+            # to avoid conflicts (e.g., Claude doesn't allow temperature + top_p together)
+            call_kwargs = {
+                "model": self.model,
+                "messages": llm_messages,
+                "max_tokens": (
+                    max_tokens if max_tokens is not None else self.config.max_tokens
+                ),
+            }
+
+            # Newer Anthropic models don't support temperature
+            if not self._is_anthropic_model():
+                call_kwargs["temperature"] = self.config.temperature
+
+            # Only include tools if they exist (Anthropic requires tools param to be omitted, not None/empty)
+            if llm_tools:
+                call_kwargs["tools"] = llm_tools
+
+            # Only add optional params if explicitly changed from defaults
+            if self.config.top_p != 1.0:
+                call_kwargs["top_p"] = self.config.top_p
+            if self.config.frequency_penalty != 0.0:
+                call_kwargs["frequency_penalty"] = self.config.frequency_penalty
+            if self.config.presence_penalty != 0.0:
+                call_kwargs["presence_penalty"] = self.config.presence_penalty
+
+            # Route through a custom OpenAI-compatible endpoint when configured.
+            # When M1 failover is enabled, provider-level api_base/api_key will
+            # override this later; when M1 is disabled, this keeps relay support.
+            self._apply_api_base(call_kwargs)
+
+            # Call LLM with provider failover / budget gate
+            import time as _time
+            _cpa_t0 = _time.monotonic()
+            response, _cpa_provider_id, _cpa_provider_config = await self._call_with_provider_failover(
+                call_kwargs=call_kwargs,
+                task_hint=task_hint,
+            )
+            _cpa_elapsed_ms = int((_time.monotonic() - _cpa_t0) * 1000)
+
+            # Parse response
+            choice = response.choices[0]
+            message = choice.message
+
+            # Handle usage - convert to dict safely
+            usage_dict = None
+            if response.usage:
+                try:
+                    usage_dict = dict(response.usage)
+                except (TypeError, ValueError):
+                    usage_dict = {
+                        "prompt_tokens": getattr(response.usage, "prompt_tokens", 0),
+                        "completion_tokens": getattr(
+                            response.usage, "completion_tokens", 0
+                        ),
+                        "total_tokens": getattr(response.usage, "total_tokens", 0),
+                    }
+
+            # Record usage to persistent tracker if available (best-effort)
+            try:
+                from ..tools import token_tracker
+
+                if usage_dict:
+                    p = usage_dict.get("prompt_tokens", 0) or 0
+                    c = usage_dict.get("completion_tokens", 0) or 0
+                    # Use sync record helper to avoid event-loop coupling
+                    try:
+                        token_tracker.record_usage_sync(int(p), int(c))
+                    except Exception:
+                        # Swallow tracker errors - usage recording is best-effort
+                        pass
+            except Exception:
+                # Tools package or token_tracker missing - ignore
+                pass
+
+            # === CPA M1 HOOK BEGIN ===
+            if _cpa_provider_id and usage_dict:
+                try:
+                    import uuid
+                    from flaghunter.cpa_modules.m1_api_hub import get_provider_manager, get_cost_tracker
+                    from flaghunter.cpa_modules.m1_api_hub.models import RequestLog
+                    _p = int(usage_dict.get("prompt_tokens", 0) or 0)
+                    _c = int(usage_dict.get("completion_tokens", 0) or 0)
+                    _log = RequestLog(
+                        request_id=str(uuid.uuid4()),
+                        provider_id=_cpa_provider_id,
+                        model=call_kwargs.get("model", self.model),
+                        prompt_tokens=_p,
+                        completion_tokens=_c,
+                        response_time_ms=_cpa_elapsed_ms,
+                        success=True,
+                    )
+                    get_cost_tracker().record(_log, _cpa_provider_config)
+                    get_provider_manager().update_after_request(_cpa_provider_id, _log)
+                except Exception:
+                    pass
+            # === CPA M1 HOOK END ===
+
+            extracted = _extract_content(message)
+            return LLMResponse(
+                content=extracted,
+                tool_calls=message.tool_calls,
+                usage=usage_dict,
+                model=response.model if hasattr(response, "model") else self.model,
+                finish_reason=choice.finish_reason or "",
+                reasoning_content=getattr(message, "reasoning_content", None)
+                or (getattr(message, "provider_specific_fields", None) or {}).get("reasoning_content"),
+            )
+
+        except Exception as e:
+            finish_reason = "error"
+            message = str(e)
+            try:
+                from flaghunter.cpa_modules.m1_api_hub.cost_tracker import BudgetExhausted
+                from flaghunter.cpa_modules.m1_api_hub.provider_manager import NoProviderAvailable
+
+                if isinstance(e, BudgetExhausted):
+                    finish_reason = "budget_exhausted"
+                    message = f"budget exhausted: {e}"
+                elif isinstance(e, NoProviderAvailable):
+                    finish_reason = "provider_unavailable"
+                    message = f"wait_for_provider_recovery: {e}"
+            except Exception:
+                pass
+            # Return error as response (after retries exhausted)
+            return LLMResponse(
+                content=f"LLM Error: {message}",
+                tool_calls=None,
+                usage=None,
+                model=self.model,
+                finish_reason=finish_reason,
+            )
+
+    async def generate_stream(
+        self,
+        system_prompt: str,
+        messages: List[dict],
+        tools: Optional[List["Tool"]] = None,
+    ) -> AsyncIterator[str]:
+        """
+        Stream a response from the LLM.
+
+        Args:
+            system_prompt: The system prompt
+            messages: Conversation messages
+            tools: Available tools for function calling
+
+        Yields:
+            Response content chunks
+        """
+        llm_messages = [{"role": "system", "content": system_prompt}]
+        history = await self.memory.get_messages_with_summary(
+            messages, llm_call=self._summarize_call
+        )
+        llm_messages.extend(history)
+
+        # Anthropic rejects conversations ending with assistant messages
+        llm_messages = self._sanitize_messages_for_anthropic(llm_messages)
+
+        llm_tools = None
+        if tools:
+            llm_tools = [tool.to_llm_format() for tool in tools if tool.enabled]
+
+        try:
+            stream_kwargs = {
+                "model": self.model,
+                "messages": llm_messages,
+                "tools": llm_tools,
+                "max_tokens": self.config.max_tokens,
+                "stream": True,
+            }
+
+            # Newer Anthropic models don't support temperature
+            if not self._is_anthropic_model():
+                stream_kwargs["temperature"] = self.config.temperature
+
+            # Route through a custom OpenAI-compatible endpoint when configured
+            self._apply_api_base(stream_kwargs)
+
+            response = await self._litellm.acompletion(**stream_kwargs)
+
+            async for chunk in response:
+                delta = chunk.choices[0].delta
+                text = getattr(delta, "content", None) or ""
+                if not text:
+                    text = getattr(delta, "reasoning_content", None) or ""
+                if text:
+                    yield text
+
+        except Exception as e:
+            yield f"\nLLM Error: {str(e)}"
+
+    async def simple_completion(
+        self, prompt: str, system: str = "You are a helpful assistant."
+    ) -> str:
+        """
+        Simple completion without tools.
+
+        Args:
+            prompt: The user prompt
+            system: The system prompt
+
+        Returns:
+            The response text
+        """
+        response = await self.generate(
+            system_prompt=system,
+            messages=[{"role": "user", "content": prompt}],
+            tools=None,
+        )
+        return response.content or ""
+
+    def set_model(self, model: str):
+        """Change the model."""
+        self.model = model
+
+    def update_config(self, **kwargs):
+        """Update configuration parameters."""
+        for key, value in kwargs.items():
+            if hasattr(self.config, key):
+                setattr(self.config, key, value)
+
+    async def _summarize_call(self, prompt: str) -> str:
+        """
+        Internal LLM call for summarization.
+
+        Args:
+            prompt: The summarization prompt
+
+        Returns:
+            Summary text
+        """
+        try:
+            summarize_kwargs = {
+                "model": self.model,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are a terse summarizer for a pentesting agent.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                "max_tokens": 1000,  # Summaries should be concise
+            }
+
+            # Newer Anthropic models don't support temperature
+            if not self._is_anthropic_model():
+                summarize_kwargs["temperature"] = 0.3
+
+            # Route through a custom OpenAI-compatible endpoint when configured
+            self._apply_api_base(summarize_kwargs)
+
+            response = await self._litellm.acompletion(**summarize_kwargs)
+            return _extract_content(response.choices[0].message)
+        except Exception as e:
+            return f"[Summarization failed: {e}]"
+
+    def clear_memory(self):
+        """Clear conversation memory and summary cache."""
+        self.memory.clear_summary_cache()
+
+    def get_memory_stats(self) -> dict:
+        """Get memory usage statistics."""
+        return self.memory.get_stats()
+
+    def get_available_models(self) -> List[str]:
+        """
+        Get list of commonly available models.
+
+        Returns:
+            List of model names
+        """
+        return [
+            # OpenAI
+            "gpt-5",
+            "gpt-4.1",
+            "gpt-4.1-mini",
+            "gpt-4.1-nano",
+            # Anthropic
+            "claude-sonnet-4-20250514",
+            "claude-opus-4-20250514",
+            # Google
+            "gemini/gemini-2.5-pro",
+            "gemini/gemini-2.5-flash",
+            # Others via LiteLLM
+            "ollama/llama3",
+            "ollama/mixtral",
+            "groq/llama3-70b-8192",
+        ]

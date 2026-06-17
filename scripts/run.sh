@@ -46,7 +46,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Build command
-CMD="python -m pentestagent"
+CMD="python -m flaghunter"
 
 if [ "$MODE" = "tui" ]; then
     CMD="$CMD --tui"

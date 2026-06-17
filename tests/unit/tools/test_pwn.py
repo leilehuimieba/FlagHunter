@@ -3,12 +3,12 @@ import json
 
 import pytest
 
-from pentestagent.tools.registry import clear_tools, get_tool
+from flaghunter.tools.registry import clear_tools, get_tool
 
 
 @pytest.mark.asyncio
 async def test_run_pwn_script_extracts_flag():
-    from pentestagent.tools.pwn import run_pwn_script
+    from flaghunter.tools.pwn import run_pwn_script
 
     result = await run_pwn_script("print('flag{abc123}')")
 
@@ -21,7 +21,7 @@ async def test_run_pwn_script_extracts_flag():
 
 @pytest.mark.asyncio
 async def test_run_pwn_script_returns_structured_error_when_python_missing(monkeypatch):
-    import pentestagent.tools.pwn as pwn_module
+    import flaghunter.tools.pwn as pwn_module
 
     async def _raise_file_not_found(*args, **kwargs):
         raise FileNotFoundError("python not found")
@@ -40,7 +40,7 @@ async def test_run_pwn_script_returns_structured_error_when_python_missing(monke
 @pytest.mark.asyncio
 async def test_pwn_tool_returns_json_string():
     clear_tools()
-    import pentestagent.tools.pwn as pwn_module
+    import flaghunter.tools.pwn as pwn_module
 
     importlib.reload(pwn_module)
     tool = get_tool("pwn")

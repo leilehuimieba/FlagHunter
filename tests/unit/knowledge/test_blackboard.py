@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pentestagent.agents.pa_agent.ctf_state import (
+from flaghunter.agents.pa_agent.ctf_state import (
     Artifact,
     CTFState,
     FlagRecord,
@@ -10,9 +10,9 @@ from pentestagent.agents.pa_agent.ctf_state import (
     ExplorationItem,
     Observation,
 )
-from pentestagent.knowledge.blackboard import project_blackboard
-from pentestagent.knowledge.session_context import SessionContextView
-from pentestagent.harness.checkpoint_store import CheckpointStore
+from flaghunter.knowledge.blackboard import project_blackboard
+from flaghunter.knowledge.session_context import SessionContextView
+from flaghunter.harness.checkpoint_store import CheckpointStore
 
 
 def _flag(value: str, level: str = "verified", *, confidence: float = 0.9) -> FlagRecord:

@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from pentestagent.interface import cli as interface_cli
+from flaghunter.interface import cli as interface_cli
 
 
 class _FakeRuntime:
@@ -19,11 +19,11 @@ def _mute_cli_console(monkeypatch):
 
 
 def test_parse_arguments_accepts_cli_local_asset_contract(monkeypatch) -> None:
-    interface_main = importlib.import_module("pentestagent.interface.main")
+    interface_main = importlib.import_module("flaghunter.interface.main")
     monkeypatch.setattr(
         "sys.argv",
         [
-            "pentestagent",
+            "flaghunter",
             "run",
             "--target",
             "http://127.0.0.1:3000",
@@ -206,7 +206,7 @@ def _patch_agent_session(monkeypatch, *, model="gpt-5", agent=None):
 
     # run_cli resolves the facade via `from ..session import AgentSession`, so
     # patch create() on the real class wherever it is imported from.
-    from pentestagent.session import AgentSession as _RealAgentSession
+    from flaghunter.session import AgentSession as _RealAgentSession
 
     monkeypatch.setattr(_RealAgentSession, "create", _fake_create)
     return fake_session
@@ -246,8 +246,8 @@ async def test_run_cli_routes_ctf_mode_into_dispatcher_with_local_asset_hint(mon
             captured["challenge_context"] = challenge_context
             return SimpleNamespace(flag="flag{cli_ctf_ok}", reason="ok", chain_used=["xss"], missing_tools=[], notes=[])
 
-    monkeypatch.setattr("pentestagent.agents.pa_agent.ctf_dispatcher.CTFTaskDispatcher", _FakeDispatcher)
-    monkeypatch.setattr("pentestagent.interface.cli.CTFTaskDispatcher", _FakeDispatcher, raising=False)
+    monkeypatch.setattr("flaghunter.agents.pa_agent.ctf_dispatcher.CTFTaskDispatcher", _FakeDispatcher)
+    monkeypatch.setattr("flaghunter.interface.cli.CTFTaskDispatcher", _FakeDispatcher, raising=False)
 
     await interface_cli.run_cli(
         target="http://127.0.0.1:3000",
@@ -307,8 +307,8 @@ async def test_run_cli_preserves_auto_ctf_subtype_for_dispatcher(monkeypatch, _m
                 notes=[],
             )
 
-    monkeypatch.setattr("pentestagent.agents.pa_agent.ctf_dispatcher.CTFTaskDispatcher", _FakeDispatcher)
-    monkeypatch.setattr("pentestagent.interface.cli.CTFTaskDispatcher", _FakeDispatcher, raising=False)
+    monkeypatch.setattr("flaghunter.agents.pa_agent.ctf_dispatcher.CTFTaskDispatcher", _FakeDispatcher)
+    monkeypatch.setattr("flaghunter.interface.cli.CTFTaskDispatcher", _FakeDispatcher, raising=False)
 
     await interface_cli.run_cli(
         target="http://127.0.0.1:3000",
@@ -357,8 +357,8 @@ async def test_run_cli_syncs_derived_target_into_challenge_context_when_target_m
             }
             return SimpleNamespace(flag="flag{cli_ctf_ok}", reason="ok", chain_used=["xss"], missing_tools=[], notes=[])
 
-    monkeypatch.setattr("pentestagent.agents.pa_agent.ctf_dispatcher.CTFTaskDispatcher", _FakeDispatcher)
-    monkeypatch.setattr("pentestagent.interface.cli.CTFTaskDispatcher", _FakeDispatcher, raising=False)
+    monkeypatch.setattr("flaghunter.agents.pa_agent.ctf_dispatcher.CTFTaskDispatcher", _FakeDispatcher)
+    monkeypatch.setattr("flaghunter.interface.cli.CTFTaskDispatcher", _FakeDispatcher, raising=False)
 
     await interface_cli.run_cli(
         target="",
@@ -406,7 +406,7 @@ async def test_run_cli_keeps_pentest_path_on_non_ctf_mode(monkeypatch, _mute_cli
             observed["dispatcher_called"] = True
             raise AssertionError("dispatcher should not be used for pentest CLI mode")
 
-    monkeypatch.setattr("pentestagent.agents.pa_agent.ctf_dispatcher.CTFTaskDispatcher", _ForbiddenDispatcher)
+    monkeypatch.setattr("flaghunter.agents.pa_agent.ctf_dispatcher.CTFTaskDispatcher", _ForbiddenDispatcher)
 
     await interface_cli.run_cli(
         target="http://corp.test",

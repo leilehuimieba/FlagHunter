@@ -5,11 +5,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from pentestagent.agents.crew.swarm_bridge import (
+from flaghunter.agents.crew.swarm_bridge import (
     build_ctf_dispatcher_worker_runner,
     run_ctf_dispatcher_worker,
 )
-from pentestagent.agents.pa_agent.ctf_state import CTFState
+from flaghunter.agents.pa_agent.ctf_state import CTFState
 
 
 class _FakeDispatcher:
@@ -106,7 +106,7 @@ async def test_build_ctf_dispatcher_worker_runner_wraps_factory():
     assert created[0].calls[0]["hint"] == "from-crew"
 
 
-from pentestagent.agents.crew.swarm_bridge import (  # noqa: E402
+from flaghunter.agents.crew.swarm_bridge import (  # noqa: E402
     publish_solve_outcome_to_swarm,
     recall_swarm_chain_pheromone,
 )
@@ -135,7 +135,7 @@ class _FakeMessenger:
 
 @pytest.mark.asyncio
 async def test_publish_solve_outcome_deposits_chain_pheromone_and_facts(monkeypatch):
-    import pentestagent.cpa_modules.m5_swarm_link as m5
+    import flaghunter.cpa_modules.m5_swarm_link as m5
 
     router, messenger = _FakeRouter(), _FakeMessenger()
     monkeypatch.setattr(m5, "get_pheromone_router", lambda: router)
@@ -161,7 +161,7 @@ async def test_publish_disabled_when_env_off(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_recall_swarm_chain_pheromone_reads_chain_namespaced_trails(monkeypatch):
-    import pentestagent.cpa_modules.m5_swarm_link as m5
+    import flaghunter.cpa_modules.m5_swarm_link as m5
 
     router = _FakeRouter()
     router.trails = [

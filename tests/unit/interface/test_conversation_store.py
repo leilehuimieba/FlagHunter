@@ -1,12 +1,12 @@
-"""Tests for pentestagent.interface.conversation_store (ConversationStore)."""
+"""Tests for flaghunter.interface.conversation_store (ConversationStore)."""
 
 import json
 from pathlib import Path
 
 import pytest
 
-from pentestagent.agents.base_agent import AgentMessage, ToolCall, ToolResult
-from pentestagent.interface.conversation_store import ConversationMeta, ConversationStore
+from flaghunter.agents.base_agent import AgentMessage, ToolCall, ToolResult
+from flaghunter.interface.conversation_store import ConversationMeta, ConversationStore
 
 
 # ---------------------------------------------------------------------------

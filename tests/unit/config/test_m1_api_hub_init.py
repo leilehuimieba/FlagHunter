@@ -5,11 +5,11 @@ from types import SimpleNamespace
 
 import pytest
 
-import pentestagent.cpa_modules.m1_api_hub as m1_api_hub
-from pentestagent.cpa_modules.m1_api_hub.failover_monitor import FailoverMonitor
-from pentestagent.cpa_modules.m1_api_hub.models import ProviderConfig
-from pentestagent.cpa_modules.m1_api_hub.models import HealthCheckResult, ProviderState
-from pentestagent.cpa_modules.m1_api_hub.provider_manager import ProviderManager
+import flaghunter.cpa_modules.m1_api_hub as m1_api_hub
+from flaghunter.cpa_modules.m1_api_hub.failover_monitor import FailoverMonitor
+from flaghunter.cpa_modules.m1_api_hub.models import ProviderConfig
+from flaghunter.cpa_modules.m1_api_hub.models import HealthCheckResult, ProviderState
+from flaghunter.cpa_modules.m1_api_hub.provider_manager import ProviderManager
 
 
 def test_is_m1_enabled_honors_legacy_switch_when_primary_switch_missing(monkeypatch):

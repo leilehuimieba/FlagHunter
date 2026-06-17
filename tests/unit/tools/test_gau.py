@@ -5,23 +5,23 @@ from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 
 import pytest
 
-from pentestagent.tools.gau import gau
+from flaghunter.tools.gau import gau
 
 
 class TestGau:
-    @patch("pentestagent.tools.gau.find_tool")
+    @patch("flaghunter.tools.gau.find_tool")
     def test_empty_domain(self, mock_find):
         mock_find.return_value = "/usr/bin/gau"
         result = asyncio.run(gau({"domain": ""}, None))
         assert "Error: domain is required" in result
 
-    @patch("pentestagent.tools.gau.find_tool")
+    @patch("flaghunter.tools.gau.find_tool")
     def test_binary_not_found(self, mock_find):
         mock_find.return_value = None
         result = asyncio.run(gau({"domain": "example.com"}, None))
         assert "not installed" in result
 
-    @patch("pentestagent.tools.gau.find_tool")
+    @patch("flaghunter.tools.gau.find_tool")
     @patch("os.path.exists")
     @patch("os.remove")
     def test_successful_scan(self, mock_remove, mock_exists, mock_find):
@@ -54,7 +54,7 @@ class TestGau:
         assert "https://example.com/admin/login" in result
         assert "https://example.com/static/app.js" in result
 
-    @patch("pentestagent.tools.gau.find_tool")
+    @patch("flaghunter.tools.gau.find_tool")
     @patch("os.path.exists")
     @patch("os.remove")
     def test_no_urls_found(self, mock_remove, mock_exists, mock_find):
@@ -69,7 +69,7 @@ class TestGau:
             result = asyncio.run(gau({"domain": "new-domain.com"}, runtime))
         assert "No historical URLs found" in result
 
-    @patch("pentestagent.tools.gau.find_tool")
+    @patch("flaghunter.tools.gau.find_tool")
     def test_custom_options(self, mock_find):
         mock_find.return_value = "/usr/bin/gau"
 
@@ -94,7 +94,7 @@ class TestGau:
         assert "--providers wayback" in cmd
         assert "--blacklist png,jpg" in cmd
 
-    @patch("pentestagent.tools.gau.find_tool")
+    @patch("flaghunter.tools.gau.find_tool")
     def test_default_blacklist(self, mock_find):
         mock_find.return_value = "/usr/bin/gau"
 
@@ -110,7 +110,7 @@ class TestGau:
         cmd = runtime.execute_command.call_args[0][0]
         assert "--blacklist png,jpg,gif,css,woff,ttf,svg,ico,pdf,zip" in cmd
 
-    @patch("pentestagent.tools.gau.find_tool")
+    @patch("flaghunter.tools.gau.find_tool")
     def test_execution_failure_no_output(self, mock_find):
         mock_find.return_value = "/usr/bin/gau"
         runtime = MagicMock()
@@ -123,7 +123,7 @@ class TestGau:
         assert "GAU execution failed" in result
         assert "connection timeout" in result
 
-    @patch("pentestagent.tools.gau.find_tool")
+    @patch("flaghunter.tools.gau.find_tool")
     @patch("os.path.exists")
     def test_file_exception(self, mock_exists, mock_find):
         mock_find.return_value = "/usr/bin/gau"

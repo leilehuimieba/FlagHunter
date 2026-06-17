@@ -44,7 +44,7 @@ if ($env:OS -eq "Windows_NT") {
 Set-Location $ProjectRoot
 $ArgsList = $args
 if ($ArgsList.Count -eq 0 -or $ArgsList[0] -eq "tui") {
-    python -m pentestagent @ArgsList
+    python -m flaghunter @ArgsList
 } else {
-    python -m pentestagent @ArgsList
+    python -m flaghunter @ArgsList
 }

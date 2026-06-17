@@ -29,7 +29,7 @@ PENTESTAGENT_MODEL=gpt-5
 docker-compose build
 
 # Run
-docker-compose run --rm pentestagent
+docker-compose run --rm flaghunter
 
 ```
 

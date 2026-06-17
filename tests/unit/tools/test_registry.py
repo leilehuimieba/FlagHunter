@@ -1,8 +1,8 @@
-"""Tests for pentestagent.tools.registry."""
+"""Tests for flaghunter.tools.registry."""
 
 import pytest
 
-from pentestagent.tools.registry import (
+from flaghunter.tools.registry import (
     Tool,
     ToolSchema,
     clear_tools,

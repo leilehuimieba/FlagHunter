@@ -2,9 +2,9 @@
 
 import pytest
 
-from pentestagent.tools import notes as notes_module
-from pentestagent.tools.executor import ToolExecutor
-from pentestagent.tools.registry import Tool, ToolSchema
+from flaghunter.tools import notes as notes_module
+from flaghunter.tools.executor import ToolExecutor
+from flaghunter.tools.registry import Tool, ToolSchema
 
 
 

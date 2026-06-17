@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from pentestagent.tools.tool_guard import ToolGuard, ToolMissingError
+from flaghunter.tools.tool_guard import ToolGuard, ToolMissingError
 
 
 @pytest.mark.parametrize(
@@ -19,12 +19,12 @@ from pentestagent.tools.tool_guard import ToolGuard, ToolMissingError
 )
 def test_tool_guard_check(monkeypatch, tool_name, resolved, expected_available):
     monkeypatch.setattr(
-        "pentestagent.tools.tool_guard.find_tool",
+        "flaghunter.tools.tool_guard.find_tool",
         lambda name: resolved if name == tool_name else None,
     )
     if tool_name == "node":
         monkeypatch.setattr(
-            "pentestagent.tools.tool_guard.shutil.which",
+            "flaghunter.tools.tool_guard.shutil.which",
             lambda name: resolved if name == "node" else None,
         )
     guard = ToolGuard(runtime=None)
@@ -42,7 +42,7 @@ def test_tool_guard_suggest_install_known_tools():
 
 def test_tool_guard_require_raises(monkeypatch):
     monkeypatch.setattr(
-        "pentestagent.tools.tool_guard.find_tool",
+        "flaghunter.tools.tool_guard.find_tool",
         lambda name: None,
     )
     guard = ToolGuard(runtime=None)
@@ -53,7 +53,7 @@ def test_tool_guard_require_raises(monkeypatch):
 def test_tool_guard_browser_requires_playwright(monkeypatch):
     runtime = SimpleNamespace(browser_action=lambda *args, **kwargs: None)
     monkeypatch.setattr(
-        "pentestagent.tools.tool_guard.importlib.util.find_spec",
+        "flaghunter.tools.tool_guard.importlib.util.find_spec",
         lambda name: None if name == "playwright" else object(),
     )
     guard = ToolGuard(runtime=runtime)
@@ -64,7 +64,7 @@ def test_tool_guard_browser_requires_playwright(monkeypatch):
 def test_tool_guard_http_request_requires_httpx(monkeypatch):
     runtime = SimpleNamespace(proxy_action=lambda *args, **kwargs: None)
     monkeypatch.setattr(
-        "pentestagent.tools.tool_guard.importlib.util.find_spec",
+        "flaghunter.tools.tool_guard.importlib.util.find_spec",
         lambda name: None if name == "httpx" else object(),
     )
     guard = ToolGuard(runtime=runtime)

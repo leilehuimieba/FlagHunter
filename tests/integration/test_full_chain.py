@@ -10,15 +10,15 @@ from types import SimpleNamespace
 
 import pytest
 
-from pentestagent.agents.pa_agent.pa_agent import PentestAgentAgent
-from pentestagent.agents.crew.swarm_bridge import on_worker_complete
-from pentestagent.agents.pa_agent.ctf_crew_coordinator import CTFCrewCoordinator
-from pentestagent.agents.pa_agent.ctf_state import CTFState
-from pentestagent.runtime.runtime import LocalRuntime
-from pentestagent.tools.executor import ToolExecutor
-from pentestagent.tools.registry import Tool, ToolSchema, get_tool
-from pentestagent.tools.sqlmap import run_sqlmap
-from pentestagent.tools.pwn import run_pwn_script
+from flaghunter.agents.pa_agent.pa_agent import PentestAgentAgent
+from flaghunter.agents.crew.swarm_bridge import on_worker_complete
+from flaghunter.agents.pa_agent.ctf_crew_coordinator import CTFCrewCoordinator
+from flaghunter.agents.pa_agent.ctf_state import CTFState
+from flaghunter.runtime.runtime import LocalRuntime
+from flaghunter.tools.executor import ToolExecutor
+from flaghunter.tools.registry import Tool, ToolSchema, get_tool
+from flaghunter.tools.sqlmap import run_sqlmap
+from flaghunter.tools.pwn import run_pwn_script
 
 
 class _CommandResult:
@@ -115,11 +115,11 @@ class _FakeCrewVerifier:
 
 
 def _load_tool_modules():
-    import pentestagent.tools.nmap  # noqa: F401
-    import pentestagent.tools.dirscan  # noqa: F401
-    import pentestagent.tools.nuclei  # noqa: F401
-    import pentestagent.tools.sqlmap  # noqa: F401
-    import pentestagent.tools.pwn  # noqa: F401
+    import flaghunter.tools.nmap  # noqa: F401
+    import flaghunter.tools.dirscan  # noqa: F401
+    import flaghunter.tools.nuclei  # noqa: F401
+    import flaghunter.tools.sqlmap  # noqa: F401
+    import flaghunter.tools.pwn  # noqa: F401
 
 
 @pytest.mark.asyncio
@@ -148,7 +148,7 @@ async def test_web_task_chain_with_planning_m4_and_structured_tools(monkeypatch)
     assert len(agent._task_plan.steps) >= 3
 
     # 2) M4 allow + nmap/dirscan/nuclei structured tool execution
-    import pentestagent.tools.executor as executor_module
+    import flaghunter.tools.executor as executor_module
 
     monkeypatch.setattr(executor_module, "_m4_scope_check", lambda tool_name, args: (True, ""))
 
@@ -221,7 +221,7 @@ async def test_scope_outside_request_is_blocked(monkeypatch):
     nmap_tool = get_tool("nmap")
     assert nmap_tool is not None
 
-    import pentestagent.tools.executor as executor_module
+    import flaghunter.tools.executor as executor_module
 
     monkeypatch.setattr(
         executor_module,
@@ -250,7 +250,7 @@ async def test_crew_swarm_bridge_writes_blackboard_and_pheromone(tmp_path, monke
     monkeypatch.setenv("CPA_M5_SWARM_LINK", "true")
     monkeypatch.setenv("CPA_M5_BLACKBOARD_DB", str(tmp_path / "blackboard.db"))
 
-    import pentestagent.cpa_modules.m5_swarm_link as m5
+    import flaghunter.cpa_modules.m5_swarm_link as m5
 
     m5 = importlib.reload(m5)
     await m5.init_m5()

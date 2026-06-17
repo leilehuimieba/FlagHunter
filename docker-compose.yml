@@ -1,10 +1,10 @@
 services:
-  pentestagent:
+  flaghunter:
     build:
       context: .
       dockerfile: Dockerfile
-    image: pentestagent:latest
-    container_name: pentestagent
+    image: flaghunter:latest
+    container_name: flaghunter
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENAI_API_BASE=${OPENAI_API_BASE:-}
@@ -15,15 +15,15 @@ services:
     volumes:
       - ./loot:/app/loot
     networks:
-      - pentestagent-net
+      - flaghunter-net
     stdin_open: true
     tty: true
 
-  pentestagent-kali:
+  flaghunter-kali:
     build:
       context: .
       dockerfile: Dockerfile.kali
-    container_name: pentestagent-kali
+    container_name: flaghunter-kali
     privileged: true  # Required for VPN and some tools. NOTE: this is risky on shared hosts; prefer running inside a disposable VM.
     cap_add:
       - NET_ADMIN
@@ -42,17 +42,17 @@ services:
     volumes:
       - ./loot:/app/loot
     networks:
-      - pentestagent-net
+      - flaghunter-net
     stdin_open: true
     tty: true
     profiles:
       - kali
 
-  pentestagent-kali-arm64:
+  flaghunter-kali-arm64:
     build:
       context: .
       dockerfile: Dockerfile.kali
-    container_name: pentestagent-kali-arm64
+    container_name: flaghunter-kali-arm64
     privileged: true
     cap_add:
       - NET_ADMIN
@@ -69,12 +69,12 @@ services:
     volumes:
       - ./loot:/app/loot
     networks:
-      - pentestagent-net
+      - flaghunter-net
     stdin_open: true
     tty: true
     profiles:
       - kali-arm64
 
 networks:
-  pentestagent-net:
+  flaghunter-net:
     driver: bridge

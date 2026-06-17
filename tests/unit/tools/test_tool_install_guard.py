@@ -4,16 +4,16 @@ from __future__ import annotations
 
 import pytest
 
-import pentestagent.interface.notifier as notifier_module
-import pentestagent.tools._tool_env as tool_env
-import pentestagent.tools.notes as notes_module
-from pentestagent.tools._tool_env import check_disk_space, get_tool_install_info
-from pentestagent.tools.executor import (
+import flaghunter.interface.notifier as notifier_module
+import flaghunter.tools._tool_env as tool_env
+import flaghunter.tools.notes as notes_module
+from flaghunter.tools._tool_env import check_disk_space, get_tool_install_info
+from flaghunter.tools.executor import (
     ToolExecutor,
     _build_tool_install_confirmation_message,
 )
-from pentestagent.tools.notes import set_notes_file
-from pentestagent.tools.registry import Tool, ToolSchema
+from flaghunter.tools.notes import set_notes_file
+from flaghunter.tools.registry import Tool, ToolSchema
 
 
 @pytest.fixture

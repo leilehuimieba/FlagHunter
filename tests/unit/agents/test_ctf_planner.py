@@ -4,15 +4,15 @@ from types import SimpleNamespace
 
 import pytest
 
-from pentestagent.agents.pa_agent.ctf_planner import (
+from flaghunter.agents.pa_agent.ctf_planner import (
     CTF_TOOL_CHAINS,
     build_ctf_convergence_hint,
     build_ctf_system_prompt,
     detect_type,
     get_ctf_quick_path,
 )
-from pentestagent.agents.pa_agent.pa_agent import PentestAgentAgent
-from pentestagent.harness.artifact_registry import ArtifactRegistry
+from flaghunter.agents.pa_agent.pa_agent import PentestAgentAgent
+from flaghunter.harness.artifact_registry import ArtifactRegistry
 
 
 class _NoGenerateLLM:
@@ -171,7 +171,7 @@ async def test_pa_agent_ctf_mode_skips_llm(monkeypatch):
         raise AssertionError("generate_plan should not be called in CTF mode")
 
     monkeypatch.setattr(
-        "pentestagent.agents.pa_agent.pa_agent.generate_plan",
+        "flaghunter.agents.pa_agent.pa_agent.generate_plan",
         _unexpected_generate_plan,
     )
 
@@ -209,7 +209,7 @@ async def test_pa_agent_ctf_mode_adds_runtime_ground_truth(monkeypatch):
         captured_note.update(arguments)
         return "ok"
 
-    monkeypatch.setattr("pentestagent.tools.notes.notes", _fake_notes)
+    monkeypatch.setattr("flaghunter.tools.notes.notes", _fake_notes)
 
     runtime = _RuntimeWithGroundTruth()
     agent = PentestAgentAgent(
@@ -251,7 +251,7 @@ async def test_pa_agent_ctf_mode_runtime_ground_truth_isolated_from_misleading_h
     async def _fake_notes(arguments, runtime=None):
         return "ok"
 
-    monkeypatch.setattr("pentestagent.tools.notes.notes", _fake_notes)
+    monkeypatch.setattr("flaghunter.tools.notes.notes", _fake_notes)
 
     runtime = _RuntimeWithGroundTruth()
     agent = PentestAgentAgent(
@@ -288,7 +288,7 @@ async def test_pa_agent_ctf_mode_runtime_context_includes_local_challenge_ground
     async def _fake_notes(arguments, runtime=None):
         return "ok"
 
-    monkeypatch.setattr("pentestagent.tools.notes.notes", _fake_notes)
+    monkeypatch.setattr("flaghunter.tools.notes.notes", _fake_notes)
 
     run_id = "run-ctf-local-summary-context"
     ArtifactRegistry(tmp_path / "loot" / "artifact_registry").register_artifact(

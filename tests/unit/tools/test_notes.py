@@ -1,4 +1,4 @@
-"""Tests for pentestagent.tools.notes."""
+"""Tests for flaghunter.tools.notes."""
 
 import asyncio
 import json
@@ -6,14 +6,14 @@ from pathlib import Path
 
 import pytest
 
-import pentestagent.tools.notes as notes_module
-from pentestagent.tools.notes import (
+import flaghunter.tools.notes as notes_module
+from flaghunter.tools.notes import (
     _validate_note_schema,
     get_all_notes,
     get_all_notes_sync,
     set_notes_file,
 )
-from pentestagent.workspaces.manager import WorkspaceManager
+from flaghunter.workspaces.manager import WorkspaceManager
 
 
 # ---------------------------------------------------------------------------

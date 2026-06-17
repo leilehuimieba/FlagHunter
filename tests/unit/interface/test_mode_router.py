@@ -9,13 +9,13 @@ import pytest
 
 def _resolve_mode_contract(payload: Mapping[str, Any], *, source_task: Mapping[str, Any] | None = None) -> dict[str, Any]:
     try:
-        mode_router = importlib.import_module("pentestagent.interface.mode_router")
+        mode_router = importlib.import_module("flaghunter.interface.mode_router")
     except ModuleNotFoundError as exc:
-        pytest.fail(f"expected pentestagent.interface.mode_router module to exist: {exc}")
+        pytest.fail(f"expected flaghunter.interface.mode_router module to exist: {exc}")
 
     resolve = getattr(mode_router, "resolve_mode_contract", None)
     if not callable(resolve):
-        pytest.fail("expected pentestagent.interface.mode_router.resolve_mode_contract to be callable")
+        pytest.fail("expected flaghunter.interface.mode_router.resolve_mode_contract to be callable")
 
     try:
         contract = resolve(payload, source_task=source_task)

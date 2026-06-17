@@ -1,6 +1,6 @@
-"""Tests for pentestagent.config.constants."""
+"""Tests for flaghunter.config.constants."""
 
-import pentestagent.config.constants as C
+import flaghunter.config.constants as C
 
 
 class TestAppInfo:

@@ -6,16 +6,16 @@ from types import SimpleNamespace
 
 import pytest
 
-from pentestagent.agents.pa_agent.pa_agent import PentestAgentAgent
-from pentestagent.agents.pa_agent.ctf_state import CTFState, Hypothesis
-from pentestagent.agents.pa_agent.ctf_planner import get_ctf_quick_path
-from pentestagent.agents.pa_agent.hypothesis_engine import HypothesisEngine
-from pentestagent.agents.pa_agent.recovery import RecoveryController
-from pentestagent.tools.notes import get_all_notes_sync, set_notes_file
-from pentestagent.tools.registry import get_tool
-from pentestagent.workspaces.manager import WorkspaceManager
+from flaghunter.agents.pa_agent.pa_agent import PentestAgentAgent
+from flaghunter.agents.pa_agent.ctf_state import CTFState, Hypothesis
+from flaghunter.agents.pa_agent.ctf_planner import get_ctf_quick_path
+from flaghunter.agents.pa_agent.hypothesis_engine import HypothesisEngine
+from flaghunter.agents.pa_agent.recovery import RecoveryController
+from flaghunter.tools.notes import get_all_notes_sync, set_notes_file
+from flaghunter.tools.registry import get_tool
+from flaghunter.workspaces.manager import WorkspaceManager
 
-import pentestagent.tools.notes as notes_module
+import flaghunter.tools.notes as notes_module
 
 
 class _GroundedWebRuntime:
@@ -225,17 +225,17 @@ async def _run_grounding_eval(
     async def _noop(*args, **kwargs):
         return None
 
-    monkeypatch.setattr("pentestagent.tools.finish._persist_session_knowledge", _noop)
-    monkeypatch.setattr("pentestagent.tools.finish._generate_auto_report", _noop)
+    monkeypatch.setattr("flaghunter.tools.finish._persist_session_knowledge", _noop)
+    monkeypatch.setattr("flaghunter.tools.finish._generate_auto_report", _noop)
 
     mgr = WorkspaceManager(root=tmp_path)
     mgr.create("adversarial_eval")
     mgr.add_targets("adversarial_eval", ["http://127.0.0.1:3000"])
     mgr.set_active("adversarial_eval")
 
-    import pentestagent.tools.browser  # noqa: F401
-    import pentestagent.tools.finish  # noqa: F401
-    import pentestagent.tools.notes  # noqa: F401
+    import flaghunter.tools.browser  # noqa: F401
+    import flaghunter.tools.finish  # noqa: F401
+    import flaghunter.tools.notes  # noqa: F401
 
     browser_tool = get_tool("browser")
     notes_tool = get_tool("notes")

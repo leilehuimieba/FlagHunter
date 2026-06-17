@@ -1,8 +1,8 @@
-"""Tests for pentestagent.workspaces.validation."""
+"""Tests for flaghunter.workspaces.validation."""
 
 import pytest
 
-from pentestagent.workspaces.validation import gather_candidate_targets, is_target_in_scope
+from flaghunter.workspaces.validation import gather_candidate_targets, is_target_in_scope
 
 
 # ---------------------------------------------------------------------------

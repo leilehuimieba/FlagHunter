@@ -1,9 +1,11 @@
 """Unit tests for the AgentSession facade (architecture joint A)."""
 
+import inspect
+
 import pytest
 
-from pentestagent.agents.base_agent import AgentMessage
-from pentestagent.session.agent_session import AgentSession, RunResult
+from flaghunter.agents.base_agent import AgentMessage
+from flaghunter.session.agent_session import AgentSession, RunResult
 
 
 class _FakeAgent:
@@ -50,6 +52,30 @@ async def test_create_funnels_builder_and_exposes_components():
     assert session.runtime_info == {"selected": "local"}
     assert session.agent is not None
     assert session.llm is session.agent.llm
+
+
+def test_default_builder_lives_below_interface_layer():
+    """I1/P1-b: AgentSession must not import the entry/interface layer."""
+    import flaghunter.session.initializer as session_initializer
+
+    src = inspect.getsource(AgentSession.create)
+
+    assert "interface.initializer" not in src
+    assert "from .initializer import build_agent_components as builder" in src
+    assert callable(session_initializer.build_agent_components)
+
+
+def test_interface_initializer_is_compatibility_reexport():
+    """Old imports remain valid, but the composition root is session-owned."""
+    import flaghunter.interface.initializer as interface_initializer
+    import flaghunter.session.initializer as session_initializer
+
+    assert interface_initializer.build_agent_components is session_initializer.build_agent_components
+    assert interface_initializer.build_runtime is session_initializer.build_runtime
+    assert (
+        interface_initializer.activate_workspace_for_target
+        is session_initializer.activate_workspace_for_target
+    )
 
 
 @pytest.mark.asyncio

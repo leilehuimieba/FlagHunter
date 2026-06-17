@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pentestagent.harness.session_ledger import SessionLedger
+from flaghunter.harness.session_ledger import SessionLedger
 
 
 def test_session_ledger_appends_and_reads_events(tmp_path) -> None:

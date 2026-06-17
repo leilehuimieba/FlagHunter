@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from pentestagent.knowledge.rag import RAGEngine
+from flaghunter.knowledge.rag import RAGEngine
 
 
 def test_rag_index_includes_sibling_sessions_directory(tmp_path, monkeypatch):
@@ -21,7 +21,7 @@ def test_rag_index_includes_sibling_sessions_directory(tmp_path, monkeypatch):
     )
 
     monkeypatch.setattr(
-        "pentestagent.knowledge.rag.get_embeddings",
+        "flaghunter.knowledge.rag.get_embeddings",
         lambda texts, model=None: np.ones((len(texts), 4)),
     )
 

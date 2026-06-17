@@ -15,12 +15,12 @@ import time
 from typing import Any, Callable, Iterator
 from unittest.mock import patch
 
-import pentestagent.tools.notes as notes_module
-from pentestagent.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher, SolveResult
-from pentestagent.agents.pa_agent.ctf_state import CTFState
-from pentestagent.knowledge.session_context import SessionContextView
-from pentestagent.runtime.runtime import LocalRuntime
-from pentestagent.tools.notes import set_notes_file
+import flaghunter.tools.notes as notes_module
+from flaghunter.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher, SolveResult
+from flaghunter.agents.pa_agent.ctf_state import CTFState
+from flaghunter.knowledge.session_context import SessionContextView
+from flaghunter.runtime.runtime import LocalRuntime
+from flaghunter.tools.notes import set_notes_file
 from tests.eval.benchmark_result import BenchmarkReport, ChallengeResult
 from tests.integration import test_ctf_dispatcher_acceptance as auth_sqli_module
 from tests.integration import test_ctf_dispatcher_backup_acceptance as backup_module
@@ -585,7 +585,7 @@ async def _run_local_easy_login_runtime_only(
             tmp_path = Path(temp_dir)
             with _temporary_cwd(tmp_path), _isolated_notes(tmp_path):
                 with patch(
-                    "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+                    "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
                     lambda self, tools: {},
                 ):
                     runtime = local_challenge_runner_module._EasyLoginRuntimeOnlyFallbackRuntime()
@@ -617,7 +617,7 @@ async def _run_local_easy_login_none(
             tmp_path = Path(temp_dir)
             with _temporary_cwd(tmp_path), _isolated_notes(tmp_path):
                 with patch(
-                    "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+                    "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
                     lambda self, tools: {},
                 ):
                     runtime = local_challenge_runner_module._EasyLoginLocalAssetRuntime(
@@ -651,7 +651,7 @@ async def _run_local_backup_node_app_zip(
             tmp_path = Path(temp_dir)
             with _temporary_cwd(tmp_path), _isolated_notes(tmp_path):
                 with patch(
-                    "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+                    "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
                     lambda self, tools: {},
                 ):
                     runtime = backup_node_app_eval_module._BackupNodeAppCandidateRuntime()

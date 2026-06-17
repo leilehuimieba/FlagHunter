@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from pentestagent.tools.radare2 import radare2
+from flaghunter.tools.radare2 import radare2
 
 
 class _MockResult:

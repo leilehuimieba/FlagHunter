@@ -4,12 +4,12 @@ import asyncio
 
 import pytest
 
-from pentestagent.agents.pa_agent.ctf_crew_coordinator import (
+from flaghunter.agents.pa_agent.ctf_crew_coordinator import (
     CTFCrewCoordinator,
     CrewWorkerSpec,
 )
-from pentestagent.agents.pa_agent.ctf_state import CTFState, Hypothesis
-from pentestagent.agents.pa_agent.verifier import CTFVerifier
+from flaghunter.agents.pa_agent.ctf_state import CTFState, Hypothesis
+from flaghunter.agents.pa_agent.verifier import CTFVerifier
 
 
 class _FakeVerifier:

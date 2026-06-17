@@ -7,8 +7,8 @@ preserved.
 
 import pytest
 
-from pentestagent.mcp.server import mcp_tools as m
-from pentestagent.session.event_bus import EventBus
+from flaghunter.mcp.server import mcp_tools as m
+from flaghunter.session.event_bus import EventBus
 
 
 @pytest.fixture(autouse=True)

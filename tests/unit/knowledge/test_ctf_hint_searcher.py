@@ -5,10 +5,10 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
-import pentestagent.config.constants as C
+import flaghunter.config.constants as C
 import pytest
 
-from pentestagent.knowledge import ctf_hint_searcher as mod
+from flaghunter.knowledge import ctf_hint_searcher as mod
 
 
 @pytest.mark.asyncio

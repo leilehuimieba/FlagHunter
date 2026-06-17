@@ -97,7 +97,7 @@ tests/test_*.py
 loot/*
 /conversations
 mcp_examples/kali/mcp_servers.json
-pentestagent/mcp/mcp_servers.json
+flaghunter/mcp/mcp_servers.json
 
 # Local runtime / debug artifacts
 /.claude/scheduled_tasks.lock
@@ -108,8 +108,8 @@ pentestagent/mcp/mcp_servers.json
 /reports/
 /knowledge/retrospective_export/
 /knowledge/retrospective_notes.md
-/pentestagent/knowledge/retrospective.json
-/pentestagent/knowledge/sessions/
+/flaghunter/knowledge/retrospective.json
+/flaghunter/knowledge/sessions/
 # Vendored third-party tool binaries/data (nmap/nuclei/ffuf/gobuster/sqlmap/...).
 # These must be fetched via a setup script, NOT committed (~163MB).
 # Already-tracked copies are removed from the index via `git rm -r --cached tools/`

@@ -2,8 +2,8 @@
 
 import asyncio
 
-import pentestagent.tools.waf as waf_module
-from pentestagent.tools.waf import run_waf
+import flaghunter.tools.waf as waf_module
+from flaghunter.tools.waf import run_waf
 
 
 def test_detect_cloudflare_by_header(monkeypatch):

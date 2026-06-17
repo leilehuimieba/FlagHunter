@@ -11,11 +11,11 @@ from pathlib import Path
 
 import pytest
 
-from pentestagent.tools._tool_env import find_tool, patch_tool_path
-from pentestagent.tools.dirscan import run_dirscan
-from pentestagent.tools.nmap import run_nmap
-from pentestagent.tools.nuclei import run_nuclei
-from pentestagent.tools.sqlmap import run_sqlmap
+from flaghunter.tools._tool_env import find_tool, patch_tool_path
+from flaghunter.tools.dirscan import run_dirscan
+from flaghunter.tools.nmap import run_nmap
+from flaghunter.tools.nuclei import run_nuclei
+from flaghunter.tools.sqlmap import run_sqlmap
 
 
 pytestmark = [

@@ -1,9 +1,9 @@
-"""Tests for pentestagent.llm.memory (ConversationMemory)."""
+"""Tests for flaghunter.llm.memory (ConversationMemory)."""
 
 import pytest
 from unittest.mock import AsyncMock
 
-from pentestagent.llm.memory import ConversationMemory
+from flaghunter.llm.memory import ConversationMemory
 
 
 # ---------------------------------------------------------------------------
@@ -212,7 +212,7 @@ class TestSecuritySensitiveDataInSummary:
         """The memory module should pass message content to llm_call as-is.
         This test ensures the SUMMARY_PROMPT template itself doesn't inject
         extra sensitive data beyond what's in the conversation."""
-        from pentestagent.llm.memory import SUMMARY_PROMPT
+        from flaghunter.llm.memory import SUMMARY_PROMPT
 
         assert "API_KEY" not in SUMMARY_PROMPT
         assert "sk-" not in SUMMARY_PROMPT

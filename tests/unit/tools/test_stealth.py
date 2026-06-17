@@ -2,10 +2,10 @@
 
 import asyncio
 
-import pentestagent.tools.executor as executor_module
-import pentestagent.tools.notes as notes_module
-from pentestagent.tools.executor import ToolExecutor
-from pentestagent.tools.registry import Tool, ToolSchema
+import flaghunter.tools.executor as executor_module
+import flaghunter.tools.notes as notes_module
+from flaghunter.tools.executor import ToolExecutor
+from flaghunter.tools.registry import Tool, ToolSchema
 
 
 class _NoopRuntime:
