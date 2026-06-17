@@ -33,7 +33,7 @@ assignees: ''
 
 - [ ] `README / docs`
 - [ ] `pentestagent/`
-- [ ] `cpa_modules/`
+- [ ] `pentestagent/cpa_modules/`
 - [ ] `tools/`
 - [ ] `runtime/`
 - [ ] `tests/`

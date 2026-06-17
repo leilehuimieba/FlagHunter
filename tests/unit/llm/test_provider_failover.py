@@ -4,9 +4,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from cpa_modules.m1_api_hub.cost_tracker import CostTracker
-from cpa_modules.m1_api_hub.models import ProviderConfig, ProviderState, RequestLog
-from cpa_modules.m1_api_hub.provider_manager import ProviderManager
+from pentestagent.cpa_modules.m1_api_hub.cost_tracker import CostTracker
+from pentestagent.cpa_modules.m1_api_hub.models import ProviderConfig, ProviderState, RequestLog
+from pentestagent.cpa_modules.m1_api_hub.provider_manager import ProviderManager
 from pentestagent.llm.config import ModelConfig
 from pentestagent.llm.llm import ErrorClass, LLM
 
@@ -82,10 +82,10 @@ async def _provider_manager_with_defaults() -> ProviderManager:
 
 
 def _enable_m1(monkeypatch, pm: ProviderManager, tracker: CostTracker) -> None:
-    monkeypatch.setattr("cpa_modules.m1_api_hub.is_m1_enabled", lambda: True)
-    monkeypatch.setattr("cpa_modules.m1_api_hub.get_provider_manager", lambda: pm)
-    monkeypatch.setattr("cpa_modules.m1_api_hub.get_cost_tracker", lambda: tracker)
-    monkeypatch.setattr("cpa_modules.m1_api_hub.init_m1", lambda: None)
+    monkeypatch.setattr("pentestagent.cpa_modules.m1_api_hub.is_m1_enabled", lambda: True)
+    monkeypatch.setattr("pentestagent.cpa_modules.m1_api_hub.get_provider_manager", lambda: pm)
+    monkeypatch.setattr("pentestagent.cpa_modules.m1_api_hub.get_cost_tracker", lambda: tracker)
+    monkeypatch.setattr("pentestagent.cpa_modules.m1_api_hub.init_m1", lambda: None)
 
 
 @pytest.mark.parametrize(
@@ -212,20 +212,20 @@ async def test_m1_is_lazy_initialized_when_enabled_but_not_ready(monkeypatch):
     tracker = CostTracker()
     init_called = {"value": 0}
 
-    monkeypatch.setattr("cpa_modules.m1_api_hub.is_m1_enabled", lambda: True)
+    monkeypatch.setattr("pentestagent.cpa_modules.m1_api_hub.is_m1_enabled", lambda: True)
 
     def _raise_uninitialized():
         raise RuntimeError("M1 API Hub 尚未初始化，请先调用 init_m1()")
 
-    monkeypatch.setattr("cpa_modules.m1_api_hub.get_provider_manager", _raise_uninitialized)
-    monkeypatch.setattr("cpa_modules.m1_api_hub.get_cost_tracker", _raise_uninitialized)
+    monkeypatch.setattr("pentestagent.cpa_modules.m1_api_hub.get_provider_manager", _raise_uninitialized)
+    monkeypatch.setattr("pentestagent.cpa_modules.m1_api_hub.get_cost_tracker", _raise_uninitialized)
 
     async def _init_m1():
         init_called["value"] += 1
-        monkeypatch.setattr("cpa_modules.m1_api_hub.get_provider_manager", lambda: pm)
-        monkeypatch.setattr("cpa_modules.m1_api_hub.get_cost_tracker", lambda: tracker)
+        monkeypatch.setattr("pentestagent.cpa_modules.m1_api_hub.get_provider_manager", lambda: pm)
+        monkeypatch.setattr("pentestagent.cpa_modules.m1_api_hub.get_cost_tracker", lambda: tracker)
 
-    monkeypatch.setattr("cpa_modules.m1_api_hub.init_m1", _init_m1)
+    monkeypatch.setattr("pentestagent.cpa_modules.m1_api_hub.init_m1", _init_m1)
 
     llm = _build_llm(_FakeLiteLLM([_fake_response("lazy-init-ok")]))
     response = await llm.generate(

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from cpa_modules.m2_ctf_kit.flag_submitter import (
+from pentestagent.cpa_modules.m2_ctf_kit.flag_submitter import (
     detect_platform_from_url,
     get_platform_snapshot,
 )

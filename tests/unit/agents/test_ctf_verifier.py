@@ -215,7 +215,7 @@ async def test_verifier_upgrades_runtime_flag_via_platform_auto_submit(monkeypat
         )
 
     monkeypatch.setattr(
-        "cpa_modules.m2_ctf_kit.flag_submitter.submit_flag",
+        "pentestagent.cpa_modules.m2_ctf_kit.flag_submitter.submit_flag",
         _fake_submit_flag,
     )
 
@@ -254,7 +254,7 @@ async def test_verifier_rejects_runtime_flag_via_platform_auto_submit(monkeypatc
         )
 
     monkeypatch.setattr(
-        "cpa_modules.m2_ctf_kit.flag_submitter.submit_flag",
+        "pentestagent.cpa_modules.m2_ctf_kit.flag_submitter.submit_flag",
         _fake_submit_flag,
     )
 
@@ -291,7 +291,7 @@ async def test_verifier_operator_confirmation_still_submits_when_submit_channel_
         )
 
     monkeypatch.setattr(
-        "cpa_modules.m2_ctf_kit.flag_submitter.submit_flag",
+        "pentestagent.cpa_modules.m2_ctf_kit.flag_submitter.submit_flag",
         _fake_submit_flag,
     )
 
@@ -333,7 +333,7 @@ async def test_verifier_short_circuits_when_platform_previously_rejected_flag(mo
         raise AssertionError("submit_flag should not be called again")
 
     monkeypatch.setattr(
-        "cpa_modules.m2_ctf_kit.flag_submitter.submit_flag",
+        "pentestagent.cpa_modules.m2_ctf_kit.flag_submitter.submit_flag",
         _unexpected_submit,
     )
 
@@ -361,7 +361,7 @@ async def test_verifier_submit_gate_blocks_weak_runtime_auto_submit(monkeypatch)
         raise AssertionError("submit_flag should be gated off")
 
     monkeypatch.setattr(
-        "cpa_modules.m2_ctf_kit.flag_submitter.submit_flag",
+        "pentestagent.cpa_modules.m2_ctf_kit.flag_submitter.submit_flag",
         _unexpected_submit,
     )
 

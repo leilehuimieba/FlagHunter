@@ -623,7 +623,7 @@ from .flag_submitter import submit_flag
 ```python
 # === CPA M2 HOOK BEGIN ===
 if os.getenv("CPA_M2_CTF_KIT", "true").lower() == "true":
-    from cpa_modules.m2_ctf_kit import init_m2
+    from pentestagent.cpa_modules.m2_ctf_kit import init_m2
     try: init_m2()
     except Exception as e: logger.warning(f"M2模块初始化失败: {e}")
 # === CPA M2 HOOK END ===
@@ -634,7 +634,7 @@ if os.getenv("CPA_M2_CTF_KIT", "true").lower() == "true":
 ```python
 # === CPA M2 HOOK BEGIN ===
 if os.getenv("CPA_M2_CTF_KIT", "true").lower() == "true":
-    from cpa_modules.m2_ctf_kit.ctf_commands import (
+    from pentestagent.cpa_modules.m2_ctf_kit.ctf_commands import (
         cmd_ctf, cmd_ctf_list, cmd_ctf_run, cmd_ctf_phase,
         cmd_ctf_next, cmd_ctf_flag, cmd_ctf_pwn, cmd_ctf_decode, cmd_ctf_rev, cmd_ctf_status
     )

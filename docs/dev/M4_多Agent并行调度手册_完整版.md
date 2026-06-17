@@ -847,7 +847,7 @@ from .data_protection import DataProtector
 # === CPA M4 HOOK BEGIN ===
 if os.getenv("CPA_M4_AUDIT_GUARD", "true").lower() == "true":
     try:
-        from cpa_modules.m4_audit_guard import init_m4
+        from pentestagent.cpa_modules.m4_audit_guard import init_m4
         import asyncio
         asyncio.run(init_m4())
     except Exception as e:
@@ -861,7 +861,7 @@ if os.getenv("CPA_M4_AUDIT_GUARD", "true").lower() == "true":
 # === CPA M4 HOOK BEGIN ===
 # 在每个工具执行函数的最开头插入：
 async def tool_execute_with_guard(tool_name, target, command, ...):
-    from cpa_modules.m4_audit_guard import get_scope_enforcer, get_approval_gate, get_audit_logger
+    from pentestagent.cpa_modules.m4_audit_guard import get_scope_enforcer, get_approval_gate, get_audit_logger
     
     se = get_scope_enforcer()
     ag = get_approval_gate()
@@ -893,7 +893,7 @@ async def tool_execute_with_guard(tool_name, target, command, ...):
 # === CPA M4 HOOK BEGIN ===
 if os.getenv("CPA_M4_AUDIT_GUARD", "true").lower() == "true":
     try:
-        from cpa_modules.m4_audit_guard import (
+        from pentestagent.cpa_modules.m4_audit_guard import (
             get_audit_logger, get_roe_engine, get_scope_enforcer, get_approval_gate
         )
         # 注册命令：

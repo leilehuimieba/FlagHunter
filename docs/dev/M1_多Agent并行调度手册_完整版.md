@@ -593,7 +593,7 @@ class StatusDisplay:
 ```python
 # === CPA M1 HOOK BEGIN ===
 if is_m1_enabled():
-    from cpa_modules.m1_api_hub import get_provider_manager
+    from pentestagent.cpa_modules.m1_api_hub import get_provider_manager
     pm = get_provider_manager()
     if pm:
         try:
@@ -611,7 +611,7 @@ if is_m1_enabled():
 ```python
 # === CPA M1 HOOK BEGIN ===
 if is_m1_enabled():
-    from cpa_modules.m1_api_hub import init_m1
+    from pentestagent.cpa_modules.m1_api_hub import init_m1
     try:
         asyncio.run(init_m1())
     except Exception as e:
@@ -632,8 +632,8 @@ cpa_m1_api_hub: bool = field(default_factory=lambda: os.getenv("CPA_M1_API_HUB",
 ```python
 # === CPA M1 HOOK BEGIN ===
 if is_m1_enabled():
-    from cpa_modules.m1_api_hub import get_provider_manager, get_cost_tracker
-    from cpa_modules.m1_api_hub.status_display import StatusDisplay
+    from pentestagent.cpa_modules.m1_api_hub import get_provider_manager, get_cost_tracker
+    from pentestagent.cpa_modules.m1_api_hub.status_display import StatusDisplay
     # 注册 /api 命令处理函数
     # 当用户输入 /api 时，调用 StatusDisplay.render_full_panel() 显示
 # === CPA M1 HOOK END ===

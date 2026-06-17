@@ -693,7 +693,7 @@ from .consensus_mechanism import ConsensusMechanism
 # === CPA M5 HOOK BEGIN ===
 if os.getenv("CPA_M5_SWARM_LINK", "false").lower() == "true":
     try:
-        from cpa_modules.m5_swarm_link import init_m5
+        from pentestagent.cpa_modules.m5_swarm_link import init_m5
         import asyncio
         asyncio.run(init_m5())
     except Exception as e:
@@ -707,14 +707,14 @@ if os.getenv("CPA_M5_SWARM_LINK", "false").lower() == "true":
 # === CPA M5 HOOK BEGIN ===
 # 在Crew模式开始执行任务前：
 if is_m5_enabled():
-    from cpa_modules.m5_swarm_link import get_pheromone_router
+    from pentestagent.cpa_modules.m5_swarm_link import get_pheromone_router
     router = get_pheromone_router()
     # 调用router.get_prioritized_queue()调整任务顺序
     # 调用router.deposit_finding()记录Agent的发现
 
 # 在Crew模式的Agent完成一个发现后：
 if is_m5_enabled():
-    from cpa_modules.m5_swarm_link import get_messenger
+    from pentestagent.cpa_modules.m5_swarm_link import get_messenger
     messenger = get_messenger(agent_id)
     # 调用messenger.report_finding()通知其他Agent
 # === CPA M5 HOOK END ===
@@ -725,7 +725,7 @@ if is_m5_enabled():
 # === CPA M5 HOOK BEGIN ===
 if os.getenv("CPA_M5_SWARM_LINK", "false").lower() == "true":
     try:
-        from cpa_modules.m5_swarm_link.swarm_commands import (
+        from pentestagent.cpa_modules.m5_swarm_link.swarm_commands import (
             cmd_swarm, cmd_swarm_status, cmd_swarm_top, cmd_swarm_deposit,
             cmd_swarm_board, cmd_swarm_propose, cmd_swarm_vote, ...
         )

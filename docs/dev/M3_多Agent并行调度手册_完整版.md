@@ -594,7 +594,7 @@ from .incremental_tracker import IncrementalTracker
 # === CPA M3 HOOK BEGIN ===
 if os.getenv("CPA_M3_REPORTER", "true").lower() == "true":
     try:
-        from cpa_modules.m3_reporter import init_m3
+        from pentestagent.cpa_modules.m3_reporter import init_m3
         import asyncio
         asyncio.run(init_m3())
     except Exception as e:
@@ -609,7 +609,7 @@ if os.getenv("CPA_M3_REPORTER", "true").lower() == "true":
 # === CPA M3 HOOK BEGIN ===
 if os.getenv("CPA_M3_REPORTER", "true").lower() == "true":
     try:
-        from cpa_modules.m3_reporter import get_report_generator
+        from pentestagent.cpa_modules.m3_reporter import get_report_generator
         # 注册命令：
         # /report new <title>              — 创建新报告
         # /report status                   — 查看当前报告状态

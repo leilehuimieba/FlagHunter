@@ -106,7 +106,7 @@ FlagHunter 更偏向：
 ```mermaid
 flowchart TD
     A[FlagHunter] --> B[pentestagent core]
-    A --> C[cpa_modules]
+    A --> C[pentestagent.cpa_modules]
     A --> D[tools]
     A --> E[runtime]
     A --> F[docs / plans / changelog]

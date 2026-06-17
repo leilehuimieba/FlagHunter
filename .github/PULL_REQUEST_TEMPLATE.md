@@ -40,7 +40,7 @@
 
 - [ ] `README / docs`
 - [ ] `pentestagent/` 核心代码
-- [ ] `cpa_modules/`
+- [ ] `pentestagent/cpa_modules/`
 - [ ] `tools/`
 - [ ] `runtime/`
 - [ ] `tests/`

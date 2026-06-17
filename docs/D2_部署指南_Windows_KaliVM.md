@@ -315,7 +315,7 @@ FlagHunter/
 import os
 if os.getenv("CPA_M1_API_HUB", "true").lower() == "true":
     try:
-        from cpa_modules.m1_api_hub import get_provider_manager
+        from pentestagent.cpa_modules.m1_api_hub import get_provider_manager
         pm = get_provider_manager()
         if pm:
             provider = await pm.select_provider(model_hint=self.model)
@@ -336,7 +336,7 @@ if os.getenv("CPA_M1_API_HUB", "true").lower() == "true":
 import os
 if os.getenv("CPA_M1_API_HUB", "true").lower() == "true":
     try:
-        from cpa_modules.m1_api_hub import init_m1
+        from pentestagent.cpa_modules.m1_api_hub import init_m1
         import asyncio
         asyncio.run(init_m1())
     except Exception as e:
@@ -347,7 +347,7 @@ if os.getenv("CPA_M1_API_HUB", "true").lower() == "true":
 # === CPA M2 HOOK BEGIN ===
 if os.getenv("CPA_M2_CTF_KIT", "true").lower() == "true":
     try:
-        from cpa_modules.m2_ctf_kit import init_m2
+        from pentestagent.cpa_modules.m2_ctf_kit import init_m2
         import asyncio
         asyncio.run(init_m2())
     except Exception as e:
@@ -382,8 +382,8 @@ cpa_m2_flag_submitter: bool = field(default_factory=lambda: os.getenv("CPA_M2_FL
 # === CPA M1 HOOK BEGIN ===
 if os.getenv("CPA_M1_API_HUB", "true").lower() == "true":
     try:
-        from cpa_modules.m1_api_hub.status_display import StatusDisplay
-        from cpa_modules.m1_api_hub import get_provider_manager, get_cost_tracker
+        from pentestagent.cpa_modules.m1_api_hub.status_display import StatusDisplay
+        from pentestagent.cpa_modules.m1_api_hub import get_provider_manager, get_cost_tracker
         # 注册 /api 命令 → StatusDisplay.render_full_panel()
         # 注册 /api providers → list_providers()
         # 注册 /api status → show_status()
@@ -398,7 +398,7 @@ if os.getenv("CPA_M1_API_HUB", "true").lower() == "true":
 # === CPA M2 HOOK BEGIN ===
 if os.getenv("CPA_M2_CTF_KIT", "true").lower() == "true":
     try:
-        from cpa_modules.m2_ctf_kit.ctf_commands import (
+        from pentestagent.cpa_modules.m2_ctf_kit.ctf_commands import (
             cmd_ctf, cmd_ctf_list, cmd_ctf_run, cmd_ctf_phase,
             cmd_ctf_next, cmd_ctf_flag, cmd_ctf_pwn, cmd_ctf_decode, cmd_ctf_rev, cmd_ctf_status
         )

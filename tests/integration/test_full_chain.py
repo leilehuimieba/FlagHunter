@@ -250,7 +250,7 @@ async def test_crew_swarm_bridge_writes_blackboard_and_pheromone(tmp_path, monke
     monkeypatch.setenv("CPA_M5_SWARM_LINK", "true")
     monkeypatch.setenv("CPA_M5_BLACKBOARD_DB", str(tmp_path / "blackboard.db"))
 
-    import cpa_modules.m5_swarm_link as m5
+    import pentestagent.cpa_modules.m5_swarm_link as m5
 
     m5 = importlib.reload(m5)
     await m5.init_m5()

@@ -122,7 +122,7 @@ CPA_M5_SWARM_LINK=true
 ### 低侵入原则
 - 对原版 M0 的修改必须用 `=== CPA MX HOOK BEGIN/END ===` 标记
 - 侵入行数控制在 25 行以内
-- 新增模块放在 `cpa_modules/` 下，独立目录、独立开关、独立测试
+- 新增模块放在 `pentestagent/cpa_modules/` 下，独立目录、独立开关、独立测试
 
 ### 延迟加载
 - pwntools、r2pipe、capstone 等重型依赖使用 lazy import

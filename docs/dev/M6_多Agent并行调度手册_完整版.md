@@ -606,7 +606,7 @@ def _wrap_tool_execution():
 # === CPA M6 HOOK BEGIN ===
 if os.getenv("CPA_M6_TURBO", "true").lower() == "true":
     try:
-        from cpa_modules.m6_turbo import init_m6
+        from pentestagent.cpa_modules.m6_turbo import init_m6
         import asyncio
         asyncio.run(init_m6())
     except Exception as e:
@@ -620,7 +620,7 @@ if os.getenv("CPA_M6_TURBO", "true").lower() == "true":
 # === CPA M6 HOOK BEGIN ===
 if os.getenv("CPA_M6_TURBO", "true").lower() == "true":
     try:
-        from cpa_modules.m6_turbo.turbo_commands import (
+        from pentestagent.cpa_modules.m6_turbo.turbo_commands import (
             cmd_turbo, cmd_turbo_cache, cmd_turbo_scan, cmd_turbo_memory
         )
         # 注册 /turbo 系列命令
@@ -646,7 +646,7 @@ cpa_m6_memory_limit_mb: int = field(default_factory=lambda: int(os.getenv("CPA_M
 # 在M2-M5模块全部加载完成后，调用：
 if is_m6_enabled():
     try:
-        from cpa_modules.m6_turbo import _wrap_tool_execution
+        from pentestagent.cpa_modules.m6_turbo import _wrap_tool_execution
         _wrap_tool_execution()
     except Exception as e:
         import logging

@@ -4356,7 +4356,7 @@ async def test_ctf_dispatcher_post_auth_recon_rejects_csrf_403_surface():
 
 @pytest.mark.asyncio
 async def test_ctf_dispatcher_failover_monitor_start_failure_does_not_break_run(monkeypatch, tmp_path):
-    import cpa_modules.m1_api_hub as m1_api_hub
+    import pentestagent.cpa_modules.m1_api_hub as m1_api_hub
 
     set_notes_file(tmp_path / "notes_failover_start_fail.json")
     notes_module._notes.clear()
@@ -4387,7 +4387,7 @@ async def test_ctf_dispatcher_failover_monitor_start_failure_does_not_break_run(
 
 @pytest.mark.asyncio
 async def test_ctf_dispatcher_stops_owned_failover_monitor_after_run(monkeypatch, tmp_path):
-    import cpa_modules.m1_api_hub as m1_api_hub
+    import pentestagent.cpa_modules.m1_api_hub as m1_api_hub
 
     set_notes_file(tmp_path / "notes_failover_owned_stop.json")
     notes_module._notes.clear()
@@ -4611,7 +4611,7 @@ async def test_ctf_dispatcher_records_platform_profile_and_sync_snapshot(
         }
 
     monkeypatch.setattr(
-        "cpa_modules.m2_ctf_kit.flag_submitter.get_platform_snapshot",
+        "pentestagent.cpa_modules.m2_ctf_kit.flag_submitter.get_platform_snapshot",
         _fake_snapshot,
     )
 
@@ -4680,7 +4680,7 @@ async def test_ctf_dispatcher_aligns_platform_challenge_and_stops_if_already_sol
         }
 
     monkeypatch.setattr(
-        "cpa_modules.m2_ctf_kit.flag_submitter.get_platform_snapshot",
+        "pentestagent.cpa_modules.m2_ctf_kit.flag_submitter.get_platform_snapshot",
         _fake_snapshot,
     )
 

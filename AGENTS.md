@@ -95,13 +95,13 @@ pentestagent/
     gf/             # Pattern matcher for security-relevant strings
     ...
   workspaces/       # Workspace isolation helpers
-cpa_modules/
-  m1_api_hub/       # M1: Multi-provider API hub with failover
-  m2_ctf_kit/       # M2: CTF toolkit (playbook engine, crypto, pwn, reverse, flag submitter)
-  m3_reporter/      # M3: Report generation (auto-triggered by finish tool)
-  m4_audit_guard/   # M4: Scope enforcement & audit logging
-  m5_swarm_link/    # M5: Swarm bridge & pheromone routing
-  m6_turbo/         # M6: Performance optimizations
+  cpa_modules/      # CPA feature modules (subpackage of pentestagent)
+    m1_api_hub/     # M1: Multi-provider API hub with failover
+    m2_ctf_kit/     # M2: CTF toolkit (playbook engine, crypto, pwn, reverse, flag submitter)
+    m3_reporter/    # M3: Report generation (auto-triggered by finish tool)
+    m4_audit_guard/ # M4: Scope enforcement & audit logging
+    m5_swarm_link/  # M5: Swarm bridge & pheromone routing
+    m6_turbo/       # M6: Performance optimizations
 loot/               # Persisted notes, token usage, strategy memory (git-ignored)
 mcp_examples/       # Example MCP configs and adapters
 scripts/            # setup.sh / setup.ps1
@@ -337,7 +337,7 @@ It is a deterministic dispatcher wrapped around LLM-assisted strategy selection:
 - M5 Swarm bridge (`agents/crew/swarm_bridge.py`) deposits pheromone routes when
   `CPA_M5_SWARM_LINK=true`.
 
-### M1 API failover (`cpa_modules/m1_api_hub`)
+### M1 API failover (`pentestagent/cpa_modules/m1_api_hub`)
 
 `LLM._call_with_provider_failover()` integrates M1 transparently:
 
@@ -402,7 +402,7 @@ Three interchangeable runtimes:
 ### Tool executor guards (`tools/executor.py`)
 
 Before every tool execution:
-1. **M4 scope check** — `cpa_modules.m4_audit_guard.get_scope_enforcer().validate_sync()`.
+1. **M4 scope check** — `pentestagent.cpa_modules.m4_audit_guard.get_scope_enforcer().validate_sync()`.
 2. **Cookie auto-inject** — for `sqlmap`, `dirscan`, `nuclei`, `afrog`: reads the latest
    `credential` note with `cookie_string` and injects it into arguments.
 3. **Stealth mode** — if `PENTESTAGENT_STEALTH=1` or a `waf_detected` note exists,

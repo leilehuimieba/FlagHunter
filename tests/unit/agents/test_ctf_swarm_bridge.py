@@ -135,7 +135,7 @@ class _FakeMessenger:
 
 @pytest.mark.asyncio
 async def test_publish_solve_outcome_deposits_chain_pheromone_and_facts(monkeypatch):
-    import cpa_modules.m5_swarm_link as m5
+    import pentestagent.cpa_modules.m5_swarm_link as m5
 
     router, messenger = _FakeRouter(), _FakeMessenger()
     monkeypatch.setattr(m5, "get_pheromone_router", lambda: router)
@@ -161,7 +161,7 @@ async def test_publish_disabled_when_env_off(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_recall_swarm_chain_pheromone_reads_chain_namespaced_trails(monkeypatch):
-    import cpa_modules.m5_swarm_link as m5
+    import pentestagent.cpa_modules.m5_swarm_link as m5
 
     router = _FakeRouter()
     router.trails = [

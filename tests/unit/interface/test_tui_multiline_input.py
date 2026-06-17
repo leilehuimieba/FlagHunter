@@ -546,11 +546,11 @@ async def test_providers_command_alias_reuses_api_status(monkeypatch):
             }
 
     monkeypatch.setattr(
-        "cpa_modules.m1_api_hub.get_provider_manager",
+        "pentestagent.cpa_modules.m1_api_hub.get_provider_manager",
         lambda: _FakeProviderManager(),
     )
     monkeypatch.setattr(
-        "cpa_modules.m1_api_hub.get_cost_tracker",
+        "pentestagent.cpa_modules.m1_api_hub.get_cost_tracker",
         lambda: _FakeCostTracker(),
     )
 
