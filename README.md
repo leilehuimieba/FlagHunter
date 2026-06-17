@@ -8,7 +8,7 @@
 [![Integration](https://img.shields.io/badge/integration-MCP-1f6feb)](#典型工作模式)
 
 > **面向 CTF 与合规渗透测试的 AI 代理框架**  
-> 基于 PentestAgent 演进，强化 **多 API 调度、CTF 专项能力、多 Agent 协作与可观测性**
+> 自研的攻防自动化框架，强化 **多 API 调度、CTF 专项能力、多 Agent 协作与可观测性**
 
 FlagHunter 的目标不是做“只能聊天的安全助手”，而是把 **计划、工具执行、策略切换、结果验证、记忆沉淀** 收敛成一个可复用、可审计、可扩展的攻防自动化框架。
 
@@ -38,7 +38,7 @@ FlagHunter 的目标不是做“只能聊天的安全助手”，而是把 **计
 
 ## 为什么是 FlagHunter
 
-FlagHunter 延续了 PentestAgent 的轻量骨架，但更强调 **真实实战效率** 而不是“模型自由发挥”。
+FlagHunter 是一个自研的 AI 攻防自动化框架，强调 **真实实战效率** 而不是“模型自由发挥”。
 
 它当前聚焦三个方向：
 
@@ -131,18 +131,18 @@ flowchart TD
     F --> F3[Plans]
 ```
 
-### 兼容性说明
+### 命名说明
 
-为了减少无意义迁移成本，项目当前 **没有** 重命名以下内部技术骨架：
+为减少无意义的迁移成本，项目保留了早期的内部技术命名。它们只是历史包名，**不代表对任何外部上游项目的依赖或衍生关系**：
 
 - Python 包目录 `pentestagent/`
 - 运行入口命令 `pentestagent`
-- 与上游兼容的部分配置字段
+- 部分历史配置字段（如 `PENTESTAGENT_MODEL`）
 
 也就是说：
 
-- **外部品牌**：FlagHunter
-- **内部兼容骨架**：PentestAgent 体系
+- **项目名称**：FlagHunter（独立自研项目）
+- **内部历史包名**：`pentestagent`（仅为代码层命名，未来可按需重命名）
 
 ---
 
@@ -237,10 +237,10 @@ pentestagent
 如果你是第一次接手这个仓库，建议按下面顺序理解：
 
 1. 先读本页 `README`
-2. 再看 `D:\webstudy\FlagHunter\docs\README.md`
-3. 然后看 `D:\webstudy\FlagHunter\AGENTS.md`
-4. 接着看 `D:\webstudy\FlagHunter\docs\web-console\FlagHunter_Web可视化控制台_当前可用性收口与使用边界_V1.md`
-5. 如果要继续开发，再看 `D:\webstudy\FlagHunter\docs\dev\FlagHunter_下一阶段主线_主控_BlackboardLite_调度收紧_V1.md`
+2. 再看 `docs/README.md`（文档总入口）
+3. 然后看 `AGENTS.md`（仓库结构与开发约束）
+4. 接着看 `docs/dev/FlagHunter_架构决策记录_自顶向下骨架与两关节契约_2026-06-17_V1.md`（当前骨架与不变量）
+5. 如果要继续开发，再看 `docs/dev/FlagHunter_红队智能体架构_对标顶级红队工程学_2026-06-17_V2.md`（架构方向锚）
 
 ---
 
@@ -291,17 +291,17 @@ pentestagent mcp_server --type sse --host 0.0.0.0 --port 8080
 
 | 文档 | 说明 |
 |------|------|
-| `D:\webstudy\FlagHunter\AGENTS.md` | 当前仓库的开发与协作约束 |
-| `D:\webstudy\FlagHunter\.github\CODEOWNERS` | 私有仓库默认 owner 与关键路径 review 归属 |
-| `D:\webstudy\FlagHunter\docs\D1_M1M2_用户使用手册.md` | 用户视角使用说明 |
-| `D:\webstudy\FlagHunter\docs\D2_部署指南_Windows_KaliVM.md` | Windows + Kali VM 部署指南 |
-| `D:\webstudy\FlagHunter\docs\D3_CTF实战攻略.md` | CTF 实战路径说明 |
-| `D:\webstudy\FlagHunter\docs\superpowers\plans\` | 当前实现计划与执行文档 |
-| `D:\webstudy\FlagHunter\CHANGELOG.md` | 版本与仓库演进记录 |
-| `D:\webstudy\FlagHunter\docs\release-policy.md` | 版本号、changelog 与 release 规则 |
-| `D:\webstudy\FlagHunter\docs\release-checklist.md` | 发版前人工检查清单 |
-| `D:\webstudy\FlagHunter\docs\label-strategy.md` | Issue / PR 标签分层与使用规则 |
-| `D:\webstudy\FlagHunter\docs\release-playbook.md` | 从检查到发版的实际操作手册 |
+| `AGENTS.md` | 仓库结构、架构模式与开发协作约束 |
+| `docs/README.md` | 文档总入口与分层导航 |
+| `.github/CODEOWNERS` | 私有仓库默认 owner 与关键路径 review 归属 |
+| `docs/dev/FlagHunter_架构决策记录_自顶向下骨架与两关节契约_2026-06-17_V1.md` | 当前骨架、两关节契约与不变量(ADR) |
+| `docs/dev/FlagHunter_红队智能体架构_对标顶级红队工程学_2026-06-17_V2.md` | 对标真实红队工程学的架构方向锚 |
+| `docs/dev/FlagHunter_agent引擎工程层优化_知识库补遗_2026-06-17_V1.md` | agent 引擎工程层优化清单 |
+| `CHANGELOG.md` | 版本与仓库演进记录 |
+| `docs/release-policy.md` | 版本号、changelog 与 release 规则 |
+| `docs/release-checklist.md` | 发版前人工检查清单 |
+| `docs/label-strategy.md` | Issue / PR 标签分层与使用规则 |
+| `docs/release-playbook.md` | 从检查到发版的实际操作手册 |
 
 ---
 

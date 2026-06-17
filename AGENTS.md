@@ -1,11 +1,16 @@
-# PentestAgent — AGENTS.md
+# FlagHunter — AGENTS.md
 
 ## Project overview
 
-**PentestAgent** (v0.4.1) is an AI-powered penetration testing framework built in Python.
-It wraps LiteLLM to support any provider (Anthropic, OpenAI, etc.) and exposes a TUI,
-a CLI, and an MCP server interface. The agent can run tools locally or inside a Docker
-sandbox (base or Kali image).
+**FlagHunter** (v0.4.x) is a self-developed, AI-powered offensive-security automation
+framework built in Python, focused on CTF and authorised penetration testing. It wraps
+LiteLLM to support any provider (Anthropic, OpenAI, etc.) and exposes a TUI, a CLI, and an
+MCP server interface. The agent can run tools locally or inside a Docker sandbox (base or
+Kali image).
+
+> **Naming note:** the Python package and entry-point command are still named
+> `pentestagent` for historical reasons. This is an internal code-level name only and does
+> **not** imply a dependency on or derivation from any external upstream project.
 
 ## Tech stack
 

@@ -2,185 +2,106 @@
 
 > 适用仓库：`D:\webstudy\FlagHunter`
 >
-> 最后更新：`2026-06-03`
+> 最后更新：`2026-06-18`
 >
-> 目标：把当前项目最值得先读、先维护、先对齐的文档收口到一个低成本入口，避免把历史快照、规划草案、局部证据混在一起。
+> 目标：把当前最值得先读、先维护、先对齐的文档收口到一个低成本入口。
+> 历史快照、阶段验收证据与已实现特性的设计草案已于 2026-06-18 清理，本入口只保留仍然有效的文档。
 
 ---
 
 ## 1. 先读什么
 
-如果你是第一次接手当前项目，建议按下面顺序读：
+如果你是第一次接手 FlagHunter，建议按下面顺序读：
 
-1. `D:\webstudy\FlagHunter\README.md`
-2. `D:\webstudy\FlagHunter\docs\README.md`
-3. `D:\webstudy\FlagHunter\AGENTS.md`
-4. `D:\webstudy\FlagHunter\docs\web-console\FlagHunter_Web可视化控制台_当前可用性收口与使用边界_V1.md`
-5. `D:\webstudy\FlagHunter\docs\dev\FlagHunter_项目级source-of-truth状态卡_2026-06-01_V1.md`
-6. `D:\webstudy\FlagHunter\docs\dev\FlagHunter_交接文档_当前主线与第一批任务_2026-06-01_V1.md`
-7. `D:\webstudy\FlagHunter\docs\dev\FlagHunter_项目状态核对与下一步讨论纪要_2026-06-03_V1.md`
-8. `D:\webstudy\FlagHunter\docs\dev\FlagHunter_下一阶段执行方案_主控_BlackboardLite_Eval三线合并_V1.md`
-9. `D:\webstudy\FlagHunter\docs\dev\local_challenge_sample_matrix.md`
+1. `README.md` —— 项目定位、能力域、快速开始
+2. `docs/README.md` —— 本文件，文档导航
+3. `AGENTS.md` —— 仓库结构、架构模式、开发协作约束
+4. `docs/dev/FlagHunter_架构决策记录_自顶向下骨架与两关节契约_2026-06-17_V1.md` —— 当前骨架与不变量(ADR)
+5. `docs/dev/FlagHunter_红队智能体架构_对标顶级红队工程学_2026-06-17_V2.md` —— 架构方向锚
 
 ---
 
-## 2. 当前项目的文档分层
+## 2. 文档分层
 
-### 2.1 当前事实层
+### 2.1 架构主线（当前最重要）
 
-这几份最接近当前代码真相：
+这三份是当前架构演进的核心，构成"领域知识 + 工程实现 + 已落地骨架"的闭环：
 
-- `docs/web-console/FlagHunter_Web可视化控制台_当前可用性收口与使用边界_V1.md`
-- `docs/web-console/FlagHunter_Web可视化控制台_文档索引与状态矩阵_V1.md`
-- `docs/dev/FlagHunter_项目级source-of-truth状态卡_2026-06-01_V1.md`
-- `docs/dev/FlagHunter_交接文档_当前主线与第一批任务_2026-06-01_V1.md`
-- `docs/dev/FlagHunter_项目状态核对与下一步讨论纪要_2026-06-03_V1.md`
-- `docs/dev/FlagHunter_下一阶段执行方案_主控_BlackboardLite_Eval三线合并_V1.md`
-- `docs/dev/local_challenge_sample_matrix.md`
-- `docs/dev/FlagHunter_reports目录状态与分层建议_2026-06-01_V1.md`
-- `docs/dev/FlagHunter_仓库根目录剩余目录状态整理_2026-06-01_V1.md`
-- `docs/dev/FlagHunter_项目文件分类索引_2026-06-01_V1.md`
-- `docs/dev/FlagHunter_项目文件清理优先级清单_2026-06-01_V1.md`
+- `docs/dev/FlagHunter_架构决策记录_自顶向下骨架与两关节契约_2026-06-17_V1.md`
+  —— 目标骨架、两关节契约、不变量 I1–I4、P0–P5 路线与进度（ADR，source of truth）
+- `docs/dev/FlagHunter_红队智能体架构_对标顶级红队工程学_2026-06-17_V2.md`
+  —— 对标 ATT&CK / UKC / Diamond / PTES / WSTG 与顶级红队思维，框架优化的方向锚
+- `docs/dev/FlagHunter_agent引擎工程层优化_知识库补遗_2026-06-17_V1.md`
+  —— 记忆 / 控制面 / 评估 / 工具四类工程层优化清单与 Do-First 短名单
 
-### 2.2 背景分析层
+愿景背景：
 
-这些用于解释为什么要这样收口，但不直接当作当前执行指令：
+- `docs/dev/FlagHunter_红队黑板智能体架构学习笔记_2026-06-17_V1.md` —— 黑板群智体的初始愿景笔记（被 V2 取代，保留作背景）
 
-- `docs/dev/FlagHunter_Harness优化方案_借鉴Cairn_V1.md`
+### 2.2 背景分析与学习笔记
+
+解释"为什么这样做"，不直接作为执行指令：
+
 - `docs/dev/Cairn_源码深度分析_围绕Blackboard与Dispatcher_V1.md`
-- `docs/dev/FlagHunter_下一阶段路线_目标驱动_BlackboardLite_V1.md`
+- `docs/dev/FlagHunter_Harness优化方案_借鉴Cairn_V1.md`
 - `docs/dev/御网杯_AI复盘文章学习笔记_离线复盘导向_V1.md`
 
-### 2.3 规划与执行层
+### 2.3 运营 / 验证事实层
 
-这些文档用于任务拆解、阶段执行和验收：
+最接近当前代码真相的运行与验证记录：
 
-- `docs/superpowers/plans/2026-05-29-harness-optimization-plan.md`
-- `docs/release-policy.md`
-- `docs/release-checklist.md`
-- `docs/release-playbook.md`
+- `docs/dev/FlagHunter_live_CTF能力与端到端测试台账_2026-06-09_V1.md` —— live CTF 能力与端到端测试台账
+- `docs/dev/CTF_web链可达性静态审计_2026-06-17_V1.md` —— web 链"能力够不够得着"的静态审计
+- `docs/dev/FlagHunter_预存验收链失败_根因characterization_2026-06-16_V1.md` —— 预存验收链失败根因
+- `docs/dev/FlagHunter_架构优化方案_黑板控制单元与façade收尾_2026-06-16_V1.md` —— 黑板控制单元与 façade 收尾方案
+- `docs/dev/CHANGELOG_schema.md` —— changelog 结构约定
 
----
+### 2.4 CTF 做题 WP（知识沉淀）
 
-## 3. 当前项目的主线判断
+`docs/dev/DASCTF_*` —— 8 篇真实赛题做题/阶段 WP（piapiapia、urlstorage RPO、Unicorn shop、WarmUp、SSRFme、强网杯 Upload/随便注、easy_tornado SSTI），作为能力验证与知识沉淀保留。
 
-当前主线已明确收缩为：
+### 2.5 发布与协作流程
 
-> **主控 / Blackboard-lite / 调度收紧**
-
-当前更准确的成熟度判断是：
-
-> **已经进入 blackboard-lite 收紧阶段，但还不是完整黑板模式。**
-
-这条主线当前的优先顺序是：
-
-1. **先会判断**
-   - 先确认目标、入口、边界、事实、可用样本
-   - 再决定要不要跑、先跑什么、为什么跑
-2. **再会跑**
-   - `tool / runtime / CLI / Kali / 本地脚本` 都属于执行面
-   - 执行必须服从判断
-3. **最后才扩张**
-   - 不再平均扩功能
-   - 不先上复杂多智能体
-   - 不先做 TUI 投入
+- `docs/release-policy.md` / `docs/release-checklist.md` / `docs/release-playbook.md`
+- `docs/label-strategy.md`
+- `docs/agent-intelligence-roadmap.md`
 
 ---
 
-## 4. 当前阶段最值得关注的 3 件事
+## 3. 当前架构主线
 
-### 4.1 第一优先级：控制链执行证据闭环
+主线已从"叶子打补丁"转向**自顶向下优化**：先保证骨架与层间契约优秀，再逐层下沉。
 
-当前已经稳定到：
+- **关节 A（入口→编排）**：4 个入口（TUI / CLI / web / MCP）统一经 `AgentSession` 门面装配，事件统一经中立 `EventBus`。
+- **关节 B（编排→策略）**：`_execute_chain` registry 驱动分发；chains 子包化（mixin 拆分），逐步收敛 `ChainContext` 上帝对象透传。
+- **不变量**：I1 依赖单向向下 / I2 唯一装配入口 / I3 事件单源 / I4 chain 不读上帝对象。
 
-- ingress `controlDecision`
-- coordinator `first action`
-- `dispatcher_started`
-- checkpoint metadata
-- Web Trace `outcomeEvents`
-
-下一步最自然的缺口是：
-
-- `control_action_started`
-- `control_action_completed`
-
-也就是把“决定了什么”推进到“真的开始做了什么、做完了什么、结果如何”。
-
-### 4.2 第二优先级：最小 Eval Harness
-
-继续让真实样本牵引后端收口，而不是脱离样本做结构优化。
-
-当前建议持续使用：
-
-- `challengePath`
-- `artifactPaths`
-- `zip / source / docker-compose / log / runtime-only`
-
-### 4.3 第三优先级：知识与上下文分层
-
-继续区分：
-
-- 长期知识
-- 当前 run 事实
-- 当前 run 的候选动作 / 决策记录
-- 临时失败原因 / 待验证结论
+进度与下一步以 ADR（§2.1 第一份）的进展日志为准。
 
 ---
 
-## 5. 运行环境说明
+## 4. 运行环境说明
 
-### 5.1 Python 解释器
-
-本仓库当前默认使用虚拟环境：
+本仓库默认使用虚拟环境解释器：
 
 ```powershell
 .\.venv\Scripts\python.exe
-```
-
-后续所有测试、脚本和验证命令，优先按这个解释器执行。
-
-### 5.2 推荐测试口径
-
-```powershell
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-不要默认用系统 Python 判断是否回归，否则很容易把环境问题误判成代码问题。
+不要默认用系统 Python 判断是否回归，否则容易把环境问题误判成代码问题。
 
 ---
 
-## 6. 当前明确要做 / 不做
+## 5. 文档维护规则
 
-### 要做
+改了下面任意一类内容，请同步更新对应文档：
 
-- 主控判断能力收紧
-- control action 事件闭环
-- Blackboard-lite 候选动作池最小设计
-- 本地 challenge / artifact / runtime 样本驱动优化
-- 继续维护低成本、可随时交接的状态文档
-
-### 先不做
-
-- TUI 继续投入
-- 大规模前端美化
-- 没有样本牵引的大重构
-- 复杂 MCP 扩张
-- 为了架构而架构的 dispatcher 大拆
-
----
-
-## 7. 文档维护规则
-
-以后如果改了下面任意一类内容，请同步更新对应文档：
-
-- 入口模式 / 控制合同
-- Web Console 主路径事实
-- Harness / ledger / artifact / checkpoint / trace
-- 本地 challenge 样本矩阵
-- 下一阶段主线优先级
-- 可交接状态卡
+- 入口装配 / 事件契约（关节 A）→ ADR
+- 策略分发 / chains 结构（关节 B）→ ADR
+- 架构方向 / 红队工程学映射 → V2 与工程层补遗
+- CTF 能力与端到端验证 → live 台账 / 可达性审计
 
 维护原则只有一句话：
 
-> **以最新代码真相为准，文档只记录已经确认的事实、已决定的优先级和已经对齐的执行边界。**
-
+> **以最新代码真相为准，文档只记录已确认的事实、已决定的优先级和已对齐的执行边界。**

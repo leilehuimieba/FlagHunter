@@ -1,7 +1,7 @@
 [project]
 name = "pentestagent"
 version = "0.4.0"
-description = "AI penetration testing"
+description = "FlagHunter — AI-powered CTF & authorised penetration testing automation framework"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
