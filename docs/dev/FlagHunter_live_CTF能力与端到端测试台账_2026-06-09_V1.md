@@ -345,3 +345,13 @@ pytest tests/unit/agents/test_ctf_dispatcher.py -k "source_fetch_write_ssrf or i
 - **修复 jwt（最高价值）**：`jwt_manipulation` 已是注册策略且 `_jwt_precondition` 查 cookies/headers，能力够只是够不着 → 追加进 `_WEB_STRATEGY_ORDER` 末尾。新单测 `test_web_chain_reaches_jwt_manipulation_when_token_only_in_cookie`；全量 unit **1509 passed** 零回归。
 - **cmdi/ssrf 暂缓（有理由）**：其"专链"是 `_execute_chain` 里的**内联盲拼 curl**（`{target};id`、`{target}?url=...`，不发现真参数、非注册 precondition 策略）。直接挂 web 链会无门控地每题盲发→噪音+假进展、收益低。正确做法是先把它们重写成"参数发现+precondition 门控"的注册策略再接入——列为后续能力深度任务。
 - **沉淀**：可达性桥接套路已两次验证（sqli `dd58a1c`、jwt 本次）；区分"可达性缺口 vs 能力深度缺口"。
+
+---
+
+## 2026-06-17 闭合 cmdi/ssrf 可达性缺口（参数发现型策略，替换内联盲拼）
+
+- 接审计的 deferred 项：把 cmdi/ssrf 从"`_execute_chain` 内联盲拼 base URL"升级为**参数发现 + precondition 门控的注册策略**，并接入 web 链、替换内联分支。
+- **`generic_param_cmdi`（`84fdf62`）**：发现 query/表单参数（兜底 ip/host/cmd/ping…）→ 注入命令分隔符 payload（`;cat /flag;id` 等）→ flag 或 `uid=`/`root:x:0:0:` 确认。单测 `test_web_chain_reaches_generic_param_cmdi_on_get_param`（ping 工具 `?ip=` 被 web 链命令注入）。
+- **`generic_param_ssrf`（`b03dab8`）**：复用同一参数面 → 把参数值替换为 `file:///flag`/`file:///etc/passwd`/`http://127.0.0.1/` → flag 或 `/etc/passwd` 泄露确认。单测 `test_web_chain_reaches_generic_param_ssrf_on_get_param`（fetcher `?url=` 经 web 链 SSRF 读 flag）。
+- 二者均 precondition 门控、末尾 fallback、flag 才短路 ⇒ 零回归。全量 unit 1510→1511 passed。
+- **审计 3 缺口（jwt/cmdi/ssrf）全部闭合**；可达性桥接套路 4 次落地（sqli/jwt/cmdi/ssrf）。剩余均为 live 端到端验证（当前单测验证）+ `detect_type` 纳入 cookie/header 信号的classifier改进。
