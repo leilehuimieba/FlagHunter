@@ -322,3 +322,15 @@ pytest tests/unit/agents/test_ctf_dispatcher.py -k "source_fetch_write_ssrf or i
 - **Live 验证（修复后）**：同靶机重跑 **0m59s 解出** —— `ctf_sqli_stacked_tables` → `ctf_sqli_columns_1919810931114514` → **Flag verified `CTF2{be61d3f1-33fd-4dc2-ba84-326da6920311}`**，平台提交显示**"已解出"**。对比：6m27s 未解 → 59s 解出。
 - **回归**：全量 unit **1507 passed**；19 个 sqli/web-chain 单测 + 13 个 web 验收集成测试（acceptance/jinja2/tornado/include/llm_fallback/backup/misc/php_object/profile_poisoning）全过，零新增失败。
 - **方法论复盘**：这是"能力已写好但够不着"型缺口——补的不是算法而是**调度可达性**（把已有强能力接进通用分类路径）。同类可疑点：web 链同样没接 `auth_form_sqli`、LFI/cmdi/ssrf 等也都各自锁在专属 `chain_name`，通用 web 分类未必能触发；下一步可逐一核查"分类器漏判 → 专属链够不着"的同构缺口。
+
+---
+
+## 2026-06-17 l33t-hoster（文件上传，openresty/nginx）— upload 链可达性正常，顺带补 .htaccess 通用绕过
+
+- **背景**：延续"分类器漏判→专属链够不着"假设，换文件上传题。启动 l33t-hoster 实例 `http://7a8aff910db95eef9b239950.http-ctf2.dasctf.com:80`（首页 `POST` 表单 `image:file`，服务器 `openresty`）。用 **auto 模式**（不带 `--ctf-type`）同时检验分类器路由 + 可达性。
+- **正向结果（无可达性缺口）**：分类器**正确判 `detected_type=upload`** → `choose_chain_order` 前插 upload 链 → `_execute_upload_chain` engage。轨迹：上传 `flaghunter.php`/`.phtml`/`.php.jpg`/`_probe.txt` 多扩展名绕过，每次上传后探测 `/uploads//upload//files//static/uploads/` 找落地。**与随便注的 sqli 漏配形成对照——这里分类+路由都对，链能力可达**。
+- **未解 l33t-hoster（题目硬，非缺口）**：12m6s 未命中。l33t-hoster（Insomni'hack teaser 2019）是 **openresty/nginx**、平台 **0 解**的高难题，真解是 nginx/lua 特定 trick，超出通用 upload 链，非本框架可通用化的点。
+- **顺带识别+修复的通用缺口（commit `80dc16a`）**：`_generic_upload_payloads` 原本只有可执行扩展名直传绕过（`.php`/`.phtml`/`.php.jpg`），**缺 `.htaccess` 服务器配置绕过**（"只准传图片但能传任意文件名"时的 Apache 经典技法）。补两个有序 payload：`.htaccess`（`AddType application/x-httpd-php .jpg`）+ 配对 `flaghunter_ht.jpg`（GIF89a magic + php）。链按列表序"上传→即时探测"，故 .htaccess 先落地、配对 jpg 再被取并执行。**放末尾纯 fallback、nginx 上 no-op、不动既有路径**。
+- **测试**：新单测 `test_ctf_dispatcher_upload_chain_uses_htaccess_bypass_when_php_filtered`，用 fake Apache runtime（拒 `.php*`/`.phtml`、`.jpg` 仅在 .htaccess 已传后才"执行"返回 flag）证明**链路只能经该绕过拿 flag**，并断言 .htaccess 先于配对 jpg 上传。全量 unit **1508 passed**（1507 + 本测试）零回归。
+- **诚实标注**：l33t-hoster 是 nginx，本 `.htaccess` 修复在该题 **no-op、无法本题 live 端到端验证**；待找一道 **Apache+mod_php 上传题**做端到端 live 确认。
+- **方法论补充**：可达性缺口（随便注）vs 能力深度缺口（l33t-hoster 的 .htaccess）是两类——前者补"调度可达"，后者补"已有链的技法覆盖"。下一步仍可按既定方向逐一核查 ssrf/cmdi/jwt 等专链在 auto 分类下的可达性。
