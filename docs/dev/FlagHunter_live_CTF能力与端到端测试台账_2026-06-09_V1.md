@@ -334,3 +334,14 @@ pytest tests/unit/agents/test_ctf_dispatcher.py -k "source_fetch_write_ssrf or i
 - **测试**：新单测 `test_ctf_dispatcher_upload_chain_uses_htaccess_bypass_when_php_filtered`，用 fake Apache runtime（拒 `.php*`/`.phtml`、`.jpg` 仅在 .htaccess 已传后才"执行"返回 flag）证明**链路只能经该绕过拿 flag**，并断言 .htaccess 先于配对 jpg 上传。全量 unit **1508 passed**（1507 + 本测试）零回归。
 - **诚实标注**：l33t-hoster 是 nginx，本 `.htaccess` 修复在该题 **no-op、无法本题 live 端到端验证**；待找一道 **Apache+mod_php 上传题**做端到端 live 确认。
 - **方法论补充**：可达性缺口（随便注）vs 能力深度缺口（l33t-hoster 的 .htaccess）是两类——前者补"调度可达"，后者补"已有链的技法覆盖"。下一步仍可按既定方向逐一核查 ssrf/cmdi/jwt 等专链在 auto 分类下的可达性。
+
+---
+
+## 2026-06-17 web 链可达性静态审计 → 修复 jwt 缺口（cmdi/ssrf 暂缓）
+
+- **动机**：把随便注的单点发现系统化。详见 `docs/dev/CTF_web链可达性静态审计_2026-06-17_V1.md`（完整可达性矩阵）。
+- **审计法**：`detect_type` 可判类型 × 各 dedicated chain × `_WEB_STRATEGY_ORDER` 实际探测的策略，找"专链独有能力 + 分类器可能误判成 web"的同构缺口。纯静态、不烧靶机。
+- **发现 3 个真缺口**：jwt（分类器只看正文、漏 cookie 里的 JWT）、ssrf、cmdi（`detect_type` **从不返回 cmdi**）。
+- **修复 jwt（最高价值）**：`jwt_manipulation` 已是注册策略且 `_jwt_precondition` 查 cookies/headers，能力够只是够不着 → 追加进 `_WEB_STRATEGY_ORDER` 末尾。新单测 `test_web_chain_reaches_jwt_manipulation_when_token_only_in_cookie`；全量 unit **1509 passed** 零回归。
+- **cmdi/ssrf 暂缓（有理由）**：其"专链"是 `_execute_chain` 里的**内联盲拼 curl**（`{target};id`、`{target}?url=...`，不发现真参数、非注册 precondition 策略）。直接挂 web 链会无门控地每题盲发→噪音+假进展、收益低。正确做法是先把它们重写成"参数发现+precondition 门控"的注册策略再接入——列为后续能力深度任务。
+- **沉淀**：可达性桥接套路已两次验证（sqli `dd58a1c`、jwt 本次）；区分"可达性缺口 vs 能力深度缺口"。
