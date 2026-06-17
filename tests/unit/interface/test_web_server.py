@@ -57,6 +57,23 @@ def _fake_build_agent_components_for(fake_pa_agent, runtime_cls):
     return _bac
 
 
+def test_web_event_bus_is_built_on_neutral_core():
+    """I3: web's SSE bus reuses the single neutral EventBus implementation,
+    while keeping its dict-in / queue-out adapter API intact."""
+    from pentestagent.session.event_bus import EventBus as _CoreEventBus
+
+    bus = web_server.EventBus()
+    assert isinstance(bus, _CoreEventBus)
+
+    q = bus.subscribe()
+    bus.emit({"type": "tool_call", "taskId": "t1", "x": 1})
+    assert q.get_nowait() == {"type": "tool_call", "taskId": "t1", "x": 1}
+
+    bus.unsubscribe(q)
+    bus.emit({"type": "after", "y": 2})
+    assert q.empty()
+
+
 def test_run_agent_task_routes_through_agent_session():
     """Guard I2: web_server must assemble via the facade, not hand-roll it."""
     import inspect
