@@ -138,6 +138,13 @@ class AgentSession:
 
 ---
 
+## 5.1 已知债:组合根错位(P1-b/P2 清理)
+
+`build_agent_components`(及 `build_runtime`)现住在 `interface/initializer.py`,但它本质是**组合根**(composition root):向下 import agents/llm/tools/runtime 装配一切,理应被所有入口依赖、位置在 entry 层之下。`AgentSession` 在 `session/`,若模块级 import 它即构成 `session→interface` 反向依赖(违反 I1)。
+
+- **P1-a 临时处置(已落地)**:`AgentSession.create` 通过**延迟(函数内)import** 或注入式 `builder` 参数引用组合根,**无模块级环**;单测用 fake builder 注入。
+- **P1-b/P2 正解**:把 `build_agent_components/build_runtime/activate_workspace_for_target` 迁到 `session/`(或新 `bootstrap/`)中立层,`interface/initializer.py` 改为 re-export 保后向兼容,届时删除延迟 import。
+
 ## 6. 显式非目标(本轮不做)
 - 不重构 foundation 依赖方向(已健康)。
 - 不改 LLM provider / api_hub 路由逻辑。
