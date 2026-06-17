@@ -5310,6 +5310,63 @@ async def test_web_chain_reaches_generic_param_cmdi_on_get_param(monkeypatch, tm
     notes_module._loaded_notes_file = None
 
 
+class _DispatcherSsrfFetchRuntime:
+    """A URL fetcher with SSRF on the `url` GET parameter."""
+
+    def __init__(self):
+        self.environment = SimpleNamespace(available_tools=[])
+        self.requests: list[tuple[str, str]] = []
+
+    async def proxy_action(self, action: str, **kwargs):
+        url = kwargs.get("url", "")
+        self.requests.append((action, url))
+        lowered = url.lower()
+        if "passwd" in lowered:
+            return {"status_code": 200, "final_url": url, "body": "root:x:0:0:root:/root:/bin/bash\n"}
+        # file:// payloads carry both "file" and "flag"; cmdi payloads do not.
+        if "file" in lowered and "flag" in lowered:
+            return {"status_code": 200, "final_url": url, "body": "DASCTF{ssrf-generic-ok}"}
+        return {"status_code": 200, "final_url": url, "body": "fetched: <html>ok</html>"}
+
+    async def browser_action(self, action: str, **kwargs):
+        return {"error": "browser unavailable"}
+
+    async def execute_command(self, command: str, timeout: int = 180):
+        return SimpleNamespace(exit_code=0, stdout="", stderr="")
+
+
+@pytest.mark.asyncio
+async def test_web_chain_reaches_generic_param_ssrf_on_get_param(monkeypatch, tmp_path):
+    """A fetcher tool classified "web" must still be SSRF-probed via the web
+    chain (detect_type only flags ssrf on a visible ?url=)."""
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_ssrf.json")
+    notes_module._notes.clear()
+
+    runtime = _DispatcherSsrfFetchRuntime()
+    dispatcher = CTFTaskDispatcher(runtime=runtime, progress_callback=None)
+    dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="web")
+
+    page_features = {
+        "forms": [
+            {"method": "GET", "action": "/", "inputs": [{"name": "url", "type": "text"}]}
+        ],
+        "endpoints": [],
+        "raw_links": [],
+    }
+    outcome = await dispatcher._execute_web_chain("http://ctf.local/", page_features, "")
+
+    assert outcome.flag == "DASCTF{ssrf-generic-ok}"
+    assert any("file" in url.lower() and "url=" in url.lower() for _, url in runtime.requests)
+
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
 @pytest.mark.asyncio
 async def test_web_chain_reaches_jwt_manipulation_when_token_only_in_cookie(monkeypatch, tmp_path):
     """detect_type only inspects body/URL, so a JWT carried in a Cookie is
