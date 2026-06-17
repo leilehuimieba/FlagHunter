@@ -5234,6 +5234,65 @@ async def test_ctf_dispatcher_upload_chain_uses_htaccess_bypass_when_php_filtere
     notes_module._loaded_notes_file = None
 
 
+class _DispatcherAll404Runtime:
+    """Minimal runtime: every probe 404s, so no web strategy makes progress."""
+
+    def __init__(self):
+        self.environment = SimpleNamespace(available_tools=[])
+
+    async def proxy_action(self, action: str, **kwargs):
+        return {"status_code": 404, "final_url": kwargs.get("url", ""), "body": ""}
+
+    async def browser_action(self, action: str, **kwargs):
+        return {"error": "browser unavailable"}
+
+    async def execute_command(self, command: str, timeout: int = 180):
+        return SimpleNamespace(exit_code=0, stdout="", stderr="")
+
+
+@pytest.mark.asyncio
+async def test_web_chain_reaches_jwt_manipulation_when_token_only_in_cookie(monkeypatch, tmp_path):
+    """detect_type only inspects body/URL, so a JWT carried in a Cookie is
+    classified "web"; the web chain must still reach jwt_manipulation."""
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_jwt_reach.json")
+    notes_module._notes.clear()
+
+    from pentestagent.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+
+    dispatcher = CTFTaskDispatcher(runtime=_DispatcherAll404Runtime(), progress_callback=None)
+    dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="web")
+
+    calls: list[str] = []
+
+    async def _fake_jwt(target, page_features):
+        calls.append(target)
+        return _ChainOutcome(progress=True, flag="DASCTF{jwt-reachable-via-web-chain}")
+
+    monkeypatch.setattr(dispatcher, "_run_jwt_manipulation_strategy", _fake_jwt)
+
+    # JWT only in the cookie jar — not in page body/URL.
+    jwt_cookie = "session=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjoiZ3Vlc3QifQ.sig"
+    features_with_jwt = {"forms": [], "endpoints": [], "raw_links": [], "cookies": jwt_cookie}
+    outcome = await dispatcher._execute_web_chain("http://ctf.local/", features_with_jwt, "")
+    assert outcome.flag == "DASCTF{jwt-reachable-via-web-chain}"
+    assert calls, "jwt_manipulation should run when a JWT cookie is present"
+
+    # Negative: no JWT anywhere -> precondition gates it out, strategy not called.
+    calls.clear()
+    dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="web")
+    features_no_jwt = {"forms": [], "endpoints": [], "raw_links": [], "cookies": "session=plain"}
+    await dispatcher._execute_web_chain("http://ctf.local/", features_no_jwt, "")
+    assert not calls, "jwt_manipulation must not fire without a JWT (precondition gate)"
+
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
 @pytest.mark.asyncio
 async def test_ctf_dispatcher_backup_source_leak_analyzes_inline_source_on_current_page(
     monkeypatch, tmp_path
