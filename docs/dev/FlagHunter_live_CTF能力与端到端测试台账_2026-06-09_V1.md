@@ -310,3 +310,15 @@ pytest tests/unit/agents/test_ctf_dispatcher.py -k "source_fetch_write_ssrf or i
 - **认证流为何仍 None（题目专属，非 bug）**：实测 register/login POST 均返回 **500**（Laravel debug 异常页，YUI 样式），既有 `400<=status<600 → None` 守卫正确拦下，不把 500 误判成登录成功。easy_laravel 的真实解法本就不是"正常注册登录"，而是 **debug 错误页泄露 → 加密 cookie 反序列化 RCE 链**（APP_KEY + gadget），属深层专项。
 - 回归：新增单测 `test_harvest_auth_forms_from_conventional_routes_when_homepage_formless`；34 条 auth/login 相关用例全过；全量运行中，提交前以零新增失败为准。
 - **能力进展小结（三台连跑）**：recon→框架指纹→agenda 播种→planner 消费 agenda→探登录入口→采集认证表单→尝试注册登录，这条**通用渗透前置链路在 Local/SSH 两种 runtime 下已全部打通**。剩下的就是 easy_laravel 专属的反序列化利用链。
+
+---
+
+## 2026-06-17 [强网杯 2019]随便注（SQLi）— 换题型实测，发现并修复 web 链漏配 SQLi 策略
+
+- **背景**：按上轮"easy_laravel 通用前置已榨干，建议换不同类型 Web 题"的结论，登录 DASCTF/BUUCTF 公开练习场，启动 **[强网杯 2019]随便注** 实例 `http://823598383173574d7f97c383.http-ctf2.dasctf.com:80`（经典堆叠注入：首页 `GET ?inject=` 表单，`select` 关键字被过滤，需 `show tables`/`handler` 绕过）。
+- **首跑（修复前）**：`--ctf-type web --max-loops 12`。轨迹 = recon(navigate/get_content/get_forms/get_cookies/GET) → post_auth_recon 试 `/register`,`/login`（本题对任意路径回 200，假阳性）→ llm_action 猜 `/backup.zip`×2 → 6m27s **未命中 flag**，**全程从未对 inject 表单发任何注入 payload**。
+- **根因定位**：dispatcher 已内置专为随便注写好的完整解题链 `_attempt_generic_param_sqli`（`1'` 报错探测 → `1';show tables;#` → 优先 `words`/数字表 → `show columns` 找 flag 列 → `handler <t> open;read first;#` 绕过 select 读 flag → 验证）。但该策略**只在分类器选 `sqli` 链时才跑**；`chain_name=="web"` 走的是 `_WEB_STRATEGY_ORDER`（file_read/SSTI/path_traversal/backup/unserialize），**整张表里没有任何 SQLi 策略** → 通用 web 分类下注入点被白白放过。
+- **通用修复（commit `dd58a1c`）**：把 `generic_param_sqli` 追加到 `_WEB_STRATEGY_ORDER` **末尾**。安全性：① precondition 仅在"有非隐藏命名输入的 GET 表单"时触发；② `_run_strategy_sequence` 只在 `outcome.flag` 时提前返回（progress 不短路），放末尾 ⇒ 靠前置策略出 flag 的题在到达它前就 return，**零行为变化**；③ 非 SQLi 应用从它拿不到 flag，链照常继续。只加 `generic_param_sqli`，`auth_form_sqli`（登录框 SQLi，回归风险高）暂不动。
+- **Live 验证（修复后）**：同靶机重跑 **0m59s 解出** —— `ctf_sqli_stacked_tables` → `ctf_sqli_columns_1919810931114514` → **Flag verified `CTF2{be61d3f1-33fd-4dc2-ba84-326da6920311}`**，平台提交显示**"已解出"**。对比：6m27s 未解 → 59s 解出。
+- **回归**：全量 unit **1507 passed**；19 个 sqli/web-chain 单测 + 13 个 web 验收集成测试（acceptance/jinja2/tornado/include/llm_fallback/backup/misc/php_object/profile_poisoning）全过，零新增失败。
+- **方法论复盘**：这是"能力已写好但够不着"型缺口——补的不是算法而是**调度可达性**（把已有强能力接进通用分类路径）。同类可疑点：web 链同样没接 `auth_form_sqli`、LFI/cmdi/ssrf 等也都各自锁在专属 `chain_name`，通用 web 分类未必能触发；下一步可逐一核查"分类器漏判 → 专属链够不着"的同构缺口。
