@@ -8,7 +8,7 @@ pytest.importorskip("textual")
 from textual import events
 
 from flaghunter.agents.base_agent import AgentMessage
-from flaghunter.interface.tui import ChatInputTextArea, PentestAgentTUI
+from flaghunter.interface.tui import ChatInputTextArea, FlagHunterTUI
 
 
 def test_chat_input_text_area_enter_posts_submitted_message(monkeypatch):
@@ -59,11 +59,11 @@ async def test_chat_input_text_area_enter_key_submits(monkeypatch):
     ],
 )
 def test_command_suggestions_only_for_single_line_slash_input(value, expected):
-    assert PentestAgentTUI._should_offer_command_suggestions(value) is expected
+    assert FlagHunterTUI._should_offer_command_suggestions(value) is expected
 
 
 def _make_tui_stub():
-    tui = object.__new__(PentestAgentTUI)
+    tui = object.__new__(FlagHunterTUI)
     tui._last_ctf_state = {
         "candidate_flags": [
             {"value": "flag{candidate_only}"},
@@ -274,7 +274,7 @@ def _make_tui_stub():
 async def test_ctf_reasoning_subcommand_works_without_cpa_module():
     tui = _make_tui_stub()
 
-    await PentestAgentTUI._parse_ctf_command(tui, "/ctf reasoning")
+    await FlagHunterTUI._parse_ctf_command(tui, "/ctf reasoning")
 
     assert tui._captured_messages
     assert "[CTF reasoning]" in tui._captured_messages[-1]
@@ -288,7 +288,7 @@ async def test_ctf_reasoning_subcommand_works_without_cpa_module():
 def test_render_last_ctf_stop_report_shows_standard_flag_buckets():
     tui = _make_tui_stub()
 
-    rendered = PentestAgentTUI._render_last_ctf_stop_report(tui)
+    rendered = FlagHunterTUI._render_last_ctf_stop_report(tui)
 
     assert "[CTF StopReport]" in rendered
     assert "candidate_flags: flag{candidate_only}" in rendered
@@ -304,7 +304,7 @@ def test_render_last_ctf_stop_report_shows_standard_flag_buckets():
 async def test_ctf_capabilities_subcommand_renders_best_implementation():
     tui = _make_tui_stub()
 
-    await PentestAgentTUI._parse_ctf_command(tui, "/ctf capabilities")
+    await FlagHunterTUI._parse_ctf_command(tui, "/ctf capabilities")
 
     assert "sql_injection_test" in tui._captured_messages[-1]
     assert "manual_payload_via_requests" in tui._captured_messages[-1]
@@ -314,15 +314,15 @@ async def test_ctf_capabilities_subcommand_renders_best_implementation():
 async def test_ctf_reasoning_subcommand_supports_limit_and_filters():
     tui = _make_tui_stub()
 
-    await PentestAgentTUI._parse_ctf_command(tui, "/ctf reasoning -n 2")
+    await FlagHunterTUI._parse_ctf_command(tui, "/ctf reasoning -n 2")
     assert "[pre_action_reasoning 1/2]" in tui._captured_messages[-1]
     assert "backup_source_leak" in tui._captured_messages[-1]
 
-    await PentestAgentTUI._parse_ctf_command(tui, "/ctf reasoning surprises")
+    await FlagHunterTUI._parse_ctf_command(tui, "/ctf reasoning surprises")
     assert "[CTF reasoning surprises]" in tui._captured_messages[-1]
     assert "surprise_2" in tui._captured_messages[-1]
 
-    await PentestAgentTUI._parse_ctf_command(tui, "/ctf reasoning postmortem")
+    await FlagHunterTUI._parse_ctf_command(tui, "/ctf reasoning postmortem")
     assert "[CTF reasoning postmortem]" in tui._captured_messages[-1]
     assert "retro_2" in tui._captured_messages[-1]
 
@@ -331,7 +331,7 @@ async def test_ctf_reasoning_subcommand_supports_limit_and_filters():
 async def test_ctf_status_subcommand_renders_platform_snapshot():
     tui = _make_tui_stub()
 
-    await PentestAgentTUI._parse_ctf_command(tui, "/ctf status")
+    await FlagHunterTUI._parse_ctf_command(tui, "/ctf status")
 
     assert "[CTF status]" in tui._captured_messages[-1]
     assert "platform_type: ctfd" in tui._captured_messages[-1]
@@ -348,7 +348,7 @@ async def test_ctf_status_subcommand_renders_platform_snapshot():
 async def test_ctf_queue_subcommand_renders_platform_queue():
     tui = _make_tui_stub()
 
-    await PentestAgentTUI._parse_ctf_command(tui, "/ctf queue")
+    await FlagHunterTUI._parse_ctf_command(tui, "/ctf queue")
 
     assert "[CTF queue]" in tui._captured_messages[-1]
     assert "next: 42 EasySQL" in tui._captured_messages[-1]
@@ -357,19 +357,19 @@ async def test_ctf_queue_subcommand_renders_platform_queue():
 def test_ctf_auto_switch_policy_allows_success_and_exhausted_stop():
     tui = _make_tui_stub()
 
-    allow_success = PentestAgentTUI._should_auto_switch_ctf_task(
+    allow_success = FlagHunterTUI._should_auto_switch_ctf_task(
         tui,
         state={"stop_report": {"reason": "flag_verified"}},
         result=type("Result", (), {"success": True, "reason": "ok"})(),
         auto_switch_depth=0,
     )
-    allow_exhausted = PentestAgentTUI._should_auto_switch_ctf_task(
+    allow_exhausted = FlagHunterTUI._should_auto_switch_ctf_task(
         tui,
         state={"stop_report": {"reason": "all_hypotheses_exhausted"}},
         result=type("Result", (), {"success": False, "reason": "未命中 flag"})(),
         auto_switch_depth=0,
     )
-    deny_deep = PentestAgentTUI._should_auto_switch_ctf_task(
+    deny_deep = FlagHunterTUI._should_auto_switch_ctf_task(
         tui,
         state={"stop_report": {"reason": "all_hypotheses_exhausted"}},
         result=type("Result", (), {"success": False, "reason": "未命中 flag"})(),
@@ -384,7 +384,7 @@ def test_ctf_auto_switch_policy_allows_success_and_exhausted_stop():
 def test_ctf_resolve_next_queue_url_rewrites_query_challenge_id():
     tui = _make_tui_stub()
 
-    next_url = PentestAgentTUI._resolve_next_ctf_queue_url(
+    next_url = FlagHunterTUI._resolve_next_ctf_queue_url(
         tui,
         current_url="https://ctf.example.com/challenges/view?cid=42",
         current_submit_profile={"base_url": "https://ctf.example.com"},
@@ -417,7 +417,7 @@ def test_ctf_auto_switch_context_selects_next_unsolved_queue_task():
         },
     ]
 
-    ctx = PentestAgentTUI._resolve_ctf_auto_switch_context(
+    ctx = FlagHunterTUI._resolve_ctf_auto_switch_context(
         tui,
         result=type("Result", (), {"success": True, "reason": "flag verified"})(),
         current_url="https://ctf.example.com/challenges/42",
@@ -440,7 +440,7 @@ def test_ctf_auto_switch_context_selects_next_unsolved_queue_task():
 def test_ctf_crew_stop_reason_prefers_wrong_flag_feedback_over_generic_completion():
     tui = _make_tui_stub()
 
-    reason = PentestAgentTUI._derive_ctf_crew_stop_reason(
+    reason = FlagHunterTUI._derive_ctf_crew_stop_reason(
         tui,
         type(
             "CrewSummary",
@@ -461,7 +461,7 @@ def test_ctf_crew_stop_reason_prefers_wrong_flag_feedback_over_generic_completio
 def test_ctf_crew_stop_reason_maps_missing_tools_to_capability_ceiling():
     tui = _make_tui_stub()
 
-    reason = PentestAgentTUI._derive_ctf_crew_stop_reason(
+    reason = FlagHunterTUI._derive_ctf_crew_stop_reason(
         tui,
         type(
             "CrewSummary",
@@ -506,7 +506,7 @@ async def test_ctf_memory_subcommand_renders_audit_and_recent_entries(monkeypatc
         _FakeStore,
     )
 
-    await PentestAgentTUI._parse_ctf_command(tui, "/ctf memory")
+    await FlagHunterTUI._parse_ctf_command(tui, "/ctf memory")
 
     assert "[CTF strategy_memory]" in tui._captured_messages[-1]
     assert "adjustments" in tui._captured_messages[-1]
@@ -554,7 +554,7 @@ async def test_providers_command_alias_reuses_api_status(monkeypatch):
         lambda: _FakeCostTracker(),
     )
 
-    await PentestAgentTUI._parse_api_command(tui, "/providers")
+    await FlagHunterTUI._parse_api_command(tui, "/providers")
 
     assert "[CPA M1] Provider Status" in tui._captured_messages[-1]
     assert "primary" in tui._captured_messages[-1]
@@ -570,7 +570,7 @@ async def test_handle_command_routes_providers_alias_to_api_parser():
 
     tui._parse_api_command = _fake_parse_api_command
 
-    await PentestAgentTUI._handle_command(tui, "/providers")
+    await FlagHunterTUI._handle_command(tui, "/providers")
 
     assert seen == ["/providers"]
 
@@ -616,7 +616,7 @@ async def test_ctf_hint_subcommand_records_hint_and_restarts_dispatcher(monkeypa
 
     tui._run_ctf_dispatcher_mode = _fake_run
 
-    await PentestAgentTUI._parse_ctf_command(tui, '/ctf hint "试试 PHP 反序列化"')
+    await FlagHunterTUI._parse_ctf_command(tui, '/ctf hint "试试 PHP 反序列化"')
 
     assert notes_calls
     assert captured["url"] == "http://ctf.local"
@@ -655,7 +655,7 @@ async def test_ctf_crew_command_uses_crew_execution_mode(monkeypatch):
 
     tui._run_ctf_crew_dispatcher_mode = _fake_run
 
-    await PentestAgentTUI._parse_ctf_command(
+    await FlagHunterTUI._parse_ctf_command(
         tui,
         '/ctf crew http://ctf.local type=sqli goal="拿到flag"',
     )
@@ -722,7 +722,7 @@ async def test_ctf_hint_subcommand_restarts_crew_when_last_mode_is_crew(monkeypa
     tui._run_ctf_crew_dispatcher_mode = _fake_crew_run
     tui._run_ctf_dispatcher_mode = _unexpected_dispatcher
 
-    await PentestAgentTUI._parse_ctf_command(tui, '/ctf hint "继续测 /admin"')
+    await FlagHunterTUI._parse_ctf_command(tui, '/ctf hint "继续测 /admin"')
 
     assert notes_calls
     assert captured["url"] == "http://ctf.local"
@@ -806,7 +806,7 @@ async def test_ctf_hint_subcommand_restarts_from_session_context_resume_payload_
 
     tui._run_ctf_dispatcher_mode = _fake_run
 
-    await PentestAgentTUI._parse_ctf_command(tui, '/ctf hint "试试 PHP 反序列化"')
+    await FlagHunterTUI._parse_ctf_command(tui, '/ctf hint "试试 PHP 反序列化"')
 
     assert notes_calls
     assert captured["url"] == "http://ctf.local/challenges/42"
@@ -874,7 +874,7 @@ async def test_ctf_wrong_subcommand_restarts_crew_when_last_mode_is_crew(monkeyp
     tui._run_ctf_crew_dispatcher_mode = _fake_crew_run
     tui._run_ctf_dispatcher_mode = _unexpected_dispatcher
 
-    await PentestAgentTUI._parse_ctf_command(tui, "/ctf wrong flag{bad}")
+    await FlagHunterTUI._parse_ctf_command(tui, "/ctf wrong flag{bad}")
 
     assert captured["url"] == "http://ctf.local"
     assert "Rejected flag feedback" in captured["hint"]
@@ -945,7 +945,7 @@ async def test_save_current_conversation_persists_last_ctf_handoff_metadata(monk
     monkeypatch.setattr("flaghunter.interface.conversation_store.ConversationStore", _FakeConversationStore)
     tui._save_session_state = _fake_save_session_state
 
-    await PentestAgentTUI._save_current_conversation(tui)
+    await FlagHunterTUI._save_current_conversation(tui)
 
     assert captured["handoff"]["last_run_id"] == "run-ctf-42"
     assert captured["handoff"]["last_resume_summary"] == "run_id=run-ctf-42; stop_reason=flag_verified"
@@ -1013,7 +1013,7 @@ async def test_restore_conversation_hydrates_last_ctf_context_from_saved_handoff
     monkeypatch.setattr("flaghunter.interface.conversation_store.ConversationStore", _FakeConversationStore)
     tui.query_one = lambda *args, **kwargs: _FakeScroll()
 
-    await PentestAgentTUI._restore_conversation(tui, "conv-restore")
+    await FlagHunterTUI._restore_conversation(tui, "conv-restore")
 
     assert tui.agent.conversation_history == restored_messages
     assert tui._current_conv_id == "conv-restore"
@@ -1044,7 +1044,7 @@ async def test_ctf_override_subcommand_promotes_flag_to_verified(monkeypatch):
         _fake_notes,
     )
 
-    await PentestAgentTUI._parse_ctf_command(tui, "/ctf override flag{candidate_only}")
+    await FlagHunterTUI._parse_ctf_command(tui, "/ctf override flag{candidate_only}")
 
     assert notes_calls
     assert all(
@@ -1098,7 +1098,7 @@ async def test_ctf_capabilities_refresh_rechecks_registry():
         },
     )()
 
-    await PentestAgentTUI._parse_ctf_command(tui, "/ctf capabilities --refresh")
+    await FlagHunterTUI._parse_ctf_command(tui, "/ctf capabilities --refresh")
 
     assert fake_registry.refreshed is True
     assert tui._last_ctf_state["capabilities"]["last_full_check"] == 123.0
@@ -1159,18 +1159,18 @@ async def test_ctf_memory_list_show_mute_commands(monkeypatch):
         _FakeStore,
     )
 
-    await PentestAgentTUI._parse_ctf_command(tui, "/ctf memory list")
+    await FlagHunterTUI._parse_ctf_command(tui, "/ctf memory list")
     assert "[CTF memory list]" in tui._captured_messages[-1]
     assert "facts=" in tui._captured_messages[-1]
 
-    await PentestAgentTUI._parse_ctf_command(tui, "/ctf memory show mem_1")
+    await FlagHunterTUI._parse_ctf_command(tui, "/ctf memory show mem_1")
     assert "[CTF memory show] mem_1" in tui._captured_messages[-1]
     assert "atomic_facts:" in tui._captured_messages[-1]
 
-    await PentestAgentTUI._parse_ctf_command(tui, "/ctf memory mute mem_1")
+    await FlagHunterTUI._parse_ctf_command(tui, "/ctf memory mute mem_1")
     assert "muted mem_1" in tui._captured_messages[-1]
 
-    await PentestAgentTUI._parse_ctf_command(tui, "/ctf memory audit")
+    await FlagHunterTUI._parse_ctf_command(tui, "/ctf memory audit")
     assert "[CTF memory audit]" in tui._captured_messages[-1]
 
 
@@ -1247,22 +1247,22 @@ async def test_ctf_memory_activate_rollback_delete_export_clear_and_panel(monkey
         )
     )
 
-    await PentestAgentTUI._parse_ctf_command(tui, "/ctf memory activate mem_1")
+    await FlagHunterTUI._parse_ctf_command(tui, "/ctf memory activate mem_1")
     assert "activated mem_1" in tui._captured_messages[-1]
 
-    await PentestAgentTUI._parse_ctf_command(tui, "/ctf memory rollback mem_1")
+    await FlagHunterTUI._parse_ctf_command(tui, "/ctf memory rollback mem_1")
     assert "rollback applied to mem_1" in tui._captured_messages[-1]
 
-    await PentestAgentTUI._parse_ctf_command(tui, "/ctf memory delete mem_1")
+    await FlagHunterTUI._parse_ctf_command(tui, "/ctf memory delete mem_1")
     assert "deleted mem_1" in tui._captured_messages[-1]
 
-    await PentestAgentTUI._parse_ctf_command(tui, "/ctf memory export D:/tmp/memory.json")
+    await FlagHunterTUI._parse_ctf_command(tui, "/ctf memory export D:/tmp/memory.json")
     assert "exported to D:/tmp/memory.json" in tui._captured_messages[-1]
 
-    await PentestAgentTUI._parse_ctf_command(tui, "/ctf memory clear confirm")
+    await FlagHunterTUI._parse_ctf_command(tui, "/ctf memory clear confirm")
     assert "cleared 3 entries" in tui._captured_messages[-1]
 
-    await PentestAgentTUI._parse_ctf_command(
+    await FlagHunterTUI._parse_ctf_command(
         tui,
         "/ctf memory panel filter=muted sort=correlation threshold=0.6",
     )
@@ -1314,7 +1314,7 @@ async def test_ctf_wrong_flag_feedback_updates_stop_report_and_memory(monkeypatc
         _FakeStore,
     )
 
-    summary = await PentestAgentTUI._apply_ctf_wrong_flag_feedback(
+    summary = await FlagHunterTUI._apply_ctf_wrong_flag_feedback(
         tui,
         "flag{wrong_one}",
     )
@@ -1523,7 +1523,7 @@ async def test_ctf_crew_dispatcher_mode_carries_platform_switch_context_across_a
         _FakeDispatcher,
     )
 
-    await PentestAgentTUI._run_ctf_crew_dispatcher_mode.__wrapped__(
+    await FlagHunterTUI._run_ctf_crew_dispatcher_mode.__wrapped__(
         tui,
         url="https://ctf.example.com/challenges/42",
         goal="拿到flag",
@@ -1549,7 +1549,7 @@ async def test_ctf_crew_dispatcher_mode_carries_platform_switch_context_across_a
         and item.get("next_challenge_id") == "99"
         for item in meta_reasonings
     )
-    rendered = PentestAgentTUI._render_last_ctf_status(tui)
+    rendered = FlagHunterTUI._render_last_ctf_status(tui)
     assert "[queue switch]" in rendered
     assert "next_challenge_id: 99" in rendered
 
@@ -1700,7 +1700,7 @@ async def test_ctf_crew_dispatcher_mode_writes_platform_stop_summary_for_blocked
         lambda page_source, url: "web",
     )
 
-    await PentestAgentTUI._run_ctf_crew_dispatcher_mode.__wrapped__(
+    await FlagHunterTUI._run_ctf_crew_dispatcher_mode.__wrapped__(
         tui,
         url="https://ctf.example.com/challenges/42",
         goal="拿到flag",
@@ -1719,6 +1719,6 @@ async def test_ctf_crew_dispatcher_mode_writes_platform_stop_summary_for_blocked
     assert stop_summary["blocked_reasons"] == ["wrong_flag_feedback"]
     assert stop_summary["last_record"]["outcome"] == "blocked"
     assert stop_summary["last_record"]["reason"] == "wrong_flag_feedback"
-    rendered = PentestAgentTUI._render_last_ctf_status(tui)
+    rendered = FlagHunterTUI._render_last_ctf_status(tui)
     assert "[platform run stop]" in rendered
     assert "blocked_reasons: ['wrong_flag_feedback']" in rendered

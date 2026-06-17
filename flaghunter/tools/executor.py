@@ -1,4 +1,4 @@
-"""Tool executor for PentestAgent."""
+"""Tool executor for FlagHunter."""
 
 import asyncio
 import json
@@ -104,10 +104,10 @@ def _is_stealth_active(target_url: str = "") -> tuple[bool, tuple[float, float]]
     """
     检查是否需要慢速模式。
 
-    1. 环境变量 PENTESTAGENT_STEALTH=1 → 强制开启
+    1. 环境变量 FLAGHUNTER_STEALTH=1 → 强制开启
     2. notes 里有 category=\"waf_detected\" 条目 → 自动开启
     """
-    if os.getenv("PENTESTAGENT_STEALTH") == "1":
+    if os.getenv("FLAGHUNTER_STEALTH") == "1":
         return True, (1.0, 3.0)
 
     try:

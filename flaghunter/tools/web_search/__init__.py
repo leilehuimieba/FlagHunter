@@ -1,4 +1,4 @@
-"""Web search tool for PentestAgent."""
+"""Web search tool for FlagHunter."""
 
 import asyncio
 import json

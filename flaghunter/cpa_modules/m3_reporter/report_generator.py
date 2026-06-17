@@ -1,5 +1,5 @@
 """
-report_generator.py — PentestAgent M3 Reporter 报告生成核心模块
+report_generator.py — FlagHunter M3 Reporter 报告生成核心模块
 
 提供 ReportGenerator 类，负责：
 - 组装渗透测试报告数据（PentestReport）

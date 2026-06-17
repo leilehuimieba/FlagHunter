@@ -1,4 +1,4 @@
-"""MCP (Model Context Protocol) integration for PentestAgent."""
+"""MCP (Model Context Protocol) integration for FlagHunter."""
 
 from .manager import (
     MCPManager,

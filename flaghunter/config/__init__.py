@@ -1,4 +1,4 @@
-"""Configuration module for PentestAgent."""
+"""Configuration module for FlagHunter."""
 
 from .constants import (
     AGENT_STATE_COMPLETE,

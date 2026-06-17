@@ -1,4 +1,4 @@
-"""crypto_tools.py - PentestAgent M2 CTF Kit 密码学工具集
+"""crypto_tools.py - FlagHunter M2 CTF Kit 密码学工具集
 覆盖CTF中古典密码/编码转换/现代密码/密码分析辅助/自动解题5大类。
 约束: Python 3.10+, 标准库为主, 延迟加载pycryptodome, async异步,
       每个函数返回CryptoResult(不抛异常), 中文docstring."""

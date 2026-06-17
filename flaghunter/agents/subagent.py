@@ -108,7 +108,7 @@ class SubagentRunner:
             return f"Error: unknown subagent_type '{subagent_type}'. Valid types: {valid}"
 
         from ..runtime.runtime import LocalRuntime
-        from .pa_agent import PentestAgentAgent
+        from .pa_agent import FlagHunterAgent
 
         allowed = config["allowed_tools"]
         max_perm = config["max_permission"]
@@ -120,7 +120,7 @@ class SubagentRunner:
         await worker_runtime.start()
 
         try:
-            agent = PentestAgentAgent(
+            agent = FlagHunterAgent(
                 llm=llm,
                 tools=worker_tools,
                 runtime=worker_runtime,

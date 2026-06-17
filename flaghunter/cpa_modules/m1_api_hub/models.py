@@ -1,5 +1,5 @@
 """
-PentestAgent M1 API Hub - 数据模型定义
+FlagHunter M1 API Hub - 数据模型定义
 
 本模块定义了M1 API Hub（多Provider管理与健康检查模块）所需的全部数据模型，
 包括Provider配置、状态枚举、运行时状态、请求日志、健康检查结果、降级链、

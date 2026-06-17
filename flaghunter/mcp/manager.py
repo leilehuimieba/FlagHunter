@@ -1,4 +1,4 @@
-﻿"""MCP server connection manager for PentestAgent.
+﻿"""MCP server connection manager for FlagHunter.
 
 Uses standard MCP configuration format:
 {

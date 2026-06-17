@@ -1,7 +1,7 @@
 """
 scope_enforcer.py — 范围强制校验器
 
-PentestAgent M4 Audit Guard 模块的核心拦截组件。
+FlagHunter M4 Audit Guard 模块的核心拦截组件。
 在执行渗透测试操作前，对目标/工具/时间窗口进行多维校验，
 自动拦截未授权操作并生成审计记录。
 

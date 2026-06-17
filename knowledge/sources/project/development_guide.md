@@ -19,7 +19,7 @@ IDLE → THINKING → EXECUTING → (THINKING | COMPLETE | ERROR)
 ### 2. 工具 Self-Register 机制
 
 ```python
-from pentestagent.tools.registry import register_tool, ToolSchema
+from flaghunter.tools.registry import register_tool, ToolSchema
 
 @register_tool(name="my_tool", description="...", schema=ToolSchema(...), category="scanner")
 async def my_tool(arguments: dict, runtime: Runtime) -> str:
@@ -27,7 +27,7 @@ async def my_tool(arguments: dict, runtime: Runtime) -> str:
 ```
 
 - 装饰器在模块导入时自动注册到全局 `_tools` 字典
-- `loader.py` 遍历 `pentestagent/tools/` 子目录，通过 `importlib` 触发注册
+- `loader.py` 遍历 `flaghunter/tools/` 子目录，通过 `importlib` 触发注册
 - 运行时动态注册使用 `register_tool_instance()`（如 MCP 子 Agent 工具）
 
 ### 3. CTF 解题引擎架构
@@ -122,7 +122,7 @@ CPA_M5_SWARM_LINK=true
 ### 低侵入原则
 - 对原版 M0 的修改必须用 `=== CPA MX HOOK BEGIN/END ===` 标记
 - 侵入行数控制在 25 行以内
-- 新增模块放在 `pentestagent/cpa_modules/` 下，独立目录、独立开关、独立测试
+- 新增模块放在 `flaghunter/cpa_modules/` 下，独立目录、独立开关、独立测试
 
 ### 延迟加载
 - pwntools、r2pipe、capstone 等重型依赖使用 lazy import
@@ -137,7 +137,7 @@ CPA_M5_SWARM_LINK=true
 
 ```bash
 # 查看已注册工具
-pentestagent tools list
+flaghunter tools list
 
 # 查看 API Provider 状态
 > /api
@@ -150,10 +150,10 @@ pytest tests/unit/test_xxx.py -v
 pytest tests/integration/test_ctf_dispatcher_acceptance.py -v
 
 # 带覆盖率
-pytest --cov=pentestagent --cov-report=html
+pytest --cov=flaghunter --cov-report=html
 
 # 格式化代码
-black pentestagent
-ruff check pentestagent
+black flaghunter
+ruff check flaghunter
 ```
 

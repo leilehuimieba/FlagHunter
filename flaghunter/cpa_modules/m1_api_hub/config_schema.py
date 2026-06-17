@@ -1,5 +1,5 @@
 """
-PentestAgent M1 API Hub — 配置解析模块 (config_schema.py)
+FlagHunter M1 API Hub — 配置解析模块 (config_schema.py)
 
 功能：
     - 定义 ProviderConfig / FallbackChain / M1Config 三个数据模型

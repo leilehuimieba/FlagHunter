@@ -1,7 +1,7 @@
 """
 approval_gate.py — 危险操作确认门
 
-PentestAgent M4 Audit Guard 模块的核心安全门控组件。
+FlagHunter M4 Audit Guard 模块的核心安全门控组件。
 对高风险操作实施分级风险评估与人工确认机制，
 支持异步/同步双模式调用，策略可运行时配置。
 

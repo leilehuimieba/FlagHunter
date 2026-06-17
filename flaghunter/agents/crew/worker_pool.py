@@ -148,7 +148,7 @@ class WorkerPool:
 
     async def _run_worker(self, worker: AgentWorker) -> None:
         """Run a single worker agent."""
-        from ..pa_agent import PentestAgentAgent
+        from ..pa_agent import FlagHunterAgent
 
         # Wait for dependencies
         if worker.depends_on:
@@ -178,7 +178,7 @@ class WorkerPool:
                 worker_tools.append(t)
         # ── End tool filtering ────────────────────────────────────────────────
 
-        agent = PentestAgentAgent(
+        agent = FlagHunterAgent(
             llm=self.llm,
             tools=worker_tools,
             runtime=worker_runtime,  # Use isolated runtime

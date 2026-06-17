@@ -1,4 +1,4 @@
-"""Test fixtures for PentestAgent tests."""
+"""Test fixtures for FlagHunter tests."""
 
 import asyncio
 from pathlib import Path
@@ -23,7 +23,7 @@ def _isolate_strategy_memory(tmp_path_factory, monkeypatch):
     isolated; tests that pass an explicit path are unaffected.
     """
     mem = tmp_path_factory.mktemp("strategy_memory") / "strategy_memory.json"
-    monkeypatch.setenv("PENTESTAGENT_STRATEGY_MEMORY_PATH", str(mem))
+    monkeypatch.setenv("FLAGHUNTER_STRATEGY_MEMORY_PATH", str(mem))
     yield
 
 

@@ -40,7 +40,7 @@ def test_waf_note_key_contains_host(monkeypatch):
 
 
 def test_stealth_active_matching_host(monkeypatch):
-    monkeypatch.delenv("PENTESTAGENT_STEALTH", raising=False)
+    monkeypatch.delenv("FLAGHUNTER_STEALTH", raising=False)
     monkeypatch.setattr(
         notes_module,
         "get_all_notes_sync",
@@ -64,7 +64,7 @@ def test_stealth_active_matching_host(monkeypatch):
 
 
 def test_stealth_inactive_different_host(monkeypatch):
-    monkeypatch.delenv("PENTESTAGENT_STEALTH", raising=False)
+    monkeypatch.delenv("FLAGHUNTER_STEALTH", raising=False)
     monkeypatch.setattr(
         notes_module,
         "get_all_notes_sync",
@@ -88,7 +88,7 @@ def test_stealth_inactive_different_host(monkeypatch):
 
 
 def test_legacy_key_still_matches(monkeypatch):
-    monkeypatch.delenv("PENTESTAGENT_STEALTH", raising=False)
+    monkeypatch.delenv("FLAGHUNTER_STEALTH", raising=False)
     monkeypatch.setattr(
         notes_module,
         "get_all_notes_sync",

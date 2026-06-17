@@ -1,6 +1,6 @@
 # MCP examples
 
-PentestAgent connects to external MCP servers via a `mcp_servers.json` file in the project root. The format is the same as Claude Desktop.
+FlagHunter connects to external MCP servers via a `mcp_servers.json` file in the project root. The format is the same as Claude Desktop.
 
 Place the file at the root of the repo (next to `.env`) before starting the agent. Servers are connected at startup and manageable via the `/mcp` TUI command.
 

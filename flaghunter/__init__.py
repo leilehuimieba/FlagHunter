@@ -1,4 +1,6 @@
-"""PentestAgent - AI penetration testing."""
+"""FlagHunter - AI penetration testing."""
 
-__version__ = "0.2.0"
+from .config.constants import APP_VERSION
+
+__version__ = APP_VERSION
 __author__ = "Masic"

@@ -25,7 +25,7 @@ from types import SimpleNamespace
 import pytest
 
 import flaghunter.tools.notes as notes_module
-from flaghunter.agents.pa_agent.pa_agent import PentestAgentAgent
+from flaghunter.agents.pa_agent.pa_agent import FlagHunterAgent
 from flaghunter.tools.notes import get_all_notes_sync, set_notes_file
 from flaghunter.tools.registry import get_tool
 from flaghunter.workspaces.manager import WorkspaceManager
@@ -872,7 +872,7 @@ async def test_easy_login_full_chain_solve(monkeypatch, tmp_path, isolated_notes
 
     runtime = _EasyLoginFullChainRuntime()
     llm = _EasyLoginFullSolveLLM()
-    agent = PentestAgentAgent(
+    agent = FlagHunterAgent(
         llm=llm,
         tools=[browser_tool, terminal_tool, notes_tool, finish_tool],
         runtime=runtime,
@@ -1001,7 +1001,7 @@ async def test_easy_login_payload_fallback_full_chain_solve(
 
     runtime = _EasyLoginPayloadFallbackRuntime()
     llm = _EasyLoginPayloadFallbackLLM()
-    agent = PentestAgentAgent(
+    agent = FlagHunterAgent(
         llm=llm,
         tools=[browser_tool, terminal_tool, notes_tool, finish_tool],
         runtime=runtime,

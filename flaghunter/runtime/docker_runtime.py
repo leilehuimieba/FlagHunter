@@ -1,4 +1,4 @@
-"""Docker runtime for PentestAgent."""
+"""Docker runtime for FlagHunter."""
 
 import asyncio
 import io

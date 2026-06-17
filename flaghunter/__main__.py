@@ -1,4 +1,4 @@
-"""PentestAgent entry point for `python -m flaghunter`."""
+"""FlagHunter entry point for `python -m flaghunter`."""
 
 from flaghunter.interface.main import main
 

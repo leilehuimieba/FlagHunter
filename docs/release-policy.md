@@ -218,7 +218,7 @@
 - 当前仓库继续保持 **Private**
 - 不设置公开 Website
 - 对外品牌为 **FlagHunter**
-- 内部代码骨架继续兼容 `pentestagent/`
+- Python 包与命令统一为 `flaghunter`（历史 `PENTESTAGENT_*` 环境变量仍作兼容别名）
 
 如果未来仓库策略改变，应先更新本文件，再调整发布方式。
 

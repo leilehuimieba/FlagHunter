@@ -1,4 +1,4 @@
-"""Embedding generation for PentestAgent."""
+"""Embedding generation for FlagHunter."""
 
 import os
 from typing import Any, List, Optional
@@ -18,13 +18,13 @@ def should_use_local_embeddings() -> bool:
     """Return True when RAG should use local sentence-transformer embeddings.
 
     Decision priority:
-    1. Explicit ``PENTESTAGENT_EMBEDDINGS=local`` → True.
-    2. Explicit ``PENTESTAGENT_EMBEDDINGS=openai`` → False.
+    1. Explicit ``FLAGHUNTER_EMBEDDINGS=local`` → True.
+    2. Explicit ``FLAGHUNTER_EMBEDDINGS=openai`` → False.
     3. ``OPENAI_API_BASE`` is set to a non-official URL (relay/gateway) → True,
        because the relay may not implement the embeddings endpoint.
     4. Fall back to: True when no ``OPENAI_API_KEY`` is configured.
     """
-    setting = os.getenv("PENTESTAGENT_EMBEDDINGS", "").strip().lower()
+    setting = os.getenv("FLAGHUNTER_EMBEDDINGS", "").strip().lower()
     if setting == "local":
         return True
     if setting == "openai":

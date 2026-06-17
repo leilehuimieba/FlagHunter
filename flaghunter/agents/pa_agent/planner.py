@@ -1,4 +1,4 @@
-"""Structured planning pass helpers for PentestAgent."""
+"""Structured planning pass helpers for FlagHunter."""
 
 from __future__ import annotations
 

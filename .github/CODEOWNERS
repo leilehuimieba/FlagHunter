@@ -9,7 +9,7 @@
 /README.md @leilehuimieba
 /CHANGELOG.md @leilehuimieba
 
-# Core compatibility skeleton
-/pentestagent/ @leilehuimieba
-/cpa_modules/ @leilehuimieba
+# Core package
+/flaghunter/ @leilehuimieba
+/flaghunter/cpa_modules/ @leilehuimieba
 /tests/ @leilehuimieba

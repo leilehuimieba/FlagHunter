@@ -1,5 +1,5 @@
 """
-PentestAgent M1 API Hub - TUI状态面板渲染器
+FlagHunter M1 API Hub - TUI状态面板渲染器
 
 纯文本输出（不依赖rich库），使用Unicode框线字符渲染
 API Hub的完整状态面板与紧凑状态行，支持事件日志显示。

@@ -1,4 +1,4 @@
-"""Event hook system for PentestAgent.
+"""Event hook system for FlagHunter.
 
 Fire hooks before/after tool execution, on flag detection, and on
 vulnerability discovery. Third-party code can register callbacks to

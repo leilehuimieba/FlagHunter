@@ -1,4 +1,4 @@
-"""Prompt templates for PentestAgent agents."""
+"""Prompt templates for FlagHunter agents."""
 
 from pathlib import Path
 

@@ -1,4 +1,4 @@
-"""MCP tool wrapper for PentestAgent."""
+"""MCP tool wrapper for FlagHunter."""
 
 from typing import TYPE_CHECKING, Any
 

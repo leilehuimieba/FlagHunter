@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from flaghunter.agents.pa_agent.pa_agent import PentestAgentAgent
+from flaghunter.agents.pa_agent.pa_agent import FlagHunterAgent
 from flaghunter.knowledge import retrospective as retro
 
 
@@ -112,7 +112,7 @@ async def test_consecutive_fails_triggers(monkeypatch):
     )
 
     runtime = _DummyRuntime()
-    agent = PentestAgentAgent(
+    agent = FlagHunterAgent(
         llm=_DummyLLM(),
         tools=[SimpleNamespace(name="sqlmap", enabled=True)],
         runtime=runtime,

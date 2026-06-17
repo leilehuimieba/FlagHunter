@@ -117,7 +117,7 @@ async def spawn_child_agent(
     runtime: "Runtime",
     arguments: dict,
 ) -> str:
-    """Spawn a child PentestAgent MCP server and wire it into *agent*.
+    """Spawn a child FlagHunter MCP server and wire it into *agent*.
 
     This is the shared implementation used by both the ``spawn_mcp_agent`` tool
     (called by the LLM) and the ``/spawn`` TUI command (called by the operator).
@@ -126,7 +126,7 @@ async def spawn_child_agent(
         return (
             "[error] spawn_mcp_agent is not supported on Windows. "
             "Child agent spawning requires a Unix PTY (fcntl/termios). "
-            "Run PentestAgent inside WSL or Docker to use this feature."
+            "Run FlagHunter inside WSL or Docker to use this feature."
         )
 
     from ..mcp.manager import FifoServerConfig, MCPManager
@@ -224,7 +224,7 @@ async def spawn_child_agent(
         name=server_name,
         fifo_in=fifo_in,
         fifo_out=fifo_out,
-        description=f"Child PentestAgent TUI (target={target or 'none'})",
+        description=f"Child FlagHunter TUI (target={target or 'none'})",
     )
 
     server = await manager._connect_server(config)
@@ -354,7 +354,7 @@ def create_spawn_mcp_agent_tool(agent: "BaseAgent") -> Tool:
     Build and return the spawn_mcp_agent Tool with the agent captured in closure.
 
     Args:
-        agent: The parent PentestAgentAgent instance. Captured by reference so
+        agent: The parent FlagHunterAgent instance. Captured by reference so
                add_tools() calls on it are reflected immediately.
 
     Returns:
@@ -367,7 +367,7 @@ def create_spawn_mcp_agent_tool(agent: "BaseAgent") -> Tool:
     return Tool(
         name="spawn_mcp_agent",
         description=(
-            "Spawn a child PentestAgent process as a subordinate MCP server and "
+            "Spawn a child FlagHunter process as a subordinate MCP server and "
             "register its tools into your current tool set. "
             "The child is always launched with an embedded terminal panel inside the "
             "parent TUI so an operator can observe it; MCP communication is routed "
@@ -396,7 +396,7 @@ def create_spawn_mcp_agent_tool(agent: "BaseAgent") -> Tool:
                     "type": "string",
                     "description": (
                         "Model identifier for the child agent "
-                        "(overrides PENTESTAGENT_MODEL env var on the child)."
+                        "(overrides FLAGHUNTER_MODEL env var on the child)."
                     ),
                 },
                 "no_rag": {
@@ -423,7 +423,7 @@ def create_despawn_mcp_agent_tool(agent: "BaseAgent") -> Tool:
     Build and return the despawn_mcp_agent Tool with the agent captured in closure.
 
     Args:
-        agent: The parent PentestAgentAgent instance whose tool list will be pruned.
+        agent: The parent FlagHunterAgent instance whose tool list will be pruned.
 
     Returns:
         A fully configured Tool ready to be passed to agent.add_tools().

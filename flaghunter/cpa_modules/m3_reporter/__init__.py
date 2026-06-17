@@ -4,7 +4,7 @@ CPA M3 Reporter 模块 — 渗透测试报告生成与管理
 
 功能概述
 ========
-M3 Reporter 是 PentestAgent 的报告生成子系统，负责：
+M3 Reporter 是 FlagHunter 的报告生成子系统，负责：
 - 基于模板的报告渲染（HTML / Markdown / PDF）
 - 增量式漏洞发现追踪
 - 自动截图捕获与附件管理

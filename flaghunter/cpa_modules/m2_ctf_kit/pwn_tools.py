@@ -1,6 +1,6 @@
 """
 pwn_tools.py - Pwn 二进制利用工具封装层
-PentestAgent M2 CTF Kit 模块的 pwntools 异步封装。
+FlagHunter M2 CTF Kit 模块的 pwntools 异步封装。
 技术约束: Python 3.10+, 延迟加载 pwntools, async 异步, 返回 PwnResult, Windows 安全。
 """
 from __future__ import annotations

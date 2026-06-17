@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from flaghunter.agents.pa_agent.pa_agent import PentestAgentAgent
+from flaghunter.agents.pa_agent.pa_agent import FlagHunterAgent
 from flaghunter.agents.pa_agent.planner import generate_plan
 
 
@@ -121,7 +121,7 @@ async def test_auto_generate_plan_extracts_known_credentials_and_redacts_passwor
         },
     )
 
-    agent = PentestAgentAgent(
+    agent = FlagHunterAgent(
         llm=SimpleNamespace(),
         tools=[SimpleNamespace(name="sqlmap", enabled=True)],
         runtime=_DummyRuntime(),
@@ -167,7 +167,7 @@ def test_get_system_prompt_includes_missing_tool_install_hints(monkeypatch):
         },
     )
 
-    agent = PentestAgentAgent(
+    agent = FlagHunterAgent(
         llm=SimpleNamespace(),
         tools=[SimpleNamespace(name="sqlmap", enabled=True)],
         runtime=_DummyRuntime(),

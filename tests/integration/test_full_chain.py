@@ -1,4 +1,4 @@
-"""Full-chain integration tests for FlagHunter / PentestAgent improvements."""
+"""Full-chain integration tests for FlagHunter / FlagHunter improvements."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from flaghunter.agents.pa_agent.pa_agent import PentestAgentAgent
+from flaghunter.agents.pa_agent.pa_agent import FlagHunterAgent
 from flaghunter.agents.crew.swarm_bridge import on_worker_complete
 from flaghunter.agents.pa_agent.ctf_crew_coordinator import CTFCrewCoordinator
 from flaghunter.agents.pa_agent.ctf_state import CTFState
@@ -132,7 +132,7 @@ async def test_web_task_chain_with_planning_m4_and_structured_tools(monkeypatch)
     assert nmap_tool is not None and dirscan_tool is not None and nuclei_tool is not None
 
     # 1) planning pass
-    agent = PentestAgentAgent(
+    agent = FlagHunterAgent(
         llm=_PlanningLLM(),
         tools=[nmap_tool, dirscan_tool, nuclei_tool],
         runtime=_RoutingRuntime({}),

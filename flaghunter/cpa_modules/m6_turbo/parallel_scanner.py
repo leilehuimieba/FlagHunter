@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""PentestAgent M6 Turbo — 并发扫描器模块。
+"""FlagHunter M6 Turbo — 并发扫描器模块。
 
 基于 asyncio.Semaphore 的并发工具执行系统：
 - 双重信号量（全局 + 每主机）防止对单一目标 DoS

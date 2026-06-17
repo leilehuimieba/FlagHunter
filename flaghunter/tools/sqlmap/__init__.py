@@ -1,4 +1,4 @@
-"""Structured sqlmap wrapper for PentestAgent."""
+"""Structured sqlmap wrapper for FlagHunter."""
 
 from __future__ import annotations
 
@@ -405,7 +405,7 @@ async def run_sqlmap(
     category="web_scan",
 )
 async def sqlmap_tool(arguments: dict, runtime: "Runtime") -> str:
-    """Registered PentestAgent sqlmap tool wrapper."""
+    """Registered FlagHunter sqlmap tool wrapper."""
     result = await run_sqlmap(
         url=arguments["url"],
         data=arguments.get("data", ""),

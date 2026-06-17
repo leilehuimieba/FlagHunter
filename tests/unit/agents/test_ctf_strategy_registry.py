@@ -155,6 +155,64 @@ def test_strategy_registry_strategy_is_applicable_respects_precondition():
     assert strategy.is_applicable(ready) is True
 
 
+def test_strategy_context_exposes_chain_context_fields():
+    state = SimpleNamespace(observations=[])
+    runtime = SimpleNamespace(name="runtime")
+    capability_registry = SimpleNamespace(name="capabilities")
+    strategy_memory = SimpleNamespace(name="memory")
+
+    context = StrategyContext(
+        dispatcher=None,
+        target="http://ctf.local",
+        page_features={},
+        hint="",
+        extras={},
+        state=state,
+        runtime=runtime,
+        capability_registry=capability_registry,
+        strategy_memory=strategy_memory,
+        exploitation_mode="aggressive",
+    )
+
+    assert context.state is state
+    assert context.runtime is runtime
+    assert context.capability_registry is capability_registry
+    assert context.strategy_memory is strategy_memory
+    assert context.exploitation_mode == "aggressive"
+
+
+def test_ssti_identify_precondition_reads_explicit_context_state_without_dispatcher():
+    registry = StrategyRegistry.build_default()
+    state = SimpleNamespace(
+        observations=[
+            SimpleNamespace(
+                kind="render_ssti_response",
+                source="ssti_probe",
+                value="49",
+                metadata={},
+            ),
+            SimpleNamespace(
+                kind="ssti_probe_hit",
+                source="ssti_probe",
+                value="{{7*7}}",
+                metadata={},
+            ),
+        ]
+    )
+    context = StrategyContext(
+        dispatcher=None,
+        target="http://ctf.local",
+        page_features={"raw_links": ["http://ctf.local/error?msg=Error"]},
+        hint="",
+        extras={},
+        state=state,
+    )
+
+    web_kinds = [item.kind for item in registry.list_for_chain("web", context)]
+
+    assert "ssti_identify" in web_kinds
+
+
 @pytest.mark.asyncio
 async def test_strategy_registry_executes_php_unserialize_strategy():
     registry = StrategyRegistry.build_default()

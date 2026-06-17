@@ -10,7 +10,7 @@ ScreenshotCatcher — 漏洞页面截图捕获器
     - 所有方法均做异常安全防护
     - 中文 docstring
 
-作者：PentestAgent M3 Reporter 模块
+作者：FlagHunter M3 Reporter 模块
 """
 
 from __future__ import annotations

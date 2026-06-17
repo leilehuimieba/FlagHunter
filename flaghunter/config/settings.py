@@ -1,4 +1,4 @@
-"""Application settings for PentestAgent."""
+"""Application settings for FlagHunter."""
 
 import os
 from dataclasses import dataclass, field
@@ -10,6 +10,7 @@ from .constants import (
     DEFAULT_MAX_TOKENS,
     DEFAULT_MODEL,
     DEFAULT_TEMPERATURE,
+    DOCKER_SANDBOX_IMAGE,
     get_openai_api_base,
 )
 
@@ -41,7 +42,7 @@ class Settings:
 
     # Docker Settings
     container_name: str = "flaghunter-sandbox"
-    docker_image: str = "ghcr.io/gh05tcrew/pentestagent:kali"
+    docker_image: str = DOCKER_SANDBOX_IMAGE
 
     # Agent Settings
     max_iterations: int = AGENT_MAX_ITERATIONS

@@ -11,7 +11,7 @@ from flaghunter.agents.pa_agent.ctf_planner import (
     detect_type,
     get_ctf_quick_path,
 )
-from flaghunter.agents.pa_agent.pa_agent import PentestAgentAgent
+from flaghunter.agents.pa_agent.pa_agent import FlagHunterAgent
 from flaghunter.harness.artifact_registry import ArtifactRegistry
 
 
@@ -176,7 +176,7 @@ async def test_pa_agent_ctf_mode_skips_llm(monkeypatch):
     )
 
     runtime = _DummyRuntime()
-    agent = PentestAgentAgent(
+    agent = FlagHunterAgent(
         llm=_NoGenerateLLM(),
         tools=[SimpleNamespace(name="sqlmap", enabled=True)],
         runtime=runtime,
@@ -212,7 +212,7 @@ async def test_pa_agent_ctf_mode_adds_runtime_ground_truth(monkeypatch):
     monkeypatch.setattr("flaghunter.tools.notes.notes", _fake_notes)
 
     runtime = _RuntimeWithGroundTruth()
-    agent = PentestAgentAgent(
+    agent = FlagHunterAgent(
         llm=_NoGenerateLLM(),
         tools=[SimpleNamespace(name="browser", enabled=True)],
         runtime=runtime,
@@ -254,7 +254,7 @@ async def test_pa_agent_ctf_mode_runtime_ground_truth_isolated_from_misleading_h
     monkeypatch.setattr("flaghunter.tools.notes.notes", _fake_notes)
 
     runtime = _RuntimeWithGroundTruth()
-    agent = PentestAgentAgent(
+    agent = FlagHunterAgent(
         llm=_NoGenerateLLM(),
         tools=[SimpleNamespace(name="browser", enabled=True)],
         runtime=runtime,
@@ -309,7 +309,7 @@ async def test_pa_agent_ctf_mode_runtime_context_includes_local_challenge_ground
     )
 
     runtime = _RuntimeWithGroundTruth()
-    agent = PentestAgentAgent(
+    agent = FlagHunterAgent(
         llm=_NoGenerateLLM(),
         tools=[SimpleNamespace(name="browser", enabled=True)],
         runtime=runtime,
@@ -362,7 +362,7 @@ async def test_pa_agent_ctf_mode_adds_local_challenge_strategy_bias_for_python_c
     )
 
     runtime = _DummyRuntime()
-    agent = PentestAgentAgent(
+    agent = FlagHunterAgent(
         llm=_NoGenerateLLM(),
         tools=[SimpleNamespace(name="browser", enabled=True)],
         runtime=runtime,
@@ -411,7 +411,7 @@ async def test_pa_agent_ctf_mode_adds_local_challenge_strategy_bias_for_php(
     )
 
     runtime = _DummyRuntime()
-    agent = PentestAgentAgent(
+    agent = FlagHunterAgent(
         llm=_NoGenerateLLM(),
         tools=[SimpleNamespace(name="browser", enabled=True)],
         runtime=runtime,
@@ -459,7 +459,7 @@ async def test_pa_agent_ctf_mode_adds_local_challenge_strategy_bias_for_node(
     )
 
     runtime = _DummyRuntime()
-    agent = PentestAgentAgent(
+    agent = FlagHunterAgent(
         llm=_NoGenerateLLM(),
         tools=[SimpleNamespace(name="browser", enabled=True)],
         runtime=runtime,
@@ -528,7 +528,7 @@ async def test_pa_agent_ctf_mode_surfaces_local_challenge_entry_points(
     )
 
     runtime = _DummyRuntime()
-    agent = PentestAgentAgent(
+    agent = FlagHunterAgent(
         llm=_NoGenerateLLM(),
         tools=[SimpleNamespace(name="browser", enabled=True)],
         runtime=runtime,
@@ -600,7 +600,7 @@ async def test_pa_agent_ctf_mode_prepends_local_challenge_plan_steps_for_python_
     )
 
     runtime = _DummyRuntime()
-    agent = PentestAgentAgent(
+    agent = FlagHunterAgent(
         llm=_NoGenerateLLM(),
         tools=[SimpleNamespace(name="browser", enabled=True)],
         runtime=runtime,
@@ -644,7 +644,7 @@ async def test_pa_agent_ctf_mode_prepends_local_challenge_plan_steps_for_php(
     )
 
     runtime = _DummyRuntime()
-    agent = PentestAgentAgent(
+    agent = FlagHunterAgent(
         llm=_NoGenerateLLM(),
         tools=[SimpleNamespace(name="browser", enabled=True)],
         runtime=runtime,

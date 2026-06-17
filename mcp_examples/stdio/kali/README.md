@@ -6,7 +6,7 @@
 
 ```
 OPENAI_API_KEY=sk-...
-PENTESTAGENT_MODEL=gpt-5
+FLAGHUNTER_MODEL=gpt-5
 ```
 
 2. Configure the IP address or hostname in the mcp_servers.json file:

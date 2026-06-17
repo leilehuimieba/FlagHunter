@@ -12,21 +12,21 @@ class TestShouldUseLocalEmbeddings:
     def _env(self, **overrides):
         """Build a clean env dict with only the keys we care about."""
         base = {k: v for k, v in os.environ.items()
-                if k not in ("PENTESTAGENT_EMBEDDINGS", "OPENAI_API_BASE",
+                if k not in ("FLAGHUNTER_EMBEDDINGS", "OPENAI_API_BASE",
                               "OPENAI_BASE_URL", "OPENAI_API_KEY")}
         base.update(overrides)
         return base
 
     def test_explicit_local_always_true(self):
         with patch.dict(os.environ, self._env(
-            PENTESTAGENT_EMBEDDINGS="local",
+            FLAGHUNTER_EMBEDDINGS="local",
             OPENAI_API_KEY="sk-123",
         ), clear=True):
             assert should_use_local_embeddings() is True
 
     def test_explicit_openai_always_false(self):
         with patch.dict(os.environ, self._env(
-            PENTESTAGENT_EMBEDDINGS="openai",
+            FLAGHUNTER_EMBEDDINGS="openai",
         ), clear=True):
             assert should_use_local_embeddings() is False
 
@@ -54,9 +54,9 @@ class TestShouldUseLocalEmbeddings:
             assert should_use_local_embeddings() is True
 
     def test_explicit_override_beats_custom_base(self):
-        """PENTESTAGENT_EMBEDDINGS=openai should win even with a custom base."""
+        """FLAGHUNTER_EMBEDDINGS=openai should win even with a custom base."""
         with patch.dict(os.environ, self._env(
-            PENTESTAGENT_EMBEDDINGS="openai",
+            FLAGHUNTER_EMBEDDINGS="openai",
             OPENAI_API_BASE="https://my-relay.example/v1",
         ), clear=True):
             assert should_use_local_embeddings() is False

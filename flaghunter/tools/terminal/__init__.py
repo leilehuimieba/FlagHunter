@@ -1,4 +1,4 @@
-"""Terminal tool for PentestAgent."""
+"""Terminal tool for FlagHunter."""
 
 from typing import TYPE_CHECKING
 

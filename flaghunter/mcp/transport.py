@@ -1,4 +1,4 @@
-"""MCP transport implementations for PentestAgent."""
+"""MCP transport implementations for FlagHunter."""
 
 import asyncio
 import json

@@ -9,7 +9,7 @@ IncrementalTracker — 增量报告追踪器
     - :mod:`report_models` — ``Finding`` / ``PentestReport`` 数据模型
     - :mod:`report_generator` — ``ReportGenerator`` 报告生成器
 
-作者：PentestAgent M3 Reporter 模块
+作者：FlagHunter M3 Reporter 模块
 """
 
 from __future__ import annotations

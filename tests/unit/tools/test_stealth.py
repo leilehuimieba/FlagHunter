@@ -35,7 +35,7 @@ def _make_capture_tool(name: str) -> tuple[Tool, dict]:
 
 
 def test_stealth_off_by_default(monkeypatch):
-    monkeypatch.delenv("PENTESTAGENT_STEALTH", raising=False)
+    monkeypatch.delenv("FLAGHUNTER_STEALTH", raising=False)
     monkeypatch.setattr(notes_module, "get_all_notes_sync", lambda: {})
 
     active, delay_range = executor_module._is_stealth_active()
@@ -45,7 +45,7 @@ def test_stealth_off_by_default(monkeypatch):
 
 
 def test_stealth_on_via_env(monkeypatch):
-    monkeypatch.setenv("PENTESTAGENT_STEALTH", "1")
+    monkeypatch.setenv("FLAGHUNTER_STEALTH", "1")
 
     active, delay_range = executor_module._is_stealth_active()
 
@@ -54,7 +54,7 @@ def test_stealth_on_via_env(monkeypatch):
 
 
 def test_stealth_on_via_notes(monkeypatch):
-    monkeypatch.delenv("PENTESTAGENT_STEALTH", raising=False)
+    monkeypatch.delenv("FLAGHUNTER_STEALTH", raising=False)
     monkeypatch.setattr(
         notes_module,
         "get_all_notes_sync",
@@ -76,7 +76,7 @@ def test_stealth_injects_user_agent(monkeypatch):
     async def _no_sleep(delay_range=(0.5, 2.0)):
         return None
 
-    monkeypatch.setenv("PENTESTAGENT_STEALTH", "1")
+    monkeypatch.setenv("FLAGHUNTER_STEALTH", "1")
     monkeypatch.setattr(notes_module, "get_all_notes_sync", lambda: {})
     monkeypatch.setattr(executor_module, "_stealth_delay", _no_sleep)
     monkeypatch.setattr(executor_module._random, "choice", lambda seq: "UA-TEST")
@@ -94,7 +94,7 @@ def test_stealth_no_overwrite_existing_ua(monkeypatch):
     async def _no_sleep(delay_range=(0.5, 2.0)):
         return None
 
-    monkeypatch.setenv("PENTESTAGENT_STEALTH", "1")
+    monkeypatch.setenv("FLAGHUNTER_STEALTH", "1")
     monkeypatch.setattr(notes_module, "get_all_notes_sync", lambda: {})
     monkeypatch.setattr(executor_module, "_stealth_delay", _no_sleep)
     monkeypatch.setattr(executor_module._random, "choice", lambda seq: "UA-TEST")

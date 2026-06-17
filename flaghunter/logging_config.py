@@ -1,4 +1,4 @@
-"""Centralized logging configuration for PentestAgent."""
+"""Centralized logging configuration for FlagHunter."""
 
 from __future__ import annotations
 
@@ -19,16 +19,16 @@ def setup_logging(
     console: bool = True,
     file: bool = True,
 ) -> None:
-    """Configure PentestAgent logging with rotating file + console handlers.
+    """Configure FlagHunter logging with rotating file + console handlers.
 
     Args:
-        level: Log level (default: INFO, or DEBUG if PENTESTAGENT_DEBUG=true)
+        level: Log level (default: INFO, or DEBUG if FLAGHUNTER_DEBUG=true)
         log_dir: Directory for log files (default: logs/app)
         console: Whether to add a console handler
         file: Whether to add a rotating file handler
     """
     if level is None:
-        level = logging.DEBUG if os.getenv("PENTESTAGENT_DEBUG", "").lower() in ("1", "true", "yes") else logging.INFO
+        level = logging.DEBUG if os.getenv("FLAGHUNTER_DEBUG", "").lower() in ("1", "true", "yes") else logging.INFO
     else:
         level = logging.getLevelName(level) if isinstance(level, str) else level
 

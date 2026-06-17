@@ -32,8 +32,8 @@ assignees: ''
 这项需求涉及哪些部分？
 
 - [ ] `README / docs`
-- [ ] `pentestagent/`
-- [ ] `pentestagent/cpa_modules/`
+- [ ] `flaghunter/`
+- [ ] `flaghunter/cpa_modules/`
 - [ ] `tools/`
 - [ ] `runtime/`
 - [ ] `tests/`

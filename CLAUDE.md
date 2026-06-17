@@ -1,8 +1,9 @@
-# PentestAgent — CLAUDE.md
+# FlagHunter — CLAUDE.md
 
 ## Project overview
 
-**PentestAgent** (v0.2.0) is an AI-powered penetration testing framework built in Python.
+**FlagHunter** (v0.4.x) is a self-developed, AI-powered offensive-security automation
+framework built in Python, focused on CTF and authorised penetration testing.
 It wraps LiteLLM to support any provider (Anthropic, OpenAI, etc.) and exposes a TUI,
 a CLI, and an MCP server interface. The agent can run tools locally or inside a Docker
 sandbox (base or Kali image).
@@ -11,17 +12,17 @@ sandbox (base or Kali image).
 
 - **Python 3.10+**, packaged with Hatchling (`pyproject.toml`)
 - **LiteLLM** — provider-agnostic LLM wrapper
-- **Textual** — TUI framework (`pentestagent/interface/`)
+- **Textual** — TUI framework (`flaghunter/interface/`)
 - **Typer** — CLI framework
 - **Playwright** — browser tool
 - **MCP (Model Context Protocol)** — both client (consuming external servers) and server
-  (exposing PentestAgent to Claude Desktop / Cursor / etc.)
+  (exposing FlagHunter to Claude Desktop / Cursor / etc.)
 - **FAISS + sentence-transformers** — optional RAG engine (`pip install -e ".[rag]"`)
 
 ## Repository layout
 
 ```
-pentestagent/
+flaghunter/
   agents/
     crew/           # Multi-agent mode: orchestrator + worker pool + shadow graph
     pa_agent/       # Single-agent implementation
@@ -29,6 +30,7 @@ pentestagent/
   config/
     settings.py     # Global Settings dataclass (singleton via get_settings())
     constants.py    # Model defaults, iteration limits, etc.
+    env.py          # FLAGHUNTER_* env access + legacy PENTESTAGENT_* aliasing
   interface/
     cli.py          # Typer CLI entry-point
     notifier.py     # Event bus between agent and UI
@@ -72,43 +74,46 @@ Create `.env` in the project root:
 
 ```
 ANTHROPIC_API_KEY=sk-ant-...
-PENTESTAGENT_MODEL=claude-sonnet-4-20250514
+FLAGHUNTER_MODEL=claude-sonnet-4-20250514
 
 # Optional
 TAVILY_API_KEY=...          # web_search tool
 OPENAI_API_KEY=sk-...       # if using OpenAI
 ```
 
-Settings are managed by `pentestagent/config/settings.py` (`get_settings()` singleton).
+Legacy `PENTESTAGENT_*` variable names are still honoured as aliases for the corresponding
+`FLAGHUNTER_*` names, so existing `.env` files keep working.
+
+Settings are managed by `flaghunter/config/settings.py` (`get_settings()` singleton).
 The MCP external-server config lives in `mcp_servers.json` (Claude Desktop format).
 
 ## Running the project
 
 ```bash
-source venv/bin/activate
-pentestagent                    # TUI
-pentestagent -t 192.168.1.1     # TUI with pre-set target
-pentestagent tui --docker       # Use Docker sandbox for tool execution
-pentestagent run -t example.com --playbook thp3_web   # Run a playbook
-pentestagent mcp_server --type stdio   # Expose as MCP server (STDIO)
-pentestagent mcp_server --type sse     # Expose as MCP server (HTTP/SSE, port 8080)
+source .venv/bin/activate
+flaghunter                    # TUI
+flaghunter -t 192.168.1.1     # TUI with pre-set target
+flaghunter tui --docker       # Use Docker sandbox for tool execution
+flaghunter run -t example.com --playbook thp3_web   # Run a playbook
+flaghunter mcp_server --type stdio   # Expose as MCP server (STDIO)
+flaghunter mcp_server --type sse     # Expose as MCP server (HTTP/SSE, port 8080)
 ```
 
-## PentestAgent as MCP server
+## FlagHunter as MCP server
 
-PentestAgent can expose itself as an MCP server so any MCP-compatible client
+FlagHunter can expose itself as an MCP server so any MCP-compatible client
 (Claude Desktop, Cursor, etc.) can drive it programmatically.
 
 ### Transports
 
 ```bash
 # STDIO — for local clients
-pentestagent mcp_server --type stdio
-pentestagent mcp_server --type stdio --target 192.168.1.1 --scope 192.168.1.0/24 --docker
+flaghunter mcp_server --type stdio
+flaghunter mcp_server --type stdio --target 192.168.1.1 --scope 192.168.1.0/24 --docker
 
 # SSE (HTTP) — for remote/networked clients (default: 0.0.0.0:8080)
-pentestagent mcp_server --type sse
-pentestagent mcp_server --type sse --host 0.0.0.0 --port 8080 --target 10.0.0.1
+flaghunter mcp_server --type sse
+flaghunter mcp_server --type sse --host 0.0.0.0 --port 8080 --target 10.0.0.1
 ```
 
 ### Claude Desktop config (`claude_desktop_config.json`)
@@ -116,8 +121,8 @@ pentestagent mcp_server --type sse --host 0.0.0.0 --port 8080 --target 10.0.0.1
 ```json
 {
   "mcpServers": {
-    "pentestagent": {
-      "command": "pentestagent",
+    "flaghunter": {
+      "command": "flaghunter",
       "args": ["mcp_server", "--type", "stdio"]
     }
   }
@@ -156,7 +161,7 @@ get_task_result task_id="<id2>"
 | `--port` | `8080` | SSE bind port |
 | `--target` | none | Primary pentest target |
 | `--scope` | `[]` | In-scope CIDRs (space-separated) |
-| `--model` | env var | Overrides `PENTESTAGENT_MODEL` |
+| `--model` | env var | Overrides `FLAGHUNTER_MODEL` |
 | `--docker` | false | Use DockerRuntime |
 | `--no-rag` | false | Skip RAG initialisation |
 | `--no-mcp` | false | Skip external MCP connections |
@@ -201,13 +206,13 @@ This lets you branch off from any point while keeping the original conversation
 retrievable. Typical use-case: try an alternative approach from a given message without
 losing the thread you had so far.
 
-Both controls are implemented in `pentestagent/interface/tui.py` via
+Both controls are implemented in `flaghunter/interface/tui.py` via
 `RewindButton` / `ForkButton` widgets and their corresponding `*ConfirmScreen` modals.
 
 ## Key architectural patterns
 
-- **Tool registration**: Tools self-register via `pentestagent/tools/loader.py`. Add a new
-  tool by creating a directory under `pentestagent/tools/<name>/` with an `__init__.py`
+- **Tool registration**: Tools self-register via `flaghunter/tools/loader.py`. Add a new
+  tool by creating a directory under `flaghunter/tools/<name>/` with an `__init__.py`
   that registers it with the tool registry.
 - **Modes**: assist → single LLM call; agent → agentic loop; crew → `CrewOrchestrator`
   manages a `WorkerPool`; interact → streaming chat.
@@ -229,9 +234,9 @@ Both controls are implemented in `pentestagent/interface/tui.py` via
 ```bash
 pip install -e ".[dev]"
 pytest                       # Run tests
-pytest --cov=pentestagent    # With coverage
-black pentestagent           # Format
-ruff check pentestagent      # Lint
+pytest --cov=flaghunter      # With coverage
+black flaghunter             # Format
+ruff check flaghunter        # Lint
 ```
 
 Test config: `pytest.ini_options` in `pyproject.toml`, asyncio mode = auto.
@@ -240,8 +245,8 @@ Test config: `pytest.ini_options` in `pyproject.toml`, asyncio mode = auto.
 
 ```bash
 docker compose build
-docker compose run --rm pentestagent          # Base image
-docker compose --profile kali run --rm pentestagent-kali   # Kali image
+docker compose run --rm flaghunter          # Base image
+docker compose --profile kali run --rm flaghunter-kali   # Kali image
 ```
 
 ## Legal

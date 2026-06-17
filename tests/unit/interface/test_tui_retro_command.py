@@ -4,13 +4,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from flaghunter.interface.tui import PentestAgentTUI
+from flaghunter.interface.tui import FlagHunterTUI
 
 
 @pytest.mark.asyncio
 async def test_handle_retro_command_lists_unresolved(monkeypatch):
     messages: list[str] = []
-    tui = PentestAgentTUI()
+    tui = FlagHunterTUI()
     tui._add_system = messages.append  # type: ignore[method-assign]
 
     monkeypatch.setattr(
@@ -36,7 +36,7 @@ async def test_handle_retro_command_lists_unresolved(monkeypatch):
 @pytest.mark.asyncio
 async def test_handle_retro_command_resolve(monkeypatch):
     messages: list[str] = []
-    tui = PentestAgentTUI()
+    tui = FlagHunterTUI()
     tui._add_system = messages.append  # type: ignore[method-assign]
     marker = MagicMock()
 

@@ -1,4 +1,4 @@
-"""M2 CTF Kit — PentestAgent CTF 攻击模块
+"""M2 CTF Kit — FlagHunter CTF 攻击模块
 
 提供 Playbook 驱动的 CTF 全链路工具链（Pwn / Crypto / Reverse / Flag 提交），
 通过 ``/ctf`` 命令系列与 TUI 交互。

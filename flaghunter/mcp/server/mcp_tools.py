@@ -23,7 +23,7 @@ from ...session.event_bus import EventBus
 from .mcp_core import ToolRegistry
 
 if TYPE_CHECKING:
-    from flaghunter.agents.pa_agent import PentestAgentAgent
+    from flaghunter.agents.pa_agent import FlagHunterAgent
     from flaghunter.llm import LLM
     from flaghunter.runtime.runtime import Runtime
 
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 # Module-level state
 # ---------------------------------------------------------------------------
 
-_primary_agent: Optional[PentestAgentAgent] = None
+_primary_agent: Optional[FlagHunterAgent] = None
 _LLMClass: Optional[Type[LLM]] = None
 _RuntimeClass: Optional[Type[Runtime]] = None
 _llm_kwargs: dict[str, Any] = {}
@@ -121,7 +121,7 @@ def _current_model_readiness() -> dict[str, Any]:
     active_api_key = anthropic_api_key if provider == "anthropic" else openai_api_key
     return resolve_model_readiness(
         provider=provider,
-        model=env.get("PENTESTAGENT_MODEL") or settings.model or "",
+        model=env.get("FLAGHUNTER_MODEL") or settings.model or "",
         api_base=api_base,
         api_key=active_api_key,
     )
@@ -133,7 +133,7 @@ def _current_model_readiness() -> dict[str, Any]:
 
 
 def bootstrap(
-    primary_agent: "PentestAgentAgent",
+    primary_agent: "FlagHunterAgent",
     llm_class: Type["LLM"],
     runtime_class: Type["Runtime"],
     llm_kwargs: Optional[dict[str, Any]] = None,
@@ -163,7 +163,7 @@ class TaskEntry:
     task: str
     status: str  # pending | running | done | error | cancelled
     created_at: str
-    agent: "PentestAgentAgent"
+    agent: "FlagHunterAgent"
     target: Optional[str] = None
     scope: list[str] = field(default_factory=list)
     finished_at: Optional[str] = None
@@ -207,9 +207,9 @@ def _log(level: str, message: str) -> None:
         _logs.pop(0)
 
 
-async def _make_agent(target: Optional[str], scope: list[str]) -> "PentestAgentAgent":
+async def _make_agent(target: Optional[str], scope: list[str]) -> "FlagHunterAgent":
     """Construct a fresh agent for each task — no shared mutable state between runs."""
-    from flaghunter.agents.pa_agent import PentestAgentAgent
+    from flaghunter.agents.pa_agent import FlagHunterAgent
 
     if _LLMClass is None or _RuntimeClass is None:
         raise RuntimeError("bootstrap() must be called before running tasks.")
@@ -217,7 +217,7 @@ async def _make_agent(target: Optional[str], scope: list[str]) -> "PentestAgentA
     runtime = _RuntimeClass(**_runtime_kwargs)
     await runtime.start()
 
-    return PentestAgentAgent(
+    return FlagHunterAgent(
         llm=_LLMClass(**_llm_kwargs),
         tools=list(_primary_agent.get_tools()) if _primary_agent else [],
         runtime=runtime,
@@ -803,7 +803,7 @@ async def _run_ctf_dispatcher_with_handoff(
         return await dispatcher.run(**kwargs)
 
 
-async def _capture_notes_snapshot(agent: "PentestAgentAgent") -> Optional[str]:
+async def _capture_notes_snapshot(agent: "FlagHunterAgent") -> Optional[str]:
     try:
         notes_tool = next((t for t in agent.tools if t.name == "notes"), None)
         if notes_tool is None:
@@ -981,7 +981,7 @@ async def _drive_task(entry: TaskEntry) -> None:
 
 
 def _create_task(
-    task: str, agent: "PentestAgentAgent", target: Optional[str], scope: list[str]
+    task: str, agent: "FlagHunterAgent", target: Optional[str], scope: list[str]
 ) -> TaskEntry:
     entry = TaskEntry(
         id=str(uuid.uuid4())[:8],

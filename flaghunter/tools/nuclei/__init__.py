@@ -1,4 +1,4 @@
-"""Structured nuclei wrapper tool for PentestAgent."""
+"""Structured nuclei wrapper tool for FlagHunter."""
 
 import json
 from typing import TYPE_CHECKING, Any

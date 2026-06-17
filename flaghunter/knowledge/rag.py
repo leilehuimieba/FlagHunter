@@ -1,4 +1,4 @@
-"""RAG (Retrieval Augmented Generation) engine for PentestAgent."""
+"""RAG (Retrieval Augmented Generation) engine for FlagHunter."""
 
 import json
 import logging

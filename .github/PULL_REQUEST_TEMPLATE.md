@@ -39,8 +39,8 @@
 本次改动影响了哪些部分？
 
 - [ ] `README / docs`
-- [ ] `pentestagent/` 核心代码
-- [ ] `pentestagent/cpa_modules/`
+- [ ] `flaghunter/` 核心代码
+- [ ] `flaghunter/cpa_modules/`
 - [ ] `tools/`
 - [ ] `runtime/`
 - [ ] `tests/`
@@ -112,7 +112,7 @@
 - [ ] `docs/release-checklist.md`
 - [ ] GitHub Release Notes
 - [ ] `AGENTS.md`
-- [ ] `docs/superpowers/plans/`
+- [ ] `docs/dev/`（架构文档 / ADR）
 
 关联资料（如有）：
 

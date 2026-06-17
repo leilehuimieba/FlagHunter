@@ -1,7 +1,7 @@
 # FlagHunter
 
-[![Status](https://img.shields.io/badge/status-active-2ea44f)](https://github.com/leilehuimieba/FlagHunter/releases/tag/v0.1.0)
-[![Version](https://img.shields.io/badge/version-v0.1.0-0969da)](https://github.com/leilehuimieba/FlagHunter/releases/tag/v0.1.0)
+[![Status](https://img.shields.io/badge/status-active-2ea44f)](https://github.com/leilehuimieba/FlagHunter/releases/tag/v0.4.0)
+[![Version](https://img.shields.io/badge/version-v0.4.0-0969da)](https://github.com/leilehuimieba/FlagHunter/releases/tag/v0.4.0)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue)](#license)
 [![Runtime](https://img.shields.io/badge/runtime-local%20%7C%20docker%20%7C%20ssh-8250df)](#典型工作模式)
@@ -105,8 +105,8 @@ FlagHunter 更偏向：
 
 ```mermaid
 flowchart TD
-    A[FlagHunter] --> B[pentestagent core]
-    A --> C[pentestagent.cpa_modules]
+    A[FlagHunter] --> B[flaghunter core]
+    A --> C[flaghunter.cpa_modules]
     A --> D[tools]
     A --> E[runtime]
     A --> F[docs / plans / changelog]
@@ -133,16 +133,16 @@ flowchart TD
 
 ### 命名说明
 
-为减少无意义的迁移成本，项目保留了早期的内部技术命名。它们只是历史包名，**不代表对任何外部上游项目的依赖或衍生关系**：
+项目当前以 FlagHunter 作为对外品牌、Python 包名和命令入口。迁移期仍保留部分旧环境变量作为兼容别名，**不代表对任何外部上游项目的依赖或衍生关系**：
 
-- Python 包目录 `pentestagent/`
-- 运行入口命令 `pentestagent`
-- 部分历史配置字段（如 `PENTESTAGENT_MODEL`）
+- Python 包目录 `flaghunter/`
+- 运行入口命令 `flaghunter`
+- 旧环境变量别名（如 `PENTESTAGENT_MODEL`）仍会映射到 `FLAGHUNTER_MODEL`
 
 也就是说：
 
 - **项目名称**：FlagHunter（独立自研项目）
-- **内部历史包名**：`pentestagent`（仅为代码层命名，未来可按需重命名）
+- **当前代码包名**：`flaghunter`
 
 ---
 
@@ -213,13 +213,13 @@ copy .env.example .env       # Windows
 
 - `ANTHROPIC_API_KEY`
 - `OPENAI_API_KEY`
-- `PENTESTAGENT_MODEL`
+- `FLAGHUNTER_MODEL`
 - 与 CPA / CTF / MCP 相关开关
 
 ### 启动
 
 ```bash
-pentestagent
+flaghunter
 ```
 
 ### 最常用入口
@@ -249,22 +249,22 @@ pentestagent
 ### TUI 交互
 
 ```bash
-pentestagent
-pentestagent -t 192.168.1.10
-pentestagent tui --docker
+flaghunter
+flaghunter -t 192.168.1.10
+flaghunter tui --docker
 ```
 
 ### CLI / Playbook
 
 ```bash
-pentestagent run -t example.com --playbook thp3_web
+flaghunter run -t example.com --playbook thp3_web
 ```
 
 ### MCP Server
 
 ```bash
-pentestagent mcp_server --type stdio
-pentestagent mcp_server --type sse --host 0.0.0.0 --port 8080
+flaghunter mcp_server --type stdio
+flaghunter mcp_server --type sse --host 0.0.0.0 --port 8080
 ```
 
 ---
@@ -333,4 +333,3 @@ FlagHunter 面向：
 ## License
 
 MIT License
-

@@ -1,5 +1,5 @@
 """
-PentestAgent M3 Reporter — Jinja2 模板引擎
+FlagHunter M3 Reporter — Jinja2 模板引擎
 
 封装模板加载、渲染、缓存，并提供面向渗透测试报告的内置过滤器：
 严重级别着色、时间格式化、文本截断、CVSS 徽章生成等。

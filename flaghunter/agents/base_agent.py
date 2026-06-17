@@ -1,4 +1,4 @@
-"""Base agent class for PentestAgent."""
+"""Base agent class for FlagHunter."""
 
 import asyncio
 import os
@@ -170,7 +170,7 @@ class BaseAgent(ABC):
 
         self.suggested_tools: List[Tool] = []
 
-        # Permission enforcer (reads mode from PENTESTAGENT_PERMISSION_MODE env var)
+        # Permission enforcer (reads mode from FLAGHUNTER_PERMISSION_MODE env var)
         self.permission_enforcer = PermissionEnforcer.from_env()
 
         # Unified tool executor (replaces direct tool.execute() calls)

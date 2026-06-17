@@ -1,4 +1,4 @@
-"""Agent system for PentestAgent.
+"""Agent system for FlagHunter.
 
 Avoid importing the full agent stack eagerly so narrow submodules such as the
 deterministic CTF dispatcher can be imported without dragging in optional

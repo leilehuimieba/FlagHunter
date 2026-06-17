@@ -1,4 +1,4 @@
-FROM ghcr.io/gh05tcrew/pentestagent:latest
+FROM ghcr.io/gh05tcrew/flaghunter:latest
 
 RUN git clone https://github.com/Wh0am123/MCP-Kali-Server.git
 
@@ -10,10 +10,10 @@ WORKDIR /app
 
 RUN pip install --no-cache-dir -r MCP-Kali-Server/requirements.txt
 
-COPY --chown=pentestagent:pentestagent mcp_servers.json /app/pentestagent/mcp/
+COPY --chown=flaghunter:flaghunter mcp_servers.json /app/flaghunter/mcp/
 
 # Expose any needed ports
 EXPOSE 8080
 
 # Default command
-CMD ["python", "-m", "pentestagent"]
+CMD ["python", "-m", "flaghunter"]

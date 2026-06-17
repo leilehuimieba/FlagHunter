@@ -1,4 +1,4 @@
-"""Metasploit RPC tool for PentestAgent."""
+"""Metasploit RPC tool for FlagHunter."""
 
 from __future__ import annotations
 

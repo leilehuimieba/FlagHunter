@@ -14,7 +14,7 @@ from types import SimpleNamespace
 import pytest
 
 from flaghunter.agents.pa_agent.ctf_planner import get_ctf_quick_path
-from flaghunter.agents.pa_agent.pa_agent import PentestAgentAgent
+from flaghunter.agents.pa_agent.pa_agent import FlagHunterAgent
 from flaghunter.tools.notes import get_all_notes_sync, set_notes_file
 from flaghunter.tools.registry import get_tool
 from flaghunter.workspaces.manager import WorkspaceManager
@@ -253,7 +253,7 @@ async def test_easy_login_ctf_agent_loop_e2e(monkeypatch, tmp_path, isolated_not
 
     runtime = _EasyLoginRuntime()
     llm = _EasyLoginDirectionLLM()
-    agent = PentestAgentAgent(
+    agent = FlagHunterAgent(
         llm=llm,
         tools=[browser_tool, notes_tool, finish_tool],
         runtime=runtime,

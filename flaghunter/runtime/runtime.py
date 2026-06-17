@@ -1,4 +1,4 @@
-"""Runtime abstraction for PentestAgent."""
+"""Runtime abstraction for FlagHunter."""
 
 import asyncio
 import base64

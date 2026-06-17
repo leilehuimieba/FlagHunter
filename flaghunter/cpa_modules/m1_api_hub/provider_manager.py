@@ -1,5 +1,5 @@
 """
-PentestAgent M1 API Hub - Provider调度核心模块
+FlagHunter M1 API Hub - Provider调度核心模块
 
 提供异步线程安全的LLM Provider注册、发现、健康状态管理与选择调度能力。
 支持多Provider优先级排序、模型匹配、请求统计与成本追踪。

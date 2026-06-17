@@ -1,4 +1,4 @@
-"""Structured fscan wrapper for PentestAgent."""
+"""Structured fscan wrapper for FlagHunter."""
 
 from __future__ import annotations
 

@@ -7,8 +7,8 @@ services:
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - PENTESTAGENT_MODEL=${PENTESTAGENT_MODEL}
-      - PENTESTAGENT_DEBUG=${PENTESTAGENT_DEBUG:-false}
+      - FLAGHUNTER_MODEL=${FLAGHUNTER_MODEL}
+      - FLAGHUNTER_DEBUG=${FLAGHUNTER_DEBUG:-false}
     
     networks:
       - flaghunter-net

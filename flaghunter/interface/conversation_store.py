@@ -1,4 +1,4 @@
-"""Conversation persistence for PentestAgent.
+"""Conversation persistence for FlagHunter.
 
 Saves/loads agent conversation history as JSON files under:
     {loot_base}/conversations/

@@ -38,7 +38,7 @@ def _reset_mcp_task_state(monkeypatch: pytest.MonkeyPatch, tmp_path):
     (tmp_path / ".env").write_text(
         "\n".join(
             [
-                "PENTESTAGENT_MODEL=openai/gpt-5.4",
+                "FLAGHUNTER_MODEL=openai/gpt-5.4",
                 "FH_PROVIDER=custom",
                 "LITELLM_API_BASE=http://127.0.0.1:11434/v1",
             ]
@@ -857,7 +857,7 @@ async def test_get_server_status_exposes_model_readiness_reason(
     (tmp_path / ".env").write_text(
         "\n".join(
             [
-                "PENTESTAGENT_MODEL=openai/gpt-5.4",
+                "FLAGHUNTER_MODEL=openai/gpt-5.4",
                 "FH_PROVIDER=custom",
                 "LITELLM_API_BASE=",
                 "OPENAI_API_KEY=",
@@ -886,7 +886,7 @@ async def test_run_task_async_rejects_when_model_is_not_ready(
     (tmp_path / ".env").write_text(
         "\n".join(
             [
-                "PENTESTAGENT_MODEL=openai/gpt-5.4",
+                "FLAGHUNTER_MODEL=openai/gpt-5.4",
                 "FH_PROVIDER=custom",
                 "LITELLM_API_BASE=",
                 "OPENAI_API_KEY=",

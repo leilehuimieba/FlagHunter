@@ -1,4 +1,4 @@
-"""Tool system for PentestAgent."""
+"""Tool system for FlagHunter."""
 
 from .executor import ToolExecutor
 from .loader import discover_tools, get_tool_info, load_all_tools, reload_tools

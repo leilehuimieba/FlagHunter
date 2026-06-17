@@ -1,5 +1,5 @@
 """
-PentestAgent M1 API Hub — 故障转移监控器 (FailoverMonitor)
+FlagHunter M1 API Hub — 故障转移监控器 (FailoverMonitor)
 
 本模块提供 LLM Provider 的后台健康检查、故障转移与自动恢复能力。
 核心功能包括：

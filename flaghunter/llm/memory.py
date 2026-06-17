@@ -1,4 +1,4 @@
-"""Conversation memory management for PentestAgent."""
+"""Conversation memory management for FlagHunter."""
 
 from typing import Awaitable, Callable, List, Optional
 

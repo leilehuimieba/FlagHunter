@@ -1,4 +1,4 @@
-"""Session persistence for PentestAgent.
+"""Session persistence for FlagHunter.
 
 Save/restore full agent state: conversation history, task plan, findings,
 and runtime configuration.

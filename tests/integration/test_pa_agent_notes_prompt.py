@@ -1,4 +1,4 @@
-"""Integration tests for PentestAgentAgent notes prompt filtering."""
+"""Integration tests for FlagHunterAgent notes prompt filtering."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from flaghunter.agents.pa_agent.pa_agent import PentestAgentAgent
+from flaghunter.agents.pa_agent.pa_agent import FlagHunterAgent
 from flaghunter.tools.notes import set_notes_file
 import flaghunter.tools.notes as notes_module
 
@@ -45,8 +45,8 @@ async def _call(action: str, **kwargs) -> str:
     return await notes_module.notes(args, runtime=None)
 
 
-def _make_agent() -> PentestAgentAgent:
-    return PentestAgentAgent(
+def _make_agent() -> FlagHunterAgent:
+    return FlagHunterAgent(
         llm=_StubLLM(),
         tools=[],
         runtime=_StubRuntime(),

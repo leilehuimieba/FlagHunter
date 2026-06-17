@@ -74,7 +74,7 @@ class StrategyMemoryStore:
         if path is None:
             # Allow ops (and test isolation) to relocate the cross-challenge
             # memory file without changing CWD.
-            path = os.environ.get("PENTESTAGENT_STRATEGY_MEMORY_PATH") or (
+            path = os.environ.get("FLAGHUNTER_STRATEGY_MEMORY_PATH") or (
                 Path("loot") / "strategy_memory.json"
             )
         self.path = Path(path)

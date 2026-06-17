@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 import flaghunter.tools.notes as notes_module
-from flaghunter.agents.pa_agent.pa_agent import PentestAgentAgent
+from flaghunter.agents.pa_agent.pa_agent import FlagHunterAgent
 from flaghunter.tools.executor import ToolExecutor
 from flaghunter.tools.notes import set_notes_file
 from flaghunter.tools.registry import Tool, ToolSchema
@@ -106,7 +106,7 @@ async def test_missing_tool_note_affects_next_auto_generated_plan(isolated_notes
     await executor.execute(_missing_sqlmap_tool(), {"cmd": "scan"})
 
     llm = _PlannerAwareLLM()
-    agent = PentestAgentAgent(
+    agent = FlagHunterAgent(
         llm=llm,
         tools=[
             SimpleNamespace(name="sqlmap", enabled=True),

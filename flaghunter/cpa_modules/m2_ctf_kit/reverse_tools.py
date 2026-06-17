@@ -1,5 +1,5 @@
 """
-PentestAgent M2 CTF Kit - 逆向工程工具封装模块
+FlagHunter M2 CTF Kit - 逆向工程工具封装模块
 
 基于 radare2 / r2pipe 的二进制分析、反汇编、反编译、字符串提取、补丁等能力。
 所有接口均为异步，返回 ReverseResult 结果对象，不抛异常。使用延迟加载模式。

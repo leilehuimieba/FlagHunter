@@ -127,7 +127,7 @@
 
 - 仓库继续保持 **Private**
 - 当前对外品牌为 **FlagHunter**
-- 内部兼容骨架继续保留 `pentestagent/`
+- Python 包与命令统一为 `flaghunter`（历史 `PENTESTAGENT_*` 环境变量仍作兼容别名）
 
 如果未来协作者数量明显增加，再考虑引入：
 

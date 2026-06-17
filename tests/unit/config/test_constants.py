@@ -1,6 +1,7 @@
 """Tests for flaghunter.config.constants."""
 
 import flaghunter.config.constants as C
+import flaghunter
 
 
 class TestAppInfo:
@@ -12,6 +13,15 @@ class TestAppInfo:
         parts = C.APP_VERSION.split(".")
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
+
+    def test_package_version_matches_app_version(self):
+        assert flaghunter.__version__ == C.APP_VERSION
+
+
+class TestDockerDefaults:
+    def test_docker_sandbox_image_uses_flaghunter_repository(self):
+        assert C.DOCKER_SANDBOX_IMAGE == "ghcr.io/gh05tcrew/flaghunter:kali"
+        assert "pentestagent" not in C.DOCKER_SANDBOX_IMAGE
 
 
 class TestAgentStateConstants:

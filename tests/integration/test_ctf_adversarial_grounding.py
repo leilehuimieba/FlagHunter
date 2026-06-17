@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from flaghunter.agents.pa_agent.pa_agent import PentestAgentAgent
+from flaghunter.agents.pa_agent.pa_agent import FlagHunterAgent
 from flaghunter.agents.pa_agent.ctf_state import CTFState, Hypothesis
 from flaghunter.agents.pa_agent.ctf_planner import get_ctf_quick_path
 from flaghunter.agents.pa_agent.hypothesis_engine import HypothesisEngine
@@ -245,7 +245,7 @@ async def _run_grounding_eval(
     assert finish_tool is not None
 
     runtime = _GroundedWebRuntime()
-    agent = PentestAgentAgent(
+    agent = FlagHunterAgent(
         llm=llm,
         tools=[browser_tool, notes_tool, finish_tool],
         runtime=runtime,

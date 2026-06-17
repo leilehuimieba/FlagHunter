@@ -1,5 +1,5 @@
 """
-PentestAgent M6 Turbo — 扫描结果缓存模块 (result_cache.py)
+FlagHunter M6 Turbo — 扫描结果缓存模块 (result_cache.py)
 
 带 TTL 过期与 LRU 淘汰的线程安全内存缓存。
 支持批量读写、后台定时清理、内存上限保护，以及破坏性操作的缓存屏蔽。

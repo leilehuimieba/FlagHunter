@@ -37,7 +37,7 @@ def _fake_build_agent_components_for(fake_pa_agent, runtime_cls):
     """
     async def _bac(**kwargs):
         runtime = runtime_cls()
-        agent = fake_pa_agent.PentestAgentAgent(
+        agent = fake_pa_agent.FlagHunterAgent(
             llm=object(),
             tools=[],
             runtime=runtime,
@@ -80,7 +80,7 @@ def test_run_agent_task_routes_through_agent_session():
 
     src = inspect.getsource(web_server._run_agent_task)
     assert "AgentSession.create" in src
-    assert "PentestAgentAgent(" not in src, "web must not construct the agent directly"
+    assert "FlagHunterAgent(" not in src, "web must not construct the agent directly"
     assert "build_runtime(" not in src, "web must not build runtime directly"
     assert "LLM(model=" not in src, "web must not construct an LLM outside the root"
     assert "get_all_tools(" not in src, "web must not load tools directly"
@@ -110,7 +110,7 @@ async def web_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     (tmp_path / ".env").write_text(
         "\n".join(
             [
-                "PENTESTAGENT_MODEL=openai/gpt-5.4",
+                "FLAGHUNTER_MODEL=openai/gpt-5.4",
                 "FH_PROVIDER=custom",
                 "LITELLM_API_BASE=http://127.0.0.1:11434/v1",
             ]
@@ -2298,7 +2298,7 @@ def test_run_agent_task_uses_pentest_default_goal_when_mode_is_pentest(
             return self._session_id
 
     fake_pa_agent = types.ModuleType("flaghunter.agents.pa_agent")
-    fake_pa_agent.PentestAgentAgent = _FakeAgent
+    fake_pa_agent.FlagHunterAgent = _FakeAgent
     fake_settings = types.ModuleType("flaghunter.config.settings")
     fake_settings.get_settings = lambda: types.SimpleNamespace(model="test-model")
     fake_initializer = types.ModuleType("flaghunter.interface.initializer")
@@ -2396,7 +2396,7 @@ def test_run_agent_task_attaches_run_id_and_project_root_to_agent(
             return
 
     fake_pa_agent = types.ModuleType("flaghunter.agents.pa_agent")
-    fake_pa_agent.PentestAgentAgent = _FakeAgent
+    fake_pa_agent.FlagHunterAgent = _FakeAgent
     fake_settings = types.ModuleType("flaghunter.config.settings")
     fake_settings.get_settings = lambda: types.SimpleNamespace(model="test-model")
     fake_initializer = types.ModuleType("flaghunter.interface.initializer")
@@ -2521,7 +2521,7 @@ def test_run_agent_task_routes_ctf_mode_to_ctf_dispatcher(
                 yield None
 
     fake_pa_agent = types.ModuleType("flaghunter.agents.pa_agent")
-    fake_pa_agent.PentestAgentAgent = _ForbiddenAgent
+    fake_pa_agent.FlagHunterAgent = _ForbiddenAgent
     fake_dispatcher_module = types.ModuleType("flaghunter.agents.pa_agent.ctf_dispatcher")
     fake_dispatcher_module.CTFTaskDispatcher = _FakeDispatcher
     fake_settings = types.ModuleType("flaghunter.config.settings")
@@ -2629,7 +2629,7 @@ def test_run_agent_task_routes_ctf_progress_messages_into_logs(
             )
 
     fake_pa_agent = types.ModuleType("flaghunter.agents.pa_agent")
-    fake_pa_agent.PentestAgentAgent = _NeverRunAgent
+    fake_pa_agent.FlagHunterAgent = _NeverRunAgent
     fake_dispatcher_module = types.ModuleType("flaghunter.agents.pa_agent.ctf_dispatcher")
     fake_dispatcher_module.CTFTaskDispatcher = _FakeDispatcher
     fake_settings = types.ModuleType("flaghunter.config.settings")
@@ -2732,7 +2732,7 @@ def test_run_agent_task_emits_ctf_dispatcher_lifecycle_summary_logs(
             )
 
     fake_pa_agent = types.ModuleType("flaghunter.agents.pa_agent")
-    fake_pa_agent.PentestAgentAgent = _NeverRunAgent
+    fake_pa_agent.FlagHunterAgent = _NeverRunAgent
     fake_dispatcher_module = types.ModuleType("flaghunter.agents.pa_agent.ctf_dispatcher")
     fake_dispatcher_module.CTFTaskDispatcher = _FakeDispatcher
     fake_settings = types.ModuleType("flaghunter.config.settings")
@@ -2844,7 +2844,7 @@ def test_run_agent_task_emits_ctf_dispatcher_missing_tools_log_on_stop(
             )
 
     fake_pa_agent = types.ModuleType("flaghunter.agents.pa_agent")
-    fake_pa_agent.PentestAgentAgent = _NeverRunAgent
+    fake_pa_agent.FlagHunterAgent = _NeverRunAgent
     fake_dispatcher_module = types.ModuleType("flaghunter.agents.pa_agent.ctf_dispatcher")
     fake_dispatcher_module.CTFTaskDispatcher = _FakeDispatcher
     fake_settings = types.ModuleType("flaghunter.config.settings")
@@ -2966,7 +2966,7 @@ def test_run_agent_task_passes_latest_user_hint_to_ctf_dispatcher(
             )
 
     fake_pa_agent = types.ModuleType("flaghunter.agents.pa_agent")
-    fake_pa_agent.PentestAgentAgent = _NeverRunAgent
+    fake_pa_agent.FlagHunterAgent = _NeverRunAgent
     fake_dispatcher_module = types.ModuleType("flaghunter.agents.pa_agent.ctf_dispatcher")
     fake_dispatcher_module.CTFTaskDispatcher = _FakeDispatcher
     fake_settings = types.ModuleType("flaghunter.config.settings")
@@ -3102,7 +3102,7 @@ def test_run_agent_task_bridges_ctf_local_asset_contract_into_dispatcher_hint(
             )
 
     fake_pa_agent = types.ModuleType("flaghunter.agents.pa_agent")
-    fake_pa_agent.PentestAgentAgent = _NeverRunAgent
+    fake_pa_agent.FlagHunterAgent = _NeverRunAgent
     fake_dispatcher_module = types.ModuleType("flaghunter.agents.pa_agent.ctf_dispatcher")
     fake_dispatcher_module.CTFTaskDispatcher = _FakeDispatcher
     fake_settings = types.ModuleType("flaghunter.config.settings")
@@ -5855,7 +5855,7 @@ def test_run_agent_task_persists_session_more_than_once_when_tool_results_are_ob
             return self._session_id
 
     fake_pa_agent = types.ModuleType("flaghunter.agents.pa_agent")
-    fake_pa_agent.PentestAgentAgent = _FakeAgent
+    fake_pa_agent.FlagHunterAgent = _FakeAgent
     fake_settings = types.ModuleType("flaghunter.config.settings")
     fake_settings.get_settings = lambda: types.SimpleNamespace(model="test-model")
     fake_initializer = types.ModuleType("flaghunter.interface.initializer")
@@ -7058,7 +7058,7 @@ async def test_settings_payload_exposes_unconfigured_custom_model_readiness(
     (tmp_path / ".env").write_text(
         "\n".join(
             [
-                "PENTESTAGENT_MODEL=openai/gpt-5.4",
+                "FLAGHUNTER_MODEL=openai/gpt-5.4",
                 "FH_PROVIDER=custom",
                 "LITELLM_API_BASE=",
                 "OPENAI_API_KEY=",
@@ -7094,7 +7094,7 @@ async def test_post_task_rejects_when_model_readiness_is_false(
     (tmp_path / ".env").write_text(
         "\n".join(
             [
-                "PENTESTAGENT_MODEL=openai/gpt-5.4",
+                "FLAGHUNTER_MODEL=openai/gpt-5.4",
                 "FH_PROVIDER=custom",
                 "LITELLM_API_BASE=",
                 "OPENAI_API_KEY=",

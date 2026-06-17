@@ -1,4 +1,4 @@
-"""Constants for PentestAgent."""
+"""Constants for FlagHunter."""
 
 import os
 from typing import Optional
@@ -11,10 +11,15 @@ try:
 except ImportError:
     pass
 
+# Honour legacy PENTESTAGENT_* env vars as aliases for the FLAGHUNTER_* names.
+from .env import apply_legacy_env_aliases
+
+apply_legacy_env_aliases()
+
 # Application Info
-APP_NAME = "PentestAgent"
-APP_VERSION = "0.2.0"
-APP_DESCRIPTION = "AI penetration testing"
+APP_NAME = "FlagHunter"
+APP_VERSION = "0.4.0"
+APP_DESCRIPTION = "AI-powered CTF & authorised penetration testing automation framework"
 
 # Agent States
 AGENT_STATE_IDLE = "idle"
@@ -38,7 +43,7 @@ DEFAULT_VPN_TIMEOUT = 30
 DEFAULT_MCP_TIMEOUT = 60
 
 # Docker Settings
-DOCKER_SANDBOX_IMAGE = "ghcr.io/gh05tcrew/pentestagent:kali"
+DOCKER_SANDBOX_IMAGE = "ghcr.io/gh05tcrew/flaghunter:kali"
 DOCKER_NETWORK_MODE = "bridge"
 
 # RAG Settings
@@ -56,23 +61,23 @@ def get_openai_api_base() -> Optional[str]:
     base = os.getenv("OPENAI_API_BASE") or os.getenv("OPENAI_BASE_URL")
     return base.rstrip("/") if base else None
 
-# LLM Defaults (set PENTESTAGENT_MODEL in .env or shell)
+# LLM Defaults (set FLAGHUNTER_MODEL in .env or shell)
 DEFAULT_MODEL = os.environ.get(
-    "PENTESTAGENT_MODEL"
+    "FLAGHUNTER_MODEL"
 )  # No fallback - requires configuration
 DEFAULT_TEMPERATURE = 0.7
 DEFAULT_MAX_TOKENS = 8192
 
 # Agent Defaults
-AGENT_MAX_ITERATIONS = int(os.environ.get("PENTESTAGENT_AGENT_MAX_ITERATIONS", "50"))
+AGENT_MAX_ITERATIONS = int(os.environ.get("FLAGHUNTER_AGENT_MAX_ITERATIONS", "50"))
 ORCHESTRATOR_MAX_ITERATIONS = int(
-    os.environ.get("PENTESTAGENT_ORCHESTRATOR_MAX_ITERATIONS", "50")
+    os.environ.get("FLAGHUNTER_ORCHESTRATOR_MAX_ITERATIONS", "50")
 )
 CTF_HINT_SEARCH_THRESHOLD = int(
-    os.environ.get("PENTESTAGENT_CTF_HINT_SEARCH_THRESHOLD", "2")
+    os.environ.get("FLAGHUNTER_CTF_HINT_SEARCH_THRESHOLD", "2")
 )
 CTF_WP_SEARCH_THRESHOLD = int(
-    os.environ.get("PENTESTAGENT_CTF_WP_SEARCH_THRESHOLD", "4")
+    os.environ.get("FLAGHUNTER_CTF_WP_SEARCH_THRESHOLD", "4")
 )
 
 # File Extensions

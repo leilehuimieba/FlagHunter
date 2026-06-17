@@ -1,4 +1,4 @@
-"""WAF fingerprinting and bypass configuration tool for PentestAgent."""
+"""WAF fingerprinting and bypass configuration tool for FlagHunter."""
 
 from __future__ import annotations
 

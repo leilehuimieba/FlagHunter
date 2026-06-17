@@ -1,4 +1,4 @@
-"""Task completion tool for PentestAgent agent loop control."""
+"""Task completion tool for FlagHunter agent loop control."""
 
 import json
 import logging
@@ -140,7 +140,7 @@ async def _generate_auto_report(runtime: "Runtime") -> None:
         gen.create_report(
             meta=ReportMeta(
                 title=f"Auto Report: {report_target} - {title_timestamp}",
-                author="PentestAgent",
+                author="FlagHunter",
                 start_date=now,
                 end_date=now,
                 scope=report_target,

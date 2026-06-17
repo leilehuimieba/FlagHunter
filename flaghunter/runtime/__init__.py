@@ -1,4 +1,4 @@
-"""Runtime environment for PentestAgent."""
+"""Runtime environment for FlagHunter."""
 
 from .docker_runtime import DockerRuntime
 from .ssh_runtime import SSHRuntime

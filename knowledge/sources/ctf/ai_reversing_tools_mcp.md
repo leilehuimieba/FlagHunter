@@ -237,4 +237,4 @@ Agent 通过 SSH 连接到 Kali，直接用 `terminal` 工具执行 radare2/angr
 ### 方案 C：MCP Server 接入 (最优雅)
 在 Kali 上运行 Ghidra MCP / radare2-mcp / ida-mcp，Agent 通过 MCP client 连接。
 - 需要 Agent 框架支持外部 MCP server
-- 可参考 `pentestagent/mcp/` 目录的适配器实现
+- 可参考 `flaghunter/mcp/` 目录的适配器实现

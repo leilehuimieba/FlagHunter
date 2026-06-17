@@ -3924,7 +3924,7 @@ def _settings_to_api(project_root: Path) -> dict:
     )
     active_api_key = anthropic_api_key if provider == "anthropic" else openai_api_key
     api_key = _mask_secret(active_api_key)
-    model_name = env.get("PENTESTAGENT_MODEL", s.model or "")
+    model_name = env.get("FLAGHUNTER_MODEL", s.model or "")
     readiness = resolve_model_readiness(
         provider=provider,
         model=model_name,
@@ -3944,11 +3944,11 @@ def _settings_to_api(project_root: Path) -> dict:
             "readiness": readiness,
         },
         "runtime": {
-            "mode": "docker" if env.get("PENTESTAGENT_DOCKER") == "true" else "local",
-            "autoSsh": env.get("PENTESTAGENT_AUTO_SSH", "false").lower() == "true",
-            "dockerEnabled": env.get("PENTESTAGENT_DOCKER", "false").lower() == "true",
+            "mode": "docker" if env.get("FLAGHUNTER_DOCKER") == "true" else "local",
+            "autoSsh": env.get("FLAGHUNTER_AUTO_SSH", "false").lower() == "true",
+            "dockerEnabled": env.get("FLAGHUNTER_DOCKER", "false").lower() == "true",
             "sshConfigured": bool(env.get("KALI_SSH_HOST")),
-            "workdir": env.get("PENTESTAGENT_WORKDIR", "workspaces"),
+            "workdir": env.get("FLAGHUNTER_WORKDIR", "workspaces"),
             "sandboxNetwork": env.get("DOCKER_NETWORK", "host"),
         },
         "mcp": {
@@ -3966,8 +3966,8 @@ def _settings_to_api(project_root: Path) -> dict:
             "timeoutMs": int(env.get("MCP_TIMEOUT_MS", "30000")),
         },
         "knowledge": {
-            "enabled": env.get("PENTESTAGENT_EMBEDDINGS", "local") != "disabled",
-            "embeddingModel": env.get("PENTESTAGENT_EMBEDDINGS", "local"),
+            "enabled": env.get("FLAGHUNTER_EMBEDDINGS", "local") != "disabled",
+            "embeddingModel": env.get("FLAGHUNTER_EMBEDDINGS", "local"),
             "chunkSize": 1000,
             "overlap": 200,
             "threshold": 0.35,
@@ -3986,7 +3986,7 @@ def _settings_to_api(project_root: Path) -> dict:
         },
         "ctf": {
             "enabled": env.get("CPA_CTF_MODE", "true").lower() != "false",
-            "maxIterations": int(env.get("PENTESTAGENT_AGENT_MAX_ITERATIONS", str(AGENT_MAX_ITERATIONS))),
+            "maxIterations": int(env.get("FLAGHUNTER_AGENT_MAX_ITERATIONS", str(AGENT_MAX_ITERATIONS))),
             "autoRetry": int(env.get("CTF_AUTO_RETRY", "2")),
             "flagFormat": env.get("CTF_FLAG_FORMAT", r"flag\{[^}]+\}"),
             "hintPolicy": env.get("CTF_HINT_POLICY", "manual"),
@@ -4036,7 +4036,7 @@ def _apply_settings(project_root: Path, payload: dict) -> dict[str, Any]:
     if "apiBase" in m:
         write_if_changed("model.apiBase", "LITELLM_API_BASE", str(m.get("apiBase") or ""))
     if "name" in m:
-        write_if_changed("model.name", "PENTESTAGENT_MODEL", str(m.get("name") or ""))
+        write_if_changed("model.name", "FLAGHUNTER_MODEL", str(m.get("name") or ""))
     if "provider" in m:
         write_if_changed("model.provider", "FH_PROVIDER", str(m.get("provider") or ""))
     # Only write key if it doesn't look masked
@@ -4049,13 +4049,13 @@ def _apply_settings(project_root: Path, payload: dict) -> dict[str, Any]:
 
     r = payload.get("runtime", {})
     if "dockerEnabled" in r:
-        write_if_changed("runtime.dockerEnabled", "PENTESTAGENT_DOCKER", str(r["dockerEnabled"]).lower())
+        write_if_changed("runtime.dockerEnabled", "FLAGHUNTER_DOCKER", str(r["dockerEnabled"]).lower())
     if "workdir" in r:
-        write_if_changed("runtime.workdir", "PENTESTAGENT_WORKDIR", str(r.get("workdir") or ""))
+        write_if_changed("runtime.workdir", "FLAGHUNTER_WORKDIR", str(r.get("workdir") or ""))
 
     ctf = payload.get("ctf", {})
     if "maxIterations" in ctf:
-        write_if_changed("ctf.maxIterations", "PENTESTAGENT_AGENT_MAX_ITERATIONS", str(ctf["maxIterations"]))
+        write_if_changed("ctf.maxIterations", "FLAGHUNTER_AGENT_MAX_ITERATIONS", str(ctf["maxIterations"]))
     if "autoRetry" in ctf:
         write_if_changed("ctf.autoRetry", "CTF_AUTO_RETRY", str(ctf["autoRetry"]))
     if "flagFormat" in ctf:
@@ -4083,7 +4083,7 @@ def _apply_settings(project_root: Path, payload: dict) -> dict[str, Any]:
 
     knowledge = payload.get("knowledge", {})
     if "embeddingModel" in knowledge:
-        write_if_changed("knowledge.embeddingModel", "PENTESTAGENT_EMBEDDINGS", str(knowledge["embeddingModel"]))
+        write_if_changed("knowledge.embeddingModel", "FLAGHUNTER_EMBEDDINGS", str(knowledge["embeddingModel"]))
 
     result["saved"].sort()
     result["ignored"].sort()

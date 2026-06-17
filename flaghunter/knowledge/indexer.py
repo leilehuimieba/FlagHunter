@@ -1,4 +1,4 @@
-"""Knowledge indexer for PentestAgent."""
+"""Knowledge indexer for FlagHunter."""
 
 import json
 from dataclasses import dataclass

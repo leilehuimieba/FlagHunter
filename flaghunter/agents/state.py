@@ -1,4 +1,4 @@
-"""Agent state management for PentestAgent."""
+"""Agent state management for FlagHunter."""
 
 from dataclasses import dataclass, field
 from datetime import datetime

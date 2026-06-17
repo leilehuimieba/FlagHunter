@@ -38,6 +38,41 @@ def test_execute_chain_routes_through_handler_map_without_chain_specific_branche
     assert "elif chain_name" not in source
 
 
+def test_lfi_chain_handler_is_delegated_to_file_read_chain_mixin():
+    source = inspect.getsource(CTFTaskDispatcher._chain_handler_map)
+
+    assert "_execute_lfi_chain" in source
+    assert "../../../etc/passwd" not in source
+    assert "php://filter/convert.base64-encode/resource=index.php" not in source
+
+
+def test_dispatcher_strategy_context_populates_explicit_chain_context_fields():
+    runtime = _DispatcherRuntime()
+    dispatcher = CTFTaskDispatcher(
+        runtime=runtime,
+        progress_callback=None,
+        exploitation_mode="aggressive",
+    )
+    dispatcher.state = CTFState(
+        target="http://ctf.local",
+        goal="get flag",
+        detected_type="web",
+    )
+
+    context = dispatcher._strategy_context(
+        target="http://ctf.local",
+        page_features={},
+        hint="",
+    )
+
+    assert context.dispatcher is dispatcher
+    assert context.state is dispatcher.state
+    assert context.runtime is runtime
+    assert context.capability_registry is dispatcher.capability_registry
+    assert context.strategy_memory is dispatcher.strategy_memory
+    assert context.exploitation_mode == "aggressive"
+
+
 def test_collector_public_host_prefers_host_docker_internal_for_local_targets(monkeypatch):
     monkeypatch.setattr(
         "flaghunter.agents.pa_agent.ctf_dispatcher._guess_local_ip",

@@ -1,4 +1,4 @@
-"""LLM utility functions for PentestAgent."""
+"""LLM utility functions for FlagHunter."""
 
 from typing import List, Optional
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-PentestAgent M2 - CTF Kit / Flag 自动提交模块
+FlagHunter M2 - CTF Kit / Flag 自动提交模块
 ===============================================
 支持多平台（CTFd、HackTheBox、TryHackMe、Root-Me、Manual）的 Flag 异步提交封装。
 使用 Python 3.10+ 标准库 urllib，无需额外依赖。

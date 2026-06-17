@@ -1,4 +1,4 @@
-"""Main entry point for PentestAgent."""
+"""Main entry point for FlagHunter."""
 
 import argparse
 import asyncio
@@ -18,11 +18,15 @@ try:
 except ImportError:
     pass  # python-dotenv optional; env vars may already be set
 
+# Honour legacy PENTESTAGENT_* env vars before anything reads FLAGHUNTER_*.
+from ..config.env import apply_legacy_env_aliases
+apply_legacy_env_aliases()
+
 # Initialize logging as early as possible
 from ..logging_config import setup_logging
 setup_logging()
 
-from ..config.constants import AGENT_MAX_ITERATIONS, DEFAULT_MODEL
+from ..config.constants import AGENT_MAX_ITERATIONS, APP_NAME, APP_VERSION, DEFAULT_MODEL
 
 
 logger = logging.getLogger(__name__)
@@ -93,7 +97,7 @@ def _log_startup_context(args: argparse.Namespace) -> None:
 def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="PentestAgent - AI Penetration Testing",
+        description="FlagHunter - AI Penetration Testing",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -107,7 +111,7 @@ Examples:
         """,
     )
 
-    parser.add_argument("--version", action="version", version="PentestAgent 0.2.0")
+    parser.add_argument("--version", action="version", version=f"{APP_NAME} {APP_VERSION}")
 
     # Subcommands
     subparsers = parser.add_subparsers(dest="command", help="Commands")
@@ -119,7 +123,7 @@ Examples:
         "--model",
         "-m",
         default=DEFAULT_MODEL,
-        help="LLM model (set PENTESTAGENT_MODEL in .env)",
+        help="LLM model (set FLAGHUNTER_MODEL in .env)",
     )
     runtime_parent.add_argument(
         "--docker",
@@ -247,7 +251,7 @@ Examples:
     mcp_server_parser.add_argument(
         "--model",
         default=None,
-        help="Model identifier (overrides PENTESTAGENT_MODEL env var)",
+        help="Model identifier (overrides FLAGHUNTER_MODEL env var)",
     )
     mcp_server_parser.add_argument(
         "--docker",
@@ -1012,7 +1016,7 @@ async def _initialize(args: argparse.Namespace) -> dict:
 
 def start_mcp_server(args: argparse.Namespace) -> None:
     """
-    Initialise PentestAgent and serve MCP requests over stdio or SSE.
+    Initialise FlagHunter and serve MCP requests over stdio or SSE.
     When ``args.tui`` is True (SSE-only), also launches the TUI in
     MCP observation mode so an operator can watch tasks live.
     """
@@ -1071,11 +1075,11 @@ async def _run_stdio_tui_fifo(args: argparse.Namespace) -> None:
     """
     from ..mcp.server.mcp_tools import set_ui_hook
     from ..mcp.server import MCPRouter, mcp_tool_registry, mcp_transport_stdio
-    from .tui import PentestAgentTUI
+    from .tui import FlagHunterTUI
 
     components = await _initialize(args)
 
-    app = PentestAgentTUI(
+    app = FlagHunterTUI(
         mcp_mode=True,
         prebuilt_components=components,
     )
@@ -1103,13 +1107,13 @@ async def _run_mcp_with_tui(args: argparse.Namespace) -> None:
 
     from ..mcp.server import MCPRouter, mcp_tool_registry
     from ..mcp.server.mcp_tools import set_ui_hook
-    from .tui import PentestAgentTUI
+    from .tui import FlagHunterTUI
 
     # Build all components first (before starting the TUI).
     components = await _initialize(args)
 
     # Create the TUI in MCP observation mode with the pre-built agent.
-    app = PentestAgentTUI(
+    app = FlagHunterTUI(
         mcp_mode=True,
         prebuilt_components=components,
     )
@@ -1636,9 +1640,9 @@ def main():
         # Check model configuration
         if not args.model:
             print("Error: No model configured.")
-            print("Set PENTESTAGENT_MODEL in .env file or use --model flag.")
+            print("Set FLAGHUNTER_MODEL in .env file or use --model flag.")
             print(
-                "Example: PENTESTAGENT_MODEL=gpt-5 or PENTESTAGENT_MODEL=claude-sonnet-4-20250514"
+                "Example: FLAGHUNTER_MODEL=gpt-5 or FLAGHUNTER_MODEL=claude-sonnet-4-20250514"
             )
             return
 
@@ -1702,9 +1706,9 @@ def main():
         # Check model configuration
         if not args.model:
             print("Error: No model configured.")
-            print("Set PENTESTAGENT_MODEL in .env file or use --model flag.")
+            print("Set FLAGHUNTER_MODEL in .env file or use --model flag.")
             print(
-                "Example: PENTESTAGENT_MODEL=gpt-5 or PENTESTAGENT_MODEL=claude-sonnet-4-20250514"
+                "Example: FLAGHUNTER_MODEL=gpt-5 or FLAGHUNTER_MODEL=claude-sonnet-4-20250514"
             )
             return
 
@@ -1722,12 +1726,12 @@ def main():
     if args.command is None:
         # Ensure a default model is configured; provide a friendly error if not
         if not DEFAULT_MODEL:
-            print("Error: No default model configured (PENTESTAGENT_MODEL).")
+            print("Error: No default model configured (FLAGHUNTER_MODEL).")
             print(
-                "Set PENTESTAGENT_MODEL in .env file or pass --model on the command line."
+                "Set FLAGHUNTER_MODEL in .env file or pass --model on the command line."
             )
             print(
-                "Example: PENTESTAGENT_MODEL=gpt-5 or PENTESTAGENT_MODEL=claude-sonnet-4-20250514"
+                "Example: FLAGHUNTER_MODEL=gpt-5 or FLAGHUNTER_MODEL=claude-sonnet-4-20250514"
             )
             return
 

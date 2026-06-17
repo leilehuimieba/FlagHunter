@@ -1,4 +1,4 @@
-"""Unified observability metrics for PentestAgent.
+"""Unified observability metrics for FlagHunter.
 
 Per-turn and per-session metrics collection with JSON export.
 Tracks tool calls, token usage, wall time, findings, flags, and errors.

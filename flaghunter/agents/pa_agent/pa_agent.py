@@ -1,4 +1,4 @@
-"""PentestAgent main pentesting agent."""
+"""FlagHunter main pentesting agent."""
 
 import copy
 import json
@@ -87,8 +87,8 @@ if TYPE_CHECKING:
     from ...tools import Tool
 
 
-class PentestAgentAgent(BaseAgent):
-    """Main pentesting agent for PentestAgent."""
+class FlagHunterAgent(BaseAgent):
+    """Main pentesting agent for FlagHunter."""
 
     def __init__(
         self,
@@ -101,7 +101,7 @@ class PentestAgentAgent(BaseAgent):
         **kwargs,
     ):
         """
-        Initialize the PentestAgent agent.
+        Initialize the FlagHunter agent.
 
         Args:
             llm: The LLM instance for generating responses

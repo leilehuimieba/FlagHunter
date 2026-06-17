@@ -6,6 +6,18 @@
 
 ---
 
+## Unreleased
+
+### Changed
+
+- 将内部 Python 包与命令入口从历史名 `pentestagent` 正式重命名为 `flaghunter`
+  （包目录、所有 import、`console_scripts` 命令、构建/CI/Docker/脚本同步）。
+- 环境变量统一为 `FLAGHUNTER_*` 前缀；历史 `PENTESTAGENT_*` 名称在启动时自动别名为
+  对应的 `FLAGHUNTER_*`，现有 `.env` 无需修改即可继续工作。
+- 全量品牌清扫：代码、文档、提示词、TUI 横幅中的 `PentestAgent` 统一为 `FlagHunter`。
+
+---
+
 ## v0.2.0 - 2026-06-09
 
 围绕 live Web CTF 实战的通用能力增强与验证留痕版本。

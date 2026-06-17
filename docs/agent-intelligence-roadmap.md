@@ -23,7 +23,7 @@
 
 ## 1. 已有智能设施的现状
 
-`pentestagent/agents/pa_agent/` 目录下实际上已经建立了一套 CTF 解题的专用智能体系：
+`flaghunter/agents/pa_agent/` 目录下实际上已经建立了一套 CTF 解题的专用智能体系：
 
 | 模块 | 文件 | 实际功能 |
 |------|------|---------|
@@ -91,7 +91,7 @@
 
 #### 1.1 权限门禁系统
 
-**新增文件**：`pentestagent/runtime/permission_enforcer.py`
+**新增文件**：`flaghunter/runtime/permission_enforcer.py`
 
 ```python
 class PermissionMode(IntEnum):
@@ -171,7 +171,7 @@ class ReasoningDecision:
 | **Analysis** | terminal(只读), notes, web_search, knowledge_search | 结果分析 |
 | **General** | 所有工具 | 完整能力 |
 
-**新增文件**：`pentestagent/agents/subagent.py`
+**新增文件**：`flaghunter/agents/subagent.py`
 
 ```python
 @register_tool(name="Agent", category="agent")
@@ -386,11 +386,11 @@ Claude Code 的子代理按"工程角色"分（Explore/Plan/Verification），Fl
 如果只有 1 天时间，能交付的最大价值改动：
 
 1. **Tool 类添加 `required_permission` 字段**（30 分钟）
-   - `pentestagent/tools/registry.py`：`Tool` dataclass 加 `required_permission: int = 99`
+   - `flaghunter/tools/registry.py`：`Tool` dataclass 加 `required_permission: int = 99`
    - 所有现有工具注册处加 `required_permission=PermissionMode.ALLOW`（默认兼容）
 
 2. **PermissionEnforcer 最小实现**（2 小时）
-   - `pentestagent/runtime/permission_enforcer.py`
+   - `flaghunter/runtime/permission_enforcer.py`
    - 实现 `check(tool_name, arguments)` 接口
    - bash 命令风险分类：检测 `nc -e`、`bash -i`、`python -c 'import pty'` 等反向 shell 特征
 

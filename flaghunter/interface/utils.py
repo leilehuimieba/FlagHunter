@@ -1,10 +1,12 @@
-"""Interface utilities for PentestAgent."""
+"""Interface utilities for FlagHunter."""
 
 from typing import Any, Optional
 
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+
+from ..config.constants import APP_VERSION
 
 console = Console()
 
@@ -24,13 +26,13 @@ ASCII_BANNER = r"""
 
 
 def print_banner():
-    """Print the PentestAgent banner."""
+    """Print the FlagHunter banner."""
     console.print(f"[bold white]{ASCII_BANNER}[/]")
     console.print(
-        "[bold white]====================== PENTESTAGENT =======================[/]"
+        "[bold white]====================== FLAGHUNTER =======================[/]"
     )
     console.print(
-        "[dim white]        AI Penetration Testing Agents  v0.2.0[/dim white]\n"
+        f"[dim white]        AI Penetration Testing Agents  v{APP_VERSION}[/dim white]\n"
     )
 
 
@@ -126,7 +128,7 @@ def print_status(
         tools_count: Number of loaded tools
         findings_count: Number of findings
     """
-    table = Table(title="PentestAgent Status", show_header=False)
+    table = Table(title="FlagHunter Status", show_header=False)
     table.add_column("Property", style="cyan")
     table.add_column("Value", style="white")
 

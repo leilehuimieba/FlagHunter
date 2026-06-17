@@ -1,4 +1,4 @@
-"""MCP (Model Context Protocol) integration for PentestAgent."""
+"""MCP (Model Context Protocol) integration for FlagHunter."""
 
 from . import mcp_transport_stdio, mcp_transport_streamable_http
 from .mcp_core import MCPRouter, ToolRegistry

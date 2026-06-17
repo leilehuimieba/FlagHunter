@@ -184,7 +184,7 @@ class PermissionEnforcer:
 
     @classmethod
     def from_env(cls) -> PermissionEnforcer:
-        mode_val = int(os.getenv("PENTESTAGENT_PERMISSION_MODE", str(PermissionMode.ALLOW)))
+        mode_val = int(os.getenv("FLAGHUNTER_PERMISSION_MODE", str(PermissionMode.ALLOW)))
         return cls(mode=PermissionMode(mode_val))
 
     def check(self, tool_name: str, arguments: dict[str, Any] | None = None) -> EnforcementResult:

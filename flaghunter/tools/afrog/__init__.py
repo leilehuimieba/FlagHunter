@@ -1,4 +1,4 @@
-"""Structured afrog wrapper for PentestAgent."""
+"""Structured afrog wrapper for FlagHunter."""
 
 from __future__ import annotations
 

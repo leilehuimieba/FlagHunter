@@ -1,4 +1,4 @@
-"""Structured nmap wrapper for PentestAgent."""
+"""Structured nmap wrapper for FlagHunter."""
 
 from __future__ import annotations
 
@@ -336,7 +336,7 @@ async def run_nmap(
     category="network",
 )
 async def nmap_tool(arguments: dict, runtime: "Runtime") -> str:
-    """Registered PentestAgent tool wrapper for structured nmap output."""
+    """Registered FlagHunter tool wrapper for structured nmap output."""
     result = await run_nmap(
         target=arguments["target"],
         ports=arguments.get("ports", "1-1000"),

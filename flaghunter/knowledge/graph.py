@@ -1,5 +1,5 @@
 """
-Shadow Graph implementation for PentestAgent.
+Shadow Graph implementation for FlagHunter.
 
 This module provides a lightweight knowledge graph that is built automatically
 from agent notes. It is used by the Orchestrator to compute strategic insights

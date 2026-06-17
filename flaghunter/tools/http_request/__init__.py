@@ -1,4 +1,4 @@
-"""Minimal structured HTTP request tool for PentestAgent."""
+"""Minimal structured HTTP request tool for FlagHunter."""
 
 from __future__ import annotations
 

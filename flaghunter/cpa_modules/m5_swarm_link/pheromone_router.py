@@ -1,5 +1,5 @@
 """
-PentestAgent M5 Swarm Link - Pheromone Router Module
+FlagHunter M5 Swarm Link - Pheromone Router Module
 借鉴蚁群算法实现任务优先级动态调整的信息素路由器。
 Python 3.10+ 标准库（asyncio, datetime, heapq），零外部依赖。
 """

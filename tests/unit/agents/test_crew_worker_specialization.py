@@ -114,7 +114,7 @@ async def test_run_worker_filters_tools_and_applies_specialized_prompt(monkeypat
         _FakeLocalRuntime,
     )
     monkeypatch.setattr(
-        "flaghunter.agents.pa_agent.PentestAgentAgent",
+        "flaghunter.agents.pa_agent.FlagHunterAgent",
         _FakeAgent,
     )
     monkeypatch.setattr(

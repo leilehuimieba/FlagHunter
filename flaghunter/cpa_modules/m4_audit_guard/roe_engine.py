@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-roe_engine.py — PentestAgent M4 Audit Guard 的 RoE (Rules of Engagement) 规则引擎。
+roe_engine.py — FlagHunter M4 Audit Guard 的 RoE (Rules of Engagement) 规则引擎。
 
 本模块负责：
 1. 解析授权范围文档（.txt / .md / .yaml）

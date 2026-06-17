@@ -1,4 +1,4 @@
-"""Minimal MCP adapter scaffold for PentestAgent.
+"""Minimal MCP adapter scaffold for FlagHunter.
 
 This module provides a small example adapter and a base interface that
 adapter implementers can follow. Adapters are expected to provide a

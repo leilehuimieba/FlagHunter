@@ -21,7 +21,7 @@ def test_run_cli_routes_through_agent_session():
     # ...and must NOT hand-roll the pieces the composition root owns, or the
     # CPA hooks get skipped again (the bug this test guards).
     assert "build_runtime(" not in src, "CLI must not build runtime directly"
-    assert "PentestAgentAgent(" not in src, "CLI must not construct the agent directly"
+    assert "FlagHunterAgent(" not in src, "CLI must not construct the agent directly"
     assert "get_all_tools(" not in src, "CLI must not load tools directly"
     assert "LLM(model=" not in src, "CLI must not construct an LLM outside the root"
 

@@ -1,4 +1,4 @@
-"""Knowledge and RAG system for PentestAgent."""
+"""Knowledge and RAG system for FlagHunter."""
 
 from .embeddings import (
     EmbeddingCache,

@@ -1,4 +1,4 @@
-"""Tool registry for PentestAgent."""
+"""Tool registry for FlagHunter."""
 
 from dataclasses import dataclass, field
 from functools import wraps

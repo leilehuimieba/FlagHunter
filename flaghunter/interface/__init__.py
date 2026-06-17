@@ -1,4 +1,4 @@
-"""User interface module for PentestAgent.
+"""User interface module for FlagHunter.
 
 Keep package imports lazy so non-UI callers can reuse light helpers such as
 ``interface.initializer`` without pulling in optional UI/server dependencies
@@ -14,7 +14,7 @@ __all__ = [
     "main",
     "run_cli",
     "run_tui",
-    "PentestAgentTUI",
+    "FlagHunterTUI",
     "print_banner",
     "format_finding",
     "print_status",
@@ -23,7 +23,7 @@ __all__ = [
 _LAZY_EXPORTS = {
     "run_cli": (".cli", "run_cli"),
     "main": (".main", "main"),
-    "PentestAgentTUI": (".tui", "PentestAgentTUI"),
+    "FlagHunterTUI": (".tui", "FlagHunterTUI"),
     "run_tui": (".tui", "run_tui"),
     "format_finding": (".utils", "format_finding"),
     "print_banner": (".utils", "print_banner"),

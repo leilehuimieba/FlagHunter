@@ -1,4 +1,4 @@
-"""LLM configuration for PentestAgent."""
+"""LLM configuration for FlagHunter."""
 
 from dataclasses import dataclass, field
 from typing import Optional

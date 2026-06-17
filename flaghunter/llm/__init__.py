@@ -1,4 +1,4 @@
-"""LLM integration for PentestAgent."""
+"""LLM integration for FlagHunter."""
 
 from .config import ModelConfig
 from .llm import LLM, LLMResponse

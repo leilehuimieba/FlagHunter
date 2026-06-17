@@ -1,4 +1,4 @@
-"""Browser automation tool for PentestAgent."""
+"""Browser automation tool for FlagHunter."""
 
 import json
 from typing import TYPE_CHECKING

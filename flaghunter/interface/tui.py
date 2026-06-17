@@ -1,5 +1,5 @@
 """
-PentestAgent TUI - Terminal User Interface
+FlagHunter TUI - Terminal User Interface
 """
 
 import asyncio
@@ -69,7 +69,7 @@ class CrewTree(Tree):
 
 
 if TYPE_CHECKING:
-    from ..agents.pa_agent import PentestAgentAgent
+    from ..agents.pa_agent import FlagHunterAgent
 
 
 # Each entry is (signature, description).
@@ -184,7 +184,7 @@ COMMAND_SIGNATURES: List[tuple] = [
     ("/token", "Show token usage statistics"),
     ("/prompt", "Show system prompt"),
     ("/help", "Show help"),
-    ("/quit", "Exit PentestAgent"),
+    ("/quit", "Exit FlagHunter"),
 ]
 
 
@@ -486,7 +486,7 @@ class HelpScreen(ModalScreen):
 
     def compose(self) -> ComposeResult:
         yield Container(
-            Static("PentestAgent Help", id="help-title"),
+            Static("FlagHunter Help", id="help-title"),
             Static(self._get_help_text(), id="help-content"),
             Center(Button("Close", id="help-close")),
             id="help-container",
@@ -702,7 +702,7 @@ class ToolsScreen(ModalScreen):
     """
     from ..tools import Tool
 
-    def __init__(self, tools: List[Tool], tui: "PentestAgentTUI") -> None:
+    def __init__(self, tools: List[Tool], tui: "FlagHunterTUI") -> None:
         from ..tools import Tool
 
         super().__init__()
@@ -1077,11 +1077,11 @@ class MCPScreen(ModalScreen):
     MCPScreen { align: center middle; }
     """
 
-    from ..agents.pa_agent import PentestAgentAgent
+    from ..agents.pa_agent import FlagHunterAgent
     from ..mcp import MCPManager, MCPServerConfig, SSEServerConfig, StdioServerConfig
 
     def __init__(
-        self, mcp_manager: MCPManager, agent: PentestAgentAgent, tui: "PentestAgentTUI"
+        self, mcp_manager: MCPManager, agent: FlagHunterAgent, tui: "FlagHunterTUI"
     ) -> None:
         super().__init__()
         self.mcp_manager = mcp_manager
@@ -1681,7 +1681,7 @@ class AssistantMessage(CopyableMixin):
         super().__init__(**kwargs)
         self._copy_content = content
         self._header_text = Text.assemble(
-            (">> ", "#9a9a9a"), ("PentestAgent", "bold #d4d4d4")
+            (">> ", "#9a9a9a"), ("FlagHunter", "bold #d4d4d4")
         )
         body = Text()
         for line in wrap_text_lines(content, width=90):
@@ -1974,7 +1974,7 @@ class CTFMemoryControlPanel(Static):
 
     def __init__(
         self,
-        tui: "PentestAgentTUI",
+        tui: "FlagHunterTUI",
         *,
         filter_mode: str = "all",
         sort_by: str = "recent",
@@ -2613,8 +2613,8 @@ class ResizeDivider(Widget):
 # ----- Main TUI App -----
 
 
-class PentestAgentTUI(App):
-    """Main PentestAgent TUI Application"""
+class FlagHunterTUI(App):
+    """Main FlagHunter TUI Application"""
 
     # ═══════════════════════════════════════════════════════════
     # PA THEME - Ethereal grays
@@ -2834,7 +2834,7 @@ class PentestAgentTUI(App):
         Binding("down", "history_down", "Next", show=False),
     ]
 
-    TITLE = "PentestAgent"
+    TITLE = "FlagHunter"
     SUB_TITLE = "AI Penetration Testing"
 
     @property
@@ -2873,7 +2873,7 @@ class PentestAgentTUI(App):
         self._prebuilt_components = prebuilt_components
 
         # Agent components
-        self.agent: Optional["PentestAgentAgent"] = None
+        self.agent: Optional["FlagHunterAgent"] = None
         self.runtime = None
         self.mcp_manager = None
         self.all_tools = []
@@ -3059,7 +3059,7 @@ class PentestAgentTUI(App):
 
             if not self.model:
                 self._add_system(
-                    "[!] No model configured. Set PENTESTAGENT_MODEL environment variable or create a .env file (see .env.example)."
+                    "[!] No model configured. Set FLAGHUNTER_MODEL environment variable or create a .env file (see .env.example)."
                 )
                 self._set_status("error")
                 self._is_initializing = False
@@ -3141,14 +3141,14 @@ class PentestAgentTUI(App):
             try:
                 self._update_header(
                     model_line=(
-                        f"+ PentestAgent ready\n"
+                        f"+ FlagHunter ready\n"
                         f"  Model: {self.model} | Tools: {len(self.all_tools)} | MCP: {mcp_server_count} | RAG: {rag_doc_count}\n"
                         f"  Runtime: {runtime_str} | Mode: Assist (use /agent or /crew for autonomous modes)"
                     )
                 )
             except Exception:
                 self._add_system(
-                    f"+ PentestAgent ready\n"
+                    f"+ FlagHunter ready\n"
                     f"  Model: {self.model} | Tools: {len(self.all_tools)} | MCP: {mcp_server_count} | RAG: {rag_doc_count}\n"
                     f"  Runtime: {runtime_str} | Mode: Assist (use /agent or /crew for autonomous modes)"
                 )
@@ -3211,14 +3211,14 @@ class PentestAgentTUI(App):
             try:
                 self._update_header(
                     model_line=(
-                        f"+ PentestAgent — MCP Server Mode (read-only)\n"
+                        f"+ FlagHunter — MCP Server Mode (read-only)\n"
                         f"  Model: {self.model} | Tools: {len(self.all_tools)} | MCP servers: {mcp_server_count} | RAG: {rag_doc_count}\n"
                         f"  Waiting for MCP client tasks…"
                     )
                 )
             except Exception:
                 self._add_system(
-                    f"+ PentestAgent — MCP Server Mode (read-only)\n"
+                    f"+ FlagHunter — MCP Server Mode (read-only)\n"
                     f"  Model: {self.model} | Tools: {len(self.all_tools)} | MCP: {mcp_server_count} | RAG: {rag_doc_count}"
                 )
 
@@ -4716,7 +4716,7 @@ class PentestAgentTUI(App):
             scroll = self.query_one("#chat-scroll", ScrollableContainer)
             updated = False
             for child in scroll.children:
-                if isinstance(child, SystemMessage) and "PentestAgent ready" in getattr(
+                if isinstance(child, SystemMessage) and "FlagHunter ready" in getattr(
                     child, "message_content", ""
                 ):
                     # Replace existing Target line if present, otherwise append
@@ -4810,7 +4810,7 @@ class PentestAgentTUI(App):
         notes = await get_all_notes()
         if not notes:
             self._add_system(
-                "No notes found. PentestAgent saves findings using the notes tool during testing."
+                "No notes found. FlagHunter saves findings using the notes tool during testing."
             )
             return
 
@@ -6803,7 +6803,7 @@ Be concise. Use the actual data from notes."""
             scroll = self.query_one("#chat-scroll", ScrollableContainer)
             updated = False
             for child in scroll.children:
-                if isinstance(child, SystemMessage) and "PentestAgent ready" in getattr(
+                if isinstance(child, SystemMessage) and "FlagHunter ready" in getattr(
                     child, "message_content", ""
                 ):
                     # Replace existing Target line if present, otherwise append
@@ -6917,7 +6917,7 @@ Be concise. Use the actual data from notes."""
                 mode = getattr(self, "_mode", "")
                 mode += " (use /assist for single tool execution, /agent or /crew for autonomous modes, /interact for interactive chat)"
                 lines.append(
-                    f"+ PentestAgent ready\n  Model: {getattr(self, 'model', '')} | Tools: {tools_count} | MCP: {getattr(self, 'mcp_server_count', '')} | RAG: {getattr(self, 'rag_doc_count', '')}\n  Runtime: {runtime_str} | Mode: {mode}"
+                    f"+ FlagHunter ready\n  Model: {getattr(self, 'model', '')} | Tools: {tools_count} | MCP: {getattr(self, 'mcp_server_count', '')} | RAG: {getattr(self, 'rag_doc_count', '')}\n  Runtime: {runtime_str} | Mode: {mode}"
                 )
             runtime_status = getattr(self, "runtime_info", {}).get("status_text", "")
             if runtime_status:
@@ -10436,7 +10436,7 @@ def run_tui(
     use_docker: bool = False,
     use_ssh: bool = False,
 ):
-    """Run the PentestAgent TUI"""
+    """Run the FlagHunter TUI"""
     # Pre-build RAG before Textual takes over the terminal.
     # On Python 3.14 Textual sets terminal FDs to raw/CLOEXEC mode;
     # sentence-transformers then spawns worker subprocesses that inherit
@@ -10469,7 +10469,7 @@ def run_tui(
     except Exception:
         prebuilt_rag = None
 
-    app = PentestAgentTUI(
+    app = FlagHunterTUI(
         target=target,
         model=model,
         use_docker=use_docker,

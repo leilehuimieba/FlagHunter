@@ -87,7 +87,7 @@ class AgentSession:
 ## 4. 关节 B 契约:`ChainContext` + registry 分发(编排 ↔ 策略)
 
 ### 4.1 现状落点(真实代码)
-- 已有 `StrategyContext`(`strategy_registry.py:14`):`{dispatcher:Any, target, page_features, hint, extras}` —— **半成型,但 `dispatcher:Any` 仍是上帝对象透传**。
+- 已有 `ChainContext`/兼容别名 `StrategyContext`(`strategy_registry.py:14`):`{dispatcher:Any, target, page_features, hint, extras, state, runtime, capability_registry, strategy_memory, exploitation_mode}` —— **显式字段已叠加,但 `dispatcher:Any` 仍作为过渡期兼容能力透传**。
 - 已有 `StrategyDefinition`(`strategy_registry.py:23`):`{kind, chain_name, precondition, execute, ...}` + `is_applicable(ctx)`。
 - 分发现状:`_execute_chain`(`ctf_dispatcher.py:2291`)硬 if/elif on `chain_name`;约 60% chain 逻辑仍是 dispatcher 上的 `_execute_*/_attempt_*/_run_*_strategy` 方法(共 40 个),未进 registry。
 - 结果类型:`_ChainOutcome{progress, flag, reason}`(`ctf_dispatcher.py:268`)。
@@ -109,7 +109,7 @@ class AgentSession:
   ```
   过渡期允许保留 `dispatcher` 引用做兼容,但新代码只准用显式字段(I4);存量逐 chain 收敛。
 - **registry 驱动分发**:`_execute_chain` 改为按 `chain_name` 从 `StrategyRegistry` 取该链有序策略并跑 `_run_strategy_sequence`,取代 if/elif。保留现有语义:**仅 `outcome.flag` 短路,progress 不短路**(这是已验证 4 次的「末尾追加桥接策略零回归」前提,不能改)。
-- **chains/ 子包**:dispatcher 上的 40 个 chain 方法物理迁出到 `pentestagent/agents/pa_agent/chains/{web,sqli,xss,ssti,upload,jwt,misc,cmdi,ssrf,lfi}.py`,每个注册为 `StrategyDefinition`。`ctf_dispatcher.py` 收缩为「装配 + 主循环 + 路由」。
+- **chains/ 子包**:dispatcher 上的 40 个 chain 方法物理迁出到 `flaghunter/agents/pa_agent/chains/{web,sqli,xss,ssti,upload,jwt,misc,cmdi,ssrf,lfi}.py`,每个注册为 `StrategyDefinition`。`ctf_dispatcher.py` 收缩为「装配 + 主循环 + 路由」。
 
 ### 4.3 关节 B「完成定义(DoD)」
 - `_execute_chain` 无 chain 专属 if/elif(除最外层 registry 查询)。
@@ -126,7 +126,7 @@ class AgentSession:
 | **P0** | 本 ADR:定骨架 + 两契约(纸面) | — | 无 | 经确认 |
 | **P1** | `AgentSession` 落地;4 入口改走门面;修 CLI/web cpa-skip bug | A | 中(触 TUI/web 大文件) | §3.3 |
 | **P2** | pa_agent & crew 校验同一事件/结果契约 | A→编排 | 低 | 两 agent 输出经同一总线 |
-| **P3** | `_execute_chain` if/elif → registry;引入 `ChainContext` 破上帝对象 | B | 中高 | §4.3 前两条 |
+| **P3** | P3a 已完成:`_execute_chain` if/elif → handler map;P3b 渐进引入 `ChainContext` 破上帝对象 | B | 中高 | §4.3 前两条 |
 | **P4** | 拆 `chains/` 子包,低耦合先行(misc/cmdi/ssrf/lfi → sqli/jwt/upload → web/xss/ssti) | B | 中高 | §4.3 后两条 |
 | **P5** | cpa_modules m1..m6 命名/文档、capability registry 收尾 | 能力层 | 低 | 模块职责对照表 |
 
@@ -138,12 +138,12 @@ class AgentSession:
 
 ---
 
-## 5.1 已知债:组合根错位(P1-b/P2 清理)
+## 5.1 已清理:组合根错位(P1-b/P2)
 
-`build_agent_components`(及 `build_runtime`)现住在 `interface/initializer.py`,但它本质是**组合根**(composition root):向下 import agents/llm/tools/runtime 装配一切,理应被所有入口依赖、位置在 entry 层之下。`AgentSession` 在 `session/`,若模块级 import 它即构成 `session→interface` 反向依赖(违反 I1)。
+`build_agent_components`(及 `build_runtime`)本质是**组合根**(composition root):向下 import agents/llm/tools/runtime 装配一切,理应被所有入口依赖、位置在 entry 层之下。当前代码已将组合根迁入 `session/initializer.py`,避免 `AgentSession` 反向 import `interface` 层(满足 I1)。
 
 - **P1-a 临时处置(已落地)**:`AgentSession.create` 通过**延迟(函数内)import** 或注入式 `builder` 参数引用组合根,**无模块级环**;单测用 fake builder 注入。
-- **P1-b/P2 正解**:把 `build_agent_components/build_runtime/activate_workspace_for_target` 迁到 `session/`(或新 `bootstrap/`)中立层,`interface/initializer.py` 改为 re-export 保后向兼容,届时删除延迟 import。
+- **P1-b/P2 正解(已落地)**:`build_agent_components/build_runtime/activate_workspace_for_target/has_ssh_runtime_config` 已迁到 `session/initializer.py`;`interface/initializer.py` 退为 re-export 保后向兼容;`AgentSession.create` 默认从 session-owned composition root 延迟 import。
 
 ## 5.2 进展日志
 
@@ -155,11 +155,15 @@ class AgentSession:
 - **P1-tui 完成** `c25f747`:**关键发现**——TUI 本就经 `build_agent_components`(无 CPA bug);I3 只需把 `notifier.notify` 通道 bus 化(TUI 一行未动,`register_callback` 自动订阅);3 个控制通道(spawn/despawn/wake-up,带返回值的定向 hook)保持原样。
 - **关节 A 全闭合**:I2 全线达成(CLI/web 修了 bug,MCP/TUI 本就合规);I3 全线达成(web/MCP/notifier 均收敛到中立 EventBus)。
 - **P2 顺带达成**:crew(orchestrator/worker_pool)与单 agent 都走 `notify()` → 随 notifier bus 化即同源;`RunResult` 结果契约在 `AgentSession`。
+- **P1-b/P2 组合根下沉完成**:`session/initializer.py` 成为中立组合根,`interface/initializer.py` 仅作兼容 re-export;新增 `test_default_builder_lives_below_interface_layer` 与 `test_interface_initializer_is_compatibility_reexport` 锁定该契约。
+- **P3a 完成**:`_execute_chain` 收缩为 handler map 路由 + 统一 LLM fallback;XSS/Web 共享预跑语义下沉到 `_execute_xss_route/_execute_web_route`;新增 `test_execute_chain_routes_through_handler_map_without_chain_specific_branches` 防止 chain 专属分支回流。
+- **P3b 第一刀完成**:`StrategyContext` 演进为 `ChainContext`(保留 `StrategyContext` 兼容别名),显式携带 `state/runtime/capability_registry/strategy_memory/exploitation_mode`;`CTFTaskDispatcher._strategy_context()` 统一填充这些字段;SSTI/hash/render 相关 precondition 已优先读 `context.state`,避免新增 `dispatcher.state` 直读。
+- **P4 低耦合链拆分进行中**:`cmdi/ssrf` 已在 `chains/injection.py`;LFI 固定文件读取探针已迁入 `chains/file_read.py::LFIChainMixin`;misc registry 顺序执行 + LLM fallback 已迁入 `chains/misc.py::MiscChainMixin`;JWT 薄路由已迁入 `chains/jwt.py::JWTChainMixin`;upload 通用上传编排入口已迁入 `chains/upload.py::UploadChainMixin`;dispatcher 对这些低耦合链只保留 mixin 组合和 handler 委托。新增 `test_lfi_chain_handler_is_delegated_to_file_read_chain_mixin` / `test_lfi_chain_mixin_builds_existing_probe_commands` / `test_dispatcher_misc_chain_method_comes_from_misc_mixin` / `test_dispatcher_jwt_chain_handler_delegates_to_jwt_mixin` / `test_upload_chain_entrypoint_lives_in_upload_chain_mixin` 锁定物理迁出和等价入口。
 
 ### P3 风险发现(深度测绘,2026-06-17)
-`_execute_chain`(`ctf_dispatcher.py:2291-2368`)的 if/elif 可安全改 dict 分发(**P3a,低风险**)。但**关节 B 的「破上帝对象」(P3b)高风险**:所有注册策略通过 `context.dispatcher.*` 访问 dispatcher 全部能力(`_run_strategy_sequence` 每轮重建 `ctx=_strategy_context(dispatcher=self)`),strategy_registry 里 40+ lambda 全依赖 `ctx.dispatcher._run_*/_attempt_*/state/strategy_memory/...`。用 ChainContext 显式字段**替换** dispatcher 透传 = 重写这 40+ lambda + 所有 chain 方法,动 live 调过的 CTF 核心,**单测绿 ≠ 解题行为不变**。故 P3 拆分:
-- **P3a**:`_execute_chain` if/elif → dict 分发表(行为等价、机械、安全)。
-- **P3b**:ChainContext 破上帝对象——**降级为「叠加显式字段、保留 dispatcher 兼容」的渐进式**,不做一次性替换;或与用户确认激进度后再定。
+`_execute_chain` 的 if/elif 已安全改为 handler map(**P3a 完成**)。但**关节 B 的「破上帝对象」(P3b)高风险**:所有注册策略通过 `context.dispatcher.*` 访问 dispatcher 全部能力(`_run_strategy_sequence` 每轮重建 `ctx=_strategy_context(dispatcher=self)`),strategy_registry 里 40+ lambda 全依赖 `ctx.dispatcher._run_*/_attempt_*/state/strategy_memory/...`。用 ChainContext 显式字段**替换** dispatcher 透传 = 重写这 40+ lambda + 所有 chain 方法,动 live 调过的 CTF 核心,**单测绿 ≠ 解题行为不变**。故 P3 拆分:
+- **P3a**:`_execute_chain` if/elif → handler map 分发(已落地,行为等价、机械、安全)。
+- **P3b**:ChainContext 破上帝对象——**已完成「叠加显式字段、保留 dispatcher 兼容」第一刀**;下一步逐 strategy/executor 把 `ctx.dispatcher._run_*` 下沉到 chains/ 或显式服务字段,不做一次性替换。
 
 ## 6. 显式非目标(本轮不做)
 - 不重构 foundation 依赖方向(已健康)。

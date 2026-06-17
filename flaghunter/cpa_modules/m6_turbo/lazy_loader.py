@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-lazy_loader.py — PentestAgent M6 Turbo 延迟加载统一封装与 import 代理
+lazy_loader.py — FlagHunter M6 Turbo 延迟加载统一封装与 import 代理
 
 本模块提供 ``LazyLoader`` 工具类，用于对重量级第三方库（pwn、playwright 等）
 实施按需（lazy）加载，避免启动时一次性全部 import 带来的内存与耗时开销。
@@ -18,7 +18,7 @@ lazy_loader.py — PentestAgent M6 Turbo 延迟加载统一封装与 import 代�
 - 仅使用标准库（importlib, sys, types, gc, time, asyncio）
 - 零外部依赖
 
-作者: PentestAgent M6 模块
+作者: FlagHunter M6 模块
 """
 
 from __future__ import annotations

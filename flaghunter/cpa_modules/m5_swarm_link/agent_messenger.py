@@ -1,5 +1,5 @@
 """
-PentestAgent M5 Swarm Link — Agent 间通信协议
+FlagHunter M5 Swarm Link — Agent 间通信协议
 
 AgentMessenger 封装 Agent 间异步消息收发，以 SharedBlackboard 为底层传输，
 支持点对点消息、组播、发现上报、状态通知、帮助请求、应答确认、对话追溯及

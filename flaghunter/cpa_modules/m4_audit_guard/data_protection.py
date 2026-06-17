@@ -1,5 +1,5 @@
 """
-data_protection.py — PentestAgent M4 Audit Guard 数据保护模块
+data_protection.py — FlagHunter M4 Audit Guard 数据保护模块
 
 提供敏感信息的自动检测、脱敏、哈希处理功能。
 覆盖 API Key、密码、Token、IP 地址、邮箱、Flag、信用卡等 8 类敏感信息。

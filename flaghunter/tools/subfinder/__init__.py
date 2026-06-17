@@ -1,4 +1,4 @@
-"""Structured subfinder wrapper for PentestAgent."""
+"""Structured subfinder wrapper for FlagHunter."""
 
 from __future__ import annotations
 

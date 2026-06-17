@@ -179,7 +179,7 @@ $ {{ entry.command }}
 
 ---
 
-*本报告由 PentestAgent M3 Reporter 模块自动生成。*
+*本报告由 FlagHunter M3 Reporter 模块自动生成。*
 
 *报告ID: {{ report_id }} | 生成时间: {{ generated_at }}*
 

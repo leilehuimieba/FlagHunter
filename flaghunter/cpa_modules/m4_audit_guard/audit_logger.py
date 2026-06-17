@@ -1,5 +1,5 @@
 """
-PentestAgent M4 Audit Guard — 不可篡改的操作审计日志系统
+FlagHunter M4 Audit Guard — 不可篡改的操作审计日志系统
 核心特性: sha256哈希链防篡改, JSON Lines格式, 多类型审计记录,
 会话级摘要与风险评级, 完整性校验, ZIP证据包导出, 日志归档
 技术约束: Python 3.10+, 仅标准库, 零外部依赖

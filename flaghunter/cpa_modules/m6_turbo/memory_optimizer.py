@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-memory_optimizer.py — PentestAgent M6 Turbo 内存监控与优化器
+memory_optimizer.py — FlagHunter M6 Turbo 内存监控与优化器
 
 本模块提供 ``MemoryOptimizer`` 类，用于：
 1. **实时内存监控** — 异步后台任务定期采样 RSS，超限时触发告警；
@@ -17,7 +17,7 @@ memory_optimizer.py — PentestAgent M6 Turbo 内存监控与优化器
 - 仅使用标准库（gc, sys, os, asyncio, ctypes, warnings, time 等）
 - 零外部依赖（psutil 为可选增强）
 
-作者: PentestAgent M6 模块
+作者: FlagHunter M6 模块
 """
 
 from __future__ import annotations

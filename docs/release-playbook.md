@@ -232,13 +232,13 @@ gh repo view leilehuimieba/FlagHunter --json visibility,isPrivate,homepageUrl
 
 除非仓库策略已经变化并被明确确认。
 
-### 错误 4：把内部兼容骨架改名当成普通 patch
+### 错误 4：把包骨架 / 命令改名当成普通 patch
 
 如果涉及：
 
-- `pentestagent/` 包骨架
-- `pentestagent` 命令
-- 兼容性配置字段
+- `flaghunter/` 包骨架
+- `flaghunter` 命令
+- 环境变量等兼容性配置字段
 
 这类变更通常不应作为普通 patch 处理，应重新评估版本级别与迁移说明。
 

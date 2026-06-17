@@ -1,4 +1,4 @@
-"""Notes tool for PentestAgent - persistent key findings storage."""
+"""Notes tool for FlagHunter - persistent key findings storage."""
 
 import asyncio
 import json

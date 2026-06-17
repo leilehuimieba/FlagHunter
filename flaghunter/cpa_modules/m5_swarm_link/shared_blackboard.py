@@ -1,5 +1,5 @@
 """
-shared_blackboard.py — PentestAgent M5 Swarm Link 共享黑板模块
+shared_blackboard.py — FlagHunter M5 Swarm Link 共享黑板模块
 
 基于 SQLite 的持久化消息总线，支持异步消息发布/订阅、
 多维度查询过滤、消息过期自动清理、信息素优先级标记。

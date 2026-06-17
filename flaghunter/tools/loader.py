@@ -1,4 +1,4 @@
-"""Dynamic tool loader for PentestAgent."""
+"""Dynamic tool loader for FlagHunter."""
 
 import importlib
 import sys

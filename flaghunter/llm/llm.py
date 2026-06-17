@@ -1,4 +1,4 @@
-"""LiteLLM wrapper for PentestAgent."""
+"""LiteLLM wrapper for FlagHunter."""
 
 import asyncio
 import os
@@ -113,8 +113,8 @@ class LLM:
             # Drop unsupported params for models that don't support them
             litellm.drop_params = True
 
-            # Enable debug mode if PENTESTAGENT_DEBUG is set
-            if os.getenv("PENTESTAGENT_DEBUG", "false").lower() in ("true", "1", "yes"):
+            # Enable debug mode if FLAGHUNTER_DEBUG is set
+            if os.getenv("FLAGHUNTER_DEBUG", "false").lower() in ("true", "1", "yes"):
                 litellm.set_verbose = True
                 import logging
 
