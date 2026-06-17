@@ -145,6 +145,13 @@ class AgentSession:
 - **P1-a 临时处置(已落地)**:`AgentSession.create` 通过**延迟(函数内)import** 或注入式 `builder` 参数引用组合根,**无模块级环**;单测用 fake builder 注入。
 - **P1-b/P2 正解**:把 `build_agent_components/build_runtime/activate_workspace_for_target` 迁到 `session/`(或新 `bootstrap/`)中立层,`interface/initializer.py` 改为 re-export 保后向兼容,届时删除延迟 import。
 
+## 5.2 进展日志
+
+- **P0 完成**(commit `65de99a`):本 ADR + 契约选型。
+- **P1-a 完成**(commit `d6c1712`):`session/event_bus.py`(中立 EventBus,I3)+ `session/agent_session.py`(`AgentSession` 门面 + `RunResult`,I2),10 单测,零回归(1521 passed)。独立新代码,未触入口。
+- **P1-b 进行中(CLI 已迁)**:`interface/cli.py` 三模式(ctf/crew/default)全部经 `AgentSession.create` 装配,删除手工 `build_runtime/LLM/get_all_tools/PentestAgentAgent` 构造 → **CLI 的 CPA M1–M6 不再被跳过**(bug 关闭)。新增结构守卫单测 `test_cli_uses_agent_session.py` 锁定 I2;原 `test_cli_local_asset_contract.py` 的 4 个 run_cli 测试改打桩到门面 seam(`AgentSession.create`)。CTF 模式 LLM 仍是 `temperature=0.7`(与门面一致)→ **行为零扰动**。
+  - **待续**:web_server / MCP server / TUI 三入口尚未迁(各自仍 hand-roll 或部分经 `build_agent_components`);事件总线适配(web 私有 EventBus / TUI notifier / MCP `_emit` → 中立 `EventBus`)留待这些入口迁移时一并做。
+
 ## 6. 显式非目标(本轮不做)
 - 不重构 foundation 依赖方向(已健康)。
 - 不改 LLM provider / api_hub 路由逻辑。

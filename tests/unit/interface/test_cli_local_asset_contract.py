@@ -182,24 +182,55 @@ def test_sync_runtime_challenge_context_persists_derived_target_fields() -> None
     )
 
 
+def _patch_agent_session(monkeypatch, *, model="gpt-5", agent=None):
+    """Patch the single assembly seam (AgentSession.create) with a fake session.
+
+    Post-P1-b the CLI builds everything through AgentSession.create, so unit
+    tests stub that seam instead of the old build_runtime/LLM primitives. The
+    facade always assembles an agent (cheap, unused in CTF mode), so CTF tests
+    no longer forbid agent construction — they assert the agent_loop is never
+    *driven* for CTF instead.
+    """
+    fake_session = SimpleNamespace(
+        runtime=_FakeRuntime(),
+        runtime_info={"label": "Local", "status_text": "ok"},
+        rag_engine=None,
+        llm=SimpleNamespace(model=model),
+        tools=[],
+        agent=agent,
+    )
+
+    async def _fake_create(**kwargs):
+        fake_session.create_kwargs = kwargs
+        return fake_session
+
+    # run_cli resolves the facade via `from ..session import AgentSession`, so
+    # patch create() on the real class wherever it is imported from.
+    from pentestagent.session import AgentSession as _RealAgentSession
+
+    monkeypatch.setattr(_RealAgentSession, "create", _fake_create)
+    return fake_session
+
+
+class _NeverRunAgent:
+    """An agent the facade may build, but whose loop must not run in CTF mode."""
+
+    def __init__(self):
+        self.loop_called = False
+
+    async def agent_loop(self, task_msg):
+        self.loop_called = True
+        raise AssertionError("agent_loop must not be driven for CLI CTF mode")
+        if False:  # pragma: no cover
+            yield None
+
+
 @pytest.mark.asyncio
 async def test_run_cli_routes_ctf_mode_into_dispatcher_with_local_asset_hint(monkeypatch, _mute_cli_console) -> None:
     captured = {}
 
     monkeypatch.setattr(interface_cli, "resolve_mode_contract", lambda payload, source_task=None: {"mode": "ctf", "modeSubtype": "web", "goalStyle": "flag"}, raising=False)
-    monkeypatch.setattr("pentestagent.interface.initializer.activate_workspace_for_target", lambda *args, **kwargs: None)
-
-    async def _fake_build_runtime(**kwargs):
-        return _FakeRuntime(), {"label": "Local", "status_text": "ok"}
-
-    monkeypatch.setattr("pentestagent.interface.initializer.build_runtime", _fake_build_runtime)
-    monkeypatch.setattr("pentestagent.interface.initializer.has_ssh_runtime_config", lambda: False)
-    monkeypatch.setattr("pentestagent.interface.cli.Path.exists", lambda self: False)
-    monkeypatch.setattr("pentestagent.interface.cli.get_all_tools", lambda: [], raising=False)
-    monkeypatch.setattr(
-        "pentestagent.llm.LLM",
-        lambda model, rag_engine=None: SimpleNamespace(model=model, rag_engine=rag_engine),
-    )
+    _patch_agent_session(monkeypatch, agent=_NeverRunAgent())
 
     class _FakeDispatcher:
         def __init__(self, runtime, progress_callback=None, verification_callback=None, llm=None):
@@ -215,11 +246,6 @@ async def test_run_cli_routes_ctf_mode_into_dispatcher_with_local_asset_hint(mon
             captured["challenge_context"] = challenge_context
             return SimpleNamespace(flag="flag{cli_ctf_ok}", reason="ok", chain_used=["xss"], missing_tools=[], notes=[])
 
-    class _ForbiddenAgent:
-        def __init__(self, *args, **kwargs):
-            raise AssertionError("PentestAgentAgent should not be constructed for CLI CTF mode")
-
-    monkeypatch.setattr("pentestagent.agents.pa_agent.PentestAgentAgent", _ForbiddenAgent)
     monkeypatch.setattr("pentestagent.agents.pa_agent.ctf_dispatcher.CTFTaskDispatcher", _FakeDispatcher)
     monkeypatch.setattr("pentestagent.interface.cli.CTFTaskDispatcher", _FakeDispatcher, raising=False)
 
@@ -263,22 +289,7 @@ async def test_run_cli_preserves_auto_ctf_subtype_for_dispatcher(monkeypatch, _m
         lambda payload, source_task=None: {"mode": "ctf", "modeSubtype": "unknown", "goalStyle": "flag"},
         raising=False,
     )
-    monkeypatch.setattr(
-        "pentestagent.interface.initializer.activate_workspace_for_target",
-        lambda *args, **kwargs: None,
-    )
-
-    async def _fake_build_runtime(**kwargs):
-        return _FakeRuntime(), {"label": "Local", "status_text": "ok"}
-
-    monkeypatch.setattr("pentestagent.interface.initializer.build_runtime", _fake_build_runtime)
-    monkeypatch.setattr("pentestagent.interface.initializer.has_ssh_runtime_config", lambda: False)
-    monkeypatch.setattr("pentestagent.interface.cli.Path.exists", lambda self: False)
-    monkeypatch.setattr("pentestagent.interface.cli.get_all_tools", lambda: [], raising=False)
-    monkeypatch.setattr(
-        "pentestagent.llm.LLM",
-        lambda model, rag_engine=None: SimpleNamespace(model=model, rag_engine=rag_engine),
-    )
+    _patch_agent_session(monkeypatch, agent=_NeverRunAgent())
 
     class _FakeDispatcher:
         def __init__(self, runtime, progress_callback=None, verification_callback=None, llm=None):
@@ -325,22 +336,7 @@ async def test_run_cli_syncs_derived_target_into_challenge_context_when_target_m
         lambda payload, source_task=None: {"mode": "ctf", "modeSubtype": "web", "goalStyle": "flag"},
         raising=False,
     )
-    monkeypatch.setattr(
-        "pentestagent.interface.initializer.activate_workspace_for_target",
-        lambda *args, **kwargs: None,
-    )
-
-    async def _fake_build_runtime(**kwargs):
-        return _FakeRuntime(), {"label": "Local", "status_text": "ok"}
-
-    monkeypatch.setattr("pentestagent.interface.initializer.build_runtime", _fake_build_runtime)
-    monkeypatch.setattr("pentestagent.interface.initializer.has_ssh_runtime_config", lambda: False)
-    monkeypatch.setattr("pentestagent.interface.cli.Path.exists", lambda self: False)
-    monkeypatch.setattr("pentestagent.interface.cli.get_all_tools", lambda: [], raising=False)
-    monkeypatch.setattr(
-        "pentestagent.llm.LLM",
-        lambda model, rag_engine=None: SimpleNamespace(model=model, rag_engine=rag_engine),
-    )
+    _patch_agent_session(monkeypatch, agent=_NeverRunAgent())
 
     class _FakeDispatcher:
         def __init__(self, runtime, progress_callback=None, verification_callback=None, llm=None):
@@ -361,11 +357,6 @@ async def test_run_cli_syncs_derived_target_into_challenge_context_when_target_m
             }
             return SimpleNamespace(flag="flag{cli_ctf_ok}", reason="ok", chain_used=["xss"], missing_tools=[], notes=[])
 
-    class _ForbiddenAgent:
-        def __init__(self, *args, **kwargs):
-            raise AssertionError("PentestAgentAgent should not be constructed for CLI CTF mode")
-
-    monkeypatch.setattr("pentestagent.agents.pa_agent.PentestAgentAgent", _ForbiddenAgent)
     monkeypatch.setattr("pentestagent.agents.pa_agent.ctf_dispatcher.CTFTaskDispatcher", _FakeDispatcher)
     monkeypatch.setattr("pentestagent.interface.cli.CTFTaskDispatcher", _FakeDispatcher, raising=False)
 
@@ -396,34 +387,25 @@ async def test_run_cli_syncs_derived_target_into_challenge_context_when_target_m
 
 @pytest.mark.asyncio
 async def test_run_cli_keeps_pentest_path_on_non_ctf_mode(monkeypatch, _mute_cli_console) -> None:
-    observed = {"agent_called": False, "dispatcher_called": False}
+    observed = {"loop_called": False, "dispatcher_called": False}
 
     monkeypatch.setattr(interface_cli, "resolve_mode_contract", lambda payload, source_task=None: {"mode": "pentest", "modeSubtype": "unknown", "goalStyle": "evidence"}, raising=False)
-    monkeypatch.setattr("pentestagent.interface.initializer.activate_workspace_for_target", lambda *args, **kwargs: None)
 
-    async def _fake_build_runtime(**kwargs):
-        return _FakeRuntime(), {"label": "Local", "status_text": "ok"}
-
-    monkeypatch.setattr("pentestagent.interface.initializer.build_runtime", _fake_build_runtime)
-    monkeypatch.setattr("pentestagent.interface.initializer.has_ssh_runtime_config", lambda: False)
-    monkeypatch.setattr("pentestagent.interface.cli.Path.exists", lambda self: False)
-    monkeypatch.setattr("pentestagent.interface.cli.get_all_tools", lambda: [], raising=False)
-
-    class _FakeAgent:
-        def __init__(self, *args, **kwargs):
-            observed["agent_called"] = True
-
+    class _LoopAgent:
         async def agent_loop(self, task_msg):
-            if False:
+            observed["loop_called"] = True
+            if False:  # pragma: no cover
                 yield None
             return
+
+    # Pentest mode reuses the agent assembled by the facade and drives its loop.
+    _patch_agent_session(monkeypatch, agent=_LoopAgent())
 
     class _ForbiddenDispatcher:
         def __init__(self, *args, **kwargs):
             observed["dispatcher_called"] = True
             raise AssertionError("dispatcher should not be used for pentest CLI mode")
 
-    monkeypatch.setattr("pentestagent.agents.pa_agent.PentestAgentAgent", _FakeAgent)
     monkeypatch.setattr("pentestagent.agents.pa_agent.ctf_dispatcher.CTFTaskDispatcher", _ForbiddenDispatcher)
 
     await interface_cli.run_cli(
@@ -433,5 +415,5 @@ async def test_run_cli_keeps_pentest_path_on_non_ctf_mode(monkeypatch, _mute_cli
         mode="pentest",
     )
 
-    assert observed["agent_called"] is True
+    assert observed["loop_called"] is True
     assert observed["dispatcher_called"] is False
