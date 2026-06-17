@@ -1,10 +1,10 @@
-# PentestAgent Kali Linux Image
+# FlagHunter Kali Linux Image
 # Full penetration testing environment
 
 FROM kalilinux/kali-last-release
 
 LABEL maintainer="Masic"
-LABEL description="PentestAgent with Kali Linux tools"
+LABEL description="FlagHunter with Kali Linux tools"
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive

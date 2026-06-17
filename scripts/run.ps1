@@ -1,4 +1,4 @@
-# PentestAgent Windows Runner Script
+# FlagHunter Windows Runner Script
 # Usage: .\run.ps1 [tui|run] [options...]
 #
 # Examples:
@@ -40,7 +40,7 @@ if ($env:OS -eq "Windows_NT") {
     chcp 65001 | Out-Null
 }
 
-# Run PentestAgent
+# Run FlagHunter
 Set-Location $ProjectRoot
 $ArgsList = $args
 if ($ArgsList.Count -eq 0 -or $ArgsList[0] -eq "tui") {

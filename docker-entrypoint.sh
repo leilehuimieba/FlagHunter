@@ -1,5 +1,5 @@
 #!/bin/bash
-# PentestAgent Docker Entrypoint
+# FlagHunter Docker Entrypoint
 
 set -e
 
@@ -9,7 +9,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-echo -e "${GREEN}🔧 PentestAgent Container Starting...${NC}"
+echo -e "${GREEN}🔧 FlagHunter Container Starting...${NC}"
 
 # Start VPN if config provided and openvpn is available
 if [ -f "/vpn/config.ovpn" ] && command -v openvpn >/dev/null 2>&1; then
@@ -54,10 +54,10 @@ if [ "$(id -u)" = "0" ] && [ "${CHOWN_ON_START,,}" = "true" ]; then
     fi
 fi
 
-export PENTESTAGENT_OUTPUT_DIR="$OUTPUT_DIR"
+export FLAGHUNTER_OUTPUT_DIR="$OUTPUT_DIR"
 
 echo -e "${GREEN}📁 Output directory: $OUTPUT_DIR${NC}"
-echo -e "${GREEN}🚀 Starting PentestAgent...${NC}"
+echo -e "${GREEN}🚀 Starting FlagHunter...${NC}"
 
 # Execute the main command
 exec "$@"

@@ -1,5 +1,5 @@
 #!/bin/bash
-# PentestAgent Run Script
+# FlagHunter Run Script
 
 set -e
 
@@ -28,7 +28,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --help)
-            echo "PentestAgent - AI Penetration Testing"
+            echo "FlagHunter - AI Penetration Testing"
             echo ""
             echo "Usage: run.sh [options]"
             echo ""
@@ -56,6 +56,6 @@ if [ -n "$TARGET" ]; then
     CMD="$CMD --target $TARGET"
 fi
 
-# Run PentestAgent
-echo "Starting PentestAgent..."
+# Run FlagHunter
+echo "Starting FlagHunter..."
 $CMD

@@ -1,7 +1,7 @@
-﻿# PentestAgent PowerShell Setup Script
+﻿# FlagHunter PowerShell Setup Script
 
 Write-Host "=================================================================="
-Write-Host "                        PENTESTAGENT"
+Write-Host "                        FLAGHUNTER"
 Write-Host "                  AI Penetration Testing"
 Write-Host "=================================================================="
 Write-Host ""
@@ -57,7 +57,7 @@ Write-Host "[OK] Playwright browsers installed"
 if (-not (Test-Path ".env")) {
     Write-Host "Creating .env file..."
     @"
-# PentestAgent Configuration
+# FlagHunter Configuration
 
 # API Keys (set at least one for chat model)
 OPENAI_API_KEY=
@@ -66,7 +66,7 @@ GEMINI_API_KEY=
 
 # OpenAI-compatible relay (optional — any URL that speaks /v1/chat/completions)
 # OPENAI_API_BASE=https://your-relay.example/v1
-# PENTESTAGENT_MODEL=openai/<model-name-on-your-relay>
+# FLAGHUNTER_MODEL=openai/<model-name-on-your-relay>
 
 # For web search functionality (optional)
 TAVILY_API_KEY=
@@ -76,20 +76,20 @@ TAVILY_API_KEY=
 # Anthropic: claude-sonnet-4-20250514, claude-opus-4-20250514
 # Google: gemini models require gemini/ prefix (e.g., gemini/gemini-2.5-flash)
 # Other providers: azure/, bedrock/, groq/, ollama/, together_ai/ (see litellm docs)
-PENTESTAGENT_MODEL=gpt-5
+FLAGHUNTER_MODEL=gpt-5
 
 # Embeddings (for RAG knowledge base)
 # Options: openai, local (default: openai if OPENAI_API_KEY set, else local)
-# PENTESTAGENT_EMBEDDINGS=local
+# FLAGHUNTER_EMBEDDINGS=local
 
 # Settings
-PENTESTAGENT_DEBUG=false
+FLAGHUNTER_DEBUG=false
 
 # Agent max iterations (regular agent + crew workers, default: 30)
-# PENTESTAGENT_AGENT_MAX_ITERATIONS=30
+# FLAGHUNTER_AGENT_MAX_ITERATIONS=30
 
 # Orchestrator max iterations (crew mode coordinator, default: 50)
-# PENTESTAGENT_ORCHESTRATOR_MAX_ITERATIONS=50
+# FLAGHUNTER_ORCHESTRATOR_MAX_ITERATIONS=50
 "@ | Set-Content -Path ".env" -Encoding UTF8
     Write-Host "[OK] .env file created"
     Write-Host "[!] Please edit .env and add your API keys"

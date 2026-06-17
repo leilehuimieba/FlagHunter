@@ -1,9 +1,9 @@
-# PentestAgent - AI Penetration Testing Agent
+# FlagHunter - AI Penetration Testing Agent
 # Base image with common tools
 
 FROM python:3.14-slim
 
-LABEL maintainer="PentestAgent"
+LABEL maintainer="FlagHunter"
 LABEL description="AI penetration testing"
 
 # Set environment variables

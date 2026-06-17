@@ -1,10 +1,10 @@
 #!/bin/bash
-# PentestAgent Setup Script
+# FlagHunter Setup Script
 
 set -e
 
 echo "=================================================================="
-echo "                        PENTESTAGENT"
+echo "                        FLAGHUNTER"
 echo "                  AI Penetration Testing"
 echo "=================================================================="
 echo ""
@@ -66,7 +66,7 @@ echo "[OK] Clipboard utilities check done"
 if [ ! -f ".env" ]; then
     echo "Creating .env file..."
     cat > .env << EOF
-# PentestAgent Configuration
+# FlagHunter Configuration
 
 # API Keys (set at least one for chat model)
 OPENAI_API_KEY=
@@ -75,7 +75,7 @@ GEMINI_API_KEY=
 
 # OpenAI-compatible relay (optional — any URL that speaks /v1/chat/completions)
 # OPENAI_API_BASE=https://your-relay.example/v1
-# PENTESTAGENT_MODEL=openai/<model-name-on-your-relay>
+# FLAGHUNTER_MODEL=openai/<model-name-on-your-relay>
 
 # For web search functionality (optional)
 TAVILY_API_KEY=
@@ -85,20 +85,20 @@ TAVILY_API_KEY=
 # Anthropic: claude-sonnet-4-20250514, claude-opus-4-20250514
 # Google: gemini models require gemini/ prefix (e.g., gemini/gemini-2.5-flash)
 # Other providers: azure/, bedrock/, groq/, ollama/, together_ai/ (see litellm docs)
-PENTESTAGENT_MODEL=gpt-5
+FLAGHUNTER_MODEL=gpt-5
 
 # Embeddings (for RAG knowledge base)
 # Options: openai, local (default: openai if OPENAI_API_KEY set, else local)
-# PENTESTAGENT_EMBEDDINGS=local
+# FLAGHUNTER_EMBEDDINGS=local
 
 # Settings
-PENTESTAGENT_DEBUG=false
+FLAGHUNTER_DEBUG=false
 
 # Agent max iterations (regular agent + crew workers, default: 30)
-# PENTESTAGENT_AGENT_MAX_ITERATIONS=30
+# FLAGHUNTER_AGENT_MAX_ITERATIONS=30
 
 # Orchestrator max iterations (crew mode coordinator, default: 50)
-# PENTESTAGENT_ORCHESTRATOR_MAX_ITERATIONS=50
+# FLAGHUNTER_ORCHESTRATOR_MAX_ITERATIONS=50
 EOF
     echo "[OK] .env file created"
     echo "[!] Please edit .env and add your API keys"
@@ -124,7 +124,7 @@ echo ""
 echo "To get started:"
 echo "  1. Edit .env and add your API keys"
 echo "  2. Activate the virtual environment: source venv/bin/activate"
-echo "  3. Run PentestAgent: flaghunter or python -m flaghunter"
+echo "  3. Run FlagHunter: flaghunter or python -m flaghunter"
 echo ""
 echo "For Docker usage:"
 echo "  docker-compose up flaghunter"
