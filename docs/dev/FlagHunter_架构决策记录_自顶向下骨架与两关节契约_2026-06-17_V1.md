@@ -150,7 +150,16 @@ class AgentSession:
 - **P0 完成**(commit `65de99a`):本 ADR + 契约选型。
 - **P1-a 完成**(commit `d6c1712`):`session/event_bus.py`(中立 EventBus,I3)+ `session/agent_session.py`(`AgentSession` 门面 + `RunResult`,I2),10 单测,零回归(1521 passed)。独立新代码,未触入口。
 - **P1-b 进行中(CLI 已迁)**:`interface/cli.py` 三模式(ctf/crew/default)全部经 `AgentSession.create` 装配,删除手工 `build_runtime/LLM/get_all_tools/PentestAgentAgent` 构造 → **CLI 的 CPA M1–M6 不再被跳过**(bug 关闭)。新增结构守卫单测 `test_cli_uses_agent_session.py` 锁定 I2;原 `test_cli_local_asset_contract.py` 的 4 个 run_cli 测试改打桩到门面 seam(`AgentSession.create`)。CTF 模式 LLM 仍是 `temperature=0.7`(与门面一致)→ **行为零扰动**。
-  - **待续**:web_server / MCP server / TUI 三入口尚未迁(各自仍 hand-roll 或部分经 `build_agent_components`);事件总线适配(web 私有 EventBus / TUI notifier / MCP `_emit` → 中立 `EventBus`)留待这些入口迁移时一并做。
+- **P1-web 完成**:装配 `77a2618`(修 CPA-skip)+ EventBus 统一 `c25d967`(web 私有 EventBus → 中立适配器)。
+- **P1-mcp 完成** `6a0ca41`:MCP 本就经 `build_agent_components`(无 CPA bug),纯 I3——`_emit`/`_ui_hook` → 中立 EventBus。
+- **P1-tui 完成** `c25f747`:**关键发现**——TUI 本就经 `build_agent_components`(无 CPA bug);I3 只需把 `notifier.notify` 通道 bus 化(TUI 一行未动,`register_callback` 自动订阅);3 个控制通道(spawn/despawn/wake-up,带返回值的定向 hook)保持原样。
+- **关节 A 全闭合**:I2 全线达成(CLI/web 修了 bug,MCP/TUI 本就合规);I3 全线达成(web/MCP/notifier 均收敛到中立 EventBus)。
+- **P2 顺带达成**:crew(orchestrator/worker_pool)与单 agent 都走 `notify()` → 随 notifier bus 化即同源;`RunResult` 结果契约在 `AgentSession`。
+
+### P3 风险发现(深度测绘,2026-06-17)
+`_execute_chain`(`ctf_dispatcher.py:2291-2368`)的 if/elif 可安全改 dict 分发(**P3a,低风险**)。但**关节 B 的「破上帝对象」(P3b)高风险**:所有注册策略通过 `context.dispatcher.*` 访问 dispatcher 全部能力(`_run_strategy_sequence` 每轮重建 `ctx=_strategy_context(dispatcher=self)`),strategy_registry 里 40+ lambda 全依赖 `ctx.dispatcher._run_*/_attempt_*/state/strategy_memory/...`。用 ChainContext 显式字段**替换** dispatcher 透传 = 重写这 40+ lambda + 所有 chain 方法,动 live 调过的 CTF 核心,**单测绿 ≠ 解题行为不变**。故 P3 拆分:
+- **P3a**:`_execute_chain` if/elif → dict 分发表(行为等价、机械、安全)。
+- **P3b**:ChainContext 破上帝对象——**降级为「叠加显式字段、保留 dispatcher 兼容」的渐进式**,不做一次性替换;或与用户确认激进度后再定。
 
 ## 6. 显式非目标(本轮不做)
 - 不重构 foundation 依赖方向(已健康)。
