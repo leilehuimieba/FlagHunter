@@ -5134,6 +5134,106 @@ async def test_ctf_dispatcher_generic_upload_chain_follows_uploaded_payload(
     notes_module._loaded_notes_file = None
 
 
+class _DispatcherHtaccessUploadRuntime:
+    """Apache-like upload that filters .php*/.phtml but accepts .htaccess + .jpg.
+
+    The image-named shell only executes (returns the flag) once a .htaccess
+    remapping .jpg -> PHP has been uploaded, so the chain can only win via the
+    .htaccess server-config bypass path.
+    """
+
+    def __init__(self):
+        self.environment = SimpleNamespace(available_tools=[])
+        self.requests: list[tuple[str, str, str | None, dict, dict]] = []
+        self.htaccess_uploaded = False
+
+    async def proxy_action(self, action: str, **kwargs):
+        url = kwargs.get("url", "")
+        method = kwargs.get("method")
+        data = dict(kwargs.get("data") or {}) if isinstance(kwargs.get("data"), dict) else {}
+        files = dict(kwargs.get("files") or {}) if isinstance(kwargs.get("files"), dict) else {}
+        self.requests.append((action, url, method, data, files))
+
+        if action == "get" and url == "http://ctf.local/":
+            return {
+                "status_code": 200,
+                "final_url": "http://ctf.local/",
+                "body": """
+                <html><body>
+                  <form action="/upload" method="post" enctype="multipart/form-data">
+                    <input type="file" name="file">
+                    <button>Upload</button>
+                  </form>
+                </body></html>
+                """,
+            }
+
+        if action == "request" and method == "POST" and url == "http://ctf.local/upload":
+            uploaded = files.get("file") if isinstance(files.get("file"), dict) else {}
+            filename = str(uploaded.get("filename") or "")
+            lowered = filename.lower()
+            if filename == ".htaccess":
+                self.htaccess_uploaded = True
+                return {"status_code": 200, "final_url": url, "body": "uploaded .htaccess"}
+            if lowered.endswith((".php", ".phtml")) or ".php." in lowered:
+                return {"status_code": 200, "final_url": url, "body": "extension not allowed"}
+            # benign extensions (.jpg/.txt) accepted
+            return {
+                "status_code": 200,
+                "final_url": url,
+                "body": f'uploaded: <a href="/uploads/{filename}">{filename}</a>',
+            }
+
+        if action == "get" and url == "http://ctf.local/uploads/flaghunter_ht.jpg":
+            if self.htaccess_uploaded:
+                # .htaccess remapped .jpg -> PHP, so the shell now executes
+                return {"status_code": 200, "final_url": url, "body": "DASCTF{htaccess-upload-bypass-ok}"}
+            return {"status_code": 200, "final_url": url, "body": "GIF89a (served as static image)"}
+
+        return {"status_code": 404, "final_url": url, "body": "not found"}
+
+    async def browser_action(self, action: str, **kwargs):
+        return {"error": "browser unavailable"}
+
+    async def execute_command(self, command: str, timeout: int = 180):
+        return SimpleNamespace(exit_code=0, stdout="", stderr="")
+
+
+@pytest.mark.asyncio
+async def test_ctf_dispatcher_upload_chain_uses_htaccess_bypass_when_php_filtered(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        "pentestagent.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_htaccess_upload.json")
+    notes_module._notes.clear()
+
+    runtime = _DispatcherHtaccessUploadRuntime()
+    dispatcher = CTFTaskDispatcher(runtime=runtime, progress_callback=None)
+    dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="upload")
+
+    outcome = await dispatcher._execute_upload_chain("http://ctf.local/", {"forms": []}, "")
+
+    # Flag is only reachable via the .htaccess -> paired .jpg shell path.
+    assert outcome.flag == "DASCTF{htaccess-upload-bypass-ok}"
+    assert runtime.htaccess_uploaded is True
+    uploaded_names = [
+        str((files.get("file") or {}).get("filename") or "")
+        for action, url, method, data, files in runtime.requests
+        if action == "request" and url == "http://ctf.local/upload"
+    ]
+    # .htaccess must be uploaded before the paired image-named shell.
+    assert ".htaccess" in uploaded_names
+    assert "flaghunter_ht.jpg" in uploaded_names
+    assert uploaded_names.index(".htaccess") < uploaded_names.index("flaghunter_ht.jpg")
+
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
 @pytest.mark.asyncio
 async def test_ctf_dispatcher_backup_source_leak_analyzes_inline_source_on_current_page(
     monkeypatch, tmp_path
