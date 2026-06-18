@@ -1,0 +1,28 @@
+{
+  "name": "graphql_introspection",
+  "target": "http://ctf.local/",
+  "goal": "拿到flag",
+  "type": "web",
+  "hint": "",
+  "expected_flag": "flag{graphql_introspection_ok}",
+  "browser": {
+    "navigate": {"url": "http://ctf.local/", "title": "API Playground"},
+    "get_content": {
+      "content": "API Playground. GraphQL endpoint available at /graphql for queries.",
+      "html": "<html><body><h1>API Playground</h1><p>Our GraphQL API is at <a href=\"/graphql\">/graphql</a></p></body></html>"
+    },
+    "get_forms": {"forms": []},
+    "get_cookies": {"cookie_string": ""}
+  },
+  "proxy_rules": [
+    {
+      "when": {"url_contains": "/graphql", "body_contains": "secretFlag"},
+      "response": {"status_code": 200, "body": "{\"data\":{\"secretFlag\":\"flag{graphql_introspection_ok}\"}}"}
+    },
+    {
+      "when": {"url_contains": "/graphql", "body_contains": "__schema"},
+      "response": {"status_code": 200, "body": "{\"data\":{\"__schema\":{\"queryType\":{\"name\":\"Query\"},\"types\":[{\"name\":\"Query\",\"fields\":[{\"name\":\"user\"},{\"name\":\"secretFlag\"}]}]}}}"}
+    }
+  ],
+  "default_proxy": {"status_code": 404, "body": "not found"}
+}
