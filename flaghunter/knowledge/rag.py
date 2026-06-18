@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -10,6 +11,11 @@ import numpy as np
 
 from ..workspaces.utils import resolve_knowledge_paths
 from .embeddings import get_embeddings
+
+try:
+    from rank_bm25 import BM25Okapi
+except ImportError:  # pragma: no cover - exercised by base installs without [rag]
+    BM25Okapi = None
 
 
 @dataclass
@@ -51,6 +57,8 @@ class RAGEngine:
         self.use_local_embeddings = use_local_embeddings
         self.documents: List[Document] = []
         self.embeddings: Optional[np.ndarray] = None
+        self._bm25 = None
+        self._bm25_tokens: List[List[str]] = []
         self._indexed = False
         self._source_files: set = set()  # Track unique source files
 
@@ -158,6 +166,7 @@ class RAGEngine:
                     )
 
         self.documents = chunks
+        self._rebuild_bm25_index()
 
         # Generate embeddings
         if chunks:
@@ -259,6 +268,99 @@ class RAGEngine:
 
         return chunks
 
+    def _tokenize_for_bm25(self, text: str) -> List[str]:
+        """Tokenize text for exact-token lexical retrieval."""
+        return re.findall(r"[a-z0-9][a-z0-9_./:-]*", text.lower())
+
+    def _rebuild_bm25_index(self):
+        """Build or refresh the optional BM25 index from current documents."""
+        self._bm25 = None
+        self._bm25_tokens = []
+
+        if BM25Okapi is None or not self.documents:
+            return
+
+        tokenized_corpus = [
+            self._tokenize_for_bm25(doc.content) for doc in self.documents
+        ]
+        if not any(tokenized_corpus):
+            return
+
+        try:
+            self._bm25 = BM25Okapi(tokenized_corpus)
+            self._bm25_tokens = tokenized_corpus
+        except Exception as e:
+            logging.getLogger(__name__).exception(
+                "Failed to build BM25 RAG index; falling back to vector search: %s",
+                e,
+            )
+            self._bm25 = None
+            self._bm25_tokens = []
+
+    def _get_query_embedding(self, query: str) -> np.ndarray:
+        """Generate an embedding for a single query."""
+        if self.use_local_embeddings:
+            from .embeddings import get_embeddings_local
+
+            return get_embeddings_local([query])[0]
+        return get_embeddings([query], model=self.embedding_model)[0]
+
+    def _cosine_similarities(self, query_embedding: np.ndarray) -> np.ndarray:
+        """Compute cosine similarity between all document embeddings and a query."""
+        return np.dot(self.embeddings, query_embedding) / (
+            np.linalg.norm(self.embeddings, axis=1) * np.linalg.norm(query_embedding)
+            + 1e-10
+        )
+
+    def _rank_indices_with_rrf(
+        self, query: str, similarities: np.ndarray, k: int, threshold: float
+    ) -> List[int]:
+        """Fuse vector and BM25 rankings using reciprocal rank fusion."""
+        indices_above_threshold = np.where(similarities >= threshold)[0]
+
+        if len(indices_above_threshold) == 0:
+            return []
+
+        depth = min(len(self.documents), max(k, 20))
+        sorted_vector_indices = indices_above_threshold[
+            np.argsort(similarities[indices_above_threshold])[::-1]
+        ]
+        vector_ranked = [int(idx) for idx in sorted_vector_indices[:depth]]
+
+        rankings = [vector_ranked]
+
+        if self._bm25 is not None:
+            query_tokens = self._tokenize_for_bm25(query)
+            if query_tokens:
+                bm25_scores = np.asarray(self._bm25.get_scores(query_tokens))
+                positive_bm25_indices = np.where(bm25_scores > 0)[0]
+                bm25_candidates = [
+                    int(idx)
+                    for idx in positive_bm25_indices
+                    if similarities[idx] >= threshold
+                ]
+                bm25_ranked = sorted(
+                    bm25_candidates,
+                    key=lambda idx: (bm25_scores[idx], similarities[idx]),
+                    reverse=True,
+                )[:depth]
+                if bm25_ranked:
+                    rankings.append(bm25_ranked)
+
+        rrf_k = 60
+        fused_scores: Dict[int, float] = {}
+        for ranking in rankings:
+            for rank, idx in enumerate(ranking, start=1):
+                fused_scores[idx] = fused_scores.get(idx, 0.0) + 1.0 / (
+                    rrf_k + rank
+                )
+
+        return sorted(
+            fused_scores,
+            key=lambda idx: (fused_scores[idx], similarities[idx]),
+            reverse=True,
+        )[:k]
+
     def search(
         self, query: str, k: int = 5, threshold: float = 0.35, max_tokens: int = 1500
     ) -> List[str]:
@@ -284,31 +386,10 @@ class RAGEngine:
         if not self.documents or self.embeddings is None:
             return []
 
-        # Get query embedding
-        if self.use_local_embeddings:
-            from .embeddings import get_embeddings_local
-
-            query_embedding = get_embeddings_local([query])[0]
-        else:
-            query_embedding = get_embeddings([query], model=self.embedding_model)[0]
-
-        # Compute cosine similarities
-        similarities = np.dot(self.embeddings, query_embedding) / (
-            np.linalg.norm(self.embeddings, axis=1) * np.linalg.norm(query_embedding)
-            + 1e-10
-        )
-
-        # Get top k indices above threshold
-        indices_above_threshold = np.where(similarities >= threshold)[0]
-
-        if len(indices_above_threshold) > 0:
-            # Sort by similarity (descending) and take top k
-            sorted_indices = indices_above_threshold[
-                np.argsort(similarities[indices_above_threshold])[::-1]
-            ]
-            top_indices = sorted_indices[:k]
-        else:
-            # No results above threshold - return empty rather than irrelevant content
+        query_embedding = self._get_query_embedding(query)
+        similarities = self._cosine_similarities(query_embedding)
+        top_indices = self._rank_indices_with_rrf(query, similarities, k, threshold)
+        if not top_indices:
             return []
 
         # Collect results up to max_tokens budget
@@ -346,31 +427,10 @@ class RAGEngine:
         if not self.documents or self.embeddings is None:
             return []
 
-        # Get query embedding
-        if self.use_local_embeddings:
-            from .embeddings import get_embeddings_local
-
-            query_embedding = get_embeddings_local([query])[0]
-        else:
-            query_embedding = get_embeddings([query], model=self.embedding_model)[0]
-
-        # Compute cosine similarities
-        similarities = np.dot(self.embeddings, query_embedding) / (
-            np.linalg.norm(self.embeddings, axis=1) * np.linalg.norm(query_embedding)
-            + 1e-10
-        )
-
-        # Get top k above threshold
-        indices_above_threshold = np.where(similarities >= threshold)[0]
-
-        if len(indices_above_threshold) > 0:
-            sorted_indices = indices_above_threshold[
-                np.argsort(similarities[indices_above_threshold])[::-1]
-            ]
-            top_indices = sorted_indices[:k]
-        else:
-            # No results above threshold - return empty (consistent with search())
-            # rather than surfacing a below-threshold (likely irrelevant) document.
+        query_embedding = self._get_query_embedding(query)
+        similarities = self._cosine_similarities(query_embedding)
+        top_indices = self._rank_indices_with_rrf(query, similarities, k, threshold)
+        if not top_indices:
             return []
 
         return [(self.documents[i], float(similarities[i])) for i in top_indices]
@@ -404,6 +464,7 @@ class RAGEngine:
             self.embeddings = np.vstack([self.embeddings, new_embedding])
         else:
             self.embeddings = new_embedding
+        self._rebuild_bm25_index()
 
     def add_documents(self, documents: List[Document]):
         """
@@ -432,6 +493,7 @@ class RAGEngine:
             self.embeddings = np.vstack([self.embeddings, new_embeddings])
         else:
             self.embeddings = new_embeddings
+        self._rebuild_bm25_index()
 
     def remove_document(self, doc_id: str) -> bool:
         """
@@ -448,6 +510,7 @@ class RAGEngine:
                 self.documents.pop(i)
                 if self.embeddings is not None:
                     self.embeddings = np.delete(self.embeddings, i, axis=0)
+                self._rebuild_bm25_index()
                 return True
         return False
 
@@ -455,6 +518,8 @@ class RAGEngine:
         """Clear all documents and embeddings."""
         self.documents.clear()
         self.embeddings = None
+        self._bm25 = None
+        self._bm25_tokens = []
         self._indexed = False
         self._source_files = set()
 
@@ -537,6 +602,7 @@ class RAGEngine:
             for i, doc in enumerate(self.documents):
                 doc.embedding = self.embeddings[i]
 
+        self._rebuild_bm25_index()
         self._indexed = True
 
     def load_index_from_workspace(
