@@ -59,14 +59,17 @@ CATCH_ALL = "*"
 #: web_strategy_order（commit 见 git），缺口闭合，故本集合清空。
 KNOWN_UNREACHABLE_GAPS: set[str] = set()
 
-#: 疑似已退役（chain_name="web-legacy"，被三阶段 ssti_probe/identify/exploit 取代）。
-#: 待确认意图后 @deprecated 或删除（基准 §4.2），届时从本集合移除。
-LEGACY_RETIRED = {
+#: 有意不自动分发（chain_name="web-legacy"）。**非退役、非缺口**：Phase 7 §5 刻意把
+#: 自动分发让位给三阶段 ssti_probe/identify/exploit，但保留注册供「直接调用 + surface-key
+#: 连续性」。其 _run_* 方法经直接调用测试覆盖（test_ctf_dispatcher.py:5003），且不自动分发
+#: 由现有测试锁定（test_ctf_strategy_registry.py:296-306、test_ctf_dispatcher.py:7110）。
+#: 故**永久保留在本集合**（设计如此），不应移除。详见基准 §4.2。
+INTENTIONALLY_NOT_AUTODISPATCHED = {
     "ssti_via_render_parameter",
     "tornado_ssti",
 }
 
-QUARANTINE = KNOWN_UNREACHABLE_GAPS | LEGACY_RETIRED
+QUARANTINE = KNOWN_UNREACHABLE_GAPS | INTENTIONALLY_NOT_AUTODISPATCHED
 
 
 def _registered_strategies() -> dict[str, str]:
@@ -125,12 +128,13 @@ def test_quarantine_entries_still_exist_and_still_unreachable():
             now_reachable.append(kind)
 
     assert not now_reachable, (
-        "以下策略已变为可达，请从隔离区（KNOWN_UNREACHABLE_GAPS / LEGACY_RETIRED）移除："
-        f" {now_reachable}"
+        "以下策略已变为可达——若属 KNOWN_UNREACHABLE_GAPS 说明缺口已修复，请移除该条目；"
+        "若属 INTENTIONALLY_NOT_AUTODISPATCHED 说明有意不自动分发的设计被破坏（应保持 web-legacy），"
+        f"请核查 chains/web.py 与注册 chain_name：{now_reachable}"
     )
     assert not no_longer_registered, (
-        "以下策略已不再注册，请从隔离区移除其条目："
-        f" {no_longer_registered}"
+        "以下策略已不再注册，请从隔离区（KNOWN_UNREACHABLE_GAPS / "
+        f"INTENTIONALLY_NOT_AUTODISPATCHED）移除其条目：{no_longer_registered}"
     )
 
 
