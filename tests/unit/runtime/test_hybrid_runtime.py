@@ -184,3 +184,41 @@ async def test_local_unreachable_error_result_downgrades_to_primary(monkeypatch)
     res = await rt.browser_action("navigate", url="http://127.0.0.1:9/")
     assert res["engine"] == "primary"
     assert rt._host_engine["127.0.0.1:9"] == "primary"
+
+
+@pytest.mark.asyncio
+async def test_get_browser_status_reports_routing(monkeypatch):
+    rt = HybridBrowserRuntime(primary=FakePrimary(), browser_factory=FakeLocal)
+
+    monkeypatch.setattr(rt, "_probe_local_reachable", _const_async(True))
+    await rt.browser_action("navigate", url="http://127.0.0.1:8000/")
+
+    monkeypatch.setattr(rt, "_probe_local_reachable", _const_async(False))
+    await rt.browser_action("navigate", url="http://10.9.9.9/")
+
+    status = rt.get_browser_status()
+    assert status["hybrid_browser"] is True
+    assert status["engine_counts"]["local"] >= 1
+    assert status["engine_counts"]["primary"] >= 1
+    assert status["host_engines"]["127.0.0.1:8000"] == "local"
+    assert status["host_engines"]["10.9.9.9:80"] == "primary"
+    assert len(status["recent_decisions"]) >= 2
+    # Probe latency is recorded on freshly-probed decisions.
+    assert any("probe_ms" in decision for decision in status["recent_decisions"])
+
+
+@pytest.mark.asyncio
+async def test_downgrade_recorded_in_browser_status(monkeypatch):
+    class FlakyLocal(FakeLocal):
+        async def browser_action(self, action, **kwargs):
+            raise RuntimeError("connection refused")
+
+    rt = HybridBrowserRuntime(primary=FakePrimary(), browser_factory=FlakyLocal)
+    monkeypatch.setattr(rt, "_probe_local_reachable", _const_async(True))
+
+    await rt.browser_action("navigate", url="http://127.0.0.1:9/")
+
+    status = rt.get_browser_status()
+    assert status["downgrade_count"] >= 1
+    assert any(decision.get("downgrade") for decision in status["recent_decisions"])
+    assert status["host_engines"]["127.0.0.1:9"] == "primary"

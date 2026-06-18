@@ -19,6 +19,7 @@ the primary alone.
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any, Callable, Optional
 from urllib.parse import urlparse
 
@@ -69,6 +70,14 @@ class HybridBrowserRuntime(Runtime):
         # host:port -> "local" | "primary"
         self._host_engine: dict[str, str] = {}
         self._last_host_key: Optional[str] = None
+        # Observability: routing counters + a bounded decision log so operators
+        # (and a get_browser_status tool) can see why each host was routed and
+        # where the rendered engine was downgraded to the primary curl path.
+        self._engine_counts: dict[str, int] = {"local": 0, "primary": 0}
+        self._downgrade_count = 0
+        self._decisions: list[dict] = []
+        self._decision_seq = 0
+        self._max_decisions = 50
 
     # ------------------------------------------------------------------ #
     # Transparent delegation
@@ -130,7 +139,7 @@ class HybridBrowserRuntime(Runtime):
         if url and host_key:
             self._last_host_key = host_key
 
-        engine = await self._engine_for(host_key, url, action)
+        engine, probe_ms = await self._engine_for(host_key, url, action)
 
         if engine == "local":
             try:
@@ -144,6 +153,11 @@ class HybridBrowserRuntime(Runtime):
                 )
                 if host_key:
                     self._host_engine[host_key] = "primary"
+                self._record_decision(
+                    host_key, action, "primary",
+                    f"local_exception:{type(exc).__name__}",
+                    probe_ms=probe_ms, downgrade=True,
+                )
                 return await self.primary.browser_action(action, **kwargs)
 
             if self._looks_unreachable(result):
@@ -153,26 +167,91 @@ class HybridBrowserRuntime(Runtime):
                 )
                 if host_key:
                     self._host_engine[host_key] = "primary"
+                self._record_decision(
+                    host_key, action, "primary", "local_unreachable",
+                    probe_ms=probe_ms, downgrade=True,
+                )
                 return await self.primary.browser_action(action, **kwargs)
+            self._record_decision(
+                host_key, action, "local",
+                "probe_reachable" if probe_ms is not None else "cached_local",
+                probe_ms=probe_ms,
+            )
             return result
 
+        self._record_decision(
+            host_key, action, "primary",
+            "probe_unreachable" if probe_ms is not None
+            else ("no_host" if not host_key else "cached_primary"),
+            probe_ms=probe_ms,
+        )
         return await self.primary.browser_action(action, **kwargs)
 
     async def _engine_for(
         self, host_key: Optional[str], url: str, action: str
-    ) -> str:
+    ) -> tuple[str, Optional[float]]:
+        """Resolve the engine for a host. Returns (engine, probe_ms).
+
+        ``probe_ms`` is the reachability-probe latency when a fresh probe was
+        paid, else ``None`` (cached decision or no probe warranted).
+        """
         if not host_key:
-            return "primary"
+            return "primary", None
         cached = self._host_engine.get(host_key)
         if cached is not None:
-            return cached
+            return cached, None
         # Only pay a probe for a render-worthy action that carries a URL.
         if not url or action not in _RENDER_WORTHY_ACTIONS:
-            return "primary"
+            return "primary", None
+        t0 = time.monotonic()
         reachable = await self._probe_local_reachable(url)
+        probe_ms = (time.monotonic() - t0) * 1000.0
         engine = "local" if reachable else "primary"
         self._host_engine[host_key] = engine
-        return engine
+        return engine, probe_ms
+
+    def _record_decision(
+        self,
+        host_key: Optional[str],
+        action: str,
+        engine: str,
+        reason: str,
+        *,
+        probe_ms: Optional[float] = None,
+        downgrade: bool = False,
+    ) -> None:
+        self._decision_seq += 1
+        entry: dict[str, Any] = {
+            "seq": self._decision_seq,
+            "host": host_key,
+            "action": action,
+            "engine": engine,
+            "reason": reason,
+        }
+        if probe_ms is not None:
+            entry["probe_ms"] = round(probe_ms, 1)
+        if downgrade:
+            entry["downgrade"] = True
+            self._downgrade_count += 1
+        self._engine_counts[engine] = self._engine_counts.get(engine, 0) + 1
+        self._decisions.append(entry)
+        if len(self._decisions) > self._max_decisions:
+            del self._decisions[: -self._max_decisions]
+
+    def get_browser_status(self) -> dict:
+        """In-memory snapshot of hybrid browser routing for operators / a tool.
+
+        Surfaces per-host engine decisions, route/downgrade counters, and the
+        most recent routing decisions (with probe latency) — the operational
+        visibility the reachability-routed design otherwise lacks.
+        """
+        return {
+            "hybrid_browser": True,
+            "host_engines": dict(self._host_engine),
+            "engine_counts": dict(self._engine_counts),
+            "downgrade_count": self._downgrade_count,
+            "recent_decisions": list(self._decisions[-20:]),
+        }
 
     async def _ensure_local(self) -> Runtime:
         if self._local is None:
