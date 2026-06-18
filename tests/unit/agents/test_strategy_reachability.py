@@ -44,6 +44,8 @@ WEB_STRATEGY_ORDER = {
     "jwt_manipulation",
     "generic_param_cmdi",
     "generic_param_ssrf",
+    "graphql_introspection",
+    "nosql_injection",
 }
 
 CATCH_ALL = "*"
@@ -53,10 +55,9 @@ CATCH_ALL = "*"
 #: 当前已确认的可达性缺口。本测试容忍它们，但任何**新增**不可达策略会 FAIL。
 #: 修法见基准 §4.1：把策略名追加进 chains/web.py 的 web_strategy_order 末尾
 #: （precondition 已门控，flag 才短路 ⇒ 零回归），修好后从本集合移除。
-KNOWN_UNREACHABLE_GAPS = {
-    "graphql_introspection",
-    "nosql_injection",
-}
+#: 2026-06-18：graphql_introspection / nosql_injection 已实现真实探测并桥接进
+#: web_strategy_order（commit 见 git），缺口闭合，故本集合清空。
+KNOWN_UNREACHABLE_GAPS: set[str] = set()
 
 #: 疑似已退役（chain_name="web-legacy"，被三阶段 ssti_probe/identify/exploit 取代）。
 #: 待确认意图后 @deprecated 或删除（基准 §4.2），届时从本集合移除。
@@ -159,6 +160,8 @@ def test_web_bridge_and_detect_type_constants_have_no_typos_against_registry():
         "jwt_manipulation",
         "generic_param_cmdi",
         "generic_param_ssrf",
+        "graphql_introspection",
+        "nosql_injection",
     }
     missing = sorted(bridged_registered - registered_kinds)
     assert not missing, (

