@@ -20,7 +20,7 @@ class TestAppInfo:
 
 class TestDockerDefaults:
     def test_docker_sandbox_image_uses_flaghunter_repository(self):
-        assert C.DOCKER_SANDBOX_IMAGE == "ghcr.io/gh05tcrew/flaghunter:kali"
+        assert C.DOCKER_SANDBOX_IMAGE == "ghcr.io/leilehuimieba/flaghunter:kali"
         assert "pentestagent" not in C.DOCKER_SANDBOX_IMAGE
 
 

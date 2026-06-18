@@ -76,7 +76,7 @@ class TestSettingsDefaults:
 
     def test_docker_image_default_uses_flaghunter_repository(self):
         s = Settings()
-        assert s.docker_image == "ghcr.io/gh05tcrew/flaghunter:kali"
+        assert s.docker_image == "ghcr.io/leilehuimieba/flaghunter:kali"
         assert "pentestagent" not in s.docker_image
 
 

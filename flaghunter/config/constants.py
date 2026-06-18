@@ -43,7 +43,7 @@ DEFAULT_VPN_TIMEOUT = 30
 DEFAULT_MCP_TIMEOUT = 60
 
 # Docker Settings
-DOCKER_SANDBOX_IMAGE = "ghcr.io/gh05tcrew/flaghunter:kali"
+DOCKER_SANDBOX_IMAGE = "ghcr.io/leilehuimieba/flaghunter:kali"
 DOCKER_NETWORK_MODE = "bridge"
 
 # RAG Settings

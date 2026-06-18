@@ -1,4 +1,4 @@
-FROM ghcr.io/gh05tcrew/flaghunter:latest
+FROM ghcr.io/leilehuimieba/flaghunter:latest
 
 RUN git clone https://github.com/Wh0am123/MCP-Kali-Server.git
 
