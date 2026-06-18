@@ -1,5 +1,6 @@
 """Tests for flaghunter.llm.memory (ConversationMemory)."""
 
+import json
 import pytest
 from unittest.mock import AsyncMock
 
@@ -43,7 +44,12 @@ class TestConversationMemoryInit:
     def test_get_stats_fields(self):
         mem = ConversationMemory()
         stats = mem.get_stats()
-        for key in ("max_tokens", "token_budget", "summarize_threshold", "recent_to_keep"):
+        for key in (
+            "max_tokens",
+            "token_budget",
+            "summarize_threshold",
+            "recent_to_keep",
+        ):
             assert key in stats
 
 
@@ -232,7 +238,10 @@ class TestSecuritySensitiveDataInSummary:
 
     def test_format_for_summary_includes_user_and_assistant(self):
         mem = ConversationMemory()
-        messages = [_msg("user", "scan 192.168.1.1"), _msg("assistant", "starting scan")]
+        messages = [
+            _msg("user", "scan 192.168.1.1"),
+            _msg("assistant", "starting scan"),
+        ]
         result = mem._format_for_summary(messages)
         assert "scan 192.168.1.1" in result
         assert "starting scan" in result
@@ -243,3 +252,165 @@ class TestSecuritySensitiveDataInSummary:
         messages = [_msg("user", long_content)]
         result = mem._format_for_summary(messages)
         assert len(result) < len(long_content)
+
+
+# ---------------------------------------------------------------------------
+# Signal-aware compression and structured summaries
+# ---------------------------------------------------------------------------
+
+class TestSignalAwareMemoryCompression:
+    def test_http_noise_compression_preserves_confirmed_fact(self):
+        mem = ConversationMemory()
+        noisy_html = "\n".join(
+            [
+                "HTTP/1.1 200 OK",
+                "Location: /dashboard",
+                "<html><head>",
+                "<script>console.log('tracking');</script>",
+                "<style>.nav{display:block}</style>",
+                "</head><body>",
+                "<nav>Home About Contact Login</nav>",
+                "<main>",
+                (
+                    "Confirmed fact: endpoint /admin/export leaks backup "
+                    "filename backup-2026.zip"
+                ),
+                "Potential payload rejected: ../etc/passwd returned 403",
+                "</main>",
+                "<footer>copyright FlagHunter</footer>",
+                "</body></html>",
+            ]
+            + ["<div>layout filler banner nav menu</div>"] * 250
+        )
+
+        raw_tokens = mem.get_total_tokens([_msg("tool", noisy_html)])
+        formatted = mem._format_for_summary(
+            [{"role": "tool", "name": "http_request", "content": noisy_html}]
+        )
+        compressed_tokens = mem.get_total_tokens([_msg("tool", formatted)])
+
+        assert (
+            "Confirmed fact: endpoint /admin/export leaks backup filename "
+            "backup-2026.zip"
+        ) in formatted
+        assert "Potential payload rejected: ../etc/passwd returned 403" in formatted
+        assert "console.log('tracking')" not in formatted
+        assert "layout filler banner nav menu" not in formatted
+        assert compressed_tokens < raw_tokens * 0.35
+
+    def test_shell_compression_keeps_stdout_data_and_drops_stderr_noise(self):
+        mem = ConversationMemory()
+        shell_output = "\n".join(
+            [
+                "stdout:",
+                "open port 8080 service http version Werkzeug/3.0",
+                "endpoint /debug found",
+                "stderr:",
+            ]
+            + ["progress spinner banner loaded 10%"] * 100
+        )
+
+        formatted = mem._format_for_summary(
+            [{"role": "tool", "name": "terminal", "content": shell_output}]
+        )
+
+        assert "open port 8080 service http version Werkzeug/3.0" in formatted
+        assert "endpoint /debug found" in formatted
+        assert "progress spinner banner" not in formatted
+
+    def test_error_compression_keeps_primary_exception_and_dedupes_stack(self):
+        mem = ConversationMemory()
+        stack = "\n".join(
+            [
+                "Traceback (most recent call last):",
+                'File "app.py", line 10, in run',
+                'File "app.py", line 10, in run',
+                "ValueError: invalid redirect target /admin",
+                "ValueError: invalid redirect target /admin",
+            ]
+        )
+
+        formatted = mem._format_for_summary(
+            [{"role": "tool", "name": "python", "content": stack}]
+        )
+
+        assert "primary_exception: ValueError: invalid redirect target /admin" in formatted
+        assert formatted.count('File "app.py", line 10, in run') == 1
+
+    @pytest.mark.asyncio
+    async def test_summary_is_structured_reasoning_state_json(self):
+        mem = ConversationMemory(
+            max_tokens=200,
+            reserve_ratio=1.0,
+            recent_to_keep=1,
+            summarize_threshold=0.1,
+        )
+        llm_call = AsyncMock(
+            return_value=json.dumps(
+                {
+                    "confirmed_facts": ["target is 10.10.10.5"],
+                    "open_hypotheses": ["admin endpoint may expose backups"],
+                    "rejected_payloads": ["../etc/passwd returned 403"],
+                    "pending_followups": ["try authenticated export request"],
+                }
+            )
+        )
+        history = [
+            _msg("user", "target 10.10.10.5"),
+            {
+                "role": "tool",
+                "name": "http_request",
+                "content": "HTTP/1.1 200 OK\n" + "word " * 300,
+            },
+            _msg("assistant", "word " * 300),
+            _msg("user", "continue"),
+        ]
+
+        result = await mem.get_messages_with_summary(history, llm_call)
+        prompt = llm_call.call_args.args[0]
+        assert '"confirmed_facts"' in prompt
+        assert '"open_hypotheses"' in prompt
+        assert '"rejected_payloads"' in prompt
+        assert '"pending_followups"' in prompt
+
+        summary_msg = result[0]["content"].split(
+            "Previous conversation summary:\n", 1
+        )[1]
+        parsed = json.loads(summary_msg)
+
+        assert set(parsed) == {
+            "confirmed_facts",
+            "open_hypotheses",
+            "rejected_payloads",
+            "pending_followups",
+        }
+        assert parsed["confirmed_facts"] == ["target is 10.10.10.5"]
+
+    @pytest.mark.asyncio
+    async def test_invalid_llm_summary_falls_back_to_parseable_json(self):
+        mem = ConversationMemory(
+            max_tokens=200,
+            reserve_ratio=1.0,
+            recent_to_keep=1,
+            summarize_threshold=0.1,
+        )
+        llm_call = AsyncMock(return_value="not json")
+        history = [
+            _msg("user", "Confirmed fact: target 10.10.10.5 has endpoint /admin"),
+            _msg("assistant", "word " * 300),
+            _msg("user", "next"),
+        ]
+
+        result = await mem.get_messages_with_summary(history, llm_call)
+        summary_msg = result[0]["content"].split(
+            "Previous conversation summary:\n", 1
+        )[1]
+        parsed = json.loads(summary_msg)
+
+        assert set(parsed) == {
+            "confirmed_facts",
+            "open_hypotheses",
+            "rejected_payloads",
+            "pending_followups",
+        }
+        assert any("/admin" in fact for fact in parsed["confirmed_facts"])
