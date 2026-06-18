@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
+from ..config.constants import DOCKER_SANDBOX_IMAGE
 from .runtime import CommandResult, Runtime
 
 if TYPE_CHECKING:
@@ -18,9 +19,10 @@ if TYPE_CHECKING:
 class DockerConfig:
     """Docker runtime configuration."""
 
-    image: str = (
-        "flaghunter:latest"  # Built from Dockerfile (use flaghunter-kali:latest for Kali image)
-    )
+    # Defaults to the published Kali sandbox image so a bare ``DockerRuntime()``
+    # matches the ``--docker`` path. Override with a locally-built tag
+    # (e.g. ``flaghunter:latest``) when running ``docker compose build`` offline.
+    image: str = DOCKER_SANDBOX_IMAGE
     container_name: str = "flaghunter-sandbox"
     network_mode: str = "bridge"
     cap_add: list = None

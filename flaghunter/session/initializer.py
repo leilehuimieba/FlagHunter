@@ -77,17 +77,24 @@ async def build_runtime(
     }
 
     if docker:
-        from ..runtime.docker_runtime import DockerRuntime
+        from ..config.settings import get_settings
+        from ..runtime.docker_runtime import DockerConfig, DockerRuntime
 
-        runtime: Any = DockerRuntime()
-        _log("Using DockerRuntime.")
+        settings = get_settings()
+        runtime: Any = DockerRuntime(
+            config=DockerConfig(
+                image=settings.docker_image,
+                container_name=settings.container_name,
+            )
+        )
+        _log(f"Using DockerRuntime (image: {settings.docker_image}).")
         await runtime.start()
         runtime_info.update(
             {
                 "selected": "docker",
                 "connected": True,
                 "label": "Docker",
-                "status_text": "Docker runtime active",
+                "status_text": f"Docker runtime active ({settings.docker_image})",
             }
         )
         return runtime, runtime_info
