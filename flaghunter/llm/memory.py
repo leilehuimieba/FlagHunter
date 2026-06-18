@@ -1,31 +1,48 @@
 """Conversation memory management for FlagHunter."""
 
-from typing import Awaitable, Callable, List, Optional
+import json
+import re
+from html import unescape
+from typing import Awaitable, Callable, Dict, List, Optional
 
-SUMMARY_PROMPT = """Summarize the following conversation segment for a penetration testing agent.
-The summary will be used to continue the security assessment, so preserve all critical operational details.
+SUMMARY_FIELDS = (
+    "confirmed_facts",
+    "open_hypotheses",
+    "rejected_payloads",
+    "pending_followups",
+)
+
+SUMMARY_PROMPT = """Summarize the following conversation segment as structured reasoning
+state for a penetration testing agent.
+Return valid JSON only. Do not include markdown fences, prose, or comments.
+
+Use exactly this JSON object shape:
+{{
+  "confirmed_facts": [],
+  "open_hypotheses": [],
+  "rejected_payloads": [],
+  "pending_followups": []
+}}
 
 What to preserve:
-- Discovered targets (IPs, domains, hostnames) and network topology
-- Services, versions, and technologies identified (keep exact version strings)
-- Open ports and running services with specific details
-- Vulnerabilities found or suspected (CVEs, misconfigurations, weaknesses)
-- Credentials, tokens, API keys, or authentication details discovered
-- Attack vectors attempted and their outcomes (success or failure)
-- System architecture and relationships between hosts
-- Important error messages or behaviors that may indicate vulnerabilities
-- Current testing strategy and next planned steps
+- Confirmed targets, endpoints, services, versions, redirects, status codes,
+  technologies, credentials, tokens, flags, and exact identifiers
+- Open hypotheses with their supporting observations
+- Rejected payloads, failed paths, negative test outcomes, and why they failed
+- Pending follow-ups, next checks, unresolved errors, and verification steps
 
 Compression approach:
-- Consolidate redundant or repetitive findings into single statements
-- Reduce verbose tool output while maintaining key technical findings
-- Keep technical precision: exact paths, URLs, parameters, version numbers
-- Remove conversational back-and-forth but preserve decisions made
+- Preserve source pointers such as tool names, URLs, paths, params, hosts, and
+  line-level facts
+- Consolidate redundant findings into single JSON array entries
+- Keep exact paths, URLs, params, version strings, payloads, status codes, and
+  exception classes
+- Separate confirmed facts from hypotheses and rejected payloads
 
 Conversation segment:
 {conversation}
 
-Provide a concise technical summary:"""
+JSON reasoning state:"""
 
 
 class ConversationMemory:
@@ -101,7 +118,10 @@ class ConversationMemory:
             result = [
                 {
                     "role": "system",
-                    "content": f"Previous conversation summary:\n{self._cached_summary}",
+                    "content": (
+                        "Previous conversation summary:\n"
+                        f"{self._cached_summary}"
+                    ),
                 }
             ]
             # Add messages after the summarized portion
@@ -152,7 +172,10 @@ class ConversationMemory:
             result = [
                 {
                     "role": "system",
-                    "content": f"Previous conversation summary:\n{self._cached_summary}",
+                    "content": (
+                        "Previous conversation summary:\n"
+                        f"{self._cached_summary}"
+                    ),
                 }
             ]
             result.extend(recent)
@@ -187,12 +210,12 @@ class ConversationMemory:
             Summary string
         """
         if not messages:
-            return "[No messages to summarize]"
+            return self._dump_summary_state(self._empty_summary_state())
 
         # Use chunked summarization for better context preservation
         # Process in chunks of 8-12 messages for balance between detail and efficiency
         chunk_size = 10
-        summaries = []
+        summary_states = []
 
         for i in range(0, len(messages), chunk_size):
             chunk = messages[i : i + chunk_size]
@@ -202,25 +225,22 @@ class ConversationMemory:
             try:
                 chunk_summary = await llm_call(prompt)
                 if chunk_summary and chunk_summary.strip():
-                    summaries.append(chunk_summary.strip())
+                    summary_states.append(
+                        self._normalize_summary_state(
+                            chunk_summary, fallback_messages=chunk
+                        )
+                    )
             except Exception as e:
-                # Log failure but continue with other chunks
-                summaries.append(
-                    f"[{len(chunk)} messages from segment {i // chunk_size + 1} - summary failed: {e}]"
+                fallback = self._fallback_summary_state(chunk)
+                fallback["pending_followups"].append(
+                    f"Segment {i // chunk_size + 1} summary failed: {e}"
                 )
+                summary_states.append(fallback)
 
-        # Combine chunk summaries
-        if not summaries:
-            return f"[{len(messages)} earlier messages - all summarization attempts failed]"
+        if not summary_states:
+            return self._dump_summary_state(self._fallback_summary_state(messages))
 
-        # If we have multiple summaries, join them with context markers
-        if len(summaries) == 1:
-            return summaries[0]
-        else:
-            combined = "\n\n".join(
-                f"Segment {i + 1}: {summary}" for i, summary in enumerate(summaries)
-            )
-            return combined
+        return self._dump_summary_state(self._merge_summary_states(summary_states))
 
     def _format_for_summary(self, messages: List[dict]) -> str:
         """Format messages as text for summarization."""
@@ -228,6 +248,8 @@ class ConversationMemory:
         for msg in messages:
             role = msg.get("role", "unknown")
             content = msg.get("content", "")
+            tool_name = msg.get("name", "tool")
+            content = self._compress_content(content, role=role, tool_name=tool_name)
 
             # Preserve more content for tool outputs (they contain findings)
             # but still limit to avoid overwhelming the summarizer
@@ -249,7 +271,6 @@ class ConversationMemory:
             elif role == "assistant":
                 lines.append(f"Assistant: {content}")
             elif role == "tool":
-                tool_name = msg.get("name", "tool")
                 lines.append(f"Tool ({tool_name}): {content}")
             elif role == "system":
                 # Skip system messages in summarization input
@@ -263,13 +284,366 @@ class ConversationMemory:
         result = []
 
         for msg in reversed(messages):
-            msg_tokens = self._count_tokens(msg)
+            compressed_msg = self._compress_message(msg)
+            msg_tokens = self._count_tokens(compressed_msg)
             if total_tokens + msg_tokens > budget:
                 break
-            result.insert(0, msg)
+            result.insert(0, compressed_msg)
             total_tokens += msg_tokens
 
         return result
+
+    def _compress_message(self, message: dict) -> dict:
+        """Return a copy of a message with compressible noise reduced."""
+        content = message.get("content", "")
+        if not isinstance(content, str) or not content:
+            return message
+
+        compressed = self._compress_content(
+            content,
+            role=message.get("role", "unknown"),
+            tool_name=message.get("name", ""),
+        )
+        if compressed == content:
+            return message
+
+        updated = dict(message)
+        updated["content"] = compressed
+        return updated
+
+    def _compress_content(self, content: str, role: str, tool_name: str = "") -> str:
+        """Route content through source-aware compression heuristics."""
+        if not isinstance(content, str) or not content:
+            return content
+
+        if self._looks_like_error(content):
+            return self._compress_error(content)
+        if self._looks_like_http(content, tool_name):
+            return self._compress_http(content)
+        if self._looks_like_shell(content, role, tool_name):
+            return self._compress_shell(content)
+        return self._compress_repeated_lines(content)
+
+    def _looks_like_http(self, content: str, tool_name: str) -> bool:
+        lowered_tool = tool_name.lower()
+        return (
+            "http" in lowered_tool
+            or bool(re.search(r"^HTTP/\d(?:\.\d)?\s+\d{3}\b", content, re.MULTILINE))
+            or bool(re.search(r"\bStatus(?: Code)?:\s*\d{3}\b", content, re.IGNORECASE))
+            or ("<html" in content.lower() and "</html>" in content.lower())
+        )
+
+    def _looks_like_shell(self, content: str, role: str, tool_name: str) -> bool:
+        lowered_tool = tool_name.lower()
+        return (
+            role == "tool"
+            and any(
+                name in lowered_tool
+                for name in ("shell", "terminal", "cmd", "bash", "powershell")
+            )
+        ) or bool(
+            re.search(
+                r"^\s*(stdout|stderr)\s*:",
+                content,
+                re.IGNORECASE | re.MULTILINE,
+            )
+        )
+
+    def _looks_like_error(self, content: str) -> bool:
+        return (
+            "Traceback (most recent call last)" in content
+            or bool(
+                re.search(
+                    r"^\s*(?:File \".+\", line \d+|[A-Za-z_][\w.]*Error:)",
+                    content,
+                    re.MULTILINE,
+                )
+            )
+            or bool(
+                re.search(
+                    r"^\s*(?:Exception|RuntimeError|ValueError|TypeError|KeyError):",
+                    content,
+                    re.MULTILINE,
+                )
+            )
+        )
+
+    def _compress_http(self, content: str) -> str:
+        """Preserve HTTP status/redirect/facts while stripping markup boilerplate."""
+        lines = content.splitlines()
+        kept = []
+
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if re.match(r"^HTTP/\d(?:\.\d)?\s+\d{3}\b", stripped):
+                kept.append(stripped)
+                continue
+            if re.match(
+                (
+                    r"^(Status(?: Code)?|Location|Redirect(?:ed)?(?:-To)?|URL|"
+                    r"Final-URL|Set-Cookie|Content-Type):"
+                ),
+                stripped,
+                re.IGNORECASE,
+            ):
+                kept.append(stripped)
+
+        body = re.sub(r"(?is)<script\b.*?</script>", " ", content)
+        body = re.sub(r"(?is)<style\b.*?</style>", " ", body)
+        body = re.sub(r"(?is)<(nav|footer|header|aside)\b.*?</\1>", " ", body)
+        body = re.sub(r"(?is)<!--.*?-->", " ", body)
+        body = re.sub(r"(?is)<[^>]+>", " ", body)
+        body = unescape(body)
+
+        for line in self._meaningful_lines(body):
+            if self._is_key_signal(line) or self._looks_like_endpoint_line(line):
+                kept.append(line)
+
+        return self._join_unique(kept) or self._compress_repeated_lines(body)
+
+    def _compress_shell(self, content: str) -> str:
+        """Keep stdout data and demote stderr progress/banner noise."""
+        stdout_lines = []
+        stderr_lines = []
+        current = stdout_lines
+
+        for line in content.splitlines():
+            stripped = line.strip()
+            marker = re.match(r"^(stdout|stderr)\s*:\s*(.*)$", stripped, re.IGNORECASE)
+            if marker:
+                current = (
+                    stderr_lines
+                    if marker.group(1).lower() == "stderr"
+                    else stdout_lines
+                )
+                stripped = marker.group(2).strip()
+                if not stripped:
+                    continue
+
+            if current is stderr_lines and self._is_shell_noise(stripped):
+                continue
+            if stripped:
+                current.append(stripped)
+
+        output = []
+        if stdout_lines:
+            output.append("stdout:")
+            output.extend(self._dedupe_lines(stdout_lines, limit=120))
+        if stderr_lines:
+            important_stderr = [
+                line
+                for line in stderr_lines
+                if self._is_key_signal(line) or self._looks_like_error(line)
+            ]
+            if important_stderr:
+                output.append("stderr:")
+                output.extend(self._dedupe_lines(important_stderr, limit=40))
+
+        return "\n".join(output) if output else self._compress_repeated_lines(content)
+
+    def _compress_error(self, content: str) -> str:
+        """Keep the primary exception and de-duplicated stack context."""
+        lines = [line.rstrip() for line in content.splitlines() if line.strip()]
+        exception_lines = [
+            line.strip()
+            for line in lines
+            if re.match(r"^[A-Za-z_][\w.]*(?:Error|Exception|Warning):", line.strip())
+            or re.match(
+                r"^(Exception|RuntimeError|ValueError|TypeError|KeyError):",
+                line.strip(),
+            )
+        ]
+        file_lines = [
+            line.strip()
+            for line in lines
+            if re.match(r"^File \".+\", line \d+", line.strip())
+        ]
+        key_lines = [line.strip() for line in lines if self._is_key_signal(line)]
+        kept = []
+        if exception_lines:
+            kept.append(f"primary_exception: {exception_lines[-1]}")
+        kept.extend(file_lines[:8])
+        kept.extend(key_lines[:20])
+        return self._join_unique(kept) or self._join_unique(lines[:20])
+
+    def _compress_repeated_lines(self, content: str) -> str:
+        lines = self._meaningful_lines(content)
+        if len(lines) <= 80 and len(content) <= 4000:
+            return content
+
+        kept = [line for line in lines if self._is_key_signal(line)]
+        if not kept:
+            kept = lines[:40] + lines[-20:]
+        return self._join_unique(kept)
+
+    def _meaningful_lines(self, content: str) -> List[str]:
+        """Normalize text into non-boilerplate lines."""
+        rough_lines = []
+        for line in content.splitlines():
+            for part in re.split(r"\s{2,}", line):
+                stripped = re.sub(r"\s+", " ", part).strip()
+                if stripped:
+                    rough_lines.append(stripped)
+
+        return [
+            line
+            for line in rough_lines
+            if not self._is_html_boilerplate(line) and len(line) <= 800
+        ]
+
+    def _is_html_boilerplate(self, line: str) -> bool:
+        lowered = line.lower()
+        if lowered in {"html", "head", "body", "main"}:
+            return True
+        return bool(
+            re.search(
+                (
+                    r"\b(layout filler|copyright|home about contact|tracking|"
+                    r"display:block|banner nav menu)\b"
+                ),
+                lowered,
+            )
+        )
+
+    def _is_shell_noise(self, line: str) -> bool:
+        lowered = line.lower()
+        return bool(
+            re.search(
+                (
+                    r"(\bprogress\b|\bbanner\b|\bspinner\b|\beta\b|"
+                    r"\bdownload(?:ing)?\b|\bloaded\b|^\[[-=/#\\|]+\]$)"
+                ),
+                lowered,
+            )
+        )
+
+    def _is_key_signal(self, line: str) -> bool:
+        return bool(
+            re.search(
+                r"\b("
+                r"confirmed fact|target|endpoint|credential|creds|token|cookie|flag|"
+                r"vuln|cve|redirect|location|status|payload|rejected|failed|"
+                r"403|401|500|admin|export|backup|found|discovered|service|"
+                r"version|port|exception|error|"
+                r"hypothesis|suspected|next|todo|follow.?up"
+                r")\b",
+                line,
+                re.IGNORECASE,
+            )
+        )
+
+    def _looks_like_endpoint_line(self, line: str) -> bool:
+        return bool(re.search(r"(?<!\w)/(?:[A-Za-z0-9._~!$&'()*+,;=:@%-]+/?)+", line))
+
+    def _join_unique(self, lines: List[str], limit: int = 160) -> str:
+        return "\n".join(self._dedupe_lines(lines, limit=limit))
+
+    def _dedupe_lines(self, lines: List[str], limit: int = 160) -> List[str]:
+        seen = set()
+        result = []
+        for line in lines:
+            normalized = re.sub(r"\s+", " ", line).strip()
+            if not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+            result.append(normalized)
+            if len(result) >= limit:
+                break
+        return result
+
+    def _empty_summary_state(self) -> Dict[str, List[str]]:
+        return {field: [] for field in SUMMARY_FIELDS}
+
+    def _normalize_summary_state(
+        self, raw_summary: str, fallback_messages: Optional[List[dict]] = None
+    ) -> Dict[str, List[str]]:
+        try:
+            parsed = self._parse_summary_json(raw_summary)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return self._fallback_summary_state(fallback_messages or [])
+
+        state = self._empty_summary_state()
+        for field in SUMMARY_FIELDS:
+            value = parsed.get(field, [])
+            if isinstance(value, list):
+                state[field] = [
+                    str(item).strip() for item in value if str(item).strip()
+                ]
+            elif value:
+                state[field] = [str(value).strip()]
+        return state
+
+    def _parse_summary_json(self, raw_summary: str) -> dict:
+        text = raw_summary.strip()
+        if text.startswith("```"):
+            text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE)
+            text = re.sub(r"\s*```$", "", text)
+        if not text.startswith("{"):
+            start = text.find("{")
+            end = text.rfind("}")
+            if start == -1 or end == -1 or end <= start:
+                raise ValueError("summary did not contain a JSON object")
+            text = text[start : end + 1]
+
+        parsed = json.loads(text)
+        if not isinstance(parsed, dict):
+            raise ValueError("summary JSON must be an object")
+        return parsed
+
+    def _fallback_summary_state(self, messages: List[dict]) -> Dict[str, List[str]]:
+        state = self._empty_summary_state()
+
+        for msg in messages:
+            role = msg.get("role", "unknown")
+            tool_name = msg.get("name", "")
+            content = self._compress_content(
+                msg.get("content", ""), role=role, tool_name=tool_name
+            )
+            for line in self._meaningful_lines(content):
+                lowered = line.lower()
+                if re.search(
+                    r"\b(rejected|failed|forbidden|403|401|blocked)\b", lowered
+                ):
+                    state["rejected_payloads"].append(line)
+                elif re.search(
+                    r"\b(hypothesis|suspected|maybe|may|might|possible)\b",
+                    lowered,
+                ):
+                    state["open_hypotheses"].append(line)
+                elif re.search(
+                    r"\b(next|todo|follow.?up|pending|try|verify)\b", lowered
+                ):
+                    state["pending_followups"].append(line)
+                elif self._is_key_signal(line):
+                    state["confirmed_facts"].append(line)
+
+        return {
+            field: self._dedupe_lines(values, limit=80)
+            for field, values in state.items()
+        }
+
+    def _merge_summary_states(
+        self, states: List[Dict[str, List[str]]]
+    ) -> Dict[str, List[str]]:
+        merged = self._empty_summary_state()
+        for state in states:
+            for field in SUMMARY_FIELDS:
+                merged[field].extend(state.get(field, []))
+
+        return {
+            field: self._dedupe_lines(values, limit=120)
+            for field, values in merged.items()
+        }
+
+    def _dump_summary_state(self, state: Dict[str, List[str]]) -> str:
+        normalized = self._empty_summary_state()
+        for field in SUMMARY_FIELDS:
+            normalized[field] = [
+                str(item) for item in state.get(field, []) if str(item)
+            ]
+        return json.dumps(normalized, ensure_ascii=False, indent=2)
 
     def _count_tokens(self, message: dict) -> int:
         """Count tokens in a message."""
