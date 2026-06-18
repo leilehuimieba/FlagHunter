@@ -446,6 +446,66 @@ class TestSSHRuntimeProxyHttpFetch:
         assert res["headers"]["x-powered-by"] == "PHP/5.6.40"
 
     @pytest.mark.asyncio
+    async def test_post_sends_json_body_and_content_type(self, monkeypatch):
+        from flaghunter.runtime.ssh_runtime import SSHRuntime
+
+        rt = SSHRuntime.__new__(SSHRuntime)
+        rt._proxy_port = 8888
+        captured = {}
+
+        async def fake_exec(cmd, timeout=0):
+            captured["cmd"] = cmd
+            return CommandResult(
+                exit_code=0,
+                stdout="200\n__PA_SEP_9b1c4f__\n__PA_SEP_9b1c4f__\n{}",
+                stderr="",
+            )
+
+        monkeypatch.setattr(rt, "execute_command", fake_exec)
+        res = await rt.proxy_action(
+            "request",
+            method="POST",
+            url="http://t.local/graphql",
+            json={"query": "{__schema{types{name}}}"},
+            timeout=5,
+        )
+
+        assert res["status_code"] == 200
+        assert "-X POST" in captured["cmd"]
+        assert "--data" in captured["cmd"]
+        assert "__schema" in captured["cmd"]
+        # JSON content-type auto-added when caller didn't set one.
+        assert "Content-Type: application/json" in captured["cmd"]
+
+    @pytest.mark.asyncio
+    async def test_json_does_not_duplicate_caller_content_type(self, monkeypatch):
+        from flaghunter.runtime.ssh_runtime import SSHRuntime
+
+        rt = SSHRuntime.__new__(SSHRuntime)
+        rt._proxy_port = 8888
+        captured = {}
+
+        async def fake_exec(cmd, timeout=0):
+            captured["cmd"] = cmd
+            return CommandResult(
+                exit_code=0,
+                stdout="200\n__PA_SEP_9b1c4f__\n__PA_SEP_9b1c4f__\nok",
+                stderr="",
+            )
+
+        monkeypatch.setattr(rt, "execute_command", fake_exec)
+        await rt.proxy_action(
+            "request",
+            method="POST",
+            url="http://t.local/api",
+            json={"a": 1},
+            headers={"Content-Type": "application/json"},
+            timeout=5,
+        )
+        # Caller already set content-type → strategy block must not add a second one.
+        assert captured["cmd"].count("application/json") == 1
+
+    @pytest.mark.asyncio
     async def test_missing_url_errors(self):
         from flaghunter.runtime.ssh_runtime import SSHRuntime
 
@@ -510,6 +570,37 @@ class TestDockerRuntimeProxyHttpFetch:
         assert "-X POST" in captured["cmd"]
         assert "--data-urlencode" in captured["cmd"]
         assert "user=admin" in captured["cmd"]
+
+    @pytest.mark.asyncio
+    async def test_post_sends_json_body_and_content_type(self, monkeypatch):
+        from flaghunter.runtime.docker_runtime import DockerRuntime
+
+        rt = DockerRuntime.__new__(DockerRuntime)
+        rt._proxy_port = 8888
+        captured = {}
+
+        async def fake_exec(cmd, timeout=0):
+            captured["cmd"] = cmd
+            return CommandResult(
+                exit_code=0,
+                stdout="200\n__PA_SEP_9b1c4f__\n__PA_SEP_9b1c4f__\n{}",
+                stderr="",
+            )
+
+        monkeypatch.setattr(rt, "execute_command", fake_exec)
+        res = await rt.proxy_action(
+            "request",
+            method="POST",
+            url="http://t.local/graphql",
+            json={"query": "{__schema{types{name}}}"},
+            timeout=5,
+        )
+
+        assert res["status_code"] == 200
+        assert "-X POST" in captured["cmd"]
+        assert "--data" in captured["cmd"]
+        assert "__schema" in captured["cmd"]
+        assert "Content-Type: application/json" in captured["cmd"]
 
     @pytest.mark.asyncio
     async def test_missing_url_errors(self):

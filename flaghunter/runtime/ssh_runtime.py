@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import re
@@ -309,6 +310,15 @@ class SSHRuntime(Runtime):
                     flags += " --data-urlencode " + shlex.quote(f"{key}={value}")
             else:
                 flags += " --data " + shlex.quote(str(data))
+        else:
+            json_body = kwargs.get("json")
+            if json_body is not None:
+                flags += " --data " + shlex.quote(json.dumps(json_body))
+                if not any(
+                    str(key).lower() == "content-type"
+                    for key in (kwargs.get("headers") or {})
+                ):
+                    flags += " -H " + shlex.quote("Content-Type: application/json")
         for key, value in (kwargs.get("headers") or {}).items():
             flags += " -H " + shlex.quote(f"{key}: {value}")
 
