@@ -1,0 +1,35 @@
+{
+  "name": "auth_form_sqli",
+  "target": "http://ctf.local/",
+  "goal": "拿到flag",
+  "type": "sqli",
+  "hint": "",
+  "expected_flag": "flag{dispatcher_sqli_ok}",
+  "browser": {
+    "navigate": {"url": "http://ctf.local/", "title": "EasySQL"},
+    "get_content": {
+      "content": "用户登陆 username password",
+      "html": "<html><body><form action=\"http://ctf.local/check.php\" method=\"get\"><input name=\"username\" type=\"text\" /><input name=\"password\" type=\"text\" /></form></body></html>"
+    },
+    "get_forms": {
+      "forms": [
+        {
+          "action": "http://ctf.local/check.php",
+          "method": "get",
+          "inputs": [
+            {"name": "username", "type": "text"},
+            {"name": "password", "type": "text"}
+          ]
+        }
+      ]
+    },
+    "get_cookies": {"cookie_string": ""}
+  },
+  "proxy_rules": [
+    {
+      "when": {"url_contains": "1%27+or+1%3D1%23"},
+      "response": {"status_code": 200, "body": "Login Success! flag{dispatcher_sqli_ok}"}
+    }
+  ],
+  "default_proxy": {"status_code": 200, "body": "NO,Wrong username password！！！"}
+}
