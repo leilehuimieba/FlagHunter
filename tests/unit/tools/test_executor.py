@@ -160,6 +160,78 @@ class TestToolExecutorFailure:
 
 
 # ---------------------------------------------------------------------------
+# Typed result envelope
+# ---------------------------------------------------------------------------
+
+class TestTypedResultEnvelope:
+    @pytest.mark.asyncio
+    async def test_auth_failure_gets_auth_error_class_and_keeps_old_fields(self):
+        async def auth_failure(arguments, runtime):
+            raise RuntimeError("401 Unauthorized: invalid API key")
+
+        tool = Tool(
+            name="http_request",
+            description="",
+            schema=ToolSchema(),
+            execute_fn=auth_failure,
+        )
+        executor = _make_executor()
+
+        result = await executor.execute(tool, {})
+
+        assert result.success is False
+        assert result.result is None
+        assert "Unauthorized" in result.error
+        assert result.status == "error"
+        assert result.error_class == "auth"
+        assert result.stdout_clean == ""
+        assert "Unauthorized" in result.stderr_noise
+
+    @pytest.mark.asyncio
+    async def test_timeout_gets_timeout_error_class_and_keeps_old_fields(self):
+        executor = _make_executor(timeout=1)
+        tool = _make_tool(delay=5)
+
+        result = await executor.execute(tool, {"cmd": "x"})
+
+        assert result.success is False
+        assert result.result is None
+        assert "timed out" in result.error.lower()
+        assert result.status == "error"
+        assert result.error_class == "timeout"
+        assert result.stdout_clean == ""
+        assert "timed out" in result.stderr_noise.lower()
+
+    @pytest.mark.asyncio
+    async def test_terminal_success_splits_stdout_data_from_stderr_noise(self):
+        async def terminal_output(arguments, runtime):
+            return (
+                "Starting scanner 1.0\n"
+                "Progress: 50%\n"
+                "PORT STATE SERVICE\n"
+                "80/tcp open http\n"
+            )
+
+        tool = Tool(
+            name="terminal",
+            description="",
+            schema=ToolSchema(),
+            execute_fn=terminal_output,
+        )
+        executor = _make_executor()
+
+        result = await executor.execute(tool, {"cmd": "scan"})
+
+        assert result.success is True
+        assert "PORT STATE SERVICE" in result.result
+        assert result.error is None
+        assert result.status == "success"
+        assert result.error_class == "none"
+        assert result.stdout_clean == "PORT STATE SERVICE\n80/tcp open http"
+        assert result.stderr_noise == "Starting scanner 1.0\nProgress: 50%"
+
+
+# ---------------------------------------------------------------------------
 # Retries
 # ---------------------------------------------------------------------------
 

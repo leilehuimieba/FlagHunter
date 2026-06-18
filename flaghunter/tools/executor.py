@@ -39,6 +39,16 @@ _STEALTH_UA_POOL = [
     "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
 ]
 _STEALTH_TOOLS = {"dirscan", "nuclei", "sqlmap", "afrog", "browser", "waf"}
+_TERMINAL_TOOLS = {"terminal", "bash", "shell", "cmd", "powershell"}
+_ERROR_CLASSES = {
+    "auth",
+    "badparam",
+    "timeout",
+    "network",
+    "target_down",
+    "transient",
+    "none",
+}
 
 # Tool execution result cache — P5 performance optimization
 _TOOL_CACHE_TTL_SECONDS = 60
@@ -98,6 +108,124 @@ class _ToolResultCache:
 async def _stealth_delay(delay_range: tuple[float, float] = (0.5, 2.0)) -> None:
     """随机等待，避免速率检测。"""
     await asyncio.sleep(_random.uniform(*delay_range))
+
+
+def _as_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    return str(value)
+
+
+def _classify_error(error: Optional[str]) -> str:
+    if not error:
+        return "none"
+
+    text = error.lower()
+    if any(
+        marker in text
+        for marker in (
+            "unauthorized",
+            "forbidden",
+            "authentication",
+            "permission denied",
+            "invalid api key",
+            "invalid token",
+            "401",
+            "403",
+            "[m4 blocked]",
+        )
+    ):
+        return "auth"
+    if any(
+        marker in text
+        for marker in (
+            "missing required",
+            "invalid argument",
+            "invalid type",
+            "bad parameter",
+            "badparam",
+            "usage:",
+            "unknown option",
+        )
+    ):
+        return "badparam"
+    if "timed out" in text or "timeout" in text:
+        return "timeout"
+    if any(
+        marker in text
+        for marker in (
+            "host is down",
+            "host down",
+            "target down",
+            "no route to host",
+            "host unreachable",
+            "network is unreachable",
+        )
+    ):
+        return "target_down"
+    if any(
+        marker in text
+        for marker in (
+            "connection refused",
+            "connection reset",
+            "connection aborted",
+            "connection error",
+            "dns",
+            "name resolution",
+            "temporary failure in name resolution",
+            "tls",
+            "ssl",
+            "proxy error",
+        )
+    ):
+        return "network"
+    return "transient"
+
+
+def _is_terminal_noise_line(line: str) -> bool:
+    stripped = line.strip()
+    lower = stripped.lower()
+    if not stripped:
+        return True
+    if lower.startswith(
+        (
+            "starting ",
+            "progress:",
+            "warning:",
+            "warn:",
+            "info:",
+            "debug:",
+            "trace:",
+            "banner:",
+        )
+    ):
+        return True
+    return bool(_re.search(r"\b(progress|completed|scanned)\b.*\b\d{1,3}%", lower))
+
+
+def _split_streams(
+    tool_name: str, result: Optional[str], error: Optional[str]
+) -> tuple[str, str]:
+    if error:
+        return "", _as_text(error).strip()
+
+    output = _as_text(result).strip()
+    if not output:
+        return "", ""
+    if tool_name not in _TERMINAL_TOOLS:
+        return output, ""
+
+    stdout_lines = []
+    stderr_lines = []
+    for line in output.splitlines():
+        if _is_terminal_noise_line(line):
+            stderr_lines.append(line.rstrip())
+        else:
+            stdout_lines.append(line.rstrip())
+
+    return "\n".join(stdout_lines).strip(), "\n".join(stderr_lines).strip()
 
 
 def _is_stealth_active(target_url: str = "") -> tuple[bool, tuple[float, float]]:
@@ -165,11 +293,41 @@ class ExecutionResult:
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
     duration_ms: float = 0.0
+    status: Optional[str] = None
+    error_class: Optional[str] = None
+    stdout_clean: Optional[str] = None
+    stderr_noise: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        if self.status is None:
+            self.status = "success" if self.success else "error"
+        if self.error_class is None:
+            self.error_class = "none" if self.success else _classify_error(self.error)
+        if self.error_class not in _ERROR_CLASSES:
+            self.error_class = "transient"
+        if self.stdout_clean is None or self.stderr_noise is None:
+            stdout_clean, stderr_noise = _split_streams(
+                self.tool_name, self.result, self.error
+            )
+            if self.stdout_clean is None:
+                self.stdout_clean = stdout_clean
+            if self.stderr_noise is None:
+                self.stderr_noise = stderr_noise
 
     @property
     def duration(self) -> float:
         """Get execution duration in seconds."""
         return self.duration_ms / 1000.0
+
+    @property
+    def result_envelope(self) -> dict[str, str]:
+        """Typed result envelope for deterministic retry/backoff decisions."""
+        return {
+            "status": self.status or ("success" if self.success else "error"),
+            "error_class": self.error_class or "none",
+            "stdout_clean": self.stdout_clean or "",
+            "stderr_noise": self.stderr_noise or "",
+        }
 
 
 def _m4_scope_check(tool_name: str, args: dict) -> tuple[bool, str]:
