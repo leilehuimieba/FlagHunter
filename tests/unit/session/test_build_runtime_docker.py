@@ -50,10 +50,13 @@ async def test_build_runtime_docker_propagates_configured_image(monkeypatch):
 
     runtime, info = await initializer.build_runtime(docker=True)
 
-    assert isinstance(runtime, _FakeDockerRuntime)
+    # The Docker primary is wrapped by HybridBrowserRuntime; the configured
+    # image must still reach the underlying DockerRuntime.
+    from flaghunter.runtime.hybrid_runtime import HybridBrowserRuntime
+
+    assert isinstance(runtime, HybridBrowserRuntime)
+    assert isinstance(runtime.primary, _FakeDockerRuntime)
     assert info["selected"] == "docker"
-    # The configured image/container must reach DockerRuntime — this is the
-    # seam that was previously dead.
     assert _FakeDockerRuntime.last_config.image == sentinel_image
     assert _FakeDockerRuntime.last_config.container_name == "fh-test"
     assert sentinel_image in info["status_text"]

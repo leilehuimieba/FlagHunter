@@ -79,12 +79,15 @@ async def build_runtime(
     if docker:
         from ..config.settings import get_settings
         from ..runtime.docker_runtime import DockerConfig, DockerRuntime
+        from ..runtime.hybrid_runtime import HybridBrowserRuntime
 
         settings = get_settings()
-        runtime: Any = DockerRuntime(
-            config=DockerConfig(
-                image=settings.docker_image,
-                container_name=settings.container_name,
+        runtime: Any = HybridBrowserRuntime(
+            primary=DockerRuntime(
+                config=DockerConfig(
+                    image=settings.docker_image,
+                    container_name=settings.container_name,
+                )
             )
         )
         _log(f"Using DockerRuntime (image: {settings.docker_image}).")
@@ -100,9 +103,10 @@ async def build_runtime(
         return runtime, runtime_info
 
     if ssh:
+        from ..runtime.hybrid_runtime import HybridBrowserRuntime
         from ..runtime.ssh_runtime import SSHRuntime
 
-        runtime = SSHRuntime()
+        runtime = HybridBrowserRuntime(primary=SSHRuntime())
         _log("Using SSHRuntime — connecting to Kali VM.")
         await runtime.start()
         runtime_info.update(
@@ -121,9 +125,10 @@ async def build_runtime(
         return runtime, runtime_info
 
     if auto_ssh and has_ssh_runtime_config():
+        from ..runtime.hybrid_runtime import HybridBrowserRuntime
         from ..runtime.ssh_runtime import SSHRuntime
 
-        runtime = SSHRuntime()
+        runtime = HybridBrowserRuntime(primary=SSHRuntime())
         runtime_info.update(
             {
                 "requested": "auto-ssh",
