@@ -453,3 +453,69 @@ class TestSSHRuntimeProxyHttpFetch:
         rt._proxy_port = 8888
         res = await rt.proxy_action("get")
         assert "error" in res
+
+
+# ---------------------------------------------------------------------------
+# DockerRuntime.proxy_action HTTP fetch (curl-in-container, mirrors SSHRuntime)
+# ---------------------------------------------------------------------------
+class TestDockerRuntimeProxyHttpFetch:
+    @pytest.mark.asyncio
+    async def test_get_parses_status_headers_body_and_set_cookie(self, monkeypatch):
+        from flaghunter.runtime.docker_runtime import DockerRuntime
+
+        rt = DockerRuntime.__new__(DockerRuntime)
+        rt._proxy_port = 8888
+        sep = "__PA_SEP_9b1c4f__"
+        headers = (
+            "HTTP/1.1 200 OK\r\n"
+            "Server: openresty\r\n"
+            "Set-Cookie: XSRF-TOKEN=abc; path=/\r\n"
+            "Set-Cookie: laravel_session=def; httponly\r\n"
+            "X-Powered-By: PHP/5.6.40\r\n"
+        )
+        body = "<html><a href='/login'>Login</a></html>"
+        stdout = f"200\n{sep}\n{headers}{sep}\n{body}"
+
+        async def fake_exec(cmd, timeout=0):
+            assert "curl" in cmd
+            return CommandResult(exit_code=0, stdout=stdout, stderr="")
+
+        monkeypatch.setattr(rt, "execute_command", fake_exec)
+        res = await rt.proxy_action("get", url="http://t.local:80/", timeout=10)
+
+        assert res["status_code"] == 200
+        assert res["body"] == body
+        assert "laravel_session=def" in res["headers"]["set-cookie"]
+        assert "xsrf-token=abc" in res["headers"]["set-cookie"].lower()
+        assert res["headers"]["x-powered-by"] == "PHP/5.6.40"
+
+    @pytest.mark.asyncio
+    async def test_post_sends_method_and_form_data(self, monkeypatch):
+        from flaghunter.runtime.docker_runtime import DockerRuntime
+
+        rt = DockerRuntime.__new__(DockerRuntime)
+        rt._proxy_port = 8888
+        captured = {}
+
+        async def fake_exec(cmd, timeout=0):
+            captured["cmd"] = cmd
+            return CommandResult(exit_code=0, stdout="200\n__PA_SEP_9b1c4f__\n__PA_SEP_9b1c4f__\nok", stderr="")
+
+        monkeypatch.setattr(rt, "execute_command", fake_exec)
+        res = await rt.proxy_action(
+            "post", url="http://t.local/login", data={"user": "admin"}, timeout=5
+        )
+
+        assert res["status_code"] == 200
+        assert "-X POST" in captured["cmd"]
+        assert "--data-urlencode" in captured["cmd"]
+        assert "user=admin" in captured["cmd"]
+
+    @pytest.mark.asyncio
+    async def test_missing_url_errors(self):
+        from flaghunter.runtime.docker_runtime import DockerRuntime
+
+        rt = DockerRuntime.__new__(DockerRuntime)
+        rt._proxy_port = 8888
+        res = await rt.proxy_action("get")
+        assert "error" in res

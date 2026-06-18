@@ -3,6 +3,7 @@
 import asyncio
 import io
 import logging
+import shlex
 import tarfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -310,7 +311,83 @@ class DockerRuntime(Runtime):
             await self.execute_command("rm -f /tmp/proxy.flow")
             return {"status": "cleared"}
 
+        if action in {"get", "request", "post"}:
+            return await self._proxy_http_fetch(action, **kwargs)
+
         return {"error": f"Unknown proxy action: {action}"}
+
+    async def _proxy_http_fetch(self, action: str, **kwargs) -> dict:
+        """HTTP fetch via curl inside the sandbox container.
+
+        Mirrors ``SSHRuntime._proxy_http_fetch`` and ``LocalRuntime``'s
+        httpx-based ``proxy_action("get"/"request"/"post")`` so recon's HTTP
+        fallback works identically under Docker — returning
+        ``{status_code, headers, body, final_url}`` with Set-Cookie preserved
+        (framework fingerprinting depends on it). Without this branch the
+        container path returned "Unknown proxy action: get" and silently
+        dropped response headers.
+        """
+        url = kwargs.get("url") or ""
+        if not url:
+            return {"error": "URL is required"}
+        timeout = int(kwargs.get("timeout", 15) or 15)
+        method = str(
+            kwargs.get("method") or ("POST" if action == "post" else "GET")
+        ).upper()
+
+        sep = "__PA_SEP_9b1c4f__"
+        hdr = f"/tmp/pa_hdr_{self._proxy_port}.txt"
+        bod = f"/tmp/pa_body_{self._proxy_port}.bin"
+        flags = f"-s -L --max-time {timeout}"
+        if method not in {"GET", "HEAD"}:
+            flags += f" -X {shlex.quote(method)}"
+        data = kwargs.get("data")
+        if data:
+            if isinstance(data, dict):
+                for key, value in data.items():
+                    flags += " --data-urlencode " + shlex.quote(f"{key}={value}")
+            else:
+                flags += " --data " + shlex.quote(str(data))
+        for key, value in (kwargs.get("headers") or {}).items():
+            flags += " -H " + shlex.quote(f"{key}: {value}")
+
+        cmd = (
+            f"curl {flags} -D {hdr} -o {bod} -w '%{{http_code}}' {shlex.quote(url)}; "
+            f"echo; echo {sep}; cat {hdr} 2>/dev/null; echo {sep}; "
+            f"head -c 200000 {bod} 2>/dev/null; rm -f {hdr} {bod}"
+        )
+        result = await self.execute_command(cmd, timeout=timeout + 10)
+        if not result.success and not result.stdout:
+            return {"error": result.stderr or "curl failed"}
+
+        out = result.stdout or ""
+        parts = out.split(sep)
+        status_text = parts[0].strip() if parts else ""
+        headers_text = parts[1] if len(parts) > 1 else ""
+        body = parts[2].lstrip("\r\n") if len(parts) > 2 else ""
+
+        headers_dict: dict[str, str] = {}
+        set_cookies: list[str] = []
+        for line in headers_text.splitlines():
+            if ":" not in line or line.upper().startswith("HTTP/"):
+                continue
+            key, _, value = line.partition(":")
+            key = key.strip().lower()
+            value = value.strip()
+            if not key:
+                continue
+            if key == "set-cookie":
+                set_cookies.append(value)
+            headers_dict[key] = value
+        if set_cookies:
+            headers_dict["set-cookie"] = "; ".join(set_cookies)
+
+        return {
+            "status_code": int(status_text) if status_text.isdigit() else 0,
+            "headers": headers_dict,
+            "body": body,
+            "final_url": url,
+        }
 
     async def is_running(self) -> bool:
         """Check if the container is running."""
