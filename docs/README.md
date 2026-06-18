@@ -46,21 +46,29 @@
 - `docs/dev/FlagHunter_Harness优化方案_借鉴Cairn_V1.md`
 - `docs/dev/御网杯_AI复盘文章学习笔记_离线复盘导向_V1.md`
 
-### 2.3 运营 / 验证事实层
+### 2.3 基准（baseline，代码真相 + 不变量 + 守护测试）
+
+把"能力/验证/评估"的现状钉成**活基准**：每条结论带 `file:line`，配不变量与守护测试，随代码维护。改了对应子系统**必须回这三份更新**（见 §5）。
+
+- `docs/dev/基准_CTF能力与可达性_2026-06-18_V1.md` —— 23 策略注册清单 + 双分发路径 + 可达性矩阵 + 不变量 I5 + 守护测试规格（**当前已确认 graphql/nosql 两处可达性缺口，修法落 P4**）
+- `docs/dev/基准_验证与解题判定_2026-06-18_V1.md` —— verifier.py 现状基线（已达目标 ~70–80%）+ 双轴/三态/runtime-grounding 标准 + done-criteria
+- `docs/dev/基准_评估指标与失败分类_2026-06-18_V1.md` —— recovery 10 类失败 + 链成功率 vs 节点均值 + 预算分层 + harness 证据基底
+
+### 2.4 运营 / 验证事实层
 
 最接近当前代码真相的运行与验证记录：
 
 - `docs/dev/FlagHunter_live_CTF能力与端到端测试台账_2026-06-09_V1.md` —— live CTF 能力与端到端测试台账
-- `docs/dev/CTF_web链可达性静态审计_2026-06-17_V1.md` —— web 链"能力够不够得着"的静态审计
+- `docs/dev/CTF_web链可达性静态审计_2026-06-17_V1.md` —— web 链"能力够不够得着"的静态审计（已被 §2.3 可达性基准升级取代，保留作过程记录）
 - `docs/dev/FlagHunter_预存验收链失败_根因characterization_2026-06-16_V1.md` —— 预存验收链失败根因
 - `docs/dev/FlagHunter_架构优化方案_黑板控制单元与façade收尾_2026-06-16_V1.md` —— 黑板控制单元与 façade 收尾方案
 - `docs/dev/CHANGELOG_schema.md` —— changelog 结构约定
 
-### 2.4 CTF 做题 WP（知识沉淀）
+### 2.5 CTF 做题 WP（知识沉淀）
 
 `docs/dev/DASCTF_*` —— 8 篇真实赛题做题/阶段 WP（piapiapia、urlstorage RPO、Unicorn shop、WarmUp、SSRFme、强网杯 Upload/随便注、easy_tornado SSTI），作为能力验证与知识沉淀保留。
 
-### 2.5 发布与协作流程
+### 2.6 发布与协作流程
 
 - `docs/release-policy.md` / `docs/release-checklist.md` / `docs/release-playbook.md`
 - `docs/label-strategy.md`
@@ -98,9 +106,12 @@
 改了下面任意一类内容，请同步更新对应文档：
 
 - 入口装配 / 事件契约（关节 A）→ ADR
-- 策略分发 / chains 结构（关节 B）→ ADR
+- 策略分发 / chains 结构（关节 B）→ ADR + **可达性基准（§2.3，跑 I5 守护测试）**
 - 架构方向 / 红队工程学映射 → V2 与工程层补遗
 - CTF 能力与端到端验证 → live 台账 / 可达性审计
+- 策略注册 / detect_type / 假设生成 / web 桥接清单 → **可达性基准（§2.3）**
+- verifier 来源集合 / 门控 / FlagProof schema → **验证判定基准（§2.3）**
+- recovery 失败动作 / 预算阈值 / harness 字段 → **评估与失败分类基准（§2.3）**
 
 维护原则只有一句话：
 
