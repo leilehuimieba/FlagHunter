@@ -73,6 +73,10 @@ _CONTACT_CAPTCHA_IMAGE_RE = re.compile(r"/captcha/image/([^/]+)/", re.IGNORECASE
 # (moved from ctf_dispatcher)
 _ADMIN_PASSWORD_LOG_RE = re.compile(r"Admin password set to:\s*([^\s]+)")
 
+# (moved from ctf_dispatcher) — recon source/script discovery
+_SCRIPT_SRC_RE = re.compile(r"<script[^>]+src=[\"']([^\"']+)[\"']", re.IGNORECASE)
+_BACKUP_CLUE_RE = re.compile(r"(备份|backup|source code|源码|压缩包|\.zip|\.bak|\.swp)", re.IGNORECASE)
+
 # (moved from ctf_dispatcher)
 _JWT_ALG_HASH = {
     "HS256": hashlib.sha256,
@@ -1291,6 +1295,8 @@ __all__ = [
     '_RECON_TOOL_HINTS',
     '_CONTACT_CAPTCHA_IMAGE_RE',
     '_ADMIN_PASSWORD_LOG_RE',
+    '_SCRIPT_SRC_RE',
+    '_BACKUP_CLUE_RE',
     '_JWT_ALG_HASH',
     '_CONTACT_OCR_READER',
 ]
