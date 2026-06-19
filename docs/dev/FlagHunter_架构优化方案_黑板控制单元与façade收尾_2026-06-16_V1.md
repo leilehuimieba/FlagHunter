@@ -1,6 +1,7 @@
 # FlagHunter 架构优化方案：黑板控制单元 + façade 收尾（V1）
 
 > 日期：2026-06-16
+> 最近核对：2026-06-17
 > 适用范围：`pentestagent/agents/pa_agent/`（dispatcher / coordinator / executor）与 `pentestagent/harness/`、`pentestagent/knowledge/session_context.py`
 > 文档性质：**设计说明 + 逐项实施清单**，不改主干语义、不推倒重写。是 [`FlagHunter_Harness优化方案_借鉴Cairn_V1.md`](FlagHunter_Harness优化方案_借鉴Cairn_V1.md) 的收尾续作。
 
@@ -30,6 +31,31 @@
 
 ---
 
+## 2026-06-17 接手核对修正
+
+本文前半部分的实施进展表已经反映了 Slice 0 / 1a / 1b / 1c / B1 / B2 的最新状态；但 §1 中保留了早期诊断语句，把
+`coordinator.execute(self)` 描述为仍存在的“循环委托头号证据”。以 2026-06-17 源码核对为准，当前应这样理解：
+
+1. `CTFTaskDispatcher.run()` 已是薄 façade，主调用图为：
+
+   ```text
+   CTFTaskDispatcher.run()
+     -> CTFCoordinator.execute()
+     -> CTFTaskDispatcher._run_solve_loop()
+   ```
+
+2. 旧的 dispatcher -> coordinator -> dispatcher.run re-entry bounce 与 `_ready/_delegate` 跳板已不再是 public entry 主路径。
+3. `RunContext` 当前仍是透明代理，coordinator 仍大量调用 dispatcher 私有方法。因此剩余债务不是“循环委托没拆”，而是：
+   - 执行体还集中在 `ctf_dispatcher.py`
+   - recon / explore / exploit helper 还没迁入独立 executor
+   - coordinator 还没真正持有清晰的 deps / executors
+4. Workstream B 已经不是纯规划：`knowledge/blackboard.py::project_blackboard()` 与
+   `SessionContextView.build_blackboard_view()` 已落地，且 `ctf_dispatcher._call_llm_for_action()` 已读取 ranked Fact / Intent / Hint 视图。
+
+后续阅读本文时，应把 §1 中“循环委托”相关段落视作历史问题描述，而不是当前代码真相。
+
+---
+
 ## 0. 一句话结论
 
 **架构已经不差：黑板思维（blackboard-lite）该补的壳已经落地。** 当前缺的不是"更多模块"，更不是"更重的控制平面"，而是两件事：
@@ -46,16 +72,17 @@
 | Harness 层（ledger/artifact/checkpoint/audit/session_context） | Cairn 方案 Phase A | ✅ **已实现且接线，有单测** | `pentestagent/harness/*.py`（54–79 行/模块）；被 dispatcher / coordinator / web_server / mcp_tools / context_assembler 引用；`tests/unit/harness/*` |
 | 权限门禁 | roadmap P1 | ✅ 已存在 | `pentestagent/runtime/permission_enforcer.py` |
 | 子代理 | roadmap P2 | ✅ 已存在 | `pentestagent/agents/subagent.py` |
-| dispatcher 收缩为 façade | Cairn 方案 §6.1 / Phase B | ⚠️ **只做一半** | `ctf_dispatcher.py` 仍 9892 行；`_phase_recon` 等仍在内（`ctf_dispatcher.py:1563`） |
-| 黑板驱动决策 | 隐含目标 | ❌ **未做** | `SessionContextView` 仅在 `pa_agent.py:501` 被读来拼 prompt 上下文（取最近 5 条事件），无控制器读黑板**决定下一步动作** |
+| dispatcher 收缩为 façade | Cairn 方案 §6.1 / Phase B | ⚠️ **入口 façade 已落地，执行体仍未迁出** | `run() -> coordinator.execute() -> _run_solve_loop()` 已成主路径；`ctf_dispatcher.py` 仍近万行，`_phase_recon` / exploit helpers 仍在内 |
+| 黑板驱动决策 | 隐含目标 | 🟡 **B1/B2 已落地为协议读视图，不是打分控制器** | `knowledge/blackboard.py::project_blackboard()` 已存在；`_call_llm_for_action()` 已注入 ranked intents；`interface/blackboard_lite.py` 继续服务 Web/MCP/resume 投影 |
 
-**头号证据 —— 循环委托（`ctf_dispatcher.py:374`）：**
+**历史问题 —— 循环委托（已被 Slice 1b/1c 收掉 public entry 回跳）：**
 
 ```python
 return await self.coordinator.execute(self, **kwargs)
 ```
 
-coordinator 把 `self`（dispatcher 本体）传回去，再回调 dispatcher 自己的 `_phase_*`。这正是 Cairn 方案承认的 **"coordinator↔dispatcher 循环委托 + 14 个 `_ready` 标志位"**。coordinator 目前是空壳，真正逻辑还在 dispatcher 里 —— façade 没收尾，循环依赖就拆不掉，黑板控制器也没法干净地长上去。
+这段代码现在应理解为 façade 入口委托 coordinator，而不是旧式 run re-entry bounce。当前真正的问题是 coordinator 通过透明
+`RunContext` 回调 dispatcher 私有执行体，说明 façade 的 public entry 已收口，但执行体迁移尚未完成。
 
 ---
 
@@ -85,7 +112,7 @@ XBOW 基准（[Aaron Brown 架构复盘](https://medium.com/data-science-collect
 |---|---|---|---|
 | 状态层 | 系统如何知道世界长什么样 | 绿盟 Idea/Memory Board 分"假设vs事实"；Cairn 压成 **Fact/Intent/Hint 事实图** | ✅ 有 `CTFState`+ledger+session_context；但真相分散 7 处，需"状态成为系统资产，而非模型回忆" |
 | 行动层 | 系统如何可靠改变世界 | 工具网关/沙箱/C2；**Cairn/yhy 的 Meta-Tooling：agent 用 Python 代码组合工具，而非每工具封一层 MCP** | ⚠️ 你们是"每工具封一层"，缺 code-use 动作面 |
-| 控制层 | 系统如何决定下一步 | 绿盟 Observer / 清华 Planner 攻击树……从 Prompt 软约束迁到代码/协议硬约束 | ⚠️ 写死 phase 顺序流 + 循环委托 |
+| 控制层 | 系统如何决定下一步 | 绿盟 Observer / 清华 Planner 攻击树……从 Prompt 软约束迁到代码/协议硬约束 | 🟡 `controlDecision / ingressHandoff / coordinator first action` 已落地；剩余风险是执行体仍集中在 dispatcher 与 follow-up 推荐动作消费链未完全闭合 |
 
 **最尖锐的论点（必须纳入决策）：**
 
@@ -101,20 +128,19 @@ XBOW 基准（[Aaron Brown 架构复盘](https://medium.com/data-science-collect
 
 ### 🥇 工作流 A：收尾 façade 拆分（高收益 / 中风险 / 可量化）
 
-**目标**：把执行体真正搬出 dispatcher，让 coordinator 不再回调 dispatcher、消灭 14 个 `_ready` 标志与循环委托。
+**目标（2026-06-17 更新）**：public entry façade 与 `_ready/_delegate` 回跳清理已完成；下一步是把执行体真正搬出 dispatcher，让 coordinator 不再通过透明 `RunContext` 回调 dispatcher 私有方法。
 
 **实施清单**：
 
 1. 新建 `pentestagent/agents/pa_agent/recon_executor.py`，把 `_phase_recon`（`ctf_dispatcher.py:1563`，约 319 行）及其纯依赖搬入 `ReconExecutor`；dispatcher 侧保留 1 行委托。
 2. 新建 `explore_executor.py`，搬 explore/strategy 执行体与 `verify` 调用编排。
-3. coordinator 改为**持有** `ReconExecutor`/`ExploreExecutor`/`Verifier`/`Recovery` 实例并直接驱动，**不再接收 dispatcher 本体**——把 `coordinator.execute(self, ...)` 改为 `coordinator.execute(state, deps)`。
-4. 逐个删除 `_ready` 标志位，改由 executor 返回值/状态对象表达就绪态。
-5. dispatcher 退化为对外兼容入口（CLI/MCP/Web 旧调用路径适配）。
+3. coordinator 改为**持有** `ReconExecutor`/`ExploreExecutor`/`Verifier`/`Recovery` 实例并直接驱动，逐步减少对 dispatcher 私有方法的透明代理调用。
+4. 保持 dispatcher 作为对外兼容入口（CLI/MCP/Web 旧调用路径适配），但把行为体迁入 executor。
 
 **验收指标（客观可量化）**：
 - `ctf_dispatcher.py` 行数 **9892 → < 3000**。
-- `coordinator.py` 中对 dispatcher 本体的回调 **= 0**（`grep self.dispatcher / coordinator.execute(self` 归零）。
-- `_ready` 标志位 **14 → 0**。
+- `coordinator.py` 中对 dispatcher 私有执行体的透明代理调用持续下降，最终为 0。
+- `_ready/_delegate` 类跳板保持为 0，不再回潮。
 - 全量 `pytest` 相对当前 HEAD **零新增失败**（基线：5 条预先存在失败，详见 §5）。
 
 **风险控制**：每搬一个执行体就 `git stash` 对比验证"疑似新失败"是否在搬迁前 HEAD 同样复现；分多个小 commit，每个 commit 后 push。
@@ -125,7 +151,7 @@ XBOW 基准（[Aaron Brown 架构复盘](https://medium.com/data-science-collect
 
 > **方向修订（依据 §2.3）**：放弃原"打分式 BlackboardController（替模型挑动作）"——那是"用控制补信心"。改做**极简协议**：黑板只承载结构化事实/意图/提示，**决策权还给模型**，控制层薄到只剩"协议 + 失败回馈回路"，不做 FSM / 打分。
 >
-> **前置依赖：工作流 A 必须先完成**（协议没法长在循环委托的 dispatcher 上）。
+> **前置依赖更新（2026-06-17）**：Workstream A 的 public entry façade 与 Workstream B 的 B1/B2 已经并行落地；后续 B3 不再被“循环委托”硬阻塞，但仍会受 dispatcher 执行体过大影响。
 
 **目标**：把 `session_ledger` 从"写多读少的审计日志"升级成**模型可读写的共享黑板**，用三类对象统一状态/意图/提示的流转，闭合 **"验证失败 → 模型自主切候选"** 回馈环——但不替模型决策。
 
@@ -175,7 +201,7 @@ XBOW 基准（[Aaron Brown 架构复盘](https://medium.com/data-science-collect
 
 1. **不重写 crew / 不再切多 Agent 角色**——研究证据（§2.2）显示单 meta-agent 更优，crew 保持冻结。
 2. **不引入 Cairn 的 `Fact/Intent/Hint` 术语替换**——保留现有 `Hypothesis/Verification/Artifact` 语义与测试基础。
-3. **不拆双进程 server/dispatcher**——当前痛点是状态主线 + 循环委托，不是进程数。
+3. **不拆双进程 server/dispatcher**——当前痛点是状态主线 + dispatcher 执行体边界，不是进程数。
 4. **不用数据库替代 JSONL**——append-only ledger 已够用。
 
 ---
@@ -194,20 +220,34 @@ XBOW 基准（[Aaron Brown 架构复盘](https://medium.com/data-science-collect
 
 ## 6. 建议执行顺序
 
+2026-06-17 更新：A 的 public entry façade 与 B1/B2 已经落地，下面的原始顺序仅保留为历史计划。新的执行顺序应以“先验证收益，再小步迁执行体”为准：
+
+```
+C（量化基线） → P0（recommendedAction follow-up 消费闭环） → A2（按 executor 边界迁执行体） → B3（按需深化模型读板/chain_order）
+        └─（A2 后可选）→ D（Meta-Tooling / code-use PoC）
+```
+
+原计划：
+
 ```
 C（量化基线，可并行） → A（façade 收尾） → B（Fact/Intent/Hint 极简黑板协议） → 复测 candidate→verified 转化率与 token
         └─（A 之后可选）→ D（Meta-Tooling / code-use PoC）
 ```
 
-推荐先 A：风险可控、收益用行数客观验证，且是 B 的硬前置。B 走"补协议而非补控制"路线（§2.3），D 为可选高风险项。
+当前不再推荐把“行数下降”作为唯一优先指标。更高价值的近期验收是：
+
+- `recommendedAction` 是否能进入 follow-up `controlDecision / ingressHandoff`
+- coordinator 是否按新的 handoff 执行下一步
+- rejected/refuted 事实是否能让 planner 避免重复候选
+- executor 迁移是否保持全量测试零新增失败
 
 ---
 
 ## 7. 来源清单
 
 ### 本仓库
-- `pentestagent/agents/pa_agent/ctf_dispatcher.py`（9892 行，:374 循环委托，:1563 `_phase_recon`）
-- `pentestagent/agents/pa_agent/coordinator.py`（1627 行）
+- `pentestagent/agents/pa_agent/ctf_dispatcher.py`（近万行；`run()` 为 façade；`_phase_recon` / exploit helpers 仍在内）
+- `pentestagent/agents/pa_agent/coordinator.py`（主控脊柱；仍通过 `RunContext` 透明代理回调 dispatcher 执行体）
 - `pentestagent/harness/*.py` + `tests/unit/harness/*`
 - `pentestagent/knowledge/session_context.py`（:501 被 pa_agent 消费）
 - [`FlagHunter_Harness优化方案_借鉴Cairn_V1.md`](FlagHunter_Harness优化方案_借鉴Cairn_V1.md)
