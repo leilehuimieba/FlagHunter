@@ -50,6 +50,8 @@ from .chains.jwt import JWTChainMixin
 from .chains.misc import MiscChainMixin
 from .chains.sqli import SQLIChainMixin
 from .chains.upload import UploadChainMixin
+from .chains.web import WebChainMixin
+from .chains.xss import XSSChainMixin
 from .coordinator import CTFCoordinator
 from .capability_registry import CapabilityRegistry
 from .ctf_state import CTFState, FlagProof, LLMStepLog
@@ -278,6 +280,8 @@ class CTFTaskDispatcher(
     JWTChainMixin,
     UploadChainMixin,
     SQLIChainMixin,
+    XSSChainMixin,
+    WebChainMixin,
 ):
     def __init__(
         self,
@@ -2360,41 +2364,6 @@ class CTFTaskDispatcher(
             ],
         )
 
-    async def _execute_xss_route(
-        self,
-        target: str,
-        page_features: dict[str, Any],
-        hint: str,
-    ) -> _ChainOutcome:
-        outcome = await self._execute_xss_chain(target, page_features, hint)
-        if outcome.progress or outcome.flag:
-            return outcome
-        if (
-            self.llm is not None
-            and self.state is not None
-            and self.state.is_llm_exploration_allowed()
-        ):
-            return await self._run_llm_driven_exploration(
-                self._strategy_context(
-                    target=target,
-                    page_features=page_features,
-                    hint=hint,
-                    extras={"chain_name": "xss"},
-                )
-            )
-        return outcome
-
-    async def _execute_web_route(
-        self,
-        target: str,
-        page_features: dict[str, Any],
-        hint: str,
-    ) -> _ChainOutcome:
-        outcome = await self._execute_xss_chain(target, page_features, hint)
-        if outcome.progress or outcome.flag:
-            return outcome
-        return await self._execute_web_chain(target, page_features, hint)
-
     async def _run_jwt_manipulation_strategy(
         self,
         target: str,
@@ -3214,171 +3183,6 @@ class CTFTaskDispatcher(
             marker = signal.split("keyword:", 1)[1].strip()
             return bool(marker) and marker in response_lower
         return signal in response_lower
-
-    async def _execute_web_chain(
-        self,
-        target: str,
-        page_features: dict[str, Any],
-        hint: str,
-    ) -> _ChainOutcome:
-        reasons: list[str] = []
-        progress = False
-        if profile_poisoning_exploit := self._recent_profile_photo_poisoning_source_exploit():
-            observed_outcome = await self._attempt_profile_photo_poisoning_chain(
-                target,
-                profile_poisoning_exploit.get("exploit_info") or {},
-                artifact_url=str(profile_poisoning_exploit.get("artifact_url") or ""),
-            )
-            progress = progress or observed_outcome.progress
-            if observed_outcome.flag:
-                return observed_outcome
-            if observed_outcome.reason:
-                reasons.append(observed_outcome.reason)
-
-        # 执行顺序：hint_chain_followup → file_read_endpoint → hash_guarded_file_read
-        # → hash_reconstruction_attack → backup_source_leak → 其他 web 策略
-        _WEB_STRATEGY_ORDER = [
-            "hint_chain_followup",
-            "file_read_endpoint",
-            "path_traversal",
-            "hash_guarded_file_read",
-            "hash_reconstruction_attack",
-            # Phase 7: three-stage SSTI pipeline replaces ssti_via_render_parameter
-            "ssti_probe",
-            "ssti_identify",
-            "ssti_exploit",
-            "unicode_numeric_form_bypass",
-            "contact_report_chain",
-            "backup_source_leak",
-            "php_unserialize_magic_method",
-            # SQLi probe runs last: it only fires when a GET form with an
-            # injectable param exists (precondition-gated) and never returns a
-            # flag for non-SQLi apps, so challenges solved by an earlier
-            # strategy return before reaching it. This wires the purpose-built
-            # stacked-query solver (generic_param_sqli) into generic "web" runs,
-            # which previously only ran it when the type classifier picked the
-            # dedicated "sqli" chain — leaving injectable forms untouched on a
-            # plain web classification (e.g. [强网杯 2019]随便注).
-            "generic_param_sqli",
-            # JWT manipulation, same reachability bridge as generic_param_sqli:
-            # detect_type only inspects page body/URL, so a JWT carried in a
-            # Cookie/Authorization header is classified "web" and the dedicated
-            # "jwt" chain never runs. _jwt_precondition also checks cookies and
-            # headers, so wiring jwt_manipulation here lets a plain "web" run
-            # forge/alg-confuse a token whenever one is actually present.
-            "jwt_manipulation",
-            # Command injection, same reachability bridge: detect_type never
-            # returns "cmdi" at all, so the dedicated cmdi chain was unreachable
-            # from auto classification. generic_param_cmdi discovers query
-            # parameters and injects command-separator payloads, gated by a
-            # precondition (an injectable param surface must exist) and placed
-            # last so it only runs as a fallback.
-            "generic_param_cmdi",
-            # SSRF, same reachability bridge as cmdi: detect_type only flags
-            # ssrf on a visible ?url=/?target=, so SSRF via a form field or a
-            # later-discovered param is classified "web". generic_param_ssrf
-            # reuses the param-discovery surface and swaps each value for SSRF
-            # payloads (file:// + internal http); precondition-gated, last.
-            "generic_param_ssrf",
-        ]
-        if self._recent_php_unserialize_source_exploit():
-            _WEB_STRATEGY_ORDER = [
-                kind
-                for kind in _WEB_STRATEGY_ORDER
-                if kind not in {"php_unserialize_magic_method", "backup_source_leak"}
-            ]
-            _WEB_STRATEGY_ORDER.extend(["php_unserialize_magic_method", "backup_source_leak"])
-        structured_next_action = self._structured_followup_next_action().lower()
-        structured_switched_from = self._structured_followup_value("switchedFrom").lower()
-        structured_trigger_reason = self._structured_followup_value("triggerReason").lower()
-        structured_trigger_action_driver = self._structured_followup_value("triggerActionDriver").lower()
-        if (
-            (
-                structured_next_action == "collect_initial_facts"
-                or structured_switched_from == "probe_discovered_endpoint"
-                or structured_trigger_action_driver == "blackboard.discovered_endpoint"
-            )
-            and (
-                "source leak" in structured_trigger_reason
-                or "backup" in structured_trigger_reason
-                or "artifact" in structured_trigger_reason
-                or "source archive" in structured_trigger_reason
-                or "zip" in structured_trigger_reason
-                or "source bundle" in structured_trigger_reason
-            )
-        ):
-            _WEB_STRATEGY_ORDER = [
-                kind
-                for kind in _WEB_STRATEGY_ORDER
-                if kind not in {"backup_source_leak", "contact_report_chain"}
-            ]
-            _WEB_STRATEGY_ORDER.extend(["backup_source_leak", "contact_report_chain"])
-        if self._has_recent_local_source_hint():
-            _WEB_STRATEGY_ORDER = [
-                kind
-                for kind in _WEB_STRATEGY_ORDER
-                if kind not in {"backup_source_leak", "contact_report_chain"}
-            ]
-            _WEB_STRATEGY_ORDER.extend(["backup_source_leak", "contact_report_chain"])
-        ctx = self._strategy_context(target=target, page_features=page_features, hint=hint)
-        replayed_prefix_from_source_hints = False
-
-        async def _run_strategy_sequence(
-            sequence: list[str],
-            *,
-            allow_source_hint_replay: bool,
-        ) -> _ChainOutcome | None:
-            nonlocal progress, ctx, replayed_prefix_from_source_hints
-
-            for kind in sequence:
-                strategy = self.strategy_registry.get(kind)
-                if strategy is None or not strategy.is_applicable(ctx):
-                    continue
-                before_source_hint_count = self._recent_local_source_hint_count()
-                outcome = await self.strategy_registry.execute(kind, ctx)
-                progress = progress or outcome.progress
-                if outcome.flag:
-                    return outcome
-                if outcome.reason:
-                    reasons.append(outcome.reason)
-                ctx = self._strategy_context(target=target, page_features=page_features, hint=hint)
-
-                if (
-                    allow_source_hint_replay
-                    and not replayed_prefix_from_source_hints
-                    and kind == "backup_source_leak"
-                    and self._recent_local_source_hint_count() > before_source_hint_count
-                ):
-                    replayed_prefix_from_source_hints = True
-                    prefix = [item for item in _WEB_STRATEGY_ORDER if item != "backup_source_leak"]
-                    if prefix:
-                        replay_outcome = await _run_strategy_sequence(
-                            prefix,
-                            allow_source_hint_replay=False,
-                        )
-                        if replay_outcome is not None:
-                            return replay_outcome
-            return None
-
-        replay_outcome = await _run_strategy_sequence(
-            list(_WEB_STRATEGY_ORDER),
-            allow_source_hint_replay=True,
-        )
-        if replay_outcome is not None:
-            return replay_outcome
-
-        # 还有未执行的 applicable 策略（不在固定顺序里）
-        for strategy in self._strategies_for_chain("web", target=target, page_features=page_features, hint=hint):
-            if strategy.kind in _WEB_STRATEGY_ORDER:
-                continue
-            outcome = await self.strategy_registry.execute(strategy.kind, ctx)
-            progress = progress or outcome.progress
-            if outcome.flag:
-                return outcome
-            if outcome.reason:
-                reasons.append(outcome.reason)
-
-        return _ChainOutcome(progress=progress, reason="; ".join(filter(None, reasons)))
 
     # ------------------------------------------------------------------
     # 新增 web 策略执行方法（Phase 0.5 easy_tornado 补全）
@@ -6380,85 +6184,6 @@ print(json.dumps(result, ensure_ascii=False))
             progress=progress,
             reason="; ".join(reasons) if reasons else "generic param sqli fallback exhausted",
         )
-
-    async def _execute_xss_chain(
-        self,
-        target: str,
-        page_features: dict[str, Any],
-        hint: str,
-    ) -> _ChainOutcome:
-        base = _base_target(target)
-        endpoints = set(page_features.get("endpoints") or [])
-        progress = False
-        reasons: list[str] = []
-        source_hint_text = self._recent_local_source_hint_text().lower()
-        structured_next_action = self._structured_followup_next_action().lower()
-        structured_switched_from = self._structured_followup_value("switchedFrom").lower()
-        structured_trigger_reason = self._structured_followup_value("triggerReason").lower()
-        structured_trigger_action_driver = self._structured_followup_value("triggerActionDriver").lower()
-
-        local_log_pivot = await self._attempt_local_challenge_log_pivot(
-            target=target,
-            page_features=page_features,
-            hint=hint,
-        )
-        progress = progress or local_log_pivot.progress
-        if local_log_pivot.flag:
-            return local_log_pivot
-        if local_log_pivot.reason:
-            reasons.append(local_log_pivot.reason)
-
-        for strategy in self._strategies_for_chain(
-            "xss",
-            target=target,
-            page_features=page_features,
-            hint=hint,
-            extras={"base_target": base},
-        ):
-            if strategy.kind != "xss_admin_bot_sid":
-                continue
-            stored = await self.strategy_registry.execute(
-                strategy.kind,
-                self._strategy_context(
-                    target=target,
-                    page_features=page_features,
-                    hint=hint,
-                    extras={"base_target": base},
-                ),
-            )
-            progress = progress or stored.progress
-            if stored.flag:
-                return stored
-            if stored.reason:
-                reasons.append(stored.reason)
-
-        if (
-            "/visit" in endpoints
-            or "targeturl" in hint.lower()
-            or "visit" in hint.lower()
-            or "/visit" in source_hint_text
-            or (
-                (
-                    structured_next_action == "collect_initial_facts"
-                    or structured_switched_from == "probe_discovered_endpoint"
-                    or structured_trigger_action_driver == "blackboard.discovered_endpoint"
-                )
-                and (
-                    "/visit" in structured_trigger_reason
-                    or "visit-url" in structured_trigger_reason
-                    or "admin-bot" in structured_trigger_reason
-                    or "admin bot" in structured_trigger_reason
-                )
-            )
-        ):
-            visit = await self._attempt_visit_url_chain(base)
-            progress = progress or visit.progress
-            if visit.flag:
-                return visit
-            if visit.reason:
-                reasons.append(visit.reason)
-
-        return _ChainOutcome(progress=progress, reason="; ".join(filter(None, reasons)))
 
     async def _attempt_local_challenge_log_pivot(
         self,
