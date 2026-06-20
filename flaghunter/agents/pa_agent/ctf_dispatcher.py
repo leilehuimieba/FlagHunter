@@ -1716,17 +1716,12 @@ class CTFTaskDispatcher(
                     resolved_extras.setdefault("cookie_secret", cookie_secret)
                     break
         return StrategyContext(
-            dispatcher=self,
             services=self,
             target=target,
             page_features=page_features,
             hint=hint,
             extras=resolved_extras,
             state=self.state,
-            runtime=self.runtime,
-            capability_registry=self.capability_registry,
-            strategy_memory=self.strategy_memory,
-            exploitation_mode=self.exploitation_mode,
             ingress_handoff=self._ingress_handoff if isinstance(self._ingress_handoff, dict) else {},
             challenge_context=self._challenge_context if isinstance(self._challenge_context, dict) else {},
         )

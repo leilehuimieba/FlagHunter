@@ -12,20 +12,15 @@ from .ctf_planner import find_auth_form, find_writable_field_name
 
 @dataclass(slots=True)
 class ChainContext:
-    dispatcher: Any
     target: str
     page_features: dict[str, Any]
     hint: str = ""
     extras: dict[str, Any] = field(default_factory=dict)
-    # P3b 第③刀(主体):策略 execute lambda 经此显式服务面调用 dispatcher 的
-    # _run_*/_attempt_* 方法,逐组替换 ``ctx.dispatcher._run_X`` 透传。过渡期工厂
-    # 设 ``services=self``(与 dispatcher 同一对象),迁完所有组后摘 ``dispatcher``。
+    # 显式服务面:策略 execute lambda 经此调用 dispatcher 的 _run_*/_attempt_*
+    # 方法(`ctx.services._run_X(...)`)。生产构造点 _strategy_context 设
+    # ``services=self``。P3b 第③刀已摘除旧的 ``dispatcher`` 透传字段。
     services: Any | None = None
     state: Any | None = None
-    runtime: Any | None = None
-    capability_registry: Any | None = None
-    strategy_memory: Any | None = None
-    exploitation_mode: str = "aggressive"
     ingress_handoff: dict[str, Any] = field(default_factory=dict)
     challenge_context: dict[str, Any] = field(default_factory=dict)
 

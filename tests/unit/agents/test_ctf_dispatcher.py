@@ -65,12 +65,8 @@ def test_dispatcher_strategy_context_populates_explicit_chain_context_fields():
         hint="",
     )
 
-    assert context.dispatcher is dispatcher
+    assert context.services is dispatcher
     assert context.state is dispatcher.state
-    assert context.runtime is runtime
-    assert context.capability_registry is dispatcher.capability_registry
-    assert context.strategy_memory is dispatcher.strategy_memory
-    assert context.exploitation_mode == "aggressive"
 
 
 def test_collector_public_host_prefers_host_docker_internal_for_local_targets(monkeypatch):

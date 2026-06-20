@@ -76,7 +76,7 @@ def test_strategy_registry_matches_expected_strategies_for_chain():
     registry = StrategyRegistry.build_default()
     dispatcher = _DummyDispatcher()
     context = StrategyContext(
-        dispatcher=dispatcher,
+        services=dispatcher,
         target="http://ctf.local",
         page_features={
             "forms": [
@@ -110,7 +110,7 @@ def test_strategy_registry_matches_misc_artifact_forensics_for_attachment_surfac
     registry = StrategyRegistry.build_default()
     dispatcher = _DummyDispatcher()
     context = StrategyContext(
-        dispatcher=dispatcher,
+        services=dispatcher,
         target="http://ctf.local/challenge/",
         page_features={
             "raw_links": [
@@ -137,14 +137,14 @@ def test_strategy_registry_strategy_is_applicable_respects_precondition():
     assert strategy is not None
 
     not_ready = StrategyContext(
-        dispatcher=dispatcher,
+        services=dispatcher,
         target="http://ctf.local",
         page_features={},
         hint="",
         extras={},
     )
     ready = StrategyContext(
-        dispatcher=dispatcher,
+        services=dispatcher,
         target="http://ctf.local",
         page_features={},
         hint="",
@@ -157,28 +157,21 @@ def test_strategy_registry_strategy_is_applicable_respects_precondition():
 
 def test_strategy_context_exposes_chain_context_fields():
     state = SimpleNamespace(observations=[])
-    runtime = SimpleNamespace(name="runtime")
-    capability_registry = SimpleNamespace(name="capabilities")
-    strategy_memory = SimpleNamespace(name="memory")
+    services = SimpleNamespace(name="services")
 
     context = StrategyContext(
-        dispatcher=None,
+        services=services,
         target="http://ctf.local",
         page_features={},
         hint="",
         extras={},
         state=state,
-        runtime=runtime,
-        capability_registry=capability_registry,
-        strategy_memory=strategy_memory,
-        exploitation_mode="aggressive",
     )
 
+    assert context.services is services
     assert context.state is state
-    assert context.runtime is runtime
-    assert context.capability_registry is capability_registry
-    assert context.strategy_memory is strategy_memory
-    assert context.exploitation_mode == "aggressive"
+    assert context.ingress_handoff == {}
+    assert context.challenge_context == {}
 
 
 def test_ssti_identify_precondition_reads_explicit_context_state_without_dispatcher():
@@ -200,7 +193,7 @@ def test_ssti_identify_precondition_reads_explicit_context_state_without_dispatc
         ]
     )
     context = StrategyContext(
-        dispatcher=None,
+        services=None,
         target="http://ctf.local",
         page_features={"raw_links": ["http://ctf.local/error?msg=Error"]},
         hint="",
@@ -218,7 +211,6 @@ async def test_strategy_registry_executes_php_unserialize_strategy():
     registry = StrategyRegistry.build_default()
     dispatcher = _DummyDispatcher()
     context = StrategyContext(
-        dispatcher=dispatcher,
         services=dispatcher,
         target="http://ctf.local",
         page_features={},
@@ -285,7 +277,7 @@ def test_render_parameter_ssti_precondition_reads_redirect_surface_from_state():
         ]
     )
     context = StrategyContext(
-        dispatcher=dispatcher,
+        services=dispatcher,
         target="http://ctf.local",
         page_features={"raw_links": ["/file?filename=/flag.txt&filehash=deadbeef"]},
         hint="",
@@ -312,7 +304,7 @@ def test_contact_report_chain_precondition_accepts_hidden_contact_surface_after_
     registry = StrategyRegistry.build_default()
     dispatcher = _DummyDispatcher()
     context = StrategyContext(
-        dispatcher=dispatcher,
+        services=dispatcher,
         target="http://ctf.local",
         page_features={
             "content": "Store your URL for free Get Flag Logout",
@@ -334,7 +326,7 @@ def test_strategy_registry_exposes_unicode_numeric_form_bypass_before_backup_fal
     registry = StrategyRegistry.build_default()
     dispatcher = _DummyDispatcher()
     context = StrategyContext(
-        dispatcher=dispatcher,
+        services=dispatcher,
         target="http://ctf.local",
         page_features={
             "content": "Unicorn Shop Purchase Item ID Price Only one char allowed!",
@@ -380,7 +372,7 @@ def test_strategy_registry_ssti_identify_requires_probe_hit_before_identify():
         ]
     )
     context = StrategyContext(
-        dispatcher=dispatcher,
+        services=dispatcher,
         target="http://ctf.local",
         page_features={"raw_links": ["http://ctf.local/error?msg=Error"]},
         hint="",
