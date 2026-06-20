@@ -81,8 +81,10 @@ async def init_m4() -> None:
                 for t in extra:
                     _approval_gate.add_dangerous_tool(t)
                 _logger.info("已加载%d个额外危险工具", len(extra))
+            # 总开关 mask_sensitive 同向治理可配置敏感类目(IP/邮箱);flag 单独硬编码
+            # 为不脱敏(CTF 场景保留)。IP 与 email 一致跟随总开关:开则脱敏,关则保留。
             _data_protector = DataProtector(
-                mask_ips=not mask_sensitive, mask_emails=mask_sensitive, mask_flags=False)
+                mask_ips=mask_sensitive, mask_emails=mask_sensitive, mask_flags=False)
             _initialized = True
             _audit_logger.log_command(
                 command="m4_init",
