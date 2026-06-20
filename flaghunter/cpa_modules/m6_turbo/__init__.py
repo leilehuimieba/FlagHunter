@@ -21,9 +21,11 @@ M6 为 FlagHunter 提供性能加速基础设施：
       ``init_m6()`` 完成（按 CPA_M6_TURBO 门控），并非"M0 侵入点"自动挂载。
     - 交互入口：当前实际可用面是 ``/turbo`` 系列命令（经 TUI 的
       ``_parse_turbo_command`` 硬编码分发）。
-    - 透明 wrapper：``apply_turbo()`` / ``_wrap_tool()`` 设计为在工具执行入口
-      对 M2–M5 透明加速，但该"自动挂载"目前 **尚未接线**（工具层无调用点），
-      ``_wrap_tool`` 仅登记工具名、未真正包裹函数；属预留能力。
+    - 透明 wrapper：曾设计一个工具执行入口拦截器对 M2–M5 透明加速，
+      但该"自动挂载"始终未接线（工具执行层无调用点），已作为死代码移除。
+      ``_wrap_tool()`` 不替换任何工具函数，仅把工具名登记进 ``_wrapped_tools``，
+      供 ``/turbo wrap`` 命令与 ``is_turbo_active()`` 查询展示之用。缓存与并发能力
+      经 ``ResultCache`` / ``ParallelScanner`` 实例及 ``/turbo`` 命令直接使用。
 """
 
 from __future__ import annotations
@@ -31,7 +33,7 @@ from __future__ import annotations
 import os
 import logging
 import asyncio
-from typing import Any, Callable, Coroutine, Set
+from typing import Any, Set
 
 # ---------------------------------------------------------------------------
 # 子模块导入（懒加载失败时提供占位）
@@ -149,18 +151,19 @@ def _should_scan(tool_name: str) -> bool:
 # 透明wrapper注册（私有方法）
 # ---------------------------------------------------------------------------
 def _wrap_tool(tool_name: str) -> None:
-    """为指定工具注册缓存+并发wrapper。
+    """把工具名登记为"已 turbo"，供查询/展示之用。
 
-    通过修改工具函数执行逻辑，在调用前后自动：
-    1. 查询缓存（命中直接返回，跳过执行）
-    2. 未命中通过ParallelScanner并发执行
-    3. 结果写入缓存
+    本函数 **不** 替换或包裹任何工具函数——仅在工具名属于可缓存或可并发列表时
+    将其加入 ``_wrapped_tools`` 集合。该集合被 ``is_turbo_active()`` 与
+    ``/turbo wrap list`` 命令读取，用于呈现"哪些工具声明启用了 turbo"。
 
-    注意：此实现记录被wrap的工具名，实际wrapper在工具调用层
-    通过检查 _should_cache / _should_scan 实现透明拦截。
+    历史背景：早期设计曾计划由工具执行层统一调用一个 turbo 拦截器做透明加速
+    （缓存命中跳过执行 / 未命中走 ParallelScanner / 旁路），但该接线始终不存在，
+    相关入口已作为死代码移除。当前实际加速通过 ``ResultCache`` / ``ParallelScanner``
+    实例与 ``/turbo`` 命令直接驱动。
 
     Args:
-        tool_name: 要wrap的工具名称。
+        tool_name: 要登记的工具名称。
     """
     global _wrapped_tools
     tn = tool_name.lower()
@@ -186,95 +189,6 @@ def _wrap_tools(*tool_names: str) -> None:
     """
     for name in tool_names:
         _wrap_tool(name)
-
-
-# ---------------------------------------------------------------------------
-# 核心入口：apply_turbo
-# ---------------------------------------------------------------------------
-async def apply_turbo(
-    tool_name: str,
-    target: str,
-    params: dict[str, Any],
-    actual_executor: Callable[..., Coroutine[Any, Any, Any]],
-) -> Any:
-    """对工具调用应用turbo加速：缓存查询 -> 并发执行 -> 缓存写入。
-
-    这是M6的核心入口，由M0侵入点在工具执行前调用。
-    如tool_name未被wrap或turbo被禁用，直接调用actual_executor。
-
-    执行流程：
-        1. 生成缓存键（tool_name + target + sorted_params）
-        2. 查询缓存，命中则直接返回缓存结果
-        3. 未命中则通过scanner并发执行actual_executor
-        4. 执行结果写入缓存（如工具可缓存）
-        5. 返回执行结果
-
-    Args:
-        tool_name: 工具名称。
-        target: 扫描目标（IP/域名/URL）。
-        params: 工具参数字典。
-        actual_executor: 原始工具执行函数（异步）。
-
-    Returns:
-        工具执行结果（来自缓存或实际执行）。
-    """
-    global _cache, _scanner
-
-    # 安全检查：M6未启用或未初始化
-    if not is_m6_enabled() or not _initialized:
-        return await actual_executor(target, params)
-
-    tn = tool_name.lower()
-    cache_key = _make_cache_key(tn, target, params)
-
-    # ---- 1. 查询缓存 ----
-    if _cache is not None and _should_cache(tn):
-        cached = _cache.get(tool_name=tn, target=target, params=params)
-        if cached is not None:
-            logger.debug("M6 Turbo: 缓存命中 '%s' -> '%s', 跳过执行", tn, target)
-            return cached
-
-    # ---- 2. 并发执行 ----
-    logger.debug("M6 Turbo: 缓存未命中，执行 '%s' -> '%s'", tn, target)
-
-    try:
-        if _scanner is not None and _should_scan(tn):
-            # 通过并发扫描器执行
-            result = await _scanner.execute(
-                tool_name=tn,
-                target=target,
-                params=params,
-                actual_executor=actual_executor,
-            )
-        else:
-            # 直接执行（不适合并发的工具）
-            result = await actual_executor(target, params)
-    except Exception as exc:
-        logger.error("M6 Turbo: 工具 '%s' 执行失败: %s", tn, exc)
-        raise
-
-    # ---- 3. 写入缓存 ----
-    if _cache is not None and _should_cache(tn) and result is not None:
-        _cache.set(tool_name=tn, target=target, result=result, params=params)
-        logger.debug("M6 Turbo: 结果已缓存 '%s' -> '%s'", tn, target)
-
-    return result
-
-
-def _make_cache_key(tool_name: str, target: str, params: dict[str, Any]) -> str:
-    """生成缓存键。
-
-    Args:
-        tool_name: 工具名称。
-        target: 扫描目标。
-        params: 参数字典。
-
-    Returns:
-        字符串格式的缓存键。
-    """
-    # 将参数排序后序列化，确保相同参数生成相同key
-    param_str = ",".join(f"{k}={v}" for k, v in sorted(params.items())) if params else ""
-    return f"{tool_name}:{target}:{param_str}"
 
 
 # ---------------------------------------------------------------------------
@@ -475,7 +389,6 @@ __all__ = [
     # 核心函数
     "init_m6",
     "shutdown_m6",
-    "apply_turbo",
     "get_stats",
     # Getter
     "get_cache",
