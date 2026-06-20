@@ -199,6 +199,18 @@ class AgentSession:
 - **P3a**:`_execute_chain` if/elif → handler map 分发(已落地,行为等价、机械、安全)。
 - **P3b**:ChainContext 破上帝对象——**已完成「叠加显式字段、保留 dispatcher 兼容」第一刀**;下一步逐 strategy/executor 把 `ctx.dispatcher._run_*` 下沉到 chains/ 或显式服务字段,不做一次性替换。
 
+#### P3b 可行性复评(2026-06-20,P5 收尾后双 Explore 测绘)
+P5 完工后对 P3b 透传面做了精确测绘,**当初「高风险一次性重写」的前提已被 P4 推翻**,P3b 实际可像 P5 一样逐刀渐进:
+- **chains/ 子包已彻底脱离透传**:`chains/*.py` 对 `ctx.dispatcher.*` 的属性访问 **= 0 处**(P4 抽 mixin 时已全部改为 `self.`/MRO)。P3b **无需动 chains**。
+- **透传面 100% 集中在 `strategy_registry.py` 一个文件**:27 个不同属性 / 36 处引用,别无分号。
+- **耦合很窄而非很宽**:24 个属性各仅被引用 **1 次**(每条策略 lambda 独立、可逐条迁移、零交叉);仅 3 个 >1 引用——`_run_llm_driven_exploration`(4,多分支兜底,需保留为显式注入字段)、`state`(6,**全是 `ctx.state or ctx.dispatcher.state` 兜底**)、`_structured_followup_value`(3,集中一个 precondition)。这把 P3b 从「40+ lambda 纠缠重写」降级为「逐条机械迁移」。
+- **契约已半显式化**:`ChainContext`(`strategy_registry.py:13`,`@dataclass(slots=True)`)早有显式字段 `state/runtime/capability_registry/strategy_memory/exploitation_mode`,但 `dispatcher: Any` 仍在、且后 4 个字段在 registry 内零引用(挂着没接线)。P3b 本质=把已备好的显式字段接上线、再删 `dispatcher` 透传。
+- **风险定性仍成立**:P3b 改的是调用路径(`ctx.dispatcher._run_X`→`ctx.services._run_X`),**非 P5 的字节级搬迁**,「单测绿 ≠ 解题行为不变」仍需警惕;故每刀除单测外建议配相关 live 题回放(eval harness 已建)。**唯一例外是 state 通道收口**(下条),因可证 `ctx.state` 与 `ctx.dispatcher.state` 在生产中恒为同一对象、且 `_DummyDispatcher` 无 `.state`,纯推理即可证零行为变更,无需 live 回放。
+- **渐进切法**:①state 通道收口(零风险破冰)→ ②`_structured_followup_*`/`_challenge_context` 等零散状态查询下沉为显式字段 → ③主体 22 个 `ctx.dispatcher._run_*/_attempt_*` lambda 引入显式 `services` 字段逐条迁(`_run_llm_driven_exploration` 优先)→ ④删四个死字段 + 最后摘 `dispatcher: Any`。
+
+#### P3b 第二刀完成(2026-06-20,state 通道收口)
+按渐进切法第①步落地,**消除 `ctx.dispatcher.state` 这条最宽的非方法透传**(测绘里 `state` 6 引用全是兜底)。`strategy_registry.py` 里 5 处 precondition 的 state 读取(`_hash_guarded`/`_render_param`/`_xss_admin_bot`/`_ssti_probe_ran`/`_ssti_engine_identified`)统一改为只读显式 `context.state`:A 型(`ctx.state or ctx.dispatcher.state` 兜底)删兜底、B 型(`_xss_admin_bot` 原**只**读 `dispatcher.state`)改读 `ctx.state`、C 型(SSTI 两处 `state or 兜底`)删兜底;变量 `dispatcher_state`→`context_state` 去误导命名。**零行为变更的证明(无需 live 回放)**:生产中 `_strategy_context`(`ctf_dispatcher.py:1718`,全仓唯一生产构造点)恒设 `state=self.state`,故 `ctx.state` 与 `ctx.dispatcher.state` 恒为同一对象,兜底分支永不可能产出不同值——是可证死代码。**配套测试**:`test_ctf_strategy_registry.py` 两个用例此前给 `_DummyDispatcher` 实例**动态挂 `.state`** 却不向 context 传 `state=`(靠被删的兜底),补 `state=dispatcher.state`(同引用,后续 `observations.append` 仍可见)使其忠实于生产构造方式——这是"删被旁路的兼容路径需同步修不忠实测试"的标准伴随,非行为回退。`strategy_registry.py` 的 `ctx.dispatcher.state` 读取 5→**0**;剩余 dispatcher 透传 = 22 个 execute lambda(`_run_*/_attempt_*`,留主体刀)+ `_structured_followup_*`(119-122)/`_challenge_context`(267)零散状态查询(留第②刀)。**全套件 489 passed 零回归。**
+
 ## 6. 显式非目标(本轮不做)
 - 不重构 foundation 依赖方向(已健康)。
 - 不改 LLM provider / api_hub 路由逻辑。
