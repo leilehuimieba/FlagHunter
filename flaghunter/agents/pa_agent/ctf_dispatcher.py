@@ -64,6 +64,7 @@ from .llm_executor import LLMExecutorMixin
 from .note_store import NoteStoreMixin
 from .platform_executor import PlatformExecutorMixin
 from .platform_orchestrator import PlatformTaskOrchestrator
+from .progress_tracker import ProgressTrackerMixin
 from .reasoning import PreActionReasoning, ReasoningLayer
 from .recon_executor import ReconExecutorMixin
 from .recovery import RecoveryController
@@ -282,6 +283,7 @@ class CTFTaskDispatcher(
     JWTExecutorMixin,
     NoteStoreMixin,
     PlatformExecutorMixin,
+    ProgressTrackerMixin,
     GenericInjectionChainMixin,
     LFIChainMixin,
     MiscChainMixin,
@@ -6586,58 +6588,6 @@ print(json.dumps(result, ensure_ascii=False))
             if _CHAIN_NAME_FOR_HYPOTHESIS.get(hypothesis.kind) == chain_name:
                 return hypothesis
         return self.state.hypotheses[0] if self.state.hypotheses else None
-
-    def _snapshot_flag_counts(self) -> dict[str, int]:
-        if self.state is None:
-            return {}
-        return {
-            "candidate": len(self.state.candidate_flags),
-            "runtime": len(self.state.runtime_flags),
-            "verified": len(self.state.verified_flags),
-            "rejected": len(self.state.rejected_flags),
-            "uniform_failure_surface": len(
-                [
-                    obs
-                    for obs in self.state.observations
-                    if obs.kind == "uniform_failure_surface"
-                ]
-            ),
-        }
-
-    def _derive_progress_delta(
-        self,
-        before_state: dict[str, int],
-        chain_outcome=None,
-    ) -> str:
-        """Compute progress signal for the hypothesis engine.
-
-        ``chain_outcome`` is the ``_ChainOutcome`` returned by the chain
-        executor.  When the chain as a whole made real progress (e.g. a hint
-        file was successfully read) but a *sibling* sub-strategy recorded a
-        ``uniform_failure_surface`` observation, we must not let that sibling
-        penalty override the chain-level progress signal.  In that case we
-        return ``"none"`` rather than ``"rejected"`` so the hypothesis is not
-        prematurely exhausted.
-        """
-        if self.state is None:
-            return "none"
-        after = self._snapshot_flag_counts()
-        if after.get("verified", 0) > before_state.get("verified", 0):
-            return "terminal"
-        if after.get("runtime", 0) > before_state.get("runtime", 0):
-            return "strong"
-        if after.get("uniform_failure_surface", 0) > before_state.get("uniform_failure_surface", 0):
-            # A sub-strategy got blocked, but only mark "rejected" when the
-            # chain as a whole also made *no* progress.  If the chain outcome
-            # reports progress (e.g. hint_chain_followup read the hints file
-            # before ssti_via_render_parameter hit "ORZ"), return "none" so
-            # the active hypothesis stays alive and the agent can continue.
-            if chain_outcome is not None and chain_outcome.progress:
-                return "none"
-            return "rejected"
-        if after.get("candidate", 0) > before_state.get("candidate", 0):
-            return "weak"
-        return "none"
 
     def _strategy_context(
         self,
