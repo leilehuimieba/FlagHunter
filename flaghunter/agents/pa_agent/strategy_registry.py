@@ -17,6 +17,10 @@ class ChainContext:
     page_features: dict[str, Any]
     hint: str = ""
     extras: dict[str, Any] = field(default_factory=dict)
+    # P3b 第③刀(主体):策略 execute lambda 经此显式服务面调用 dispatcher 的
+    # _run_*/_attempt_* 方法,逐组替换 ``ctx.dispatcher._run_X`` 透传。过渡期工厂
+    # 设 ``services=self``(与 dispatcher 同一对象),迁完所有组后摘 ``dispatcher``。
+    services: Any | None = None
     state: Any | None = None
     runtime: Any | None = None
     capability_registry: Any | None = None
@@ -420,7 +424,7 @@ def _jwt_precondition(context: StrategyContext) -> bool:
 
 async def _execute_jwt_probe(context: StrategyContext):
     """执行 JWT 基础探测：alg:none, RS256→HS256, 弱密钥提示。"""
-    dispatcher = context.dispatcher
+    dispatcher = context.services
     target = context.target
     # 委托 dispatcher 的通用 HTTP 探测或 LLM 驱动探索
     if hasattr(dispatcher, "_run_jwt_manipulation_strategy"):
@@ -450,7 +454,7 @@ def _graphql_precondition(context: StrategyContext) -> bool:
 
 async def _execute_graphql_probe(context: StrategyContext):
     """执行 GraphQL 内省查询探测。"""
-    dispatcher = context.dispatcher
+    dispatcher = context.services
     target = context.target
     if hasattr(dispatcher, "_run_graphql_introspection_strategy"):
         return await dispatcher._run_graphql_introspection_strategy(target, context.page_features)
@@ -482,7 +486,7 @@ def _nosql_precondition(context: StrategyContext) -> bool:
 
 async def _execute_nosql_probe(context: StrategyContext):
     """执行 NoSQL 注入基础探测。"""
-    dispatcher = context.dispatcher
+    dispatcher = context.services
     target = context.target
     if hasattr(dispatcher, "_run_nosql_injection_strategy"):
         return await dispatcher._run_nosql_injection_strategy(target, context.page_features)
@@ -506,7 +510,7 @@ def _register_fallback_strategies(registry: "StrategyRegistry") -> None:
             failure_signal="连续多次 LLM-driven 动作均无 progress 或被 budget 限制。",
             escalation_condition="若 LLM 给出新的结构线索，允许 HypothesisEngine 重排假设。",
             precondition=lambda ctx: True,
-            execute=lambda ctx: ctx.dispatcher._run_llm_driven_exploration(ctx),  # noqa: SLF001
+            execute=lambda ctx: ctx.services._run_llm_driven_exploration(ctx),  # noqa: SLF001
         )
     )
 
@@ -523,7 +527,7 @@ def _register_injection_strategies(registry: "StrategyRegistry") -> None:
             failure_signal="所有最小 payload 用尽且无 verified/runtime 级信号。",
             escalation_condition="auth-form 最短链未直接出 flag 时，升级到 sqlmap 或其他 SQLi 侦察。",
             precondition=lambda ctx: find_auth_form(ctx.page_features.get("forms") or []) is not None,
-            execute=lambda ctx: ctx.dispatcher._attempt_auth_form_sqli(  # noqa: SLF001
+            execute=lambda ctx: ctx.services._attempt_auth_form_sqli(  # noqa: SLF001
                 ctx.target,
                 find_auth_form(ctx.page_features.get("forms") or []),
             ),
@@ -540,7 +544,7 @@ def _register_injection_strategies(registry: "StrategyRegistry") -> None:
             failure_signal="GET 参数轻量 payload 用尽，既没有 SQL error 也没有结构化表名/列名进展。",
             escalation_condition="轻量 GET 参数链只确认注入但未恢复 flag 时，再升级到 sqlmap 或其他 SQLi 侦察。",
             precondition=lambda ctx: _generic_param_sqli_precondition(ctx),
-            execute=lambda ctx: ctx.dispatcher._attempt_generic_param_sqli(  # noqa: SLF001
+            execute=lambda ctx: ctx.services._attempt_generic_param_sqli(  # noqa: SLF001
                 ctx.target,
                 ctx.page_features,
             ),
@@ -557,7 +561,7 @@ def _register_injection_strategies(registry: "StrategyRegistry") -> None:
             failure_signal="所有发现参数的命令分隔符 payload 用尽，既无 flag 也无执行证据。",
             escalation_condition="确认命令执行但未取回 flag 时，再尝试更精细的读取路径或反弹。",
             precondition=lambda ctx: _generic_param_cmdi_precondition(ctx),
-            execute=lambda ctx: ctx.dispatcher._attempt_generic_param_cmdi(  # noqa: SLF001
+            execute=lambda ctx: ctx.services._attempt_generic_param_cmdi(  # noqa: SLF001
                 ctx.target,
                 ctx.page_features,
             ),
@@ -574,7 +578,7 @@ def _register_injection_strategies(registry: "StrategyRegistry") -> None:
             failure_signal="所有发现参数的 SSRF payload 用尽，既无 flag 也无内网读取证据。",
             escalation_condition="确认 SSRF 但未取回 flag 时，再尝试 gopher/dict 等协议或内网端口探测。",
             precondition=lambda ctx: _generic_param_cmdi_precondition(ctx),
-            execute=lambda ctx: ctx.dispatcher._attempt_generic_param_ssrf(  # noqa: SLF001
+            execute=lambda ctx: ctx.services._attempt_generic_param_ssrf(  # noqa: SLF001
                 ctx.target,
                 ctx.page_features,
             ),
@@ -591,7 +595,7 @@ def _register_injection_strategies(registry: "StrategyRegistry") -> None:
             failure_signal="payload 轮换后 collector 与 admin 信号均未推进。",
             escalation_condition="stored XSS 不成立时，退到 visit-url 路径或其他 XSS 证据链。",
             precondition=lambda ctx: _xss_admin_bot_precondition(ctx),
-            execute=lambda ctx: ctx.dispatcher._attempt_stored_xss_chain(  # noqa: SLF001
+            execute=lambda ctx: ctx.services._attempt_stored_xss_chain(  # noqa: SLF001
                 str(ctx.extras.get("base_target") or ctx.target),
                 find_auth_form(ctx.page_features.get("forms") or []),
                 find_writable_field_name(ctx.page_features.get("forms") or []),
@@ -612,7 +616,7 @@ def _register_web_exploitation_strategies(registry: "StrategyRegistry") -> None:
             failure_signal="所有 Unicode numeric payload 均只返回余额不足/单字符限制/无差异失败。",
             escalation_condition="若业务绕过不成立，再回退到 backup/source leak 或其他 web 结构链继续推进。",
             precondition=lambda ctx: _unicode_numeric_form_precondition(ctx),
-            execute=lambda ctx: ctx.dispatcher._run_unicode_numeric_form_bypass_strategy(  # noqa: SLF001
+            execute=lambda ctx: ctx.services._run_unicode_numeric_form_bypass_strategy(  # noqa: SLF001
                 ctx.target,
                 ctx.page_features,
             ),
@@ -629,7 +633,7 @@ def _register_web_exploitation_strategies(registry: "StrategyRegistry") -> None:
             failure_signal="无法发现 /contact 页面，或 contact 页面没有可操作表单。",
             escalation_condition="若被 captcha/pow 阻塞，则优先补 solver/绕过；若已提交，则继续沿 admin-visit / callback 链路推进。",
             precondition=lambda ctx: _contact_report_precondition(ctx),
-            execute=lambda ctx: ctx.dispatcher._run_contact_report_chain_strategy(  # noqa: SLF001
+            execute=lambda ctx: ctx.services._run_contact_report_chain_strategy(  # noqa: SLF001
                 ctx.target,
                 ctx.page_features,
             ),
@@ -646,7 +650,7 @@ def _register_web_exploitation_strategies(registry: "StrategyRegistry") -> None:
             failure_signal="候选附件分析完成但未恢复 flag，也没有形成更强结构线索。",
             escalation_condition="若附件分析未闭环，则把 artifact 摘要、知识库提示和联网 hint 注入给 LLM 驱动探索继续构造链路。",
             precondition=lambda ctx: _artifact_forensics_precondition(ctx),
-            execute=lambda ctx: ctx.dispatcher._run_artifact_forensics_strategy(  # noqa: SLF001
+            execute=lambda ctx: ctx.services._run_artifact_forensics_strategy(  # noqa: SLF001
                 ctx.target,
                 ctx.page_features,
                 ctx.hint,
@@ -664,7 +668,7 @@ def _register_web_exploitation_strategies(registry: "StrategyRegistry") -> None:
             failure_signal="常见备份路径枚举完毕且无进一步 runtime 证据。",
             escalation_condition="源码中暴露 unserialize/magic-method 等 primitive 时升级到 php_unserialize_magic_method。",
             precondition=lambda ctx: True,
-            execute=lambda ctx: ctx.dispatcher._run_backup_source_leak_strategy(  # noqa: SLF001
+            execute=lambda ctx: ctx.services._run_backup_source_leak_strategy(  # noqa: SLF001
                 ctx.target,
                 ctx.page_features,
                 ctx.hint,
@@ -682,7 +686,7 @@ def _register_web_exploitation_strategies(registry: "StrategyRegistry") -> None:
             failure_signal="payload 列表耗尽且无 verified/runtime 级进展。",
             escalation_condition="若 payload exhausted，则回退到其他 runtime primitive 或停止误报。",
             precondition=lambda ctx: bool(ctx.extras.get("exploit_info")),
-            execute=lambda ctx: ctx.dispatcher._attempt_php_unserialize_chain(  # noqa: SLF001
+            execute=lambda ctx: ctx.services._attempt_php_unserialize_chain(  # noqa: SLF001
                 ctx.target,
                 ctx.extras.get("exploit_info") or {},
                 artifact_url=str(ctx.extras.get("artifact_url") or ""),
@@ -700,7 +704,7 @@ def _register_web_exploitation_strategies(registry: "StrategyRegistry") -> None:
             failure_signal="所有提示文件均 404 或内容为空。",
             escalation_condition="读到 hash 规则后升级到 hash_guarded_file_read / hash_reconstruction_attack。",
             precondition=lambda ctx: _hint_chain_precondition(ctx),
-            execute=lambda ctx: ctx.dispatcher._run_hint_chain_followup_strategy(  # noqa: SLF001
+            execute=lambda ctx: ctx.services._run_hint_chain_followup_strategy(  # noqa: SLF001
                 ctx.target,
                 ctx.page_features,
             ),
@@ -717,7 +721,7 @@ def _register_web_exploitation_strategies(registry: "StrategyRegistry") -> None:
             failure_signal="响应 403/500 且无有用信息。",
             escalation_condition="有 hash 规则提示时升级到 hash_guarded_file_read。",
             precondition=lambda ctx: _file_endpoint_precondition(ctx),
-            execute=lambda ctx: ctx.dispatcher._run_file_read_endpoint_strategy(  # noqa: SLF001
+            execute=lambda ctx: ctx.services._run_file_read_endpoint_strategy(  # noqa: SLF001
                 ctx.target,
                 ctx.page_features,
             ),
@@ -734,7 +738,7 @@ def _register_web_exploitation_strategies(registry: "StrategyRegistry") -> None:
             failure_signal="SSTI 注入无效，所有 probe 均无有用响应。",
             escalation_condition="获得 secret 后自动进入 hash_reconstruction_attack 计算完整哈希路径。",
             precondition=lambda ctx: _hash_guarded_precondition(ctx),
-            execute=lambda ctx: ctx.dispatcher._run_hash_guarded_file_read_strategy(  # noqa: SLF001
+            execute=lambda ctx: ctx.services._run_hash_guarded_file_read_strategy(  # noqa: SLF001
                 ctx.target,
                 ctx.page_features,
             ),
@@ -751,7 +755,7 @@ def _register_web_exploitation_strategies(registry: "StrategyRegistry") -> None:
             failure_signal="hash 计算有误，所有目标文件响应均无 flag。",
             escalation_condition="若 /flag.txt 无 flag，尝试 /flag、/secret 等变体。",
             precondition=lambda ctx: bool(ctx.extras.get("cookie_secret")),
-            execute=lambda ctx: ctx.dispatcher._run_hash_reconstruction_attack_strategy(  # noqa: SLF001
+            execute=lambda ctx: ctx.services._run_hash_reconstruction_attack_strategy(  # noqa: SLF001
                 ctx.target,
                 str(ctx.extras.get("cookie_secret") or ""),
             ),
@@ -774,7 +778,7 @@ def _register_ssti_strategies(registry: "StrategyRegistry") -> None:
             failure_signal="render 参数探针全部返回静态错误或无差异响应。",
             escalation_condition="若泄露 cookie_secret，则升级到 hash_reconstruction_attack 计算真实 flag 路径。",
             precondition=lambda ctx: _render_param_precondition(ctx),
-            execute=lambda ctx: ctx.dispatcher._run_render_parameter_ssti_strategy(  # noqa: SLF001
+            execute=lambda ctx: ctx.services._run_render_parameter_ssti_strategy(  # noqa: SLF001
                 ctx.target,
                 ctx.page_features,
             ),
@@ -792,7 +796,7 @@ def _register_ssti_strategies(registry: "StrategyRegistry") -> None:
             failure_signal="render/msg 参数注入无法产生任何运行时差异。",
             escalation_condition="若拿到 cookie_secret，则自动切换到 hash_reconstruction_attack。",
             precondition=lambda ctx: _render_param_precondition(ctx),
-            execute=lambda ctx: ctx.dispatcher._run_tornado_ssti_strategy(  # noqa: SLF001
+            execute=lambda ctx: ctx.services._run_tornado_ssti_strategy(  # noqa: SLF001
                 ctx.target,
                 ctx.page_features,
             ),
@@ -810,7 +814,7 @@ def _register_ssti_strategies(registry: "StrategyRegistry") -> None:
             failure_signal="所有 probe 返回统一失败回显，标记表面耗尽。",
             escalation_condition="probe_hit 后由 ssti_identify 识别引擎，再由 ssti_exploit 执行利用。",
             precondition=lambda ctx: _render_param_precondition(ctx),
-            execute=lambda ctx: ctx.dispatcher._run_ssti_probe_strategy(  # noqa: SLF001
+            execute=lambda ctx: ctx.services._run_ssti_probe_strategy(  # noqa: SLF001
                 ctx.target,
                 ctx.page_features,
             ),
@@ -827,7 +831,7 @@ def _register_ssti_strategies(registry: "StrategyRegistry") -> None:
             failure_signal="所有引擎特征 payload 无法区分，记录 ssti_identify_attempted=no_match。",
             escalation_condition="识别成功后由 ssti_exploit 执行引擎对应利用路径。",
             precondition=lambda ctx: _ssti_probe_ran(ctx),
-            execute=lambda ctx: ctx.dispatcher._run_ssti_identify_strategy(  # noqa: SLF001
+            execute=lambda ctx: ctx.services._run_ssti_identify_strategy(  # noqa: SLF001
                 ctx.target,
                 ctx.page_features,
             ),
@@ -844,7 +848,7 @@ def _register_ssti_strategies(registry: "StrategyRegistry") -> None:
             failure_signal="所有利用路径均无 flag，返回 progress=False。",
             escalation_condition="若所有已知引擎路径耗尽，触发 LLM-driven 兜底。",
             precondition=lambda ctx: _ssti_engine_identified_precondition(ctx),
-            execute=lambda ctx: ctx.dispatcher._run_ssti_exploit_strategy(  # noqa: SLF001
+            execute=lambda ctx: ctx.services._run_ssti_exploit_strategy(  # noqa: SLF001
                 ctx.target,
                 ctx.page_features,
             ),

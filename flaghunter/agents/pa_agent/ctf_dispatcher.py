@@ -1717,6 +1717,7 @@ class CTFTaskDispatcher(
                     break
         return StrategyContext(
             dispatcher=self,
+            services=self,
             target=target,
             page_features=page_features,
             hint=hint,
