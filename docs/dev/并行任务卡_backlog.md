@@ -94,7 +94,7 @@ services 过渡期 = self)。本刀做两件事:
 
 ---
 
-## 卡 B — roadmap-P5:cpa_modules m1–m6 命名/文档 + capability registry 收尾
+## 卡 B — roadmap-P5:cpa_modules m1–m6 命名/文档 + capability registry 收尾 ✅(67ba49e)
 
 ```
 执行 FlagHunter ADR 路线图里的 P5(注意:这是 §5 表格定义的"cpa_modules 命名/文档 +
