@@ -158,7 +158,7 @@ fake 必须返回正经的 diagnose 探针,否则回放失真)。
 
 ---
 
-## 卡 D — M4 audit_guard:DataProtector mask_ips 语义核查(卡 B 浮出的待复核项)
+## 卡 D — M4 audit_guard:DataProtector mask_ips 语义核查(卡 B 浮出的待复核项) ✅(826bd70)
 
 ```
 核查 FlagHunter cpa_modules/m4_audit_guard 一处疑似语义反转 bug(卡 B 审计时浮出,
