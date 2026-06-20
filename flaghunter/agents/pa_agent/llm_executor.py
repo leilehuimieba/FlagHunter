@@ -1,0 +1,768 @@
+"""LLM-driven exploration executor extracted from ctf_dispatcher.py.
+
+P5 / Workstream A: the LLM action-execution cluster (15 methods, from
+`_run_llm_driven_exploration` to `_expected_signal_met`) is physically moved
+out of CTFTaskDispatcher into a behaviour-preserving mixin. Method bodies are
+identical; self.* resolves at runtime against the dispatcher that mixes this in,
+so call sites are unchanged. Pure code relocation, near-zero risk.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import hashlib
+import json
+import re
+import sys
+import tempfile
+import time
+import uuid
+from pathlib import Path
+from typing import Any
+from urllib.parse import parse_qs, urlencode, urljoin, urlparse
+
+from ...llm.utils import parse_llm_json
+from .chains.base import _ChainOutcome
+from .ctf_state import LLMStepLog
+from .dispatcher_helpers import _base_target
+from .reasoning import PreActionReasoning
+from .strategy_registry import StrategyContext
+
+
+class LLMExecutorMixin:
+    """LLM-driven exploration and action execution extracted from the dispatcher."""
+
+    async def _run_llm_driven_exploration(self, context: StrategyContext) -> _ChainOutcome:
+        if self.state is None:
+            return _ChainOutcome(progress=False, reason="llm_exploration_unavailable")
+        if not self.state.is_llm_exploration_allowed():
+            return _ChainOutcome(progress=False, reason="llm_exploration_budget_exhausted")
+
+        if self.llm is None:
+            return _ChainOutcome(progress=False, reason="llm_not_configured")
+
+        progress = False
+        reason_fragments: list[str] = []
+        max_steps = 8
+        while self.state.is_llm_exploration_allowed(max_steps=max_steps):
+            action_spec = await self._call_llm_for_action(context)
+            if not action_spec:
+                return _ChainOutcome(progress=progress, reason="llm_exploration_invalid_action")
+
+            replan_count = 0
+            while True:
+                decision = PreActionReasoning.evaluate(
+                    action_spec,
+                    self.state,
+                    capability_registry=self.capability_registry,
+                    target=context.target,
+                    collector_base=f"http://127.0.0.1:{self.collector_port}",
+                )
+                self._record_llm_reasoning(action_spec, decision)
+                if decision.approve:
+                    break
+                self.state.record_weak_decision(decision.reason)
+                # ToolGuard blocks (the only one being an out-of-scope/allowlist
+                # violation) are a policy boundary, not a fixable proposal defect
+                # like a missing tool or a vague signal — terminate and surface the
+                # block reason rather than burning replan budget hoping the model
+                # picks a different host. The outer loop then switches chain.
+                should_replan = (
+                    replan_count < 2
+                    and (
+                        bool(decision.downgrade_to)
+                        or str(decision.reason or "").startswith(("Q1 blocked", "Q2 blocked", "Q4 blocked"))
+                    )
+                )
+                if should_replan:
+                    degradation_hint = f"Previous proposal was rejected: {decision.reason}. Propose a materially different next action that uses fresh evidence."
+                    forced_tool = ""
+                    if decision.downgrade_to:
+                        degradation_hint = f"Do not use the missing tool. Re-plan with {decision.downgrade_to}."
+                        forced_tool = decision.downgrade_to
+                    action_spec = await self._call_llm_for_action(
+                        context,
+                        degradation_hint=degradation_hint,
+                        forced_tool=forced_tool,
+                    )
+                    replan_count += 1
+                    if not action_spec:
+                        return _ChainOutcome(progress=progress, reason="llm_exploration_invalid_action")
+                    continue
+                return _ChainOutcome(progress=progress, reason=decision.reason)
+
+            if str(action_spec.get("action_type") or "").strip() == "stop":
+                stop_reason = str(action_spec.get("rationale") or "llm_requested_stop").strip()
+                return _ChainOutcome(progress=progress, reason=stop_reason)
+
+            execution = await self._execute_llm_action(action_spec, context.target)
+            response_text = str(execution.get("response_text") or "")
+            target_url = str(execution.get("target_url") or context.target)
+            verifier_decision = "none"
+            verification = None
+            if response_text:
+                await self._scan_and_store(
+                    response_text,
+                    target_url,
+                    evidence_source=str(execution.get("evidence_source") or "runtime-output"),
+                )
+                if flag := self._extract_flag(response_text):
+                    verification = await self._observe_flag(
+                        flag,
+                        target_url,
+                        evidence_source=str(execution.get("evidence_source") or "runtime-output"),
+                        rationale="llm_driven_exploration observed flag candidate",
+                    )
+                    verifier_decision = (
+                        str(getattr(verification, "decision", "none") or "none")
+                    )
+            expected_signal_met = self._expected_signal_met(
+                str(action_spec.get("expected_signal") or ""),
+                response_text,
+                execution,
+            )
+            summary = self._summarize_response(response_text, execution)
+            self.state.record_llm_step(
+                LLMStepLog(
+                    step=self.state.llm_exploration_steps + 1,
+                    action_type=str(action_spec.get("action_type") or ""),
+                    rationale=str(action_spec.get("rationale") or "")[:200],
+                    payload_summary=self._summarize_payload(action_spec),
+                    response_summary=summary,
+                    verifier_decision=verifier_decision,
+                    expected_signal_met=expected_signal_met,
+                    timestamp=time.time(),
+                )
+            )
+            self.state.add_observation(
+                "llm_exploration_step",
+                summary,
+                source="llm_driven_exploration",
+                metadata={
+                    "action_type": str(action_spec.get("action_type") or ""),
+                    "tool_name": str(action_spec.get("tool_name") or ""),
+                    "expected_signal": str(action_spec.get("expected_signal") or ""),
+                    "expected_signal_met": expected_signal_met,
+                    "verifier_decision": verifier_decision,
+                    "payload_summary": self._summarize_payload(action_spec),
+                    "target_url": target_url,
+                },
+            )
+            if response_text or expected_signal_met:
+                progress = True
+            if verification is not None and getattr(verification, "decision", "") == "verified":
+                return _ChainOutcome(
+                    progress=True,
+                    flag=verification.flag,
+                    reason="llm_exploration: verified flag",
+                )
+            reason_fragments.append(
+                f"step={self.state.llm_exploration_steps}:{action_spec.get('action_type')}:{verifier_decision or 'none'}"
+            )
+            next_if_fail = str(action_spec.get("next_if_fail") or "").lower()
+            if "switch chain" in next_if_fail or "switch_chain" in next_if_fail:
+                break
+
+        if progress:
+            return _ChainOutcome(
+                progress=True,
+                reason="llm_exploration: " + "; ".join(reason_fragments[-3:]),
+            )
+        return _ChainOutcome(progress=False, reason="llm_exploration_exhausted")
+
+    async def _call_llm_for_action(
+        self,
+        context: StrategyContext,
+        *,
+        degradation_hint: str = "",
+        forced_tool: str = "",
+    ) -> dict[str, Any] | None:
+        if self.state is None or self.llm is None:
+            return None
+
+        observation_lines: list[str] = []
+        for observation in self.state.observations[-5:]:
+            value = str(observation.value or "")
+            if len(value) > 200:
+                value = value[:200] + "..."
+            observation_lines.append(f"- {observation.kind}: {value}")
+        rejected = [record.value for record in self.state.rejected_flags[-5:]]
+        raw_links = list(context.page_features.get("raw_links") or [])[:20]
+        artifacts = [
+            {
+                "name": getattr(item, "name", ""),
+                "location": getattr(item, "location", ""),
+                "metadata": getattr(item, "metadata", {}),
+            }
+            for item in (self.state.artifacts[-8:] if self.state is not None else [])
+        ]
+        runtime_summary = self._normalized_runtime_summary()
+        source_fetch_exploit = self._recent_observed_source_fetch_write_exploit()
+        recent_source_probes = self._recent_source_fetch_probe_targets(limit=10)
+        prompt = (
+            "You are planning the next CTF action.\n"
+            "Return JSON only with keys action_type, tool_name, rationale, payload, expected_signal, next_if_fail.\n"
+            "Allowed action_type: http_request, shell, stop.\n"
+            f"Target: {context.target}\n"
+            f"Runtime: {runtime_summary}\n"
+            f"Known links: {raw_links}\n"
+            f"Known artifacts: {json.dumps(artifacts, ensure_ascii=False)[:1600]}\n"
+            f"Recent observations:\n" + ("\n".join(observation_lines) if observation_lines else "- none") + "\n"
+            f"Rejected flags: {rejected}\n"
+            "Allowed tools: http_request, terminal, manual_sqli_payload, manual_path_enumeration, knowledge_search, web_search.\n"
+            "For attachment/misc/forensics challenges, you may use shell with python snippets to inspect downloaded artifacts, sqlite databases, WAL files, archives, or to decode/transform extracted fragments.\n"
+        )
+        # Surface the structured ExplorationAgenda (recon-discovered + framework
+        # conventional entry routes) as an explicit prioritized queue. Without
+        # this the planner only saw raw_links buried in the prompt and fell back
+        # to its CTF prior (.git/.env/backup guessing), leaving high-value app
+        # entry points like /login,/register unexplored. This surfaces the queue
+        # so the model can prefer it (protocol augmentation; it does not force a
+        # choice).
+        agenda_items = self.state.get_unexplored_priority_items(max_hint_strength=2)
+        if agenda_items:
+            agenda_lines = [
+                f"- [{item.discovery_source},hint={item.hint_strength}] {item.url_or_path}"
+                for item in agenda_items[:8]
+            ]
+            prompt += (
+                "Unexplored high-value entry points (ExplorationAgenda). Prefer "
+                "consuming these real app routes (e.g. /login, /register, /admin, "
+                "/api) before blindly guessing backup/dotfile paths; on auth-gated "
+                "apps, registering then logging in usually unlocks the shortest "
+                "chain to the flag:\n"
+                + "\n".join(agenda_lines) + "\n"
+            )
+        # Workstream B (slice B2): surface the ranked Fact/Intent/Hint blackboard so
+        # the model decides the next action from the shared board. Intents are sorted
+        # active+high-value first with already-refuted ones marked, closing the
+        # "verification failed -> switch candidate" loop at the protocol level
+        # (the board exposes the failure; it does not force the switch).
+        from ...knowledge.blackboard import project_blackboard
+
+        board = project_blackboard(self.state, intent_limit=8)
+        if board["intents"]:
+            intent_lines = []
+            for intent in board["intents"]:
+                description = str(intent.get("description") or "")[:120]
+                if intent.get("refuted"):
+                    tag = "REFUTED-already-tried"
+                else:
+                    tag = (
+                        f"value={float(intent.get('value_score') or 0.0):.2f}"
+                        f",direct={int(intent.get('directness') or 0)}"
+                    )
+                intent_lines.append(
+                    f"- [{tag}] {intent.get('kind')}: {description} "
+                    f"(confidence={float(intent.get('confidence') or 0.0):.2f})"
+                )
+            prompt += (
+                "Blackboard intents (ranked; prefer the top active intent — higher "
+                "value and higher direct= means a shorter remaining path to the flag, "
+                "take the shortest chain. Do NOT re-propose REFUTED ones; switch to "
+                "the next active intent when a candidate is refuted):\n"
+                + "\n".join(intent_lines) + "\n"
+            )
+        if source_fetch_exploit is not None:
+            exploit_info = dict(source_fetch_exploit.get("exploit_info") or {})
+            prompt += (
+                "Observed runtime exploit primitive: source_fetch_write_ssrf.\n"
+                f"Exploit details: {json.dumps(exploit_info, ensure_ascii=False)[:800]}\n"
+            )
+            if recent_source_probes:
+                prompt += (
+                    "Recent confirmed fetch targets already executed: "
+                    + json.dumps(recent_source_probes[-8:], ensure_ascii=False)
+                    + "\n"
+                )
+            prompt += (
+                "If you want to use this primitive again, prefer a direct read/write follow-up instead of re-fetching the same highlighted homepage source.\n"
+                "Avoid requesting the exact same root page repeatedly unless you are testing a materially different path or parameter.\n"
+            )
+        if "windows" in runtime_summary.lower():
+            prompt += (
+                "This runtime is Windows-based. Do not use bash heredoc syntax like <<'PY' or Linux-only paths such as /tmp/.\n"
+                "If shell is necessary, prefer portable commands or a single Python invocation compatible with Windows/PowerShell.\n"
+            )
+        if degradation_hint:
+            prompt += f"Degradation hint: {degradation_hint}\n"
+        if forced_tool:
+            prompt += f"You must use tool_name={forced_tool}.\n"
+
+        raw = ""
+        finish_reason = ""
+        if callable(self.llm):
+            result = self.llm(prompt)
+            resolved = await result if asyncio.iscoroutine(result) else result
+            raw, finish_reason = self._extract_llm_action_text(resolved)
+        elif hasattr(self.llm, "generate"):
+            generator = getattr(self.llm, "generate")
+            try:
+                result = generator(prompt)
+            except TypeError as exc:
+                if "required positional argument" not in str(exc):
+                    raise
+                result = generator(
+                    system_prompt=(
+                        "You are planning the next CTF action. "
+                        "Return JSON only with keys action_type, tool_name, rationale, payload, expected_signal, next_if_fail."
+                    ),
+                    messages=[{"role": "user", "content": prompt}],
+                    tools=None,
+                    task_hint="ctf_planning",
+                )
+            resolved = await result if asyncio.iscoroutine(result) else result
+            raw, finish_reason = self._extract_llm_action_text(resolved)
+        else:
+            return None
+
+        parsed = parse_llm_json(raw)
+        if isinstance(parsed, dict):
+            return parsed
+        if finish_reason in {"provider_unavailable", "budget_exhausted", "error"} and raw:
+            return {
+                "action_type": "stop",
+                "tool_name": "",
+                "rationale": raw[:400],
+                "payload": {},
+                "expected_signal": finish_reason,
+                "next_if_fail": "switch chain",
+            }
+        return None
+
+    def _normalized_runtime_summary(self) -> str:
+        env = getattr(self.runtime, "environment", None)
+        if env is None:
+            return "unknown runtime"
+        os_name = str(getattr(env, "os", "") or "").strip() or "unknown-os"
+        shell_name = str(getattr(env, "shell", "") or "").strip() or "unknown-shell"
+        available = getattr(env, "available_tools", []) or []
+        tool_names: list[str] = []
+        for item in available:
+            name = getattr(item, "name", item)
+            normalized = str(name or "").strip()
+            if normalized:
+                tool_names.append(normalized)
+        tool_preview = ", ".join(tool_names[:16]) if tool_names else "none-detected"
+        return f"os={os_name}; shell={shell_name}; tools={tool_preview}"
+
+    def _recent_source_fetch_probe_targets(self, *, limit: int = 12) -> list[str]:
+        if self.state is None:
+            return []
+        targets: list[str] = []
+        seen: set[str] = set()
+        for observation in reversed(list(self.state.observations)[-max(1, limit):]):
+            if str(getattr(observation, "kind", "") or "").strip() != "source_fetch_write_probe":
+                continue
+            value = str(getattr(observation, "value", "") or "").strip()
+            if value and value not in seen:
+                seen.add(value)
+                targets.append(value)
+        targets.reverse()
+        return targets
+
+    @staticmethod
+    def _extract_llm_action_text(result: Any) -> tuple[str, str]:
+        finish_reason = str(getattr(result, "finish_reason", "") or "")
+        if hasattr(result, "content"):
+            return str(getattr(result, "content", "") or ""), finish_reason
+        if isinstance(result, dict):
+            return str(result.get("content") or result.get("text") or result), finish_reason
+        return str(result or ""), finish_reason
+
+    def _normalize_llm_http_payload(
+        self,
+        payload: Any,
+        target: str,
+    ) -> dict[str, Any]:
+        if isinstance(payload, dict):
+            normalized = dict(payload)
+        else:
+            normalized = {}
+
+        if isinstance(payload, str):
+            raw_payload = payload.strip()
+            request_match = re.match(
+                r"^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+(\S+)$",
+                raw_payload,
+                flags=re.IGNORECASE,
+            )
+            if request_match:
+                normalized["method"] = request_match.group(1).upper()
+                normalized["url"] = request_match.group(2)
+            elif raw_payload.startswith(("http://", "https://", "/", "file://")):
+                normalized["url"] = raw_payload
+
+        raw_url = str(
+            normalized.get("url")
+            or normalized.get("path")
+            or normalized.get("endpoint")
+            or ""
+        ).strip()
+        if not raw_url:
+            candidate_lists = (
+                normalized.get("candidate_urls"),
+                normalized.get("urls"),
+                normalized.get("candidate_file_urls"),
+                normalized.get("file_urls"),
+            )
+            for values in candidate_lists:
+                if not isinstance(values, list):
+                    continue
+                for item in values:
+                    candidate = str(item or "").strip()
+                    if candidate:
+                        raw_url = candidate
+                        break
+                if raw_url:
+                    break
+
+        normalized["method"] = str(normalized.get("method") or "GET").upper()
+        normalized["url"] = raw_url or target
+        return normalized
+
+    @staticmethod
+    def _looks_like_loopback_or_file_target(value: str) -> bool:
+        candidate = str(value or "").strip().lower()
+        if not candidate:
+            return False
+        if candidate.startswith("file://"):
+            return True
+        if candidate.startswith(("http://127.0.0.1", "https://127.0.0.1")):
+            return True
+        if candidate.startswith(("http://localhost", "https://localhost")):
+            return True
+        return False
+
+    def _normalize_llm_shell_command(self, command: str) -> str:
+        normalized = str(command or "").strip()
+        env = getattr(self.runtime, "environment", None)
+        os_name = str(getattr(env, "os", "") or "").lower()
+        if not normalized or "windows" not in os_name:
+            return normalized
+
+        temp_dir = Path(tempfile.gettempdir())
+        temp_dir_forward = temp_dir.as_posix()
+        normalized = re.sub(
+            r"(?<![A-Za-z0-9_])\/tmp\/([A-Za-z0-9_.-]+)",
+            lambda match: f"{temp_dir_forward}/{match.group(1)}",
+            normalized,
+        )
+
+        heredoc_match = re.search(
+            r"(?P<prefix>[\s\S]*?)(?P<runner>python3?|py(?:\s+-3)?)\s+-\s+<<'PY'\n(?P<script>[\s\S]+?)\nPY\s*$",
+            normalized,
+            flags=re.IGNORECASE,
+        )
+        if heredoc_match:
+            script_path = temp_dir / f"flaghunter_llm_{uuid.uuid4().hex}.py"
+            script_path.write_text(
+                heredoc_match.group("script"),
+                encoding="utf-8",
+            )
+            prefix = heredoc_match.group("prefix")
+            runner = f"\"{sys.executable}\" \"{script_path}\""
+            spacer = "" if not prefix or prefix.endswith((" ", "\t", "\n")) else " "
+            normalized = f"{prefix}{spacer}{runner}".strip()
+
+        normalized = re.sub(
+            r"(?<![A-Za-z0-9_])python3(?=(?:\s|$))",
+            lambda _match: f"\"{sys.executable}\"",
+            normalized,
+            flags=re.IGNORECASE,
+        )
+        return normalized
+
+    def _build_source_fetch_write_output_urls(
+        self,
+        target: str,
+        exploit_info: dict[str, Any],
+    ) -> list[str]:
+        base = _base_target(target)
+        probe_filename = str(
+            exploit_info.get("probe_filename") or "p/flaghunter_probe.txt"
+        ).strip() or "p/flaghunter_probe.txt"
+        client_ip_value = str(exploit_info.get("client_ip_value") or "8.8.8.8").strip() or "8.8.8.8"
+        sandbox_prefix = str(exploit_info.get("sandbox_prefix") or "sandbox/").strip() or "sandbox/"
+        remote_addr_hash = str(exploit_info.get("remote_addr_hash") or "").strip().lower()
+        remote_addr_salt = str(exploit_info.get("remote_addr_salt") or "").strip()
+        if remote_addr_hash not in {"md5", "sha1"}:
+            return []
+
+        digest_input = (remote_addr_salt + client_ip_value).encode("utf-8")
+        digest = hashlib.md5(digest_input).hexdigest() if remote_addr_hash == "md5" else hashlib.sha1(digest_input).hexdigest()
+        output_parts = [sandbox_prefix.strip("/"), digest]
+        normalized_probe = probe_filename.replace("\\", "/").strip("/")
+        if "/" in normalized_probe:
+            parent, leaf = normalized_probe.rsplit("/", 1)
+            if parent and parent != ".":
+                output_parts.append(parent.strip("/"))
+            output_parts.append(leaf)
+        elif normalized_probe:
+            output_parts.append(normalized_probe)
+        output_url = urljoin(
+            base.rstrip("/") + "/",
+            "/".join(part for part in output_parts if part),
+        )
+        return [output_url] if output_url else []
+
+    def _derive_source_fetch_write_llm_request(
+        self,
+        *,
+        payload: dict[str, Any],
+        target: str,
+    ) -> dict[str, Any] | None:
+        observed = self._recent_observed_source_fetch_write_exploit()
+        if observed is None:
+            return None
+
+        exploit_info = dict(observed.get("exploit_info") or {})
+        if not exploit_info:
+            return None
+
+        base = _base_target(target)
+        url_param = str(exploit_info.get("url_param") or "url").strip() or "url"
+        filename_param = str(exploit_info.get("filename_param") or "filename").strip() or "filename"
+        probe_filename = str(exploit_info.get("probe_filename") or "p/flaghunter_probe.txt").strip() or "p/flaghunter_probe.txt"
+        headers = dict(payload.get("headers") or {})
+
+        client_ip_header = str(exploit_info.get("client_ip_header") or "").strip()
+        client_ip_value = str(exploit_info.get("client_ip_value") or "8.8.8.8").strip() or "8.8.8.8"
+        if client_ip_header and client_ip_header not in headers:
+            headers[client_ip_header] = client_ip_value
+
+        fetch_target = ""
+        direct_url = str(payload.get("url") or "").strip()
+        candidate_lists = (
+            payload.get("candidate_file_urls"),
+            payload.get("file_urls"),
+            payload.get("candidate_urls"),
+            payload.get("urls"),
+        )
+        for values in candidate_lists:
+            if not isinstance(values, list):
+                continue
+            for item in values:
+                candidate = str(item or "").strip()
+                if self._looks_like_loopback_or_file_target(candidate):
+                    fetch_target = candidate
+                    break
+            if fetch_target:
+                break
+
+        if not fetch_target and self._looks_like_loopback_or_file_target(direct_url):
+            fetch_target = direct_url
+
+        final_url = urljoin(
+            target if target.endswith("/") else target + "/",
+            direct_url or target,
+        )
+        parsed_final = urlparse(final_url)
+        parsed_target = urlparse(base)
+        if (
+            not fetch_target
+            and parsed_final.hostname
+            and parsed_final.hostname == parsed_target.hostname
+        ):
+            query = parse_qs(parsed_final.query, keep_blank_values=True)
+            if url_param in query and query.get(url_param):
+                fetch_target = str(query[url_param][0] or "").strip()
+
+        if not fetch_target:
+            return None
+
+        trigger_url = urljoin(
+            base.rstrip("/") + "/",
+            "?" + urlencode({url_param: fetch_target, filename_param: probe_filename}),
+        )
+        return {
+            "fetch_target": fetch_target,
+            "trigger_url": trigger_url,
+            "headers": headers or None,
+            "output_urls": self._build_source_fetch_write_output_urls(target, exploit_info),
+        }
+
+    async def _execute_llm_action(
+        self,
+        action_spec: dict[str, Any],
+        target: str,
+    ) -> dict[str, Any]:
+        if self.runtime is None:
+            return {"response_text": "", "target_url": target, "evidence_source": "runtime-output"}
+
+        action_type = str(action_spec.get("action_type") or "").strip()
+        payload = action_spec.get("payload")
+
+        if action_type == "http_request" and hasattr(self.runtime, "proxy_action"):
+            payload_dict = self._normalize_llm_http_payload(payload, target)
+            method = str(payload_dict.get("method") or "GET").upper()
+            raw_url = str(payload_dict.get("url") or target).strip() or target
+            final_url = urljoin(target if target.endswith("/") else target + "/", raw_url)
+            ssrf_request = self._derive_source_fetch_write_llm_request(
+                payload=payload_dict,
+                target=target,
+            )
+            if ssrf_request is not None:
+                trigger_url = str(ssrf_request.get("trigger_url") or final_url)
+                headers = ssrf_request.get("headers")
+                trigger_resp = await self._runtime_proxy_action(
+                    "request",
+                    method=method,
+                    url=trigger_url,
+                    headers=headers,
+                    params={},
+                    data=None,
+                    json=None,
+                    timeout=int(payload_dict.get("timeout") or 20),
+                    audit_target=trigger_url,
+                    audit_metadata={"phase": "llm_action", "method": method, "source_fetch_write": True},
+                )
+                trigger_body = str((trigger_resp or {}).get("body") or "")
+                final_trigger_url = str((trigger_resp or {}).get("final_url") or trigger_url)
+                combined_body = trigger_body
+                combined_target = final_trigger_url
+                combined_status = (trigger_resp or {}).get("status_code")
+                for output_url in list(ssrf_request.get("output_urls") or []):
+                    retrieve_resp = await self._runtime_proxy_action(
+                        "get",
+                        url=output_url,
+                        headers=headers,
+                        timeout=int(payload_dict.get("timeout") or 20),
+                        audit_target=output_url,
+                        audit_metadata={
+                            "phase": "llm_action",
+                            "stage": "retrieve_source_fetch_write_output",
+                            "source_target": str(ssrf_request.get("fetch_target") or ""),
+                        },
+                    )
+                    output_body = str((retrieve_resp or {}).get("body") or "")
+                    if not output_body:
+                        continue
+                    combined_body = output_body
+                    combined_target = str((retrieve_resp or {}).get("final_url") or output_url)
+                    combined_status = (retrieve_resp or {}).get("status_code")
+                    break
+                return {
+                    "response_text": combined_body,
+                    "target_url": combined_target,
+                    "status_code": combined_status,
+                    "evidence_source": "source-leak",
+                }
+            response = await self._runtime_proxy_action(
+                "request",
+                method=method,
+                url=final_url,
+                headers=dict(payload_dict.get("headers") or {}),
+                params=dict(payload_dict.get("params") or {}),
+                data=payload_dict.get("data"),
+                json=payload_dict.get("json"),
+                timeout=int(payload_dict.get("timeout") or 20),
+                audit_target=final_url,
+                audit_metadata={"phase": "llm_action", "method": method},
+            )
+            return {
+                "response_text": str((response or {}).get("body") or ""),
+                "target_url": str((response or {}).get("final_url") or final_url),
+                "status_code": (response or {}).get("status_code"),
+                "evidence_source": "http-response",
+            }
+
+        if action_type == "shell" and hasattr(self.runtime, "execute_command"):
+            payload_dict = payload if isinstance(payload, dict) else {}
+            command = self._normalize_llm_shell_command(
+                str(payload_dict.get("command") or "").strip()
+            )
+            if not command:
+                return {
+                    "response_text": "empty shell command",
+                    "target_url": target,
+                    "status_code": 1,
+                    "evidence_source": "command-output",
+                }
+            result = await self._runtime_execute_command(
+                command,
+                timeout=int(payload_dict.get("timeout") or 120),
+                audit_target=target,
+                audit_metadata={"phase": "llm_action"},
+            )
+            text = "\n".join(
+                part for part in [getattr(result, "stdout", ""), getattr(result, "stderr", "")] if part
+            )
+            return {
+                "response_text": text,
+                "target_url": target,
+                "status_code": getattr(result, "exit_code", 0),
+                "evidence_source": "command-output",
+            }
+
+        if action_type == "http_request":
+            return {"response_text": "", "target_url": target, "status_code": 0, "evidence_source": "http-response"}
+
+        return {"response_text": "", "target_url": target, "evidence_source": "runtime-output"}
+
+    def _record_llm_reasoning(self, action_spec: dict[str, Any], decision: Any) -> None:
+        if self.state is None:
+            return
+        entry = {
+            "type": "llm_pre_action_reasoning",
+            "action_type": str(action_spec.get("action_type") or ""),
+            "tool_name": str(action_spec.get("tool_name") or ""),
+            "question": getattr(decision, "question", ""),
+            "expected_signal": getattr(decision, "expected_signal", ""),
+            "next_if_fail": getattr(decision, "next_if_fail", ""),
+            "approve": bool(getattr(decision, "approve", False)),
+            "reason": str(getattr(decision, "reason", "")),
+            "downgrade_to": getattr(decision, "downgrade_to", None),
+            "repeated_reject": bool(getattr(decision, "repeated_reject", False)),
+        }
+        self.state.pre_action_reasonings.append(entry)
+
+    def _summarize_payload(self, action_spec: dict[str, Any]) -> str:
+        payload = action_spec.get("payload")
+        summary = json.dumps(
+            {
+                "tool_name": action_spec.get("tool_name"),
+                "action_type": action_spec.get("action_type"),
+                "payload": payload,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        return summary[:200]
+
+    def _summarize_response(self, response_text: str, execution: dict[str, Any]) -> str:
+        response_text = str(response_text or "")
+        preview = response_text[:220] + ("..." if len(response_text) > 220 else "")
+        status = execution.get("status_code")
+        target_url = execution.get("target_url")
+        return f"status={status}; url={target_url}; body={preview}"[:300]
+
+    def _expected_signal_met(
+        self,
+        expected_signal: str,
+        response_text: str,
+        execution: dict[str, Any],
+    ) -> bool:
+        signal = str(expected_signal or "").strip().lower()
+        if not signal:
+            return False
+        response_lower = str(response_text or "").lower()
+        if "200" in signal and str(execution.get("status_code") or "") == "200":
+            if "body 含" in signal:
+                marker = signal.split("body 含", 1)[1].strip()
+                return bool(marker) and marker.lower() in response_lower
+            if "body contains " in signal:
+                marker = signal.split("body contains ", 1)[1].strip()
+                return bool(marker) and marker.lower() in response_lower
+            return True
+        if "flag" in signal and "flag{" in response_lower:
+            return True
+        if "keyword:" in signal:
+            marker = signal.split("keyword:", 1)[1].strip()
+            return bool(marker) and marker in response_lower
+        return signal in response_lower
+
+    # ------------------------------------------------------------------
+    # 新增 web 策略执行方法（Phase 0.5 easy_tornado 补全）
+    # ------------------------------------------------------------------
+
