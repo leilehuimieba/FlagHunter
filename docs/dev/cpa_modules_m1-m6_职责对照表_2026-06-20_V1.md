@@ -59,7 +59,7 @@ M6 的 `register_turbo_commands` + 它指向的 `command_registry` 抽象当前�
 | M6 | docstring「M0 侵入点自动挂载 / 透明加速」与实现不符；`apply_turbo` 无调用点、`_wrap_tool` 未真包裹；`LazyLoader` 导出但 `__init__` 内未实例化 | docstring 已校准为如实描述；`register_turbo_commands` 加「未接线」说明。行为不动。 |
 | M5 | 四核心类 `__all__` 悬空导出 | 已用 `__getattr__` 修复（§2）。 |
 | M3 | 顶部注释「仅在类型检查时循环引用，运行时正常导入」措辞误导（导入其实是无条件顶层执行） | 注释已校准。 |
-| **M4** | `init_m4` 第 84–85 行 `DataProtector(mask_ips=not mask_sensitive, mask_emails=mask_sensitive, ...)`：`mask_ips` 取 `mask_sensitive` 的**反**值——`CPA_M4_MASK_SENSITIVE=true`（默认）时 IP 脱敏被关闭，`=false` 时反而开启，读起来与开关语义相悖。`DataProtector` 默认 `mask_ips=False`，故默认值下无可见差异，异常仅在 `=false` 时显现。 | ⚠️ **疑似 bug，但语义存在歧义（可能有意"报告里保留 IP"）**。按卡 B 纪律「仅明确 bug 才单列改+加测试」，本项**只记录待复核、不改行为**，避免在低风险文档卡里夹带行为变更。 |
+| **M4** | `init_m4` 第 84–85 行 `DataProtector(mask_ips=not mask_sensitive, mask_emails=mask_sensitive, ...)`：`mask_ips` 取 `mask_sensitive` 的**反**值——`CPA_M4_MASK_SENSITIVE=true`（默认）时 IP 脱敏被关闭，`=false` 时反而开启，读起来与开关语义相悖。`DataProtector` 默认 `mask_ips=False`，故默认值下无可见差异，异常仅在 `=false` 时显现。 | ✅ **已复核（卡 D）：判定为 bug**。`mask_flags=False` 是 CTF 场景的刻意按类覆写，证明该行设计意图为"总开关治理 IP/email、flag 单列保留"；若真要永久保留 IP 应直接写 `mask_ips=False` 而非取反。下游仅 `tui.py` 调 `dp.mask()`，全仓无 test/代码依赖此取反。已改为 `mask_ips=mask_sensitive`（与 `mask_emails` 对齐），并加注释澄清。回归测试 `tests/unit/cpa_modules/m4_audit_guard/test_data_protector_wiring.py` 锁定「总开关=true⇒IP 被遮蔽、=false⇒保留」及 IP/email 同向。 |
 
 ---
 
