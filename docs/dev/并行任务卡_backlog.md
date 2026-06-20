@@ -215,6 +215,71 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 
 ---
 
+## 卡 E — benchmark backup_node_app:zip 验收链转绿(高风险·独占 pa_agent)
+
+> ⚠️ 高风险卡:真改 dispatcher 验收判定路径,**须 live eval 回放兜底,禁与任何 pa_agent/ 卡并行**。
+> 文件锁:flaghunter/agents/pa_agent/{artifact_forensics.py(主位),coordinator.py,strategy_registry.py}。
+> 派发期间须独占 pa_agent/——确认并发后台写手未在编辑该目录。
+
+```
+【高风险任务卡｜benchmark backup_node_app:zip 验收链转绿（candidate_only_honesty 升级）】
+
+只读取证、随后实现。先只读复现+定位，再动生产代码，最后跑门禁。
+
+[1] 文档锚点
+- 根因文档：docs/dev/FlagHunter_预存验收链失败_根因characterization_2026-06-16_V1.md
+  （该文档把 backup/profile 类失败归为"探测层在剥过 HTML 的文本上跑、能力其实已实现却被静默禁用"——
+   本卡同属"已实现的取证链未在某条输入路径上触发"族，按其方法论先核触发条件再改）
+- 预存失败用例：tests/eval/test_benchmark_runner.py::test_run_benchmark_supports_local_backup_node_app_zip_case
+- 分类器：tests/eval/benchmark_runner.py::_derive_eval_observed_outcome（candidate_only_honesty vs honest_no_flag 判定）
+
+[2] 详细目标（分阶段）
+  阶段A 复现+定位（只读）：跑该用例确认 observed_outcome='honest_no_flag'、expected='candidate_only_honesty'、matched=False。
+    定位缺失逻辑：zip 变体的 challenge_context 把 backup.zip 放进 artifactPaths，
+    flaghunter/agents/pa_agent/artifact_forensics.py::_ingest_local_challenge_artifacts 会发出 local_challenge_artifact 观测并解压，
+    但 artifact_forensics_summary 观测仅由 _run_artifact_forensics_strategy 在通过 HTTP artifact_url 下载并 execute_command 成功时发出（约 L844-858）；
+    本地 artifactPaths（无 HTTP URL）这条路径下该观测从不触发。
+    分类器 _has_source_only_artifact_forensics_signal 要求 {local_challenge_artifact, artifact_forensics_summary} 两个观测都在，
+    缺其一 → 落到 honest_no_flag。即"升级未实现"=本地归档取证未升级为对 artifact_forensics_summary（或 candidate_flag）的产出。
+  阶段B 实现：在 artifact_forensics.py 内补齐"本地 artifactPaths/解压根目录"路径上的取证产出，
+    使其落地 artifact_forensics_summary 观测或 candidate_flag（与现有 HTTP 路径语义一致、不引入假 verified）。
+  阶段C 验证：该 benchmark case 转绿，且 sibling integration（test_backup_node_app_candidate_eval.py）与 easy_login_none 的 honest_no_flag 不回归。
+
+[3] 边界
+  白名单生产文件（仅可改其一/其二，优先最小）：
+    - flaghunter/agents/pa_agent/artifact_forensics.py（缺失逻辑主位）
+    必要时（且仅当确证）才可触及：
+    - flaghunter/agents/pa_agent/coordinator.py（仅本地资产 ingest 调用点 L803/L992 一线）
+    - flaghunter/agents/pa_agent/strategy_registry.py（仅 artifact_forensics 注册项 L648 一线）
+  不碰清单：tests/eval/benchmark_runner.py 的分类器（_derive_eval_observed_outcome 等，改它=作弊掩盖）、
+    recovery.py 的 stop_candidate_only 防误报逻辑、ctf_dispatcher.py 的停机/验收主路径除非确证、
+    challenges/、任何测试断言文件（不得放宽测试来"变绿"）。
+
+[4] DoD（客观可跑）
+  - tests/eval/test_benchmark_runner.py::test_run_benchmark_supports_local_backup_node_app_zip_case 转绿
+    （eval_verdict.matched=True, observed_outcome=candidate_only_honesty）。
+  - 全量 pytest 零新增回归（对齐当前基线：本地 challenges/ 未跟踪、工作树干净）。
+
+[5] 验证命令
+  .venv\Scripts\python.exe -m pytest tests/eval/test_benchmark_runner.py -q -p no:cacheprovider
+  .venv\Scripts\python.exe -m pytest tests/integration/test_backup_node_app_candidate_eval.py tests/integration/test_local_challenge_runner.py -q -p no:cacheprovider   （sibling 集成）
+  .venv\Scripts\python.exe -m pytest -q -p no:cacheprovider   （全量）
+
+[6] 风险级别 = 高
+  真改 dispatcher 验收判定路径（artifact 取证 → 观测/candidate → eval 分类），必须 live eval 回放兜底
+  （改完务必跑 [5] 三条命令全绿，尤其确认 easy_login_none 仍判 honest_no_flag、无新增假 verified）。
+  禁与任何 pa_agent/ 卡并行——artifact_forensics.py / coordinator.py / strategy_registry.py 文件锁，
+  派发期间不得有其他写手编辑 pa_agent/。
+
+[7] 通用纪律
+  双提交：fix 与 docs 分两个 commit。main 不 push。
+  提交用 git commit -F D:\tmp\<msgfile>（消息文件写在 D:\tmp）。
+  每条 commit 末尾署名：Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+  不碰 challenges/。
+```
+
+---
+
 ## 维护说明(给我自己/未来对话)
 
 - 每完成一张卡,在卡标题后标 `✅(commit 短哈希)`,并回写 ADR §8。
