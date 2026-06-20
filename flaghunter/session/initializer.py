@@ -283,23 +283,25 @@ async def build_agent_components(
     # === CPA M2 HOOK END ===
 
     # === CPA M3 HOOK BEGIN ===
-    if os.getenv("CPA_M3_REPORTER", "true").lower() != "false":
-        try:
-            from flaghunter.cpa_modules.m3_reporter import init_m3
+    try:
+        from flaghunter.cpa_modules.m3_reporter import init_m3, is_m3_enabled
+
+        if is_m3_enabled():
             await init_m3()
             _log("[CPA M3] Reporter initialized.")
-        except Exception as exc:
-            _log(f"[CPA M3] Init failed, continuing without it: {exc}", "warning")
+    except Exception as exc:
+        _log(f"[CPA M3] Init failed, continuing without it: {exc}", "warning")
     # === CPA M3 HOOK END ===
 
     # === CPA M4 HOOK BEGIN ===
-    if os.getenv("CPA_M4_AUDIT_GUARD", "true").lower() != "false":
-        try:
-            from flaghunter.cpa_modules.m4_audit_guard import init_m4
+    try:
+        from flaghunter.cpa_modules.m4_audit_guard import init_m4, is_m4_enabled
+
+        if is_m4_enabled():
             await init_m4()
             _log("[CPA M4] Audit Guard initialized.")
-        except Exception as exc:
-            _log(f"[CPA M4] Init failed, continuing without it: {exc}", "warning")
+    except Exception as exc:
+        _log(f"[CPA M4] Init failed, continuing without it: {exc}", "warning")
     # === CPA M4 HOOK END ===
 
     # === CPA M5 HOOK BEGIN ===
@@ -313,13 +315,14 @@ async def build_agent_components(
     # === CPA M5 HOOK END ===
 
     # === CPA M6 HOOK BEGIN ===
-    if os.getenv("CPA_M6_TURBO", "true").lower() != "false":
-        try:
-            from flaghunter.cpa_modules.m6_turbo import init_m6
+    try:
+        from flaghunter.cpa_modules.m6_turbo import init_m6, is_m6_enabled
+
+        if is_m6_enabled():
             await init_m6()
             _log("[CPA M6] Turbo initialized.")
-        except Exception as exc:
-            _log(f"[CPA M6] Init failed, continuing without it: {exc}", "warning")
+    except Exception as exc:
+        _log(f"[CPA M6] Init failed, continuing without it: {exc}", "warning")
     # === CPA M6 HOOK END ===
 
     # ------------------------------------------------------------------
