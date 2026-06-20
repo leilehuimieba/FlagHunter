@@ -36,6 +36,7 @@ code relocation, near-zero risk.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 from pathlib import Path
