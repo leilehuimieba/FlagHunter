@@ -215,7 +215,17 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 
 ---
 
-## 卡 E — benchmark backup_node_app:zip 验收链转绿(高风险·独占 pa_agent)
+## 卡 E — benchmark backup_node_app:zip 验收链转绿(高风险·独占 pa_agent) ✅(ed8cdb4)
+
+> 收口结论(2026-06-20):根因不在"本地路径未升级",而在 `artifact_forensics.py` 顶层**漏 import json**
+> (P5 抽包时丢失)。`_analyze_attachment_artifact` 的 `json.loads(...)` 抛 `NameError`,被裸 `except Exception`
+> 吞掉后于 L824 提前 return,导致 **HTTP 与本地两条路径**的 `ctf_artifact_forensics` note 与
+> `artifact_forensics_summary` 观测从不落地——即"能力已实现却被静默禁用"族。最小修复=补 `import json`,
+> 让既有落地代码真正执行(语义与 HTTP 路径完全一致,backup.zip 无 flag→不引入假 verified)。
+> 验证:benchmark case 转绿(matched=True/candidate_only_honesty);sibling 集成 15/15 绿;
+> 隔离重跑 14 例验收链:基线 13/14(misc_artifact_forensics 因同一 NameError 预存失败)→ 修复后 **14/14**
+> (顺带修好该预存失败,零新增回归;全量套件里那 13 例的偶发失败为长跑端口/资源竞争抖动,基线隔离同样通过)。
+
 
 > ⚠️ 高风险卡:真改 dispatcher 验收判定路径,**须 live eval 回放兜底,禁与任何 pa_agent/ 卡并行**。
 > 文件锁:flaghunter/agents/pa_agent/{artifact_forensics.py(主位),coordinator.py,strategy_registry.py}。
