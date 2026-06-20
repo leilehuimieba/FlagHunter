@@ -128,7 +128,7 @@ class AgentSession:
 | **P2** | pa_agent & crew 校验同一事件/结果契约 | A→编排 | 低 | 两 agent 输出经同一总线 |
 | **P3** | P3a 已完成:`_execute_chain` if/elif → handler map;P3b 渐进引入 `ChainContext` 破上帝对象 | B | 中高 | §4.3 前两条 |
 | **P4** | 拆 `chains/` 子包,低耦合先行(misc/cmdi/ssrf/lfi → sqli/jwt/upload → web/xss/ssti) | B | 中高 | §4.3 后两条 |
-| **P5** | cpa_modules m1..m6 命名/文档、capability registry 收尾 | 能力层 | 低 | 模块职责对照表 |
+| **P5** | cpa_modules m1..m6 命名/文档、capability registry 收尾 ✅(2026-06-20,卡 B,见 §5.2「P5(命名/文档线)收尾」) | 能力层 | 低 | 模块职责对照表(`docs/dev/cpa_modules_m1-m6_职责对照表_2026-06-20_V1.md`) |
 
 每阶段硬性 gate(沿用现有纪律):
 - full unit suite 零新增失败(deselect 2 个 `*_on_kali` 测试);必要时跑 integration。
@@ -193,6 +193,16 @@ class AgentSession:
 - **沉淀的可复用方法论**(供后续同类重构):① 大块用**脚本精确切片 + py_compile**,不手工转写;② 含正则/`\x00` 等转义的字符串**绝不经非 raw Python 字面量重构**(三次 `\b`→退格符踩坑),从原文件逐字节复制;③ 缺 ruff/pyflakes 时用标准库 **`symtable` 自由变量分析**做 import 完整性闸 + body 扫描查多余;④ 抽取后跑套件**前**先做 **monkeypatch 路径预扫**(`grep ctf_dispatcher.<moved_symbol>`),把 setattr-rebind 型 patch 一次性改到使用点,消除"失败→改→重跑"的 6 分钟来回。
 
 **后续若仍要演进 dispatcher,应转入 P3b 路线(ChainContext 破透传),而非继续切 mixin。**
+
+### P5(命名/文档线)收尾(2026-06-20,卡 B)
+**消歧**:本条是 §5 路线图表 **P5 行**定义的「cpa_modules m1..m6 命名/文档、capability registry 收尾」(能力层,低风险,DoD=模块职责对照表),**与上面那条「P5 god-object 23 刀拆分 ctf_dispatcher」是两码事**——后者属 §5.2 进展日志的 dispatcher 重构线,已于第二十三刀后收敛宣告。
+
+- **产出**:新增 `docs/dev/cpa_modules_m1-m6_职责对照表_2026-06-20_V1.md`——六模块逐行列职责 + 暴露能力(`init_mN`/`is_mN_enabled`/`register_*_commands`)+ 调用方,并把 `__all__`/导出 ↔ `session/initializer.py` 调用列表逐项对账成文。
+- **capability registry 一致性结论**:六模块均定义 `init_mN`+`is_mN_enabled`(M1 在 initializer 真正调 `is_m1_enabled()` 门控,M2–M6 在 initializer 处按 env 门控、各自 `is_mN_enabled` 仍被运行时其它处消费)。**唯一悬空导出已修**:M5 的 `SharedBlackboard`/`PheromoneRouter`/`AgentMessenger`/`ConsensusMechanism` 原仅 `TYPE_CHECKING` 下导入、运行时 `import *` 直接 `AttributeError`,现加 PEP 562 `__getattr__` 懒加载使其真正可导入(保留"避免顶层循环依赖"原意)。M6 `register_turbo_commands` 确认全仓无调用方(`command_registry` 抽象未用,`/turbo` 由 TUI 硬编码分发),保留为预留接口并加「未接线」docstring,不改行为。
+- **命名/docstring 校准(均不改行为)**:补 `cpa_modules/__init__.py` 包级 docstring(原为空);改写 M6 模块 docstring 如实说明"init 走 session initializer 钩子、实际面是 `/turbo`、透明 wrapper 自动挂载属预留未接线"(原称"M0 侵入点自动挂载/透明加速"名实不符);校准 M3 顶部误导性注释。
+- **待复核(仅记录,未改行为)**:M4 `init_m4` 的 `DataProtector(mask_ips=not mask_sensitive, ...)` 读起来与开关语义相悖(`CPA_M4_MASK_SENSITIVE=true` 默认下因 `DataProtector` 默认 `mask_ips=False` 无可见差异,异常仅在 `=false` 时显现)——疑似 bug 但语义有歧义,按卡纪律「仅明确 bug 才改+加测试」留作待复核,不在本低风险文档卡夹带行为变更。
+- **守卫**:`tests/unit/config/test_cpa_modules_capability_registry.py`——锁定六模块 `init_mN`/`is_mN_enabled` 契约、非空 docstring、`__all__` 无悬空导出(防 M5 类回归)、M5 核心类运行时可导入。
+- **零回归**:`tests/unit/agents/` 489 passed(与 P5 god-object 收敛同基线,新守卫在 `tests/unit/config/`)。
 
 ### P3 风险发现(深度测绘,2026-06-17)
 `_execute_chain` 的 if/elif 已安全改为 handler map(**P3a 完成**)。但**关节 B 的「破上帝对象」(P3b)高风险**:所有注册策略通过 `context.dispatcher.*` 访问 dispatcher 全部能力(`_run_strategy_sequence` 每轮重建 `ctx=_strategy_context(dispatcher=self)`),strategy_registry 里 40+ lambda 全依赖 `ctx.dispatcher._run_*/_attempt_*/state/strategy_memory/...`。用 ChainContext 显式字段**替换** dispatcher 透传 = 重写这 40+ lambda + 所有 chain 方法,动 live 调过的 CTF 核心,**单测绿 ≠ 解题行为不变**。故 P3 拆分:
