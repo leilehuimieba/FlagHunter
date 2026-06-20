@@ -1552,7 +1552,7 @@ async def test_visit_url_modes_exhausted_without_sid_or_flag_is_not_progress(mon
             return next(hits)
 
     monkeypatch.setattr(
-        "flaghunter.agents.pa_agent.ctf_dispatcher._CollectorServer",
+        "flaghunter.agents.pa_agent.xss_collector_chain._CollectorServer",
         _FakeCollectorServer,
     )
 
@@ -1631,7 +1631,7 @@ async def test_visit_url_exhaustion_is_not_replayed_across_web_and_xss_chains(mo
             return next(hits)
 
     monkeypatch.setattr(
-        "flaghunter.agents.pa_agent.ctf_dispatcher._CollectorServer",
+        "flaghunter.agents.pa_agent.xss_collector_chain._CollectorServer",
         _FakeCollectorServer,
     )
 

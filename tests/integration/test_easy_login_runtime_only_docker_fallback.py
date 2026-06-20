@@ -171,7 +171,7 @@ async def test_loopback_container_fallback_survives_external_collector_bind_conf
         raise OSError(10048, "address already in use")
 
     monkeypatch.setattr(
-        "flaghunter.agents.pa_agent.ctf_dispatcher._CollectorServer.start",
+        "flaghunter.agents.pa_agent.xss_collector_chain._CollectorServer.start",
         _port_conflict,
     )
 
