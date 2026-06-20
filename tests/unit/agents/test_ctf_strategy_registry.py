@@ -219,6 +219,7 @@ async def test_strategy_registry_executes_php_unserialize_strategy():
     dispatcher = _DummyDispatcher()
     context = StrategyContext(
         dispatcher=dispatcher,
+        services=dispatcher,
         target="http://ctf.local",
         page_features={},
         hint="",
