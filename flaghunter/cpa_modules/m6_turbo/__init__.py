@@ -1,15 +1,11 @@
 """
 CPA M6 Turbo 模块 - 高性能渗透测试加速引擎
 
-M6模块为FlagHunter提供透明加速能力，包括：
-- 智能结果缓存：避免重复扫描相同目标
-- 并发扫描引擎：最大化网络扫描效率  
-- 内存优化管理：自动GC与内存上限控制
-- 懒加载机制：按需加载重型工具模块
-
-透明wrapper设计：
-M6的wrapper对M2-M5模块完全透明，通过M0侵入点在工具执行入口自动生效，
-无需修改任何现有工具代码。
+M6 为 FlagHunter 提供性能加速基础设施：
+- 智能结果缓存（``ResultCache``）：避免重复扫描相同目标
+- 并发扫描引擎（``ParallelScanner``）：最大化网络扫描效率
+- 内存优化管理（``MemoryOptimizer``）：自动GC与内存上限控制
+- 懒加载工具（``LazyLoader``）：按需加载重型工具模块
 
 环境变量（均为可选，有默认值）：
     CPA_M6_TURBO: 总开关，默认"true"
@@ -20,9 +16,14 @@ M6的wrapper对M2-M5模块完全透明，通过M0侵入点在工具执行入口�
     CPA_M6_MAX_PER_HOST: 单主机最大并发，默认"2"
     CPA_M6_MEMORY_LIMIT_MB: 内存上限(MB)，默认"512"
 
-使用方式：
-    模块由M0侵入点自动初始化和挂载，无需手动干预。
-    如需命令行交互，使用 /turbo 系列命令。
+接线现状（与设计意图的差异，避免名实不符）：
+    - 初始化：由 ``flaghunter/session/initializer.py`` 的 CPA M6 钩子调用
+      ``init_m6()`` 完成（按 CPA_M6_TURBO 门控），并非"M0 侵入点"自动挂载。
+    - 交互入口：当前实际可用面是 ``/turbo`` 系列命令（经 TUI 的
+      ``_parse_turbo_command`` 硬编码分发）。
+    - 透明 wrapper：``apply_turbo()`` / ``_wrap_tool()`` 设计为在工具执行入口
+      对 M2–M5 透明加速，但该"自动挂载"目前 **尚未接线**（工具层无调用点），
+      ``_wrap_tool`` 仅登记工具名、未真正包裹函数；属预留能力。
 """
 
 from __future__ import annotations

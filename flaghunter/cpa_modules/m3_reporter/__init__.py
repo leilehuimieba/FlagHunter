@@ -39,7 +39,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 # ---------------------------------------------------------------------------
-# 相对导入子模块 — 仅在类型检查时循环引用，运行时正常导入
+# 相对导入子模块（运行时无环，下面的导入即生效）。
+# 下方 TYPE_CHECKING 块仅为静态检查再取一次类型别名，运行时不重复执行。
+# 注：html/markdown/pdf 三个 exporter 由 report_generator 内部按需使用，
+#     不在本包 __all__ 暴露。
 # ---------------------------------------------------------------------------
 from .template_engine import TemplateEngine
 from .report_generator import ReportGenerator

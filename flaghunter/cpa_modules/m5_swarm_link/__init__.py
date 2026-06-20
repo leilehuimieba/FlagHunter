@@ -82,7 +82,9 @@ __all__ = [
     "get_messenger",
     "get_consensus_mechanism",
     "is_m5_enabled",
-    # 核心类延迟暴露，便于类型提示与外部直接导入
+    # 核心类经 PEP 562 ``__getattr__`` 懒加载暴露（见文件末尾），
+    # 既避免顶层循环依赖，又让外部 ``from ... import SharedBlackboard`` 与
+    # ``import *`` 真正可用、便于类型提示。
     "SharedBlackboard",
     "PheromoneRouter",
     "AgentMessenger",
@@ -234,3 +236,30 @@ def is_m5_enabled() -> bool:
         bool: 当且仅当环境变量开关为 ``"true"`` 且 ``init_m5()`` 执行成功时返回 ``True``。
     """
     return _initialized and _ENV_ENABLED.lower() == "true"
+
+
+# ---------------------------------------------------------------------------
+# PEP 562 模块级懒加载：让 __all__ 里声明的核心类真正可被外部导入
+# ---------------------------------------------------------------------------
+_LAZY_CLASS_NAMES = frozenset(
+    {"SharedBlackboard", "PheromoneRouter", "AgentMessenger", "ConsensusMechanism"}
+)
+
+
+def __getattr__(name: str):
+    """按需懒加载核心类，避免顶层循环依赖（PEP 562）。
+
+    ``__all__`` 中声明的四个核心类只在 ``TYPE_CHECKING`` 下做静态导入，运行时
+    通过本钩子在首次属性访问时才真正 import，使
+    ``from flaghunter.cpa_modules.m5_swarm_link import SharedBlackboard`` 与
+    ``import *`` 均可用，同时保持模块轻量加载。
+    """
+    if name in _LAZY_CLASS_NAMES:
+        classes = dict(
+            zip(
+                ("SharedBlackboard", "PheromoneRouter", "AgentMessenger", "ConsensusMechanism"),
+                _import_classes(),
+            )
+        )
+        return classes[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

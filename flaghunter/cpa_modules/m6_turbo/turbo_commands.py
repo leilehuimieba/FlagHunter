@@ -672,7 +672,10 @@ async def cmd_turbo_parallel(args: list[str], context: Any = None) -> str:
 def register_turbo_commands(command_registry: Any) -> None:
     """将/turbo系列命令注册到命令注册表。
 
-    由M0侵入点3在初始化时调用。
+    .. note::
+        预留接口：当前 **尚未接线**。仓库内没有 ``command_registry`` 消费者，
+        TUI 的 ``/turbo`` 系列命令实际由 ``interface/tui.py`` 的
+        ``_parse_turbo_command`` 硬编码分发。本函数保留以便将来统一命令注册体系。
 
     Args:
         command_registry: 命令注册表对象，需有 register 方法。
