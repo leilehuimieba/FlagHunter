@@ -158,6 +158,63 @@ fake 必须返回正经的 diagnose 探针,否则回放失真)。
 
 ---
 
+## 卡 D — M4 audit_guard:DataProtector mask_ips 语义核查(卡 B 浮出的待复核项)
+
+```
+核查 FlagHunter cpa_modules/m4_audit_guard 一处疑似语义反转 bug(卡 B 审计时浮出,
+按"不夹带"纪律未在卡 B 内改动,已列入 m1–m6 职责对照表 §4 待复核)。仓库
+D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
+
+文档锚点:
+  - docs/dev/cpa_modules_m1-m6_职责对照表_2026-06-20_V1.md §4(M4 待复核条目)。
+  - 代码:flaghunter/cpa_modules/m4_audit_guard/__init__.py 的 init_m4——
+    `DataProtector(mask_ips=not mask_sensitive, ...)`,mask_ips 与 mask_sensitive
+    取反,读起来与开关语义相悖。
+
+详细目标:
+  1. 先只读测绘:DataProtector 定义处 mask_ips / mask_sensitive 各自的真实语义、
+     默认值;init_m4 的调用方/配置如何传 mask_sensitive;有无下游依赖这个取反行为。
+  2. 判定:
+     - 若确为 bug(取反导致 mask 行为与配置相悖)→ 修正为正确语义 + 加回归测试
+       锁定(断言 mask_sensitive=True 时 IP 被遮蔽)。
+     - 若为有意设计("报告保留 IP"等)→ 不改行为,改写 docstring/注释澄清语义,
+       消除误导。
+  3. 更新对照表 §4:把"待复核"结论改为"已复核(bug 已修 / 确认有意 + 已澄清)"。
+
+边界:
+  - 只碰:flaghunter/cpa_modules/m4_audit_guard/**、相应 tests/、上述对照表 .md。
+  - 不碰:其它 m* 模块、flaghunter/agents/pa_agent/**、flaghunter/eval/**、
+          flaghunter/session/initializer.py 行为、challenges/。
+  - 与卡 B 文件锁无活动交集(卡 B 已收口);若改对照表,确认无人正写该文件。
+
+完成判据(DoD,客观可 grep/可跑):
+  - mask_ips 语义有明确书面结论(bug 已修 + 回归测试 / 或确认有意 + 注释澄清)。
+  - 若判 bug:新增回归测试覆盖 mask_sensitive↔mask_ips 一致性,跑绿。
+  - 对照表 §4 的"待复核"标记已更新为"已复核"。
+  - 全套件零回归。
+
+验证命令:
+  - 先 glob 确认 m4 是否有就近 tests 目录;有则:
+    .venv\Scripts\python.exe -m pytest flaghunter/cpa_modules/m4_audit_guard/tests -q -p no:cacheprovider
+  - 门禁:.venv\Scripts\python.exe -m pytest tests/unit/agents/ -q -p no:cacheprovider
+  - DoD 零回归:.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider
+    (本环境缺 certifi/aiohttp 致整片 integration/runtime-proxy 预存失败,需以
+     clean HEAD 复现确认与本卡无关,而非误判为回归。)
+
+风险级别:
+  - 低/中。单模块,默认不触调用路径。若修正改变 DataProtector 默认遮蔽行为,
+    须确认无下游依赖原(疑似错误的)行为,并跑全量;不触 initializer 接线,
+    无需 live eval。
+
+通用纪律:
+  - 双提交:① fix/refactor(m4 修复或注释澄清 + 测试)② docs(对照表 §4 更新)。
+  - 直接提交 main 不 push;git commit -F <tempfile>(临时文件写 D:\tmp);
+    每个 commit 结尾署名 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>;
+    不碰 challenges/。
+```
+
+---
+
 ## 维护说明(给我自己/未来对话)
 
 - 每完成一张卡,在卡标题后标 `✅(commit 短哈希)`,并回写 ADR §8。
