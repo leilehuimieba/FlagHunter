@@ -5742,11 +5742,11 @@ async def test_ctf_dispatcher_contact_report_chain_uses_captcha_and_pow_solvers(
         return 0
 
     monkeypatch.setattr(
-        "flaghunter.agents.pa_agent.ctf_dispatcher._solve_contact_captcha_solution",
+        "flaghunter.agents.pa_agent.jwt_contact_chain._solve_contact_captcha_solution",
         _fake_captcha_solver,
     )
     monkeypatch.setattr(
-        "flaghunter.agents.pa_agent.ctf_dispatcher._solve_contact_pow_solution",
+        "flaghunter.agents.pa_agent.jwt_contact_chain._solve_contact_pow_solution",
         _fake_pow_solver,
     )
     set_notes_file(tmp_path / "notes_contact_solved.json")
@@ -5798,11 +5798,11 @@ async def test_ctf_dispatcher_contact_report_chain_treats_urlstorage_return_as_s
         return None
 
     monkeypatch.setattr(
-        "flaghunter.agents.pa_agent.ctf_dispatcher._solve_contact_captcha_solution",
+        "flaghunter.agents.pa_agent.jwt_contact_chain._solve_contact_captcha_solution",
         _no_captcha_solver,
     )
     monkeypatch.setattr(
-        "flaghunter.agents.pa_agent.ctf_dispatcher._solve_contact_pow_solution",
+        "flaghunter.agents.pa_agent.jwt_contact_chain._solve_contact_pow_solution",
         lambda challenge: None,
     )
     set_notes_file(tmp_path / "notes_contact_bypass.json")
