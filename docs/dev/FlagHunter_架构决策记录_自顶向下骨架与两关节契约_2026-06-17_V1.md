@@ -233,6 +233,13 @@ P5 完工后对 P3b 透传面做了精确测绘,**当初「高风险一次性重
 #### 卡 E 收口:benchmark backup_node_app:zip 验收链转绿(2026-06-20,fix `ed8cdb4` + docs)
 非 P 线架构刀,属「能力已实现却被静默禁用」族 bug 修复(对照 `根因characterization_2026-06-16_V1.md` 方法论:先核触发条件再改)。**根因**:`artifact_forensics.py` 在 P5 抽包时**顶层漏 `import json`**;`_analyze_attachment_artifact` 里 `json.loads(text.splitlines()[-1])` 抛 `NameError`,被裸 `except Exception` 吞掉后于 except 分支提前 return——导致 **HTTP 下载与本地 `file://` artifactPaths 两条路径**的 `ctf_artifact_forensics` note 与 `artifact_forensics_summary` 观测**从不落地**(`json` 在嵌入式取证脚本字符串里另有 import、在子进程内执行,恰好掩盖了模块级缺失)。分类器 `_has_source_only_artifact_forensics_signal` 因缺 `artifact_forensics_summary` 观测把 zip 变体判成 `honest_no_flag`。**修复**=补一行 `import json`,让既有落地代码真正执行,与 HTTP 路径语义完全一致;backup.zip 内无 flag,不引入假 verified。**验证**:① benchmark `local_backup_node_app_zip` 转绿(matched=True/`candidate_only_honesty`);② sibling 集成 15/15 绿(`test_backup_node_app_candidate_eval` 此前正卡在 `ctf_artifact_forensics` note 缺失,现通过);③ 隔离重跑全部 14 例 dispatcher 验收链——**基线 13/14**(`test_ctf_dispatcher_acceptance_misc_attachment_artifact_forensics` 因同一 NameError 取不到 forensics_record 而 `StopIteration` 预存失败)**→ 修复后 14/14**(顺带修好该预存失败,零新增回归);全量长跑里那 13 例的偶发失败经隔离复跑证实为端口/资源竞争抖动(基线隔离同样通过),非本改动所致。
 
+#### P5 命名/文档线尾巴清理(2026-06-21,卡 F/G/H)
+卡 B(P5 命名/文档线)收口后浮出的三条自包含尾巴,本批清理完毕:
+- **卡 F**(`837f0d2`):M6 `apply_turbo` 经核为零调用点死代码(全仓仅定义/导出/文档、生产侧 0 调用),删除;保留 `_wrap_tool` registry;新增 deadcode 守卫测试。M6 加速面收敛为 `/turbo` 命令。
+- **卡 G**(`b52cb0c`):`session/initializer.py` CPA 钩子门控统一——M1/M3/M4/M6 走 `is_mN_enabled()`;M2/M5 因 `is_mN_enabled` 含 `_initialized` 前置(用于 init 前门控会自锁),刻意保留直读 env,属设计决策。新增 `test_cpa_hook_gating.py` 守卫(27 项)。
+- **卡 H**(`399f262`):easy_tornado 观测命名复核,确认根因文档 §1.1 的"未记录 render_ssti_response"系 `0957d94` 之前过时快照,生产与测试现已自洽(纯 docs 复核,未触生产)。
+三卡文件锁互斥并行执行,均零越界、抽验全绿、工作树无残留。
+
 ## 6. 显式非目标(本轮不做)
 - 不重构 foundation 依赖方向(已健康)。
 - 不改 LLM provider / api_hub 路由逻辑。

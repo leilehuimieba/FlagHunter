@@ -290,6 +290,24 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 
 ---
 
+## 卡 F — M6 apply_turbo 死代码删除 ✅(837f0d2)
+
+> 已完成并主控审核通过。结论:apply_turbo 经核为零调用点死代码(全仓仅定义+导出+文档,生产侧 0 调用),走删除路线 A;保留 _wrap_tool registry。新建 tests/unit/cpa_modules/m6_turbo/test_m6_turbo_deadcode.py 锁"已删 + 无残留引用"(7 passed)。M6 加速面收敛为 /turbo 命令。文件锁:flaghunter/cpa_modules/m6_turbo/**。零越界。
+
+---
+
+## 卡 G — initializer 门控统一走 is_mN_enabled ✅(b52cb0c)
+
+> 已完成并主控审核通过。结论:M1/M3/M4/M6 统一经 is_mX_enabled() 门控;M2/M5 因 is_mN_enabled 含 _initialized 前置(若用于 init 前门控会自锁致 init 永不执行),**刻意保留直读 env**。新增守卫测试 tests/unit/session/test_cpa_hook_gating.py(27 项,套件 41 passed)。文件锁:flaghunter/session/initializer.py + tests/unit/session/。零越界。
+
+---
+
+## 卡 H — easy_tornado 观测命名复核(render_ssti vs cookie_secret) ✅(399f262)
+
+> 已完成并主控审核通过。结论:阶段 B 选① —— 根因文档 §1.1"未记录 render_ssti_response"是 0957d94 之前的过时快照;生产三条 SSTI 路径(ssti_executor.py)都在 cookie_secret_leaked 前先发 render_ssti_response,测试 L404-405 已同时断言两者(3 passed)。仅在根因文档 §1.1/§1.2 补复核结论块,未触生产、未改断言含义。文件锁:根因文档 .md。低风险。
+
+---
+
 ## 维护说明(给我自己/未来对话)
 
 - 每完成一张卡,在卡标题后标 `✅(commit 短哈希)`,并回写 ADR §8。
