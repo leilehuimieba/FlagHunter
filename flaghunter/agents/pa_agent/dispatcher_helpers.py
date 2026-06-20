@@ -77,6 +77,15 @@ _ADMIN_PASSWORD_LOG_RE = re.compile(r"Admin password set to:\s*([^\s]+)")
 _SCRIPT_SRC_RE = re.compile(r"<script[^>]+src=[\"']([^\"']+)[\"']", re.IGNORECASE)
 _BACKUP_CLUE_RE = re.compile(r"(备份|backup|source code|源码|压缩包|\.zip|\.bak|\.swp)", re.IGNORECASE)
 
+# (moved from ctf_dispatcher) — flag extraction
+_FLAG_RE = re.compile(
+    r"([A-Za-z][A-Za-z0-9_]{1,20}\{[A-Za-z0-9_!@#$%^&*+=:.,?\-]{3,200}\})"
+)
+_STRICT_FLAG_RE = re.compile(
+    r"((?:DASCTF|FLAG|CTF|BUU|NSSCTF|HGAME|ACTF|QWB)[A-Za-z0-9_]{0,16}\{[A-Za-z0-9_!@#$%^&*+=:.,?\-]{3,200}\})",
+    re.IGNORECASE,
+)
+
 # (moved from ctf_dispatcher)
 _JWT_ALG_HASH = {
     "HS256": hashlib.sha256,
@@ -1297,6 +1306,8 @@ __all__ = [
     '_ADMIN_PASSWORD_LOG_RE',
     '_SCRIPT_SRC_RE',
     '_BACKUP_CLUE_RE',
+    '_FLAG_RE',
+    '_STRICT_FLAG_RE',
     '_JWT_ALG_HASH',
     '_CONTACT_OCR_READER',
 ]
