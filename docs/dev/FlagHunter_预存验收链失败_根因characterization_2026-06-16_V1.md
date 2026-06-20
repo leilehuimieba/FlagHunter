@@ -27,11 +27,19 @@
 - **性质**：观测命名/路径分叉。dispatcher 行为可能是对的（换了等价有效路径），测试把中间观测名写死了。
 - **修复**：放宽对 `render_ssti_response` 的断言 **或** 让 SSTI 渲染时补记该观测。前者需确认不是真的漏记。
 
+> **复核结论（卡 H，2026-06-21，只读复现）**：上文"未记录 `render_ssti_response`"是 `0957d94` **之前**的过时快照，现已自洽，无需任何放宽。
+> - **生产侧**：`flaghunter/agents/pa_agent/ssti_executor.py` 三条 SSTI 路径**每条都在 `cookie_secret_leaked` 之前先发 `render_ssti_response`**，且取自同一 response body：① render_param 路径 L140-152 → L196-202；② ssti_identify 路径 L391-401 → L411-419；③ ssti_exploit 路径 L546-555 → L569-574。即"对应观测被记成 `cookie_secret_leaked`"已不成立——两类观测**并存**，非二选一。（注：根因文档原文引用的 `pentestagent\...` 为旧包名，现包名 `flaghunter\...`。）
+> - **测试侧**：`tests/integration/test_ctf_dispatcher_easy_tornado_acceptance.py` L404-405 现已**同时**断言 `render_ssti_response` 与 `cookie_secret_leaked`，与生产对齐。
+> - **复跑**：`pytest tests/integration/test_ctf_dispatcher_easy_tornado_acceptance.py -q` → **3 passed**。
+> - **判定**：低风险，仅措辞过时；本卡不改 `ssti_executor.py` / 任何 `pa_agent` 生产、不改测试断言含义。
+
 ### 1.2 `easy_tornado :: skips_identify_when_ssti_probe_has_no_hit` —— 测试前提失效
 - **期望**：`success is False`（SSTI 探针没命中 → 不应解出）。
 - **实际**：`success=True`，经 `hash_reconstruction(md5) flag: /fllllllllllllag` 解出。
 - **性质**：测试假设"无 SSTI 命中即无解"，但 dispatcher 有 hash 重建路径能绕过 SSTI 直接拿 cookie_secret/flag。**可能是真 solve（测试前提过时），也可能是该场景下的误报**——取决于 `easy_tornado_realistic_server` 是否本就该在该路径泄漏 flag。
 - **风险**：直接放宽测试会**掩盖潜在误报**，必须先核 fixture 意图。
+
+> **复核结论（卡 H，2026-06-21）**：`0957d94` 后两条 easy_tornado 测试均跑 `exploitation_mode="conservative"`，本条已自洽——`easy_tornado_realistic_server` 下 SSTI 探针无命中即 `success=False`（测试 L463-482 仍以 `success is False` 为断言、并校验未发 `{{handler.settings}}` 升级 payload），现 3 passed，无需放宽。
 
 ### 1.3 `php_object_injection :: escalates_past_source_flag_to_runtime_flag` —— 真能力缺口（candidate→verified 升级）
 - **期望**：source 里发现诱饵 `Syc{dog_dog_dog_dog}` 后，经 **PHP unserialize 运行时利用**升级到 `RUNTIME_FLAG`，`success=True`，reason 含 "php unserialize runtime exploit"。
