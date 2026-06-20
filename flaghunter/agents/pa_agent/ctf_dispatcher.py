@@ -100,7 +100,6 @@ from .dispatcher_helpers import *  # noqa: F401,F403  # extracted helpers/consts
 # _SOURCE_HINT_BACKUP_PROBES moved to source_hint_registry.py with SourceHintRegistryMixin (22nd cut)
 # _SQLI_AUTH_BYPASS_PAYLOADS moved to sqli_executor.py with SQLiExecutorMixin (16th cut)
 # _CONTACT_POW_CHALLENGE_RE moved to jwt_contact_chain.py with JWTContactChainMixin (21st cut)
-_WEBISH_TYPES = {"auto", "web", "xss", "sqli", "lfi", "cmdi", "ssrf", "upload"}
 _HTML_TAG_PSEUDO_PATHS = {
     "/a",
     "/article",
