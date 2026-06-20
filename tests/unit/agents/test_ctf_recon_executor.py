@@ -16,3 +16,12 @@ def test_post_auth_recon_methods_live_in_recon_executor_mixin():
         "_build_account_form_submission",
     ):
         assert getattr(CTFTaskDispatcher, name).__module__ == _RECON_EXECUTOR_MODULE
+
+
+def test_exploration_agenda_methods_live_in_recon_executor_mixin():
+    for name in (
+        "_populate_exploration_agenda_from_recon",
+        "_seed_framework_conventional_routes",
+        "_explore_agenda_items",
+    ):
+        assert getattr(CTFTaskDispatcher, name).__module__ == _RECON_EXECUTOR_MODULE
