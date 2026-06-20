@@ -22,6 +22,8 @@ class ChainContext:
     capability_registry: Any | None = None
     strategy_memory: Any | None = None
     exploitation_mode: str = "aggressive"
+    ingress_handoff: dict[str, Any] = field(default_factory=dict)
+    challenge_context: dict[str, Any] = field(default_factory=dict)
 
 
 StrategyContext = ChainContext
@@ -111,17 +113,11 @@ def _hint_chain_precondition(context: StrategyContext) -> bool:
     ):
         return True
 
-    dispatcher = getattr(context, "dispatcher", None)
-    if dispatcher is None:
-        return False
-
-    try:
-        structured_next_action = str(dispatcher._structured_followup_next_action() or "").strip().lower()  # noqa: SLF001
-        structured_switched_from = str(dispatcher._structured_followup_value("switchedFrom") or "").strip().lower()  # noqa: SLF001
-        structured_trigger_reason = str(dispatcher._structured_followup_value("triggerReason") or "").strip().lower()  # noqa: SLF001
-        structured_trigger_action_driver = str(dispatcher._structured_followup_value("triggerActionDriver") or "").strip().lower()  # noqa: SLF001
-    except Exception:
-        return False
+    handoff = getattr(context, "ingress_handoff", None) or {}
+    structured_next_action = str(handoff.get("nextAction") or "").strip().lower()
+    structured_switched_from = str(handoff.get("switchedFrom") or "").strip().lower()
+    structured_trigger_reason = str(handoff.get("triggerReason") or "").strip().lower()
+    structured_trigger_action_driver = str(handoff.get("triggerActionDriver") or "").strip().lower()
 
     return (
         (
@@ -260,9 +256,9 @@ def _artifact_forensics_precondition(context: StrategyContext) -> bool:
     local_artifacts = [
         str(item or "").lower()
         for item in (
-            getattr(getattr(context, "dispatcher", None), "_challenge_context", {}) or {}
-        ).get("artifactPaths")
-        or []
+            (getattr(context, "challenge_context", None) or {}).get("artifactPaths")
+            or []
+        )
     ]
     if any(token in combined for token in tokens):
         return True

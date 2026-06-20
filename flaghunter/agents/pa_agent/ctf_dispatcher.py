@@ -1726,6 +1726,8 @@ class CTFTaskDispatcher(
             capability_registry=self.capability_registry,
             strategy_memory=self.strategy_memory,
             exploitation_mode=self.exploitation_mode,
+            ingress_handoff=self._ingress_handoff if isinstance(self._ingress_handoff, dict) else {},
+            challenge_context=self._challenge_context if isinstance(self._challenge_context, dict) else {},
         )
 
     def _strategies_for_chain(
