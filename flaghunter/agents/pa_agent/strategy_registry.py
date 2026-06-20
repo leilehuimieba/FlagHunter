@@ -176,10 +176,8 @@ def _hash_guarded_precondition(context: StrategyContext) -> bool:
             return True
         if "filename" in content:  # 宽松：任意 filename 提及即视为候选
             return True
-    dispatcher_state = getattr(context, "state", None)
-    if dispatcher_state is None:
-        dispatcher_state = getattr(getattr(context, "dispatcher", None), "state", None)
-    for observation in list(getattr(dispatcher_state, "observations", []) or []):
+    context_state = getattr(context, "state", None)
+    for observation in list(getattr(context_state, "observations", []) or []):
         if str(getattr(observation, "kind", "") or "").strip() != "local_challenge_source_hint":
             continue
         hint_text = str(getattr(observation, "value", "") or "").lower()
@@ -197,10 +195,8 @@ def _render_param_precondition(context: StrategyContext) -> bool:
     tokens = ("msg=", "message=", "error=", "render=", "template=")
     seed_values: list[str] = [str(item or "") for item in (context.page_features.get("raw_links") or [])]
 
-    dispatcher_state = getattr(context, "state", None)
-    if dispatcher_state is None:
-        dispatcher_state = getattr(getattr(context, "dispatcher", None), "state", None)
-    observations = list(getattr(dispatcher_state, "observations", []) or [])
+    context_state = getattr(context, "state", None)
+    observations = list(getattr(context_state, "observations", []) or [])
     for observation in observations:
         seed_values.append(str(getattr(observation, "value", "") or ""))
         metadata = getattr(observation, "metadata", None)
@@ -359,10 +355,10 @@ def _xss_admin_bot_precondition(context: StrategyContext) -> bool:
     has_visit = "/visit" in endpoints
     has_admin = "/admin" in endpoints
     if not (has_visit and has_admin):
-        dispatcher_state = getattr(getattr(context, "dispatcher", None), "state", None)
+        context_state = getattr(context, "state", None)
         source_hint_text = "\n".join(
             str(getattr(observation, "value", "") or "")
-            for observation in list(getattr(dispatcher_state, "observations", []) or [])
+            for observation in list(getattr(context_state, "observations", []) or [])
             if str(getattr(observation, "kind", "") or "").strip() == "local_challenge_source_hint"
         ).lower()
         has_visit = has_visit or "/visit" in source_hint_text
@@ -381,8 +377,6 @@ def _ssti_probe_ran(context: StrategyContext) -> bool:
     """True if ssti_probe has already run (render_ssti_response with source='ssti_probe' exists)
     and at least one probe hit was observed, and ssti_identify has NOT yet been attempted."""
     state = getattr(context, "state", None)
-    if state is None:
-        state = getattr(getattr(context, "dispatcher", None), "state", None)
     if state is None:
         return False
     probe_ran = False
@@ -403,8 +397,6 @@ def _ssti_probe_ran(context: StrategyContext) -> bool:
 def _ssti_engine_identified_precondition(context: StrategyContext) -> bool:
     """True if ssti_engine_identified observation exists in state."""
     state = getattr(context, "state", None)
-    if state is None:
-        state = getattr(getattr(context, "dispatcher", None), "state", None)
     if state is None:
         return False
     for obs in getattr(state, "observations", []) or []:

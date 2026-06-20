@@ -289,6 +289,7 @@ def test_render_parameter_ssti_precondition_reads_redirect_surface_from_state():
         page_features={"raw_links": ["/file?filename=/flag.txt&filehash=deadbeef"]},
         hint="",
         extras={},
+        state=dispatcher.state,
     )
 
     # Phase 7: old strategies now under web-legacy — must NOT appear in web dispatch list
@@ -383,6 +384,7 @@ def test_strategy_registry_ssti_identify_requires_probe_hit_before_identify():
         page_features={"raw_links": ["http://ctf.local/error?msg=Error"]},
         hint="",
         extras={},
+        state=dispatcher.state,
     )
 
     web_kinds = [item.kind for item in registry.list_for_chain("web", context)]
