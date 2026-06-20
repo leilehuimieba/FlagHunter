@@ -251,3 +251,37 @@ P5 完工后对 P3b 透传面做了精确测绘,**当初「高风险一次性重
 1. **`AgentSession` 落在 `pentestagent/session/`**(与 SessionStore/会话生命周期同居,且对非 interface 的 MCP 更中立)。
 2. **P1 先改 CLI**(最小、独立)验证门面契约 + 顺手修 cpa-skip bug,再依次推 web / MCP / TUI。
 3. **新建中立 `EventBus`**(放 `pentestagent/session/`);web 现有 EventBus、TUI notifier 回调、MCP `_emit` 逐一适配到这条中立总线。
+
+---
+
+## 8. 变更记录(总索引)
+
+> **§8 为变更总索引;§5.2「进展日志」保留为详述,二者并存。**今后每完成一张卡 / 一个里程碑,
+> 同时回写本表一行 + §5.2(或对应小节)详述。本表按时间/里程碑排序,只做总索引,
+> 每行末列「详述位置」指向 §5.2 等对应条目。commit 短哈希仅取自详述已写明者,
+> 无单一 commit 的多刀/跨刀里程碑填「见 §5.2」(详述含逐刀分解),不臆造哈希。
+
+| 日期 | 卡 / 里程碑 | commit 短哈希 | 一句话摘要 | 详述位置 |
+|---|---|---|---|---|
+| 2026-06-17 | **P0** 定骨架 + 两契约(纸面) | `65de99a` | 本 ADR + 契约选型,零代码改动 | §5.2 |
+| 2026-06-17 | **P1-a** EventBus + AgentSession 门面 | `d6c1712` | 中立 `EventBus`(I3)+ `AgentSession` 门面 + `RunResult`(I2),10 单测 | §5.2 |
+| 2026-06-17 | **P1-b** CLI 走门面 + 修 cpa-skip bug | 见 §5.2 | CLI 三模式经 `AgentSession.create`,关闭 CLI 的 CPA M1–M6 静默跳过 bug | §5.2 |
+| 2026-06-17 | **P1-web** 装配 + EventBus 统一 | `77a2618` · `c25d967` | web 修 CPA-skip + 私有 EventBus 收敛到中立总线 | §5.2 |
+| 2026-06-17 | **P1-mcp** I3 收敛 | `6a0ca41` | MCP `_emit`/`_ui_hook` → 中立 EventBus(本就无 CPA bug) | §5.2 |
+| 2026-06-17 | **P1-tui** I3 收敛 | `c25f747` | notifier 通道 bus 化(TUI 一行未动);本就经 `build_agent_components` | §5.2 |
+| 2026-06-17 | **关节 A 全闭合 / P2** | 见 §5.2 | I2/I3 全线达成;crew 与单 agent 同源走 `notify()`;`RunResult` 结果契约 | §5.2 |
+| 2026-06-17 | **P1-b/P2** 组合根下沉 | 见 §5.2 | `session/initializer.py` 成中立组合根,`interface/initializer.py` 退为兼容 re-export | §5.1 / §5.2 |
+| 2026-06-17 | **P3a** `_execute_chain` → handler map | 见 §5.2 | if/elif 分发收缩为 handler map 路由 + 统一 LLM fallback,加防回流守卫 | §5.2 / §5「P3 风险发现」 |
+| 2026-06-17 → 06-20 | **P4** 8 chain mixin 迁出 | 见 §5.2 | dispatcher 上 chain 方法物理迁入 `chains/{web,sqli,xss,ssti,upload,jwt,misc,injection,file_read}.py` | §5.2 |
+| 2026-06-20 | **P5(god-object)** dispatcher 23 刀拆分 | 见 §5.2 | `ctf_dispatcher.py` 9733→1758(**−82%**),载荷分 23 刀外迁到 ~17 个 `XxxMixin`,每刀零回归 | §5.2 + §5「P5 收敛宣告」 |
+| 2026-06-20 | **P5(命名/文档线)/ 卡 B** | `67ba49e` | cpa_modules m1–m6 职责对照表 + capability registry 收尾(修 M5 悬空导出) | §5「P5(命名/文档线)收尾」 |
+| 2026-06-20 | **P3b 第②刀** state 通道收口 | 见 §5.2 | `strategy_registry.py` 内 `ctx.dispatcher.state` 透传 5→0(可证死代码) | §5.2「P3b 第二刀」 |
+| 2026-06-20 | **P3b 第③刀** 零散状态查询下沉 | 见 §5.2 | 新增 `ingress_handoff`/`challenge_context` 显式字段,经 dispatcher 的状态查询清零 | §5.2「P3b 第三刀」 |
+| 2026-06-20 | **P3b 主体刀** execute lambda 透传破除 | 见 §5.2 | 22 处 `ctx.dispatcher._run_*/_attempt_*` → `ctx.services.*`(`services=self` 过渡) | §5.2「P3b 主体刀」 |
+| 2026-06-20 | **P3b 第④刀 / 卡 A**(收口) | `0308774`(docs `057f5c2`) | 摘 `dispatcher: Any` + 删 4 死字段,`ChainContext` 字段 13→8;P3b 收口 | §5.2「P3b 第④刀」 |
+| 2026-06-20 | **卡 C** eval / 回放 harness 扩充 | `808482c` | 为缺口链路新增 record fixture + 可重放 replay 测试 | backlog 卡 C |
+| 2026-06-20 | **卡 E** backup_node_app:zip 验收链转绿 | `ed8cdb4` | `artifact_forensics.py` 补 `import json`,benchmark 转绿(14/14) | §5.2「卡 E 收口」 |
+| 2026-06-20 | **卡 D** M4 `mask_ips` 语义核查 | `826bd70` | DataProtector `mask_ips` 复核 + 结论落对照表 §4 | backlog 卡 D / 对照表 §4 |
+| 2026-06-21 | **卡 F** M6 `apply_turbo` 死代码删除 | `837f0d2` | 删零调用 `apply_turbo`,保留 `_wrap_tool` registry + deadcode 守卫 | §5.2「P5 命名/文档线尾巴」 |
+| 2026-06-21 | **卡 G** initializer 门控统一 | `b52cb0c` | M1/M3/M4/M6 走 `is_mN_enabled()`;M2/M5 刻意保留直读 env(避免自锁) | §5.2「P5 命名/文档线尾巴」 |
+| 2026-06-21 | **卡 H** easy_tornado 观测命名复核 | `399f262` | 根因文档 §1.1/§1.2 补复核结论(纯 docs,未触生产) | §5.2「P5 命名/文档线尾巴」 |
