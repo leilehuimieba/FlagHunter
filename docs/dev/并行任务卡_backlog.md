@@ -128,7 +128,7 @@ capability registry 收尾",与 §8 里那条"P5 god-object 23 刀拆分"是不�
 
 ---
 
-## 卡 C — eval/回放 harness 扩充(题目覆盖)
+## 卡 C — eval/回放 harness 扩充(题目覆盖) ✅(808482c)
 
 ```
 扩充 FlagHunter 的 eval/回放 harness 覆盖面。
