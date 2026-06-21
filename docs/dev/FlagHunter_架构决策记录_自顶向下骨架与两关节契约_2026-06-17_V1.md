@@ -255,6 +255,9 @@ L1/L2a/L2b 把契约建在**消费侧**(形参 / 包装器视图),但没有静�
 #### N1–N4 pa_agent 外死代码/bug 清理批次(2026-06-21,S 扫描衍生,4 对话并行)
 P3b/L2 主线之外,经 S 只读扫描(范围 tools/llm/knowledge/runtime/mcp/cpa_modules/config/interface/playbooks/workspaces,排除 pa_agent/eval/tui 命令分发)挖出 4 个自包含切片,文件锁两两不重叠、与 L2(coordinator)/eval 零交集,4 对话并行落地,主控逐张审核(边界 + 就近测试)。**N1**(`6afd433`)删 llm/utils.py 5 死函数 + count_tokens/truncate_to_tokens(同步 llm/__init__ import/__all__)+ 修 count_tokens 恒等分支(`if "gpt-4"/"gpt-3.5"` 两分支同赋 `cl100k_base`、`model` 实际被忽略),parse_llm_json 保留;**N2**(`6e2126d`)删 m6_turbo 5 个零调用顶层便捷包装(lazy_get/lazy_wrap/install_lazy_hook/get_memory_mb/quick_cleanup),保留 LazyLoader/MemoryOptimizer 类;**N3**(`27b9092`)修 base_playbook.py 在非 `@dataclass` 上误用 `field()` 致 phases 默认值为 `Field` 对象的潜伏 bug(未覆写子类 `get_task()` 会迭代 `Field` 崩)+ 新增守卫测试;**N4**(`8e77449`)删 knowledge/retrospective.py 死代码 `_safe_list`。4 张均零越界、未碰 backlog/ADR(文档主控串行收口),就近测试 96+4 passed、import 冒烟 EXIT=0、零回归。**判断题两张(C5/C6,主控开 background agent 自托管并行)亦落地**:C5(`4884979`)token_tracker.set_data_file 经查是测试专用注入点(test_token_tracker.py fixture)→保留+docstring 标注非删;C6(`b88bb81`)m5 get_vote_status 经查是预留对外契约接口(兄弟方法被 swarm_commands 消费、语义对称)→保留+补 4 契约测试坐定行为。**两张均"确证有用即保留+留证、不为清理而删"的保守落点**,零生产删除/C6 零生产改动。
 
+#### S 扫描②批次(2026-06-21,3 真 bug + 1 死代码 + 1 docstring,4 background agent 并行)
+第二轮 S 只读扫描挖出 5 个互斥切片,主控开 `run_in_background` agent 自托管并行(非手动开对话)+ 逐张审核。**S1+S2**(`6de4d1d`)修 m5/pheromone_router.py 两 bug:heapq 入堆元组加 `(-score,idx,prio)` tie-breaker 消除同 final_score 时比较不可比较 TaskPriority 的 TypeError 崩溃;新增 `is_active_above(threshold)` 让 `get_active_trails` 吃 router 的 `self._threshold`(修写死 0.1 无视构造 threshold);**S3**(`0e5ea9f`)删 interface/utils.py 4 个零调用展示函数 + 级联 `truncate_output`;**S4**(`0c7f0cb`)cost_tracker.get_recent_logs docstring "从新到旧"→"从旧到新"对齐实现(grep 零调用方、零行为变更);**S5**(内容落 `9704e20`)修 knowledge/indexer.py 大写 `.JSON` 因 `:161` 大小写敏感比较误走 YAML 分支(改 `.lower()==".json"`)。各自就近测试全绿(11/267/25/59 passed)、零越界。**⚠ 并发竞争遗留**:4 agent 并发提交 staged 竞争致 `9704e20` 装 S5 内容却错挂 S4 的「docs(m1)」message;S4 已 reset+pathspec 重做干净的 `0c7f0cb`。两份改动均完整无丢失/无重复,仅 9704e20 subject 名实不符;按"不改写历史"铁律(活跃并发期 rebase 风险高)保留原样,**真实映射:S5=`9704e20`、S4=`0c7f0cb`**。
+
 ## 6. 显式非目标(本轮不做)
 - 不重构 foundation 依赖方向(已健康)。
 - 不改 LLM provider / api_hub 路由逻辑。
@@ -310,3 +313,7 @@ P3b/L2 主线之外,经 S 只读扫描(范围 tools/llm/knowledge/runtime/mcp/cp
 | 2026-06-21 | **卡 N4**(S 扫描·死代码) | `8e77449` | 删 knowledge/retrospective.py 死代码 `_safe_list` | §5.2「N1–N4 批次」 |
 | 2026-06-21 | **卡 C5**(S 扫描·判定保留) | `4884979` | token_tracker.set_data_file 判定测试专用 API,保留+docstring 标注 | §5.2「N1–N4 批次」 |
 | 2026-06-21 | **卡 C6**(S 扫描·判定保留) | `b88bb81` | m5 get_vote_status 判定预留契约接口,保留+补 4 契约测试 | §5.2「N1–N4 批次」 |
+| 2026-06-21 | **卡 S1+S2**(S 扫描②·真 bug) | `6de4d1d` | pheromone_router heapq 同分崩溃(tie-breaker)+ is_active 阈值失效(吃 self._threshold) | §5.2「S 扫描②批次」 |
+| 2026-06-21 | **卡 S3**(S 扫描②·死代码) | `0e5ea9f` | 删 interface/utils.py 4 展示函数 + 级联 truncate_output | §5.2「S 扫描②批次」 |
+| 2026-06-21 | **卡 S4**(S 扫描②·docstring) | `0c7f0cb` | cost_tracker.get_recent_logs docstring 改"从旧到新"对齐实现 | §5.2「S 扫描②批次」 |
+| 2026-06-21 | **卡 S5**(S 扫描②·真 bug) | `9704e20` ⚠ | indexer 大写 .JSON 误走 YAML 修复(该 commit message 因并发竞争错挂 S4 标题,真实映射见 §5.2/backlog) | §5.2「S 扫描②批次」 |

@@ -382,6 +382,17 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 
 ---
 
+## 卡 S1–S5 — 第二轮 S 扫描批次(3 真 bug + 1 死代码 + 1 docstring·background agent 自托管并行) ✅
+
+> 第二轮 S 只读扫描挖出 5 个互斥切片,主控开 4 个 `run_in_background` agent 并行执行(S1+S2 同文件合并)、逐张审核(边界 + 就近测试 + 真 bug 修复正确性)。**全部代码已落历史、无丢失无重复**。
+> - **卡 S1+S2**(`6de4d1d`)`fix(m5)`:pheromone_router.py 两 bug——S1 heapq 入堆元组加 `(-score, idx, prio)` enumerate 单调 tie-breaker(同 final_score 时不再比较不可比较的 TaskPriority→消除 TypeError 崩溃、稳定 FIFO);S2 新增 `is_active_above(threshold)`,`get_active_trails` 改吃 router 的 `self._threshold`(与 evaporate/get_stats 口径一致,修"写死 0.1 无视构造 threshold"配置失效);7 新测试坐实同分不崩 + 自定义阈值生效。11 passed。
+> - **卡 S3**(`0e5ea9f`)`refactor(interface)`:删 utils.py 4 个零调用展示函数(format_tool_call/format_scan_progress/colorize_severity/format_command_output)+ 级联删仅被其调用的 truncate_output + 失效的 typing.Any import;保留 format_finding/print_status/print_banner。-120 行。267 passed。
+> - **卡 S4**(`0c7f0cb`)`docs(m1)`:cost_tracker.get_recent_logs docstring 名实不符——grep 零调用方、无人依赖顺序,改 docstring "从新到旧"→"从旧到新(末尾最新)"符合实现 `list(_logs)[-n:]`(零行为变更最保守)+ 2 顺序契约测试。25 passed。
+> - **卡 S5**(内容落 `9704e20`,见下注)`fix(knowledge)`:indexer.py `_index_data_file` :161 的 `file_path.suffix == ".json"`(大小写敏感原始 suffix)改 `.lower() == ".json"`,使经 index_file 已 lower 派发的大写 `.JSON` 正确走 json.loads 而非 YAML 分支;2 回归测试(毒化 yaml import 断言大写 .JSON 绝不进 YAML、与小写一致)。59 passed。
+> **⚠ 并发竞争遗留(按"不改写历史"铁律保留原样)**:4 agent 并发提交时 staged-set 竞争,致 `9704e20` **内容是 S5 的 indexer 修复、但 commit message 错挂为 S4 的「docs(m1): cost_tracker...」标题**;S4 随后用 reset+pathspec 重做出干净的 `0c7f0cb`。两份改动均完整正确、无丢失无重复,**仅 9704e20 的 subject 名实不符**。活跃并发期 rebase 改写共享历史风险过高(可能与常驻写手碰撞),故不强行 reword——**真实映射以本表为准:S5=`9704e20`(内容)、S4=`0c7f0cb`**。
+
+---
+
 ## 维护说明(给我自己/未来对话)
 
 - 每完成一张卡,在卡标题后标 `✅(commit 短哈希)`,并回写 ADR §8。
