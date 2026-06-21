@@ -131,6 +131,20 @@ class CoordinatorDispatcherServices(Protocol):
         self, before_state: dict[str, int], chain_outcome=None
     ) -> str: ...
 
+    # ── solve loop (经 ``ctx.dispatcher._run_solve_loop`` 调用;L2b 纳入以收窄
+    #    RunContext.dispatcher,返回 SolveResult 但 coordinator 不能顶层 import
+    #    ctf_dispatcher(会循环 import),故标 Any) ──
+    async def _run_solve_loop(
+        self,
+        *,
+        target: str,
+        hint: str,
+        page_features: dict[str, Any],
+        detected_type: str,
+        chain_order: list[str],
+        result: Any | None = None,
+    ) -> Any: ...
+
 
 def _normalize_target_input(target: str) -> str:
     text = str(target or "").strip()
@@ -494,13 +508,19 @@ class RunContext:
     exposes the real object for the explicit hand-off call. Later slices
     migrate run state / deps / executors onto this object so the dispatcher can
     shrink to a façade.
+
+    L2b(2026-06-21): 把 ``dispatcher`` 形参 / ``dispatcher`` property 从 ``Any``
+    收窄为 ``CoordinatorDispatcherServices``,闭合 L2a 在包装器这一环遗留的
+    ``Any`` 缺口。RunContext 不显式继承该 Protocol——它定义了 ``__getattr__``
+    (返回 ``Any``),类型检查器据此视其结构化满足任意 Protocol;``__getattr__`` /
+    ``__setattr__`` 运行期行为一行未改,仍是透明代理。见 ADR §5.2 卡 L2b。
     """
 
-    def __init__(self, dispatcher: Any) -> None:
+    def __init__(self, dispatcher: CoordinatorDispatcherServices) -> None:
         object.__setattr__(self, "_dispatcher", dispatcher)
 
     @property
-    def dispatcher(self) -> Any:
+    def dispatcher(self) -> CoordinatorDispatcherServices:
         return object.__getattribute__(self, "_dispatcher")
 
     def __getattr__(self, name: str) -> Any:
