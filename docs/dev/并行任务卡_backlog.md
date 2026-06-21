@@ -375,7 +375,10 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 > - **卡 N2**(`6e2126d`)`refactor(m6)`:删 m6_turbo 顶层便捷包装 lazy_get/lazy_wrap/install_lazy_hook(lazy_loader.py)+ get_memory_mb/quick_cleanup(memory_optimizer.py),保留 LazyLoader/MemoryOptimizer 类本体。边界仅这两文件(-61)。test_m6_turbo_deadcode 7 passed。
 > - **卡 N3**(`27b9092`)`fix(playbooks)`:base_playbook.py 的 phases 默认值从裸 field(default_factory=list)(BasePlaybook 非 @dataclass → 实为 Field 对象、未覆写子类 get_task() 会崩)改为普通类属性 []+删 field import;新增 tests/unit/test_base_playbook.py 守卫(未覆写 phases 子类 get_task 不崩)。4 passed。
 > - **卡 N4**(`8e77449`)`refactor(knowledge)`:删 retrospective.py 死代码 _safe_list(零调用);_extract_flag_values/_extract_hypothesis_kinds 保留。边界仅 retrospective.py(-9)。test_retrospective 5 passed。
-> 汇总:96+4 passed、import 冒烟 EXIT=0、零回归。S 扫描另留 C5(token_tracker.set_data_file,需先查测试是否专用)/C6(m5 get_vote_status,公共 API 判断题)待定,未派。
+> 汇总:96+4 passed、import 冒烟 EXIT=0、零回归。
+> - **卡 C5**(`4884979`)`refactor(tools)`:token_tracker.set_data_file 判定=**测试专用 API**(test_token_tracker.py isolated_tracker autouse fixture 用它注入 tmp_path 数据文件),**保留+docstring 标注**(非删除,"测试专用、生产无调用、勿删"),零行为变化。16 passed。
+> - **卡 C6**(`b88bb81`)`test(m5)`:consensus_mechanism.get_vote_status 判定=**预留对外契约接口**(兄弟方法 propose_binary/vote/propose_priority_ranking 被 swarm_commands.py 消费、语义对称),**保留+补 4 契约测试**(未知 vote_id 空状态 / 开放投票回显 total_votes·options·deadline·is_open / 关闭 is_open=False / 走公共 vote() 端到端坐实票数),零生产改动。16 passed(12+4)。
+> C5/C6 均为判断题保守落点:**确证有用即保留+留证(标注/测试),不为清理而删**。background agent 自托管并行执行(主控开 run_in_background agent + 逐张审核 + 串行回写),非手动开对话。
 
 ---
 
