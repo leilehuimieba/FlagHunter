@@ -339,6 +339,15 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 
 ---
 
+## 卡 L2b — 闭合 RunContext 的 dispatcher: Any 缺口,收窄到 CoordinatorDispatcherServices(P3b 关节 B 延伸·收口刀·真·改路径·独占 coordinator.py) ✅(6f43a87)
+
+> 已完成并主控审核通过(live 回放兜底)。L2a 把 23 处合约形参收窄为 `CoordinatorDispatcherServices`,但 `execute()` 喂进的是 `RunContext(dispatcher)` 透明代理(`__init__`/`dispatcher` property 仍 `Any`)——契约恰在包装器这一环留 `Any` 缺口(L2a「不碰 RunContext」点名延后的 L2b+)。本卡收窄之。**Phase 0**:`RunContext` 仅用于 `coordinator.py`,`ctx` 流入全部 23 形参;`ctx.dispatcher.X` 逃生口访问仅 1 处 = `_run_solve_loop`(L1790)。
+> **主控裁决(3 点)**:① **纳入 `_run_solve_loop`**(async、真实签名、返回标 `Any`)——这是把 `RunContext.dispatcher` property 从 `Any` 收窄的前置耦合,Protocol 39→40;② **RunContext 不显式继承 Protocol**,靠返回 `Any` 的 `__getattr__` 结构化合规(最小改动,`__getattr__`/`__setattr__` 运行期一行未改);③ **2 个模块级 helper 形参保留 `Any`**(只经 getattr 摸 OUT 成员 `_ingress_handoff`,收窄零收益且语义不诚实)。
+> **风险定性**:真·改路径(改类型契约),但 `from __future__ import annotations` 在顶、注解运行期不求值,纯静态收窄、零行为;注入对象不变。**门禁**:`tests/unit/agents/` 489 passed/0 failed、`tests/eval/test_replay_harness.py`(live 回放)5 passed/0 failed,零差兜底。
+> **边界**:仅动 `coordinator.py`,测试零改动,ctf_dispatcher/executor/chains/eval 零越界。至此 **coordinator 自身调用路径的 `Any` 缺口全闭合**(仅余 2 处裁决保留的模块级 helper `Any`),L2a+L2b 合并完成「关节 B coordinator 层 dispatcher 依赖面显式化」。详述见 ADR §5.2「P3b L2b」+ §8 索引。
+
+---
+
 ## 卡 M — benchmark_runner 合并跑死锁取证 + 修复(草稿·待派发·低优先·取证优先·高风险独占 eval)
 
 > **状态:草稿,本轮不派。** 卡 L1 完工报告里浮出的问题:`benchmark_runner` **合并跑**多条 benchmark 时死锁;单条跑各自绿、L1 的 live 回放门禁(`test_replay_harness.py` 5 passed)与 `tests/unit/agents/`(489 passed)均干净。
