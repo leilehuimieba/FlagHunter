@@ -16,6 +16,7 @@ from flaghunter.agents.pa_agent.ctf_dispatcher import (
     _solve_contact_pow_solution,
 )
 from flaghunter.agents.pa_agent.capability_registry import CapabilityEntry
+from flaghunter.agents.pa_agent.coordinator import CoordinatorDispatcherServices
 from flaghunter.agents.pa_agent.ctf_planner import find_auth_form
 from flaghunter.agents.pa_agent.ctf_state import CTFState
 from flaghunter.agents.pa_agent.strategy_registry import StrategyServices
@@ -71,6 +72,24 @@ def test_dispatcher_strategy_context_populates_explicit_chain_context_fields():
     # L1: services 已从 Any 收窄为 StrategyServices Protocol;真实 dispatcher
     # 结构性满足该契约(MRO 上 mixin 提供全部 20 个必调成员)。
     assert isinstance(dispatcher, StrategyServices)
+
+
+def test_dispatcher_conforms_to_coordinator_dispatcher_services_protocol():
+    # L2c: 对称 L1 上面的 StrategyServices 断言——为 L2a/L2b 收窄出的
+    # CoordinatorDispatcherServices Protocol 补【生产侧 conformance】门禁。
+    # coordinator 把 dispatcher 当方法参数逐个传入,形参已收窄为该 Protocol(消费侧);
+    # 本断言验证真实 CTFTaskDispatcher 确实供齐契约全部成员(供给侧)——40 个成员
+    # 中 17 个数据成员由 __init__ 初始化、23 方法 + _run_solve_loop 由 MRO 上 mixin
+    # 提供,故新构造实例即结构性满足。任一成员被改名/删除时本测试转红(CI 强制)。
+    # 用 isinstance(非 issubclass)故 runtime_checkable 的 data-member 检查跨
+    # Python 3.10–3.12 一致、不触 issubclass 的 non-method-member TypeError。
+    runtime = _DispatcherRuntime()
+    dispatcher = CTFTaskDispatcher(
+        runtime=runtime,
+        progress_callback=None,
+        exploitation_mode="aggressive",
+    )
+    assert isinstance(dispatcher, CoordinatorDispatcherServices)
 
 
 def test_collector_public_host_prefers_host_docker_internal_for_local_targets(monkeypatch):
