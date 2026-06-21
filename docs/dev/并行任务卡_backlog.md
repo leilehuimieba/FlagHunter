@@ -356,6 +356,16 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 
 ---
 
+## 卡 L3a — RunContext 字段分流机制(L3「真断透传」线破冰刀·空白名单·零承载·独占 coordinator.py) ✅(3bd372e)
+
+> 已完成并主控审核通过(独立坐实门禁 + live 回放兜底)。L2 把 coordinator↔dispatcher 契约**显式化**(Protocol),但运行期 coordinator 仍把整个 dispatcher 当参数透传。L3 线目标=让 coordinator 经 RunContext 承载 run-state/executor、dispatcher 缩成 façade。**测绘关键发现**:`RunContext`(coordinator.py)已全程接通 execute() 主干(`ctx=RunContext(dispatcher)`,18 个 `_apply_*` 收 ctx),但仍纯透明代理、承载量 0;其 `__setattr__` 全代理是后续一切真承载的**硬闸门**。
+> **L3a(破冰·采主控裁决的候选 A)**:给 RunContext 加"自有字段白名单 + object.__* 分流"骨架,白名单 `_OWN_FIELDS=frozenset()` **留空**。`__setattr__`:白名单内走 `object.__setattr__`、否则代理 dispatcher;`__getattr__`:对内部名 `_dispatcher`/`_OWN_FIELDS` 显式短路抛 AttributeError(杜绝 _dispatcher 未就绪时代理递归)、白名单未设值不代理(防影子读穿)、其余代理。**白名单为空→行为与纯透明代理完全一致(零承载、可推理证零行为)**。把"机制"与"承载"解耦成两刀(本刀只建闸门,承载 state 是 L3b)。
+> **关键发现(纠正 DoD 假设)**:Py3.12 `runtime_checkable` Protocol 的 `isinstance` 走 `getattr_static`(忽略 `__getattr__`),故透明代理 ctx **本身不满足** `CoordinatorDispatcherServices`——这 L3a 前后一致、非本刀回归(透明代理固有);真实满足契约的是 `ctx.dispatcher` 真身(传给 Protocol 形参的对象)。测试据此改为坐实"L3a 不改变 isinstance 行为 + dispatcher 真身满足契约",而非断言假前提。
+> **边界**:仅动 coordinator.py 的 RunContext 类(+28 行)+ 新建 `tests/unit/agents/test_ctf_run_context.py`(10 测试,+121 行)。不碰 dispatcher/executor/chains/eval/coordinator 其它方法。**门禁**:`tests/unit/agents/` 500 passed/0 failed(含新 10)、`test_replay_harness.py` 5 passed/0 failed。**为 L3b(RunContext 真承载 state·共享引用)开闸**。
+> ⚠ 过程注记:执行 agent 跑长 pytest 时一度"假死"(提前 rest 给非结论),主控误以为卡死、派了收尾 agent;原 agent 实际跑完并提交 3bd372e,主控查清后叫停收尾 agent 防重复。改动无丢失/无重复。
+
+---
+
 ## 卡 M — benchmark_runner 合并跑死锁取证 ✅(已复核·main 上非现存缺陷·关单·解除 eval 互斥锁)
 
 > **状态:阶段 0 取证完成,关单。** 卡 L1 完工报告里浮出"`benchmark_runner` 合并跑死锁"的怀疑,经只读复现 + 结构性排除,**当前 main 上死锁复现不出**——五种"合并跑"解释全部跑绿,卡面假设的两个共享资源根因被结构性排除。**降级为"已复核·非现存缺陷",解除它对 eval 卡的互斥锁。**
