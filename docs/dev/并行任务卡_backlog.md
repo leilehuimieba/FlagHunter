@@ -330,6 +330,21 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 
 ---
 
+## 卡 M — benchmark_runner 合并跑死锁取证 + 修复(草稿·待派发·低优先·取证优先·高风险独占 eval)
+
+> **状态:草稿,本轮不派。** 卡 L1 完工报告里浮出的问题:`benchmark_runner` **合并跑**多条 benchmark 时死锁;单条跑各自绿、L1 的 live 回放门禁(`test_replay_harness.py` 5 passed)与 `tests/unit/agents/`(489 passed)均干净。
+>
+> **定性(已钉,防误算账)**:L1 边界只动 `strategy_registry.py`+`test_ctf_dispatcher.py`、**根本不碰 `benchmark_runner`**,故此死锁是 **`benchmark_runner` 预存并发缺陷、非 L1 回归**;与卡 C 录制暴露的 `honest_no_flag` vs `candidate_only_honesty` 同属预存非回归,**不阻塞**当前绿的单跑套件,优先级低。
+>
+> **铁律:取证优先,卡面不预设根因(卡 E 教训——卡面假设"本地路径没产出 summary",真根因是漏 `import json`)。**
+>
+> **阶段 0(取证,只读,先派 Explore agent)**:复现死锁,产出一行实测结论——① **确切触发命令**(哪条合并跑入口:`benchmark_runner` 的哪个 batch/all 模式);② 哪几条 benchmark 合并时挂;③ 卡在哪个**共享资源**(进程 vs 线程 / 端口复用 / asyncio event loop 复用 / 子进程 `join`/`communicate` 死等 / 全局单例)。**不改任何代码、不预设根因。**
+> **阶段 1(待阶段 0 结论再定方案)**:依证据改并发模型——候选:每 benchmark 进程/事件循环隔离、串行化合并入口、加超时兜底 + 资源清理。**方案二选一前必须回主控确认。**
+>
+> **风险/边界**:动 `benchmark_runner.py` 会影响 eval 门禁本身 → **高风险,需 live 回放兜底**;文件锁 `benchmark_runner.py`(+ 可能 `tests/eval/`),**与任何 eval 卡互斥、不并行**。
+
+---
+
 ## 维护说明(给我自己/未来对话)
 
 - 每完成一张卡,在卡标题后标 `✅(commit 短哈希)`,并回写 ADR §8。
