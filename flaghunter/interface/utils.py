@@ -1,6 +1,6 @@
 """Interface utilities for FlagHunter."""
 
-from typing import Any, Optional
+from typing import Optional
 
 from rich.console import Console
 from rich.panel import Panel
@@ -90,27 +90,6 @@ def format_finding(
     return Panel(content, title=f"[bold]{title}[/]", border_style=color)
 
 
-def format_tool_call(tool_call: Any) -> str:
-    """
-    Format a tool call for display.
-
-    Args:
-        tool_call: The tool call object
-
-    Returns:
-        Formatted string
-    """
-    name = tool_call.name if hasattr(tool_call, "name") else str(tool_call)
-    args = tool_call.arguments if hasattr(tool_call, "arguments") else {}
-
-    # Truncate long arguments
-    args_str = str(args)
-    if len(args_str) > 100:
-        args_str = args_str[:100] + "..."
-
-    return f"[bold yellow]⚡ Tool:[/] {name}\n[dim]{args_str}[/dim]"
-
-
 def print_status(
     target: Optional[str] = None,
     scope: Optional[list] = None,
@@ -139,101 +118,3 @@ def print_status(
     table.add_row("Findings", str(findings_count))
 
     console.print(table)
-
-
-def format_scan_progress(current: int, total: int, current_item: str) -> str:
-    """
-    Format scan progress for display.
-
-    Args:
-        current: Current item number
-        total: Total items
-        current_item: Current item being scanned
-
-    Returns:
-        Formatted progress string
-    """
-    percentage = (current / total * 100) if total > 0 else 0
-    bar_width = 30
-    filled = int(bar_width * current / total) if total > 0 else 0
-    bar = "█" * filled + "░" * (bar_width - filled)
-
-    return f"[{bar}] {percentage:.1f}% ({current}/{total}) - {current_item}"
-
-
-def truncate_output(output: str, max_lines: int = 50) -> str:
-    """
-    Truncate long output for display.
-
-    Args:
-        output: Output to truncate
-        max_lines: Maximum number of lines
-
-    Returns:
-        Truncated output
-    """
-    lines = output.split("\n")
-
-    if len(lines) <= max_lines:
-        return output
-
-    half = max_lines // 2
-    truncated = (
-        lines[:half]
-        + [f"\n... ({len(lines) - max_lines} lines omitted) ...\n"]
-        + lines[-half:]
-    )
-
-    return "\n".join(truncated)
-
-
-def colorize_severity(severity: str) -> str:
-    """
-    Add color to severity text.
-
-    Args:
-        severity: Severity level
-
-    Returns:
-        Colorized severity string
-    """
-    colors = {
-        "critical": "[red bold]CRITICAL[/]",
-        "high": "[red]HIGH[/]",
-        "medium": "[yellow]MEDIUM[/]",
-        "low": "[blue]LOW[/]",
-        "informational": "[dim]INFO[/]",
-        "info": "[dim]INFO[/]",
-    }
-
-    return colors.get(severity.lower(), severity)
-
-
-def format_command_output(
-    command: str, exit_code: int, stdout: str, stderr: str
-) -> Panel:
-    """
-    Format command output for display.
-
-    Args:
-        command: The command that was run
-        exit_code: Exit code
-        stdout: Standard output
-        stderr: Standard error
-
-    Returns:
-        Rich Panel with formatted output
-    """
-    success = exit_code == 0
-    border_color = "green" if success else "red"
-
-    content = f"[bold]Command:[/] {command}\n"
-    content += f"[bold]Exit Code:[/] {exit_code}\n"
-
-    if stdout:
-        content += f"\n[bold]Output:[/]\n{truncate_output(stdout)}"
-
-    if stderr:
-        content += f"\n[bold red]Errors:[/]\n{truncate_output(stderr)}"
-
-    return Panel(content, title="Command Result", border_style=border_color)
