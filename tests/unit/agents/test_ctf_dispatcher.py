@@ -18,6 +18,7 @@ from flaghunter.agents.pa_agent.ctf_dispatcher import (
 from flaghunter.agents.pa_agent.capability_registry import CapabilityEntry
 from flaghunter.agents.pa_agent.ctf_planner import find_auth_form
 from flaghunter.agents.pa_agent.ctf_state import CTFState
+from flaghunter.agents.pa_agent.strategy_registry import StrategyServices
 from flaghunter.agents.pa_agent.strategy_memory import (
     ChallengeFingerprint,
     StrategyMemoryEntry,
@@ -67,6 +68,9 @@ def test_dispatcher_strategy_context_populates_explicit_chain_context_fields():
 
     assert context.services is dispatcher
     assert context.state is dispatcher.state
+    # L1: services 已从 Any 收窄为 StrategyServices Protocol;真实 dispatcher
+    # 结构性满足该契约(MRO 上 mixin 提供全部 20 个必调成员)。
+    assert isinstance(dispatcher, StrategyServices)
 
 
 def test_collector_public_host_prefers_host_docker_internal_for_local_targets(monkeypatch):

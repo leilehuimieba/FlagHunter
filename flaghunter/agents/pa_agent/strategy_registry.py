@@ -3,11 +3,93 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, Protocol, runtime_checkable
 
 from urllib.parse import urlparse
 
+from .chains.base import _ChainOutcome
 from .ctf_planner import find_auth_form, find_writable_field_name
+
+
+@runtime_checkable
+class StrategyServices(Protocol):
+    """显式服务契约:策略 execute lambda 经 ``ctx.services.<method>`` 无条件调用的
+    dispatcher 能力面(P3b L1 收窄,2026-06-21)。
+
+    覆盖 strategy_registry 内 20 个 lambda 必调成员;生产实现 = ``CTFTaskDispatcher``
+    (经 MRO 上的 *Executor/*Chain mixin 提供全部方法)。唯一生产构造点
+    ``CTFTaskDispatcher._strategy_context`` 仍设 ``services=self``——本 Protocol 只做
+    *静态类型收窄*,运行期同一 dispatcher 对象、零行为变化。
+
+    **Protocol 外的 optional duck-typed 面**(刻意不纳入):三个 probe 函数
+    (``_execute_jwt_probe`` / ``_execute_graphql_probe`` / ``_execute_nosql_probe``)
+    经 ``hasattr`` 守卫探测的 ``_run_jwt_manipulation_strategy`` /
+    ``_run_graphql_introspection_strategy`` / ``_run_nosql_injection_strategy``。它们带
+    LLM fallback、语义上可缺失,纳入"必有"契约会与运行期 optional 语义矛盾,故保留
+    ``hasattr`` duck-typing,不进 Protocol。详见 ADR §5.2 卡 L1。
+    """
+
+    async def _run_llm_driven_exploration(self, context: "StrategyContext") -> _ChainOutcome: ...
+
+    async def _attempt_auth_form_sqli(self, target: str, auth_form: dict[str, Any]) -> _ChainOutcome: ...
+
+    async def _attempt_generic_param_sqli(self, target: str, page_features: dict[str, Any]) -> _ChainOutcome: ...
+
+    async def _attempt_generic_param_cmdi(self, target: str, page_features: dict[str, Any]) -> _ChainOutcome: ...
+
+    async def _attempt_generic_param_ssrf(self, target: str, page_features: dict[str, Any]) -> _ChainOutcome: ...
+
+    async def _attempt_stored_xss_chain(
+        self, base: str, auth_form: dict[str, Any], writable_field: str
+    ) -> _ChainOutcome: ...
+
+    async def _run_unicode_numeric_form_bypass_strategy(
+        self, target: str, page_features: dict[str, Any]
+    ) -> _ChainOutcome: ...
+
+    async def _run_contact_report_chain_strategy(
+        self, target: str, page_features: dict[str, Any]
+    ) -> _ChainOutcome: ...
+
+    async def _run_artifact_forensics_strategy(
+        self, target: str, page_features: dict[str, Any], hint: str
+    ) -> _ChainOutcome: ...
+
+    async def _run_backup_source_leak_strategy(
+        self, target: str, page_features: dict[str, Any], hint: str
+    ) -> _ChainOutcome: ...
+
+    async def _attempt_php_unserialize_chain(
+        self, target: str, exploit_info: dict[str, Any], *, artifact_url: str
+    ) -> _ChainOutcome: ...
+
+    async def _run_hint_chain_followup_strategy(
+        self, target: str, page_features: dict[str, Any]
+    ) -> _ChainOutcome: ...
+
+    async def _run_file_read_endpoint_strategy(
+        self, target: str, page_features: dict[str, Any]
+    ) -> _ChainOutcome: ...
+
+    async def _run_hash_guarded_file_read_strategy(
+        self, target: str, page_features: dict[str, Any]
+    ) -> _ChainOutcome: ...
+
+    async def _run_hash_reconstruction_attack_strategy(
+        self, target: str, cookie_secret: str | None = None
+    ) -> _ChainOutcome: ...
+
+    async def _run_render_parameter_ssti_strategy(
+        self, target: str, page_features: dict[str, Any]
+    ) -> _ChainOutcome: ...
+
+    async def _run_tornado_ssti_strategy(self, target: str, page_features: dict[str, Any]) -> _ChainOutcome: ...
+
+    async def _run_ssti_probe_strategy(self, target: str, page_features: dict[str, Any]) -> _ChainOutcome: ...
+
+    async def _run_ssti_identify_strategy(self, target: str, page_features: dict[str, Any]) -> _ChainOutcome: ...
+
+    async def _run_ssti_exploit_strategy(self, target: str, page_features: dict[str, Any]) -> _ChainOutcome: ...
 
 
 @dataclass(slots=True)
@@ -18,8 +100,9 @@ class ChainContext:
     extras: dict[str, Any] = field(default_factory=dict)
     # 显式服务面:策略 execute lambda 经此调用 dispatcher 的 _run_*/_attempt_*
     # 方法(`ctx.services._run_X(...)`)。生产构造点 _strategy_context 设
-    # ``services=self``。P3b 第③刀已摘除旧的 ``dispatcher`` 透传字段。
-    services: Any | None = None
+    # ``services=self``。P3b 第③刀已摘除旧的 ``dispatcher`` 透传字段;L1 把类型从
+    # ``Any`` 收窄为显式 ``StrategyServices`` Protocol(2026-06-21)。
+    services: StrategyServices | None = None
     state: Any | None = None
     ingress_handoff: dict[str, Any] = field(default_factory=dict)
     challenge_context: dict[str, Any] = field(default_factory=dict)
@@ -419,6 +502,8 @@ def _jwt_precondition(context: StrategyContext) -> bool:
 
 async def _execute_jwt_probe(context: StrategyContext):
     """执行 JWT 基础探测：alg:none, RS256→HS256, 弱密钥提示。"""
+    # ``_run_jwt_manipulation_strategy`` 是 Protocol 外的 optional duck-typed 面
+    # (带 LLM fallback、语义可缺失),刻意经 ``hasattr`` 探测而非纳入 StrategyServices。
     dispatcher = context.services
     target = context.target
     # 委托 dispatcher 的通用 HTTP 探测或 LLM 驱动探索
@@ -449,6 +534,7 @@ def _graphql_precondition(context: StrategyContext) -> bool:
 
 async def _execute_graphql_probe(context: StrategyContext):
     """执行 GraphQL 内省查询探测。"""
+    # ``_run_graphql_introspection_strategy``:Protocol 外 optional duck-typed 面(见 _execute_jwt_probe)。
     dispatcher = context.services
     target = context.target
     if hasattr(dispatcher, "_run_graphql_introspection_strategy"):
@@ -481,6 +567,7 @@ def _nosql_precondition(context: StrategyContext) -> bool:
 
 async def _execute_nosql_probe(context: StrategyContext):
     """执行 NoSQL 注入基础探测。"""
+    # ``_run_nosql_injection_strategy``:Protocol 外 optional duck-typed 面(见 _execute_jwt_probe)。
     dispatcher = context.services
     target = context.target
     if hasattr(dispatcher, "_run_nosql_injection_strategy"):
@@ -490,7 +577,13 @@ async def _execute_nosql_probe(context: StrategyContext):
     return {"progress": False, "reason": "No NoSQL handler available"}
 
 
-__all__ = ["ChainContext", "StrategyContext", "StrategyDefinition", "StrategyRegistry"]
+__all__ = [
+    "ChainContext",
+    "StrategyContext",
+    "StrategyDefinition",
+    "StrategyRegistry",
+    "StrategyServices",
+]
 
 
 def _register_fallback_strategies(registry: "StrategyRegistry") -> None:
