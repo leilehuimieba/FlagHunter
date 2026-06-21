@@ -368,6 +368,17 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 
 ---
 
+## 卡 N1–N4 — pa_agent 外死代码/bug 清理批次(S 扫描衍生·低风险·文件锁互斥·4 对话并行) ✅
+
+> S 只读扫描(范围 tools/llm/knowledge/runtime/mcp/cpa_modules/config/interface/playbooks/workspaces,排除 pa_agent/eval/tui 命令分发)挖出的自包含切片,4 张文件锁两两不重叠、与 L2(coordinator)/eval 零交集,4 对话并行完成,主控逐张审核通过(边界 + 就近测试坐实)。**均零越界、未碰 backlog/ADR(文档由主控串行收口)**。
+> - **卡 N1**(`6afd433`)`refactor(llm)`:删 llm/utils.py 5 个零调用函数 + 移除 count_tokens/truncate_to_tokens(连 llm/__init__.py import/__all__)+ 消除 count_tokens 恒等分支(if gpt-4/gpt-3.5 两分支同赋 cl100k_base、model 实际被忽略);parse_llm_json 保留。边界仅 llm/utils.py+llm/__init__.py(-160)。tests/unit/llm 绿。
+> - **卡 N2**(`6e2126d`)`refactor(m6)`:删 m6_turbo 顶层便捷包装 lazy_get/lazy_wrap/install_lazy_hook(lazy_loader.py)+ get_memory_mb/quick_cleanup(memory_optimizer.py),保留 LazyLoader/MemoryOptimizer 类本体。边界仅这两文件(-61)。test_m6_turbo_deadcode 7 passed。
+> - **卡 N3**(`27b9092`)`fix(playbooks)`:base_playbook.py 的 phases 默认值从裸 field(default_factory=list)(BasePlaybook 非 @dataclass → 实为 Field 对象、未覆写子类 get_task() 会崩)改为普通类属性 []+删 field import;新增 tests/unit/test_base_playbook.py 守卫(未覆写 phases 子类 get_task 不崩)。4 passed。
+> - **卡 N4**(`8e77449`)`refactor(knowledge)`:删 retrospective.py 死代码 _safe_list(零调用);_extract_flag_values/_extract_hypothesis_kinds 保留。边界仅 retrospective.py(-9)。test_retrospective 5 passed。
+> 汇总:96+4 passed、import 冒烟 EXIT=0、零回归。S 扫描另留 C5(token_tracker.set_data_file,需先查测试是否专用)/C6(m5 get_vote_status,公共 API 判断题)待定,未派。
+
+---
+
 ## 维护说明(给我自己/未来对话)
 
 - 每完成一张卡,在卡标题后标 `✅(commit 短哈希)`,并回写 ADR §8。
