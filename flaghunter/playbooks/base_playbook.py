@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List
 
 
@@ -16,7 +16,11 @@ class BasePlaybook:
     description: str = "Base playbook description"
     mode: str = "agent"  # "agent" or "crew"
     max_loops: int = 50
-    phases: List[Phase] = field(default_factory=list)
+    # BasePlaybook is a plain class (not a @dataclass), so dataclasses.field()
+    # cannot be used here — it would leave `phases` bound to a Field object that
+    # get_task() then tries to iterate. Concrete playbooks override this with their
+    # own list; get_task() only reads it, so the shared default is never mutated.
+    phases: List[Phase] = []
 
     def get_task(self) -> str:
         """Convert playbook into a structured task description."""
