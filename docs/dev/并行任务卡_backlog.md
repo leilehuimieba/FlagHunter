@@ -308,6 +308,19 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 
 ---
 
+## 卡 I — 补建 ADR §8 变更记录章节 ✅(b51f056)
+
+> 已完成并主控审核通过。在 ADR §7 后补建 `## 8. 变更记录`(总索引表 21 行,纯增 34 行 / 0 删),§5.2 进展日志保留为详述、二者并存。文件锁:ADR .md 独占。零越界、纯增量。
+
+---
+
+## 卡 J — M6 register_turbo_commands 接线复核 ✅(复核·零改动)
+
+> 已完成并主控审核通过。阶段 0 取证 gate 确认**统一 command_registry 体系仍不存在**(全仓无 register(name,func) 消费者:HookRunner 是限四类 event 的事件总线、ToolRegistry 三参、StrategyRegistry/CapabilityRegistry 签名不符;/turbo 走 tui.py:5073-5104 硬编码 elif 链)。走 (b) 维持预留:register_turbo_commands 保留为预留接口,不接线/不删除/**零代码改动**、零回归。文件锁:无(仅取证)。
+> **升格提议(候选新卡)**:若要落实统一 slash-command 注册体系——M0/initializer 持有 registry + 为 M2/M5 等补 register_*_commands + tui.py 分发改查表——会牵动全 M1–M6 elif 链,属独立**高风险跨模块**卡,另立处理。
+
+---
+
 ## 维护说明(给我自己/未来对话)
 
 - 每完成一张卡,在卡标题后标 `✅(commit 短哈希)`,并回写 ADR §8。

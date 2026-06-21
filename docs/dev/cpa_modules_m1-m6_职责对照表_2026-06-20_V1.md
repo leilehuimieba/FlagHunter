@@ -50,6 +50,8 @@ M6 的 `register_turbo_commands` + 它指向的 `command_registry` 抽象当前�
 若未来要统一命令注册，应让 M0/initializer 持有一个 `command_registry` 并接线
 `register_turbo_commands`（并为 M2/M5 等补对应注册函数）——属后续工作，不在本卡。
 
+✅ 已复核(卡 J,2026-06-21):阶段 0 取证 gate 重新核实 command_registry 体系仍不存在——全仓 `register(name,func)` 契约无任何注册表满足(HookRunner 是限四类 event 的事件总线、ToolRegistry 三参、StrategyRegistry/CapabilityRegistry 签名不符),slash 分发为 tui.py:5073-5104 硬编码 elif 链。维持 (b) 预留、零改动。统一命令注册体系若要做,须另立高风险跨模块卡。
+
 ---
 
 ## 4. 名实不符 / 待复核清单（仅记录，未改行为）
