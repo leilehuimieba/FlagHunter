@@ -348,6 +348,14 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 
 ---
 
+## 卡 L2c — 补 CoordinatorDispatcherServices 生产侧 conformance 断言(对称 L1·CI 强制·test-only·独占 test_ctf_dispatcher.py) ✅(b200123)
+
+> 已完成并主控审核通过(live 回放兜底)。L1/L2a/L2b 把契约建在**消费侧**(形参/包装器视图),但无证据保证**生产侧**真实 `CTFTaskDispatcher` 供齐契约成员(某 mixin 方法改名/删除只在运行期炸)。L1 早已留对称范式:`test_ctf_dispatcher.py:73` 的 `assert isinstance(dispatcher, StrategyServices)`。本卡为 L2a/L2b 的 `CoordinatorDispatcherServices`(40 成员)补同款生产侧断言。
+> **Phase 0**:① `mypy` 未安装、CI lint 只跑 `ruff`+`black`(`continue-on-error`)→ **pytest 是 CI 唯一强制门,静态断言零强制力**;② `CTFTaskDispatcher.__init__`(L299–328)初始化全部 17 数据成员,23 方法 + `_run_solve_loop` 由 mixin 提供 → 新实例即满足 `isinstance`;③ 用 `isinstance`(非 `issubclass`)→ data-member 检查跨 3.10–3.12 一致、不触 `TypeError`。**无高判断点**——设计由 L1 对称性唯一确定,不设裁决门。
+> **落地**:加 `CoordinatorDispatcherServices` import + 专用 test `test_dispatcher_conforms_to_coordinator_dispatcher_services_protocol`。**边界**:仅动 `tests/unit/agents/test_ctf_dispatcher.py`,**零生产改动**。**门禁**:`tests/unit/agents/` 490 passed/0 failed(489+1)、`tests/eval/test_replay_harness.py` 5 passed/0 failed。至此 **L2 线消费侧+生产侧双向闭合**,与 L1 strategy 层完全对称。详述见 ADR §5.2「P3b L2c」+ §8 索引。
+
+---
+
 ## 卡 M — benchmark_runner 合并跑死锁取证 ✅(已复核·main 上非现存缺陷·关单·解除 eval 互斥锁)
 
 > **状态:阶段 0 取证完成,关单。** 卡 L1 完工报告里浮出"`benchmark_runner` 合并跑死锁"的怀疑,经只读复现 + 结构性排除,**当前 main 上死锁复现不出**——五种"合并跑"解释全部跑绿,卡面假设的两个共享资源根因被结构性排除。**降级为"已复核·非现存缺陷",解除它对 eval 卡的互斥锁。**
