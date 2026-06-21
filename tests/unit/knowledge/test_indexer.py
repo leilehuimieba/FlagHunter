@@ -60,6 +60,40 @@ class TestIndexFile:
         docs = indexer.index_file(f)
         assert len(docs) >= 1
 
+    def test_index_uppercase_json_uses_json_branch(self, tmp_path, monkeypatch):
+        # Regression: `.JSON` (uppercase) is dispatched as a data file via the
+        # lowercased suffix, but the inner branch used the case-sensitive raw
+        # suffix and fell through to the YAML loader. Poison the yaml import so
+        # that any attempt to parse this file as YAML raises loudly.
+        import builtins
+
+        real_import = builtins.__import__
+
+        def _no_yaml(name, *args, **kwargs):
+            if name == "yaml":
+                raise AssertionError("uppercase .JSON must not use the YAML branch")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", _no_yaml)
+
+        f = tmp_path / "DATA.JSON"
+        f.write_text(json.dumps([{"a": 1}, {"b": 2}]), encoding="utf-8")
+        indexer = KnowledgeIndexer()
+        docs = indexer.index_file(f)
+        assert len(docs) == 2
+
+    def test_uppercase_json_matches_lowercase(self, tmp_path):
+        payload = json.dumps([{"a": 1}, {"b": 2}, {"c": 3}])
+        lower = tmp_path / "data.json"
+        upper = tmp_path / "data.JSON"
+        lower.write_text(payload, encoding="utf-8")
+        upper.write_text(payload, encoding="utf-8")
+        indexer = KnowledgeIndexer()
+        lower_docs = indexer.index_file(lower)
+        upper_docs = indexer.index_file(upper)
+        assert len(upper_docs) == len(lower_docs)
+        assert [d.content for d in upper_docs] == [d.content for d in lower_docs]
+
     def test_unsupported_extension_returns_empty(self, tmp_path):
         f = tmp_path / "binary.exe"
         f.write_bytes(b"\x00\x01\x02")

@@ -158,7 +158,7 @@ class KnowledgeIndexer:
         """Index a JSON/YAML file."""
         content = file_path.read_text(encoding="utf-8")
 
-        if file_path.suffix == ".json":
+        if file_path.suffix.lower() == ".json":
             data = json.loads(content)
         else:
             try:
