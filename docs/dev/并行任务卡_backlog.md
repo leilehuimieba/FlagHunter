@@ -321,6 +321,15 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 
 ---
 
+## 卡 L1 — ChainContext.services 收窄为 StrategyServices Protocol(高风险·真·改路径·独占 pa_agent) ✅(b73b6bf)
+
+> 已完成并主控审核通过(live 回放兜底)。这是 P3b 主体刀/第④刀明确预告的「另一张高风险卡」:把 `ChainContext.services` 的静态类型从 `Any` 收窄为显式 `StrategyServices` Protocol(`strategy_registry.py` 顶部新增,`@runtime_checkable`),刻画 execute lambda 经 `ctx.services.<method>` 无条件调用的 **20 个必调成员**(全 `async -> _ChainOutcome`)。
+> **核心裁决(采 option b)**:3 个 hasattr 守卫成员 `_run_jwt_manipulation_strategy` / `_run_graphql_introspection_strategy` / `_run_nosql_injection_strategy` **留在 Protocol 外**——带 LLM fallback、语义上可缺失,纳入「必有」契约会与运行期 optional 语义矛盾,故保留 duck-typing 并在 probe 处加注。
+> **风险定性**:本属主体刀注明的「`services` 收成 Protocol」真·改路径,受 live 回放门槛约束;但 `_strategy_context` 仍 `services=self`(同一对象/MRO),仅静态收窄、零行为变化。**门禁**:`tests/unit/agents/` 489 passed/0 failed、`tests/eval/test_replay_harness.py`(live 回放)5 passed/0 failed,零差兜底。
+> **边界**:仅动 `strategy_registry.py` + `tests/unit/agents/test_ctf_dispatcher.py`(`ctf_dispatcher.py` 本次未触,`services=self` 早于第④刀就位),coordinator/recon/chains/eval 零越界。至此 **P3b(关节 B)从「结构破除」升级到「显式类型契约」彻底收口**。详述见 ADR §5.2「P3b L1」+ §8 索引。
+
+---
+
 ## 维护说明(给我自己/未来对话)
 
 - 每完成一张卡,在卡标题后标 `✅(commit 短哈希)`,并回写 ADR §8。
