@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 from ...harness.audit_events import (
     build_control_action_completed_event,
@@ -11,6 +11,125 @@ from ...harness.audit_events import (
     build_verification_decision_event,
 )
 from .ctf_state import CTFState
+
+
+@runtime_checkable
+class CoordinatorDispatcherServices(Protocol):
+    """显式服务契约: coordinator 把 dispatcher 当【方法参数】逐个传入时,所
+    *无条件* 访问(bare ``dispatcher.X``,非 ``getattr``/``hasattr`` 守卫)的
+    依赖面(P3b 关节 B 延伸·卡 L2a 收窄,2026-06-21)。
+
+    生产实现 = ``CTFTaskDispatcher``(经 MRO 上的 AuditInfra/LLM/Recon/...
+    等 *Executor/*Chain mixin 提供全部成员)。唯一生产构造点
+    ``ctf_dispatcher.py`` 仍以无参 ``CTFCoordinator()`` + 逐参数传 ``self``——
+    本 Protocol 只做 *静态类型收窄*,运行期同一 dispatcher 对象、零行为变化。
+    属性/句柄类型不强求精确(复杂引擎句柄标 ``Any``),本 Protocol 的价值是
+    【依赖面清单】而非精确类型。
+
+    **Protocol 外的 optional / duck-typed 面**(刻意不纳入,比照 L1 option b):
+    经 ``getattr(dispatcher, ...)`` + ``callable()`` / 可缺失语义守卫访问的
+    ``_ingress_handoff``、``_restore_context``、``_ingest_local_challenge_artifacts``、
+    ``_ingest_registered_local_source_hints``、``_align_platform_challenge``、
+    ``_extract_flag``、``_record_ingress_handoff_observations``。它们语义上可缺失,
+    纳入"必有"契约会与运行期 optional 语义矛盾,故保留 duck-typing。详见 ADR §5.2 卡 L2a。
+    """
+
+    # ── 必有属性 / 引擎句柄(bare 读写,从不缺失) ──
+    state: CTFState | None
+    strategy_memory: Any | None
+    reasoning_layer: Any
+    capability_registry: Any
+    tool_guard: Any
+    recovery_controller: Any
+    hypothesis_engine: Any
+    _challenge_context: dict[str, Any]
+    _notes_log: list[Any]
+    _ledger_run_id: str
+    _current_fingerprint: Any
+    _memory_match_ids: list[Any]
+    _pending_wrong_flag_feedback: list[dict[str, Any]]
+    _exhausted_visit_url_targets: set[str]
+    _restored_resume_checkpoint_id: Any
+    _local_challenge_artifacts_loaded: bool
+    _registered_local_source_hints_loaded: bool
+
+    # ── audit / ledger / checkpoint (AuditInfraMixin) ──
+    def _setup_session_ledger(
+        self, *, run_id: str | None, ledger_root: str | Path | None
+    ) -> None: ...
+
+    def _setup_artifact_registry(
+        self, *, run_id: str | None, registry_root: str | Path | None
+    ) -> None: ...
+
+    def _setup_checkpoint_store(
+        self, *, run_id: str | None, checkpoint_root: str | Path | None
+    ) -> None: ...
+
+    def _record_session_event(
+        self, event_type: str, payload: dict[str, Any] | None = None
+    ) -> None: ...
+
+    def _write_checkpoint(
+        self, label: str, metadata: dict[str, Any] | None = None
+    ) -> None: ...
+
+    def _record_recovery_decision(self, decision: Any, *, chain_name: str = "") -> None: ...
+
+    # ── dispatcher 本体 ──
+    def _apply_submit_profile(self, submit_profile: dict[str, Any] | None) -> None: ...
+
+    async def _start_failover_monitor_if_available(self) -> None: ...
+
+    def _select_primary_strategy(
+        self, chain_name: str, *, target: str, page_features: dict[str, Any], hint: str
+    ): ...
+
+    def _primary_capability_for_chain(self, chain_name: str) -> str | None: ...
+
+    def _select_hypothesis_for_chain(self, chain_name: str): ...
+
+    def _emit(self, message: str) -> None: ...
+
+    async def _finalize_solve_result(self, result: Any) -> Any: ...
+
+    # ── flag / verify ──
+    async def _observe_flag(
+        self,
+        flag: str,
+        target: str,
+        *,
+        evidence_source: str,
+        rationale: str = "",
+        evidence_url: str = "",
+        evidence_snippet: str = "",
+        replayable: bool | None = None,
+        hypothesis_id: str | None = None,
+        strategy_kind: str | None = None,
+    ): ...
+
+    def _build_already_solved_reason(self) -> str: ...
+
+    def _load_rejected_flags(self) -> None: ...
+
+    # ── recon / exploration ──
+    async def _phase_recon(self, target: str) -> dict[str, Any]: ...
+
+    async def _explore_agenda_items(self, target: str, items: list[Any]) -> bool: ...
+
+    async def _snapshot_platform_context(self, target: str) -> None: ...
+
+    # ── notes ──
+    async def _store_missing_tools(
+        self, missing: list[str], install_commands: dict[str, str]
+    ) -> None: ...
+
+    async def _store_retrospective(self, reason: str, target: str, chain_name: str) -> None: ...
+
+    # ── progress ──
+    def _derive_progress_delta(
+        self, before_state: dict[str, int], chain_outcome=None
+    ) -> str: ...
 
 
 def _normalize_target_input(target: str) -> str:
@@ -394,7 +513,7 @@ class RunContext:
 class CTFCoordinator:
     def _record_control_action_started(
         self,
-        dispatcher: Any,
+        dispatcher: CoordinatorDispatcherServices,
         *,
         action: str,
         decision_kind: str = "",
@@ -449,7 +568,7 @@ class CTFCoordinator:
 
     def _record_control_action_completed(
         self,
-        dispatcher: Any,
+        dispatcher: CoordinatorDispatcherServices,
         *,
         action: str,
         result: str,
@@ -485,7 +604,7 @@ class CTFCoordinator:
 
     def _apply_derived_target_contract(
         self,
-        dispatcher: Any,
+        dispatcher: CoordinatorDispatcherServices,
         *,
         derived_target_contract: dict[str, Any] | None,
     ) -> None:
@@ -524,7 +643,7 @@ class CTFCoordinator:
 
     async def _bootstrap_dispatcher(
         self,
-        dispatcher: Any,
+        dispatcher: CoordinatorDispatcherServices,
         *,
         target: str,
         goal: str,
@@ -559,7 +678,7 @@ class CTFCoordinator:
 
     def _apply_run_start_contract(
         self,
-        dispatcher: Any,
+        dispatcher: CoordinatorDispatcherServices,
         *,
         target: str,
         goal: str,
@@ -659,7 +778,7 @@ class CTFCoordinator:
 
     def _apply_resume_checkpoint_contract(
         self,
-        dispatcher: Any,
+        dispatcher: CoordinatorDispatcherServices,
         *,
         hint: str,
     ) -> None:
@@ -699,7 +818,7 @@ class CTFCoordinator:
 
     def _apply_initial_fact_collection_contract(
         self,
-        dispatcher: Any,
+        dispatcher: CoordinatorDispatcherServices,
         *,
         target: str,
         hint: str,
@@ -777,7 +896,7 @@ class CTFCoordinator:
 
     def _apply_local_asset_bootstrap_contract(
         self,
-        dispatcher: Any,
+        dispatcher: CoordinatorDispatcherServices,
         *,
         target: str,
         hint: str,
@@ -822,7 +941,7 @@ class CTFCoordinator:
 
     async def _apply_pre_recon_contract(
         self,
-        dispatcher: Any,
+        dispatcher: CoordinatorDispatcherServices,
         *,
         target: str,
     ) -> None:
@@ -834,7 +953,7 @@ class CTFCoordinator:
 
     async def _apply_runtime_signal_contract(
         self,
-        dispatcher: Any,
+        dispatcher: CoordinatorDispatcherServices,
         *,
         target: str,
         hint: str,
@@ -909,7 +1028,7 @@ class CTFCoordinator:
 
     async def _apply_verified_flag_contract(
         self,
-        dispatcher: Any,
+        dispatcher: CoordinatorDispatcherServices,
         *,
         hint: str,
     ):
@@ -982,7 +1101,7 @@ class CTFCoordinator:
 
     async def _apply_recon_contract(
         self,
-        dispatcher: Any,
+        dispatcher: CoordinatorDispatcherServices,
         *,
         target: str,
         hint: str = "",
@@ -1034,7 +1153,7 @@ class CTFCoordinator:
 
     async def _apply_post_recon_contract(
         self,
-        dispatcher: Any,
+        dispatcher: CoordinatorDispatcherServices,
         *,
         target: str,
         requested_type: str,
@@ -1092,7 +1211,7 @@ class CTFCoordinator:
 
     async def _apply_strategy_memory_contract(
         self,
-        dispatcher: Any,
+        dispatcher: CoordinatorDispatcherServices,
         *,
         target: str,
         page_features: dict[str, Any],
@@ -1140,7 +1259,7 @@ class CTFCoordinator:
 
     def _apply_hypothesis_contract(
         self,
-        dispatcher: Any,
+        dispatcher: CoordinatorDispatcherServices,
     ) -> list[str]:
         state = getattr(dispatcher, "state", None)
         hypothesis_engine = getattr(dispatcher, "hypothesis_engine", None)
@@ -1185,7 +1304,7 @@ class CTFCoordinator:
 
     def _prepare_chain_iteration_contract(
         self,
-        dispatcher: Any,
+        dispatcher: CoordinatorDispatcherServices,
         *,
         chain_name: str,
         target: str,
@@ -1229,7 +1348,7 @@ class CTFCoordinator:
 
     async def _apply_missing_tools_recovery_contract(
         self,
-        dispatcher: Any,
+        dispatcher: CoordinatorDispatcherServices,
         *,
         chain_name: str,
         chain_index: int,
@@ -1285,7 +1404,7 @@ class CTFCoordinator:
 
     def _apply_progress_evaluation_contract(
         self,
-        dispatcher: Any,
+        dispatcher: CoordinatorDispatcherServices,
         *,
         chain_name: str,
         before_state: dict[str, int],
@@ -1380,7 +1499,7 @@ class CTFCoordinator:
 
     async def _apply_after_chain_recovery_contract(
         self,
-        dispatcher: Any,
+        dispatcher: CoordinatorDispatcherServices,
         *,
         chain_name: str,
         chain_index: int,
@@ -1452,7 +1571,7 @@ class CTFCoordinator:
 
     async def _apply_wrong_flag_early_stop_contract(
         self,
-        dispatcher: Any,
+        dispatcher: CoordinatorDispatcherServices,
         *,
         result: Any,
         outcome: Any,
@@ -1492,7 +1611,7 @@ class CTFCoordinator:
 
     async def _apply_terminal_success_contract(
         self,
-        dispatcher: Any,
+        dispatcher: CoordinatorDispatcherServices,
         *,
         result: Any,
         outcome: Any,
@@ -1537,7 +1656,7 @@ class CTFCoordinator:
 
     async def _apply_final_recovery_contract(
         self,
-        dispatcher: Any,
+        dispatcher: CoordinatorDispatcherServices,
         *,
         result: Any,
         target: str,
@@ -1560,7 +1679,7 @@ class CTFCoordinator:
 
     async def execute(
         self,
-        dispatcher: Any,
+        dispatcher: CoordinatorDispatcherServices,
         *,
         target: str,
         goal: str,
