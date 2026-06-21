@@ -127,7 +127,7 @@ class CostTracker:
         获取最近N条请求日志。
 
         :param n: 返回日志条数上限，默认100
-        :return: RequestLog列表，按时间从新到旧排列
+        :return: RequestLog列表，按时间从旧到新排列（即按记录写入顺序，末尾为最新）
         """
         return list(self._logs)[-n:]
 
