@@ -139,15 +139,6 @@ def mark_resolved(entry_id: int) -> None:
         pass
 
 
-def _safe_list(value):
-    """Safely convert a field to a list of strings."""
-    if value is None:
-        return []
-    if isinstance(value, list):
-        return [str(v) for v in value]
-    return [str(value)]
-
-
 def _extract_flag_values(flag_records):
     """Extract string values from FlagRecord-like objects."""
     values = []
