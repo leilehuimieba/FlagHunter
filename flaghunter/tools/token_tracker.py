@@ -62,7 +62,12 @@ def _save_unlocked() -> None:
 
 
 def set_data_file(path: Path) -> None:
-    """Override the data file (used by tests)."""
+    """Override the data file path.
+
+    Test-only helper API: no production call sites (verified via repo-wide
+    grep). Used by tests/unit/tools/test_token_tracker.py to inject a temp
+    data file. Do not remove without updating that test fixture.
+    """
     global _custom_data_file
     _custom_data_file = Path(path)
     _load_unlocked()
