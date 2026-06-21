@@ -600,30 +600,3 @@ class MemoryOptimizer:
             "cache_result": cache_result,
             "current_mb": round(self.get_current_memory() / (1024 * 1024), 2),
         }
-
-
-# ---------------------------------------------------------------------------
-# 便捷函数
-# ---------------------------------------------------------------------------
-
-def get_memory_mb() -> float:
-    """获取当前内存使用量的便捷函数（MB）。
-
-    Returns:
-        当前 RSS（MB），保留两位小数。
-    """
-    mo = MemoryOptimizer()
-    return round(mo.get_current_memory() / (1024 * 1024), 2)
-
-
-async def quick_cleanup(cache_modules: Optional[List[Any]] = None) -> Dict[str, Any]:
-    """快速一键清理的便捷函数。
-
-    Args:
-        cache_modules: 参与缓存清理的模块列表。
-
-    Returns:
-        清理结果字典。
-    """
-    mo = MemoryOptimizer(cache_modules=cache_modules)
-    return await mo.force_cleanup()

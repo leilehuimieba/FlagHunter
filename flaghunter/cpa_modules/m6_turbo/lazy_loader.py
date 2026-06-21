@@ -620,37 +620,3 @@ class LazyLoader:
             元数据字典，若模块不在注册表中则返回 ``None``。
         """
         return dict(cls.LAZY_MODULES.get(module_name, {})) or None
-
-
-# ---------------------------------------------------------------------------
-# 便捷函数（可直接 import 使用）
-# ---------------------------------------------------------------------------
-
-async def lazy_get(module_name: str) -> Any:
-    """``LazyLoader.get`` 的顶层便捷包装。
-
-    Args:
-        module_name: 模块注册名。
-
-    Returns:
-        加载后的模块对象。
-    """
-    return await LazyLoader.get(module_name)
-
-
-def lazy_wrap(module_name: str, alias: Optional[str] = None) -> types.ModuleType:
-    """``LazyLoader.wrap_import`` 的顶层便捷包装。
-
-    Args:
-        module_name: 模块注册名。
-        alias: 代理模块别名。
-
-    Returns:
-        代理模块对象。
-    """
-    return LazyLoader.wrap_import(module_name, alias=alias)
-
-
-def install_lazy_hook() -> None:
-    """``LazyLoader.install_import_hook`` 的顶层便捷包装。"""
-    LazyLoader.install_import_hook()
