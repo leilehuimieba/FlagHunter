@@ -514,7 +514,22 @@ class RunContext:
     ``Any`` 缺口。RunContext 不显式继承该 Protocol——它定义了 ``__getattr__``
     (返回 ``Any``),类型检查器据此视其结构化满足任意 Protocol;``__getattr__`` /
     ``__setattr__`` 运行期行为一行未改,仍是透明代理。见 ADR §5.2 卡 L2b。
+
+    L3a(2026-06-22): 破冰"真断透传"线——加入【字段分流机制】骨架,但白名单
+    ``_OWN_FIELDS`` 【留空】,故行为与纯透明代理【完全一致】(零承载)。
+    机制如下:``__setattr__`` 对白名单内的名走 ``object.__setattr__`` 写到
+    ``self`` 自身,其余仍代理到 dispatcher;白名单字段经 ``object.__setattr__``
+    落到实例 ``__dict__`` 后,常规属性查找即命中、不触发 ``__getattr__``,自然
+    从 self 取(``__getattr__`` 仅在常规查找失败时被调用)。为防御万一(以及
+    防止内部名 ``_dispatcher`` / ``_OWN_FIELDS`` 被代理逻辑吞掉),``__getattr__``
+    对这两个内部名 + ``_OWN_FIELDS`` 成员显式短路。承载 ``state`` 等真实字段是
+    下一刀(L3b)。见 ADR §5.2 卡 L3a。
     """
+
+    # 自有字段白名单:名字落在此集合时,读写走 ``self`` 自身而非代理到
+    # dispatcher。L3a 故意留空(空 frozenset)——机制就绪、零承载,行为等价于
+    # 纯透明代理。后续 slice(L3b 起)逐个把 run-state 字段迁入。
+    _OWN_FIELDS: frozenset[str] = frozenset()
 
     def __init__(self, dispatcher: CoordinatorDispatcherServices) -> None:
         object.__setattr__(self, "_dispatcher", dispatcher)
@@ -524,9 +539,22 @@ class RunContext:
         return object.__getattribute__(self, "_dispatcher")
 
     def __getattr__(self, name: str) -> Any:
+        # __getattr__ 仅在常规查找失败时触发。内部名与白名单字段在正常情况下
+        # 不应走到这里(_dispatcher 经 object.__setattr__ 写入实例;白名单字段
+        # 同理),但对内部名做显式短路保护,杜绝"_dispatcher 尚未就绪时被代理
+        # 逻辑递归吞掉"这类时序陷阱。
+        if name == "_dispatcher" or name == "_OWN_FIELDS":
+            raise AttributeError(name)
+        if name in object.__getattribute__(self, "_OWN_FIELDS"):
+            # 白名单字段尚未在 self 上设值:本应从 self 取却查找失败,直接抛
+            # AttributeError,绝不代理到 dispatcher(避免影子读穿)。
+            raise AttributeError(name)
         return getattr(object.__getattribute__(self, "_dispatcher"), name)
 
     def __setattr__(self, name: str, value: Any) -> None:
+        if name in type(self)._OWN_FIELDS:
+            object.__setattr__(self, name, value)
+            return
         setattr(object.__getattribute__(self, "_dispatcher"), name, value)
 
 
