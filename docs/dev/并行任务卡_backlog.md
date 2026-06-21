@@ -348,18 +348,15 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 
 ---
 
-## 卡 M — benchmark_runner 合并跑死锁取证 + 修复(草稿·待派发·低优先·取证优先·高风险独占 eval)
+## 卡 M — benchmark_runner 合并跑死锁取证 ✅(已复核·main 上非现存缺陷·关单·解除 eval 互斥锁)
 
-> **状态:草稿,本轮不派。** 卡 L1 完工报告里浮出的问题:`benchmark_runner` **合并跑**多条 benchmark 时死锁;单条跑各自绿、L1 的 live 回放门禁(`test_replay_harness.py` 5 passed)与 `tests/unit/agents/`(489 passed)均干净。
+> **状态:阶段 0 取证完成,关单。** 卡 L1 完工报告里浮出"`benchmark_runner` 合并跑死锁"的怀疑,经只读复现 + 结构性排除,**当前 main 上死锁复现不出**——五种"合并跑"解释全部跑绿,卡面假设的两个共享资源根因被结构性排除。**降级为"已复核·非现存缺陷",解除它对 eval 卡的互斥锁。**
 >
-> **定性(已钉,防误算账)**:L1 边界只动 `strategy_registry.py`+`test_ctf_dispatcher.py`、**根本不碰 `benchmark_runner`**,故此死锁是 **`benchmark_runner` 预存并发缺陷、非 L1 回归**;与卡 C 录制暴露的 `honest_no_flag` vs `candidate_only_honesty` 同属预存非回归,**不阻塞**当前绿的单跑套件,优先级低。
+> **实测全绿(无触发)**:默认 5 条合并 `python -m tests.eval.benchmark_runner` ✅ 30.6s;全 8 条合并(含 3 个 local_*)✅ 125s;`pytest tests/eval/test_benchmark_runner.py`(faulthandler_timeout=120)✅ 17 passed/108s;全量 suite(faulthandler_timeout=240)✅ 1937 passed/8 skipped/19m38s。
 >
-> **铁律:取证优先,卡面不预设根因(卡 E 教训——卡面假设"本地路径没产出 summary",真根因是漏 `import json`)。**
+> **五项根因结构性排除**:① 端口撞车——临时分配(实测 49680 等),不可能撞;② 线程 join 死等——fixture teardown 全部 `server.shutdown(); thread.join(timeout=5); server.server_close()`,join 带 5s 上限 + daemon 线程,最坏多等 5s 无法无限阻塞;③ asyncio loop 复用——CLI 合并跑共用单一 `asyncio.run()`(`benchmark_runner.py:1015`),`run_benchmark` 内串行 `await spec.runner()`(L944-948),不嵌套 loop;④ 全局单例——每 challenge 用 `_isolated_notes`/`_benchmark_runtime_env`/`TemporaryDirectory` 隔离 + finally 还原(L102-149),唯一实例级 async 原语 `ctf_state.py:179 self._write_lock=asyncio.Lock()` 是 per-state 新建、不跨 loop;⑤ 子进程通信死等——未见无界 communicate。
 >
-> **阶段 0(取证,只读,先派 Explore agent)**:复现死锁,产出一行实测结论——① **确切触发命令**(哪条合并跑入口:`benchmark_runner` 的哪个 batch/all 模式);② 哪几条 benchmark 合并时挂;③ 卡在哪个**共享资源**(进程 vs 线程 / 端口复用 / asyncio event loop 复用 / 子进程 `join`/`communicate` 死等 / 全局单例)。**不改任何代码、不预设根因。**
-> **阶段 1(待阶段 0 结论再定方案)**:依证据改并发模型——候选:每 benchmark 进程/事件循环隔离、串行化合并入口、加超时兜底 + 资源清理。**方案二选一前必须回主控确认。**
->
-> **风险/边界**:动 `benchmark_runner.py` 会影响 eval 门禁本身 → **高风险,需 live 回放兜底**;文件锁 `benchmark_runner.py`(+ 可能 `tests/eval/`),**与任何 eval 卡互斥、不并行**。
+> **方案 B(可选加固草稿·未派·低优先)**:不碰并发模型,只在 `run_benchmark` 的每条 `await spec.runner(callback)`(L947)外包一层 `asyncio.wait_for(..., timeout=N)`,把"未来若再现的挂起"转成可诊断的 `TimeoutError`(带 `challenge_id`)而非无限等。纯增量护栏、不改既有路径、live 回放兜底即可。**待有人手时做,非紧急**(当前无死锁证据,属预防性可观测加固)。文件锁 `benchmark_runner.py`,与 eval 卡互斥。
 
 ---
 
