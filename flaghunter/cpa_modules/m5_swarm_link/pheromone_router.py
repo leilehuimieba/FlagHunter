@@ -27,10 +27,19 @@ class PheromoneTrail:
         elapsed = (datetime.now() - self.last_updated).total_seconds()
         return self.strength * (self.decay_rate ** elapsed)
 
+    def is_active_above(self, threshold: float = 0.1) -> bool:
+        """判断该轨迹是否仍有效（当前强度高于给定阈值，默认 0.1）。"""
+        return self.current_strength > threshold
+
     @property
     def is_active(self) -> bool:
-        """判断该轨迹是否仍有效（当前强度高于阈值 0.1）。"""
-        return self.current_strength > 0.1
+        """判断该轨迹是否仍有效（当前强度高于默认阈值 0.1）。
+
+        注意：此属性使用写死的 0.1 阈值，仅为向后兼容保留。
+        路由器内部活跃判定应使用 router 自身的 self._threshold
+        （见 get_active_trails / is_active_above）。
+        """
+        return self.is_active_above(0.1)
 
 
 @dataclass
@@ -150,7 +159,8 @@ class PheromoneRouter:
     async def get_active_trails(self) -> List[PheromoneTrail]:
         """获取所有活跃轨迹，按 current_strength 降序排列。"""
         async with self._lock:
-            active = [t for t in self._trails.values() if t.is_active]
+            active = [t for t in self._trails.values()
+                      if t.is_active_above(self._threshold)]
         active.sort(key=lambda x: x.current_strength, reverse=True)
         return active
 
@@ -195,10 +205,13 @@ class PheromoneRouter:
         """
         bp = base_priorities or {}
         entries = []
-        for tgt in targets:
+        # tie-breaker: 单调递增计数器 idx 保证 final_score 相同时
+        # heapq 不会去比较不可比较的 TaskPriority（无 order=True），
+        # 同时保持入队顺序稳定（同分按先到先出）。
+        for idx, tgt in enumerate(targets):
             prio = await self.calculate_priority(tgt, base_priority=bp.get(tgt, 5))
-            heapq.heappush(entries, (-prio.final_score, prio))
-        return [heapq.heappop(entries)[1] for _ in range(len(entries))]
+            heapq.heappush(entries, (-prio.final_score, idx, prio))
+        return [heapq.heappop(entries)[2] for _ in range(len(entries))]
 
     async def recommend_next_target(
         self, available_targets: List[str],
