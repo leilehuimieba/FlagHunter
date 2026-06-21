@@ -330,6 +330,15 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 
 ---
 
+## 卡 L2a — coordinator 的 dispatcher: Any 收窄为 CoordinatorDispatcherServices Protocol(P3b 关节 B 延伸·破冰刀·真·改路径·独占 coordinator.py) ✅(4960eaf)
+
+> 已完成并主控审核通过(live 回放兜底)。把 L1 手法用到 coordinator 层:`coordinator.py` 顶部新增 `@runtime_checkable CoordinatorDispatcherServices` Protocol,刻画 `CTFCoordinator` 把 dispatcher 当方法参数逐个传入时**无条件访问**(bare `dispatcher.X`)的依赖面——共 **39 成员 = 22 必调方法 + 17 必有属性/引擎句柄**(audit 6 / dispatcher 本体 7 / flag 3 / recon 3 / notes 2 / progress 1;属性含 `state: CTFState|None`、5 个引擎句柄标 `Any`、10 个 run-scratch 字段)。
+> **主控裁决(唯一高判断点)**:① 单个大 Protocol(横跨多簇,分组无益);② `strategy_memory` 虽仅 getattr+`is None` 访问,按依赖面完整性**纳入**标 `Any|None`。**7 守卫成员留 Protocol 外**(option b):`_ingress_handoff` + `_restore_context` / `_ingest_local_challenge_artifacts` / `_ingest_registered_local_source_hints` / `_align_platform_challenge` / `_extract_flag` / `_record_ingress_handoff_observations`(getattr+`callable()`,语义可缺失)。**裁决保留 4 处 `Any`**:2 模块级 helper 参数(只摸 OUT 成员 `_ingress_handoff`)+ `RunContext.__init__`/property(不改 RunContext;`_run_solve_loop` 经 `ctx.dispatcher` Any 逃生口、不入 Protocol)。
+> **风险定性**:真·改路径(改类型契约),但注入对象不变(生产无参 `CTFCoordinator()` + 逐参数传真实 `CTFTaskDispatcher`,测试传 fake)、Protocol 运行期不强制,纯静态收窄、零行为变化;23 处形参 `dispatcher: Any` → `CoordinatorDispatcherServices`,调用体 163 处访问点一行未改。**门禁**:`tests/unit/agents/` 489 passed/0 failed、`tests/eval/test_replay_harness.py`(live 回放)5 passed/0 failed,零差兜底。
+> **边界**:仅动 `coordinator.py`(50 个 coordinator 测试的 fake dispatcher 靠 duck-typing 满足实际调用子集,零改动),ctf_dispatcher/executor mixin/chains/eval/RunContext 实质逻辑零越界。至此**关节 B 的 coordinator↔dispatcher 隐式依赖面亦显式化成契约**,与 L1 的 strategy 层对称收口。详述见 ADR §5.2「P3b L2a」+ §8 索引。
+
+---
+
 ## 卡 M — benchmark_runner 合并跑死锁取证 + 修复(草稿·待派发·低优先·取证优先·高风险独占 eval)
 
 > **状态:草稿,本轮不派。** 卡 L1 完工报告里浮出的问题:`benchmark_runner` **合并跑**多条 benchmark 时死锁;单条跑各自绿、L1 的 live 回放门禁(`test_replay_harness.py` 5 passed)与 `tests/unit/agents/`(489 passed)均干净。
