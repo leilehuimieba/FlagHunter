@@ -70,7 +70,7 @@ from .note_store import NoteStoreMixin
 from .php_exploit_chain import PHPExploitChainMixin
 from .platform_executor import PlatformExecutorMixin
 from .platform_orchestrator import PlatformTaskOrchestrator
-from .progress_tracker import ProgressTrackerMixin
+from .progress_tracker import ProgressTracker, ProgressTrackerMixin
 from .reasoning import PreActionReasoning, ReasoningLayer
 from .recon_executor import ReconExecutorMixin
 from .recovery import RecoveryController
@@ -298,6 +298,7 @@ class CTFTaskDispatcher(
         self.tool_guard = ToolGuard(runtime=runtime)
         self._notes_log: list[str] = []
         self.state: CTFState | None = None
+        self._progress = ProgressTracker()
         self.hypothesis_engine = HypothesisEngine()
         self.recovery_controller = RecoveryController(self.hypothesis_engine)
         self.strategy_registry = StrategyRegistry.build_default()

@@ -1,42 +1,51 @@
-"""Progress-delta tracking mixin extracted from ctf_dispatcher.py.
+"""Progress-delta tracking, object-ified (L3b, cut A).
 
-P5 / eleventh cut: the contiguous progress-delta pair
-``_snapshot_flag_counts`` + ``_derive_progress_delta`` (50 lines) is
-physically moved out of CTFTaskDispatcher into a behaviour-preserving
-mixin. Method bodies are identical; both only touch ``self.state`` (and
-``_derive_progress_delta`` calls ``self._snapshot_flag_counts``), all
-resolved at runtime via the MRO of the dispatcher that mixes this in, so
-the call sites (dispatcher ``_snapshot_flag_counts`` at line ~462,
-coordinator ``_derive_progress_delta`` at line ~1300) are unchanged. No
-module-level symbols are referenced — zero imports to sink. Pure code
-relocation, near-zero risk.
+The progress-delta logic — snapshotting flag counts and grading turn-to-turn
+deltas into a hypothesis signal — is now an independent ``ProgressTracker``
+object that can be unit-tested completely detached from
+``CTFTaskDispatcher``.  It deliberately takes ``state`` as an explicit
+per-call parameter (never an eagerly-held reference): on the resume path the
+dispatcher rebinds ``self.state`` to a fresh object, so the tracker must read
+whatever ``state`` is current at call time.
+
+``ProgressTrackerMixin`` is retained as a thin delegation shell (its
+``__module__`` is anchored by tests and the dispatcher still mixes it into the
+MRO at ``ctf_dispatcher.py``).  Both shell methods forward to the
+dispatcher-held ``self._progress`` instance, passing ``self.state`` through.
+Behaviour is byte-for-byte identical to the previous inline implementation,
+including the ``chain_outcome.progress`` short-circuit to ``"none"``.
 """
 
 from __future__ import annotations
 
 
-class ProgressTrackerMixin:
-    """Snapshot flag counts and turn count deltas into a hypothesis signal."""
+class ProgressTracker:
+    """Snapshot flag counts and grade turn deltas into a hypothesis signal.
 
-    def _snapshot_flag_counts(self) -> dict[str, int]:
-        if self.state is None:
+    Stateless w.r.t. ``state``: every method receives ``state`` explicitly so
+    the same tracker instance survives a dispatcher ``state`` rebind (resume).
+    """
+
+    def snapshot_flag_counts(self, state) -> dict[str, int]:
+        if state is None:
             return {}
         return {
-            "candidate": len(self.state.candidate_flags),
-            "runtime": len(self.state.runtime_flags),
-            "verified": len(self.state.verified_flags),
-            "rejected": len(self.state.rejected_flags),
+            "candidate": len(state.candidate_flags),
+            "runtime": len(state.runtime_flags),
+            "verified": len(state.verified_flags),
+            "rejected": len(state.rejected_flags),
             "uniform_failure_surface": len(
                 [
                     obs
-                    for obs in self.state.observations
+                    for obs in state.observations
                     if obs.kind == "uniform_failure_surface"
                 ]
             ),
         }
 
-    def _derive_progress_delta(
+    def derive_progress_delta(
         self,
+        state,
         before_state: dict[str, int],
         chain_outcome=None,
     ) -> str:
@@ -50,9 +59,9 @@ class ProgressTrackerMixin:
         return ``"none"`` rather than ``"rejected"`` so the hypothesis is not
         prematurely exhausted.
         """
-        if self.state is None:
+        if state is None:
             return "none"
-        after = self._snapshot_flag_counts()
+        after = self.snapshot_flag_counts(state)
         if after.get("verified", 0) > before_state.get("verified", 0):
             return "terminal"
         if after.get("runtime", 0) > before_state.get("runtime", 0):
@@ -69,3 +78,19 @@ class ProgressTrackerMixin:
         if after.get("candidate", 0) > before_state.get("candidate", 0):
             return "weak"
         return "none"
+
+
+class ProgressTrackerMixin:
+    """Thin delegation shell forwarding to the dispatcher's ``ProgressTracker``."""
+
+    def _snapshot_flag_counts(self) -> dict[str, int]:
+        return self._progress.snapshot_flag_counts(self.state)
+
+    def _derive_progress_delta(
+        self,
+        before_state: dict[str, int],
+        chain_outcome=None,
+    ) -> str:
+        return self._progress.derive_progress_delta(
+            self.state, before_state, chain_outcome=chain_outcome
+        )
