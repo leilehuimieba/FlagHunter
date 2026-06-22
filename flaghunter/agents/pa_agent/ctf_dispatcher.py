@@ -66,7 +66,7 @@ from .hypothesis_engine import HypothesisEngine
 from .jwt_contact_chain import JWTContactChainMixin
 from .jwt_executor import JWTExecutorMixin
 from .llm_executor import LLMExecutorMixin
-from .note_store import NoteStoreMixin
+from .note_store import NoteStore, NoteStoreMixin
 from .php_exploit_chain import PHPExploitChainMixin
 from .platform_executor import PlatformExecutorMixin
 from .platform_orchestrator import PlatformTaskOrchestrator
@@ -300,6 +300,7 @@ class CTFTaskDispatcher(
         self.state: CTFState | None = None
         self._progress = ProgressTracker()
         self._flag_observer = FlagObserver()
+        self._note_store = NoteStore()
         self.hypothesis_engine = HypothesisEngine()
         self.recovery_controller = RecoveryController(self.hypothesis_engine)
         self.strategy_registry = StrategyRegistry.build_default()
