@@ -72,7 +72,7 @@ from .platform_executor import PlatformExecutorMixin
 from .platform_orchestrator import PlatformTaskOrchestrator
 from .progress_tracker import ProgressTracker, ProgressTrackerMixin
 from .reasoning import PreActionReasoning, ReasoningLayer
-from .recon_executor import ReconExecutorMixin
+from .recon_executor import ReconExecutor, ReconExecutorMixin
 from .recovery import RecoveryController
 from .render_surface import RenderSurfaceMixin
 from .source_hint_registry import SourceHintRegistryMixin
@@ -305,6 +305,7 @@ class CTFTaskDispatcher(
         self._audit_store = AuditStore()
         self._jwt_executor = JWTExecutor()
         self._llm_executor = LLMExecutor()
+        self._recon_executor = ReconExecutor()
         self.hypothesis_engine = HypothesisEngine()
         self.recovery_controller = RecoveryController(self.hypothesis_engine)
         self.strategy_registry = StrategyRegistry.build_default()

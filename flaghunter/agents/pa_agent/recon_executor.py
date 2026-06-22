@@ -1,19 +1,41 @@
-"""Recon phase executor extracted from ctf_dispatcher.py.
+"""Recon phase / exploration executor extracted from ctf_dispatcher.py.
 
-P5 / Workstream A first slice (see
-``docs/dev/FlagHunter_架构优化方案_黑板控制单元与façade收尾_2026-06-16_V1.md``):
-the recon execution body is physically moved out of ``CTFTaskDispatcher`` into a
-behaviour-preserving mixin. The method body is identical to the former
-``CTFTaskDispatcher._phase_recon``; ``self.*`` resolves at runtime against the
-dispatcher that mixes this in, so call sites (``coordinator._apply_recon_contract``
--> ``dispatcher._phase_recon``) are unchanged. Pure code relocation, near-zero risk.
+L3j / Workstream A (object-ification, cut A · L3 执行体对象化第九刀): the recon
+execution cluster (9 methods, ``_phase_recon`` .. ``_explore_agenda_items``) is
+lifted out of ``ReconExecutorMixin`` into a single independent, stateless
+``ReconExecutor`` class. Method bodies are moved near byte-for-byte; the only
+behavioural inputs — the shared ``CTFState``, the ``runtime``, the
+``reasoning_layer``, the dispatcher's ``_FRAMEWORK_CONVENTIONAL_ROUTES`` table and
+the twelve sibling dispatcher methods
+(``_runtime_browser_action`` / ``_is_legacy_browser_runtime_probe`` /
+``_proxy_get_with_retry`` / ``_runtime_proxy_action`` / ``_scan_and_store`` /
+``_store_note`` / ``_should_ignore_exploration_candidate`` /
+``_extract_embedded_links`` / ``_emit`` / ``_fingerprint_framework`` /
+``_classify_exploration_hint_strength`` / ``_form_action_url``) — are supplied per
+call via a lightweight
+``ReconExecContext`` rather than read off ``self``. ``ReconExecutor`` holds no eager
+state of its own (``vars(ReconExecutor()) == {}``).
+
+The reason state/runtime/reasoning_layer are injected per call rather than stored is
+that the shared CTFState and the live runtime handle are swapped out on replay/fork,
+so a stored reference would silently go stale (the same trap addressed in L3d
+``_notes_log``, L3h state injection and L3i ``LLMExecContext``).
+
+``ReconExecutorMixin`` retains every method as a thin delegation shell with the
+original names + signatures (and original ``__module__`` anchoring), building a fresh
+``ReconExecContext`` per call. The MRO and all external call sites are unchanged:
+``_phase_recon`` and ``_explore_agenda_items`` remain on the dispatcher under their
+original names/signatures so the ``CoordinatorDispatcherServices`` Protocol stays
+satisfied and ``coordinator.py`` / ``tui.py`` call them unchanged. Pure code
+relocation, near-zero risk.
 """
 
 from __future__ import annotations
 
 import re
 import time
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Awaitable, Callable
 from urllib.parse import urljoin, urlparse
 
 from .ctf_planner import find_auth_form
@@ -31,10 +53,43 @@ from .dispatcher_helpers import (
 )
 
 
-class ReconExecutorMixin:
-    """Recon phase orchestration extracted from the dispatcher."""
+@dataclass
+class ReconExecContext:
+    """Per-call behavioural inputs for :class:`ReconExecutor`.
 
-    async def _phase_recon(self, target: str) -> dict[str, Any]:
+    Bundles the live dispatcher state/handles, the framework-route table and the
+    twelve injected sibling methods. A fresh context is built by the delegation
+    shell on every call so nothing is retained across replay/fork state swaps.
+    """
+
+    state: Any
+    runtime: Any
+    reasoning_layer: Any
+    framework_conventional_routes: dict[str, tuple[str, ...]]
+    runtime_browser_action: Callable[..., Awaitable[Any]]
+    is_legacy_browser_runtime_probe: Callable[[Any], bool]
+    proxy_get_with_retry: Callable[..., Awaitable[Any]]
+    runtime_proxy_action: Callable[..., Awaitable[Any]]
+    scan_and_store: Callable[..., Awaitable[Any]]
+    store_note: Callable[..., Awaitable[Any]]
+    should_ignore_exploration_candidate: Callable[..., bool]
+    extract_embedded_links: Callable[[str, str], list[str]]
+    emit: Callable[[str], Any]
+    fingerprint_framework: Callable[[dict[str, Any]], Any]
+    classify_exploration_hint_strength: Callable[[str, str], int]
+    form_action_url: Callable[[str, dict[str, Any]], str]
+
+
+class ReconExecutor:
+    """Stateless recon phase orchestration and exploration.
+
+    No instance state: the shared ``CTFState``, the ``runtime``, the
+    ``reasoning_layer``, the ``_FRAMEWORK_CONVENTIONAL_ROUTES`` table and the twelve
+    sibling dispatcher methods are supplied per call through a
+    :class:`ReconExecContext`. ``vars(ReconExecutor()) == {}``.
+    """
+
+    async def phase_recon(self, target: str, ctx: ReconExecContext) -> dict[str, Any]:
         features: dict[str, Any] = {
             "html": "",
             "content": "",
@@ -47,12 +102,12 @@ class ReconExecutorMixin:
             "url": target,
         }
         extra_blobs: list[str] = []
-        if self.runtime is None:
+        if ctx.runtime is None:
             return features
 
         browser_probe: dict[str, Any] = {}
-        if hasattr(self.runtime, "browser_action"):
-            probe = await self._runtime_browser_action(
+        if hasattr(ctx.runtime, "browser_action"):
+            probe = await ctx.runtime_browser_action(
                 "diagnose",
                 timeout=5,
                 audit_target=target,
@@ -64,7 +119,7 @@ class ReconExecutorMixin:
                 supported_actions = set(probe.get("supports_actions") or [])
 
                 if "navigate" in supported_actions:
-                    nav = await self._runtime_browser_action(
+                    nav = await ctx.runtime_browser_action(
                         "navigate",
                         url=target,
                         timeout=10,
@@ -78,7 +133,7 @@ class ReconExecutorMixin:
                         _collect_recon_error(features, nav, "navigate")
 
                 if "get_content" in supported_actions:
-                    content = await self._runtime_browser_action(
+                    content = await ctx.runtime_browser_action(
                         "get_content",
                         timeout=10,
                         audit_target=str(features.get("url") or target),
@@ -91,7 +146,7 @@ class ReconExecutorMixin:
                         _collect_recon_error(features, content, "get_content")
 
                 if "get_forms" in supported_actions:
-                    forms = await self._runtime_browser_action(
+                    forms = await ctx.runtime_browser_action(
                         "get_forms",
                         timeout=10,
                         audit_target=str(features.get("url") or target),
@@ -103,7 +158,7 @@ class ReconExecutorMixin:
                         _collect_recon_error(features, forms, "get_forms")
 
                 if "get_cookies" in supported_actions:
-                    cookies = await self._runtime_browser_action(
+                    cookies = await ctx.runtime_browser_action(
                         "get_cookies",
                         timeout=10,
                         audit_target=str(features.get("url") or target),
@@ -113,13 +168,13 @@ class ReconExecutorMixin:
                         features["cookies"] = str(cookies.get("cookie_string") or "")
                     else:
                         _collect_recon_error(features, cookies, "get_cookies")
-            elif self._is_legacy_browser_runtime_probe(probe):
+            elif ctx.is_legacy_browser_runtime_probe(probe):
                 features["browser_probe"] = {
                     "available": True,
                     "mode": "legacy_runtime",
                     "supports_actions": ["navigate", "get_content", "get_forms", "get_cookies"],
                 }
-                nav = await self._runtime_browser_action(
+                nav = await ctx.runtime_browser_action(
                     "navigate",
                     url=target,
                     timeout=10,
@@ -132,7 +187,7 @@ class ReconExecutorMixin:
                 else:
                     _collect_recon_error(features, nav, "navigate")
 
-                content = await self._runtime_browser_action(
+                content = await ctx.runtime_browser_action(
                     "get_content",
                     timeout=10,
                     audit_target=str(features.get("url") or target),
@@ -144,7 +199,7 @@ class ReconExecutorMixin:
                 else:
                     _collect_recon_error(features, content, "get_content")
 
-                forms = await self._runtime_browser_action(
+                forms = await ctx.runtime_browser_action(
                     "get_forms",
                     timeout=10,
                     audit_target=str(features.get("url") or target),
@@ -155,7 +210,7 @@ class ReconExecutorMixin:
                 else:
                     _collect_recon_error(features, forms, "get_forms")
 
-                cookies = await self._runtime_browser_action(
+                cookies = await ctx.runtime_browser_action(
                     "get_cookies",
                     timeout=10,
                     audit_target=str(features.get("url") or target),
@@ -168,8 +223,8 @@ class ReconExecutorMixin:
             else:
                 _collect_recon_error(features, probe, "browser_diagnose")
 
-        if hasattr(self.runtime, "proxy_action"):
-            page = await self._proxy_get_with_retry(
+        if hasattr(ctx.runtime, "proxy_action"):
+            page = await ctx.proxy_get_with_retry(
                 features["url"],
                 timeout=10,
                 audit_target=str(features.get("url") or target),
@@ -203,7 +258,7 @@ class ReconExecutorMixin:
                         script_sources.append(absolute)
 
                 for script_url in script_sources[:3]:
-                    script_resp = await self._runtime_proxy_action(
+                    script_resp = await ctx.runtime_proxy_action(
                         "get",
                         url=script_url,
                         timeout=10,
@@ -228,7 +283,7 @@ class ReconExecutorMixin:
         if browser_probe and not features["content"] and features["html"]:
             features["content"] = _strip_html_text(str(features["html"]))
 
-        post_auth = await self._attempt_post_auth_recon(target, features)
+        post_auth = await self.attempt_post_auth_recon(target, features, ctx)
         if post_auth:
             features["pre_auth_url"] = str(features.get("url") or target)
             features["pre_auth_html"] = str(features.get("html") or "")
@@ -246,8 +301,8 @@ class ReconExecutorMixin:
                 "url": str(post_auth.get("url") or ""),
                 "username": str(post_auth.get("username") or ""),
             }
-            if self.state is not None:
-                self.state.add_observation(
+            if ctx.state is not None:
+                ctx.state.add_observation(
                     "post_auth_recon",
                     str(post_auth.get("url") or ""),
                     source="phase_recon",
@@ -256,7 +311,7 @@ class ReconExecutorMixin:
                         "endpoints_hint": list(post_auth.get("raw_links") or []),
                     },
                 )
-            await self._store_note(
+            await ctx.store_note(
                 key="ctf_post_auth_recon",
                 value=(
                     f"post-auth recon reached {post_auth.get('url')}; "
@@ -280,7 +335,7 @@ class ReconExecutorMixin:
             {
                 candidate
                 for candidate in endpoint_candidates
-                if not self._should_ignore_exploration_candidate(
+                if not ctx.should_ignore_exploration_candidate(
                     candidate,
                     base_url=str(features.get("url") or target),
                 )
@@ -293,7 +348,7 @@ class ReconExecutorMixin:
             if not href or href.startswith(("#", "javascript:", "mailto:")):
                 continue
             absolute = _normalize_exploration_url(_join_relative_url(features["url"], href))
-            if self._should_ignore_exploration_candidate(absolute, base_url=features["url"]):
+            if ctx.should_ignore_exploration_candidate(absolute, base_url=features["url"]):
                 continue
             if absolute not in raw_links:
                 raw_links.append(absolute)
@@ -302,24 +357,24 @@ class ReconExecutorMixin:
             action = action.strip()
             if action and not action.startswith(("#", "javascript:")):
                 absolute = _normalize_exploration_url(_join_relative_url(features["url"], action))
-                if self._should_ignore_exploration_candidate(absolute, base_url=features["url"]):
+                if ctx.should_ignore_exploration_candidate(absolute, base_url=features["url"]):
                     continue
                 if absolute not in raw_links:
                     raw_links.append(absolute)
-        for discovered in self._extract_embedded_links(merged_source, str(features.get("url") or target)):
+        for discovered in ctx.extract_embedded_links(merged_source, str(features.get("url") or target)):
             if discovered not in raw_links:
                 raw_links.append(discovered)
         features["raw_links"] = raw_links
         if features["recon_errors"]:
-            self._emit(
+            ctx.emit(
                 "[CTF dispatcher] recon warnings: "
                 + " | ".join(features["recon_errors"][:4])
             )
         content_lower = f"{features.get('html', '')}\n{features.get('content', '')}".lower()
         backup_clue = bool(_BACKUP_CLUE_RE.search(content_lower))
         visit_admin_clue = "/visit" in features["endpoints"] and "/admin" in features["endpoints"]
-        if self.state is not None:
-            self.state.add_observation(
+        if ctx.state is not None:
+            ctx.state.add_observation(
                 "recon_url",
                 str(features.get("url") or target),
                 source="phase_recon",
@@ -334,19 +389,19 @@ class ReconExecutorMixin:
                     "visit_admin_clue": visit_admin_clue,
                 },
             )
-            self._fingerprint_framework(features)
-            self._populate_exploration_agenda_from_recon(target, features)
-            self.reasoning_layer.record_interpretation(
-                self.state,
+            ctx.fingerprint_framework(features)
+            self.populate_exploration_agenda_from_recon(target, features, ctx)
+            ctx.reasoning_layer.record_interpretation(
+                ctx.state,
                 observation_ids=["obs:recon_url"],
                 content=(
-                    f"侦察阶段确认页面更接近 {self.state.detected_type or 'web'} 题面，"
+                    f"侦察阶段确认页面更接近 {ctx.state.detected_type or 'web'} 题面，"
                     f"forms={len(features.get('forms') or [])} endpoints={len(features.get('endpoints') or [])}"
                 ),
                 hypothesis_ids=[],
                 confidence=0.55,
             )
-        await self._store_note(
+        await ctx.store_note(
             key="ctf_runtime_fingerprint",
             value=(
                 f"url={features['url']}\n"
@@ -362,10 +417,11 @@ class ReconExecutorMixin:
         )
         return features
 
-    def _candidate_auth_page_urls(
+    def candidate_auth_page_urls(
         self,
         target: str,
         features: dict[str, Any],
+        ctx: ReconExecContext,
     ) -> list[str]:
         """Auth-page URLs to probe when the landing page has no auth form.
 
@@ -396,8 +452,8 @@ class ReconExecutorMixin:
                 urls.append(key)
 
         pool = list(features.get("raw_links") or [])
-        if self.state is not None:
-            pool += [item.url_or_path for item in self.state.exploration_agenda]
+        if ctx.state is not None:
+            pool += [item.url_or_path for item in ctx.state.exploration_agenda]
         for candidate in pool:
             path = urlparse(str(candidate)).path.lower()
             if any(token in path for token in ("login", "register", "signin", "signup")):
@@ -407,10 +463,11 @@ class ReconExecutorMixin:
             add(_join_relative_url(base, route))
         return urls[:4]
 
-    async def _harvest_auth_forms_from_routes(
+    async def harvest_auth_forms_from_routes(
         self,
         target: str,
         features: dict[str, Any],
+        ctx: ReconExecContext,
     ) -> list[dict[str, Any]]:
         """GET candidate auth pages and return any forms found on them.
 
@@ -418,12 +475,12 @@ class ReconExecutorMixin:
         the downstream submit logic targets /login and /register correctly even
         though recon was anchored at the homepage.
         """
-        if self.runtime is None or not hasattr(self.runtime, "proxy_action"):
+        if ctx.runtime is None or not hasattr(ctx.runtime, "proxy_action"):
             return []
         harvested: list[dict[str, Any]] = []
-        for url in self._candidate_auth_page_urls(target, features):
+        for url in self.candidate_auth_page_urls(target, features, ctx):
             try:
-                resp = await self._runtime_proxy_action(
+                resp = await ctx.runtime_proxy_action(
                     "get",
                     url=url,
                     timeout=10,
@@ -441,12 +498,13 @@ class ReconExecutorMixin:
             harvested.extend(_parse_forms_from_html(body, page_url))
         return harvested
 
-    async def _attempt_post_auth_recon(
+    async def attempt_post_auth_recon(
         self,
         target: str,
         features: dict[str, Any],
+        ctx: ReconExecContext,
     ) -> dict[str, Any] | None:
-        if self.runtime is None or not hasattr(self.runtime, "proxy_action"):
+        if ctx.runtime is None or not hasattr(ctx.runtime, "proxy_action"):
             return None
         forms = list(features.get("forms") or [])
         auth_form = find_auth_form(forms)
@@ -456,7 +514,7 @@ class ReconExecutorMixin:
             # Harvest forms from the conventional auth routes so the
             # register→login→re-recon flow still fires instead of stalling the
             # moment the homepage yields no form.
-            harvested = await self._harvest_auth_forms_from_routes(target, features)
+            harvested = await self.harvest_auth_forms_from_routes(target, features, ctx)
             if harvested:
                 forms = harvested
                 auth_form = find_auth_form(forms)
@@ -497,7 +555,7 @@ class ReconExecutorMixin:
         # 对 Django/Flask 一类表单先用 proxy GET 预热一次，拿到同 session 的 CSRF cookie，
         # 并尽量用该响应里的 hidden token 覆盖提交值，避免把 403 CSRF 页面误判成登录成功。
         try:
-            primed = await self._runtime_proxy_action(
+            primed = await ctx.runtime_proxy_action(
                 "get",
                 url=target,
                 timeout=10,
@@ -521,17 +579,17 @@ class ReconExecutorMixin:
                     if field_type == "hidden":
                         submission[name] = str(inp.get("value") or "")
 
-        register_form = self._find_registration_form(forms, login_form=auth_form)
+        register_form = self.find_registration_form(forms, login_form=auth_form)
         if register_form is not None:
-            register_submission = self._build_account_form_submission(
+            register_submission = self.build_account_form_submission(
                 register_form,
                 username=username,
                 email=email,
                 password=password,
             )
-            register_url = self._form_action_url(str(features.get("url") or target), register_form)
+            register_url = ctx.form_action_url(str(features.get("url") or target), register_form)
             try:
-                await self._runtime_proxy_action(
+                await ctx.runtime_proxy_action(
                     "request",
                     method=str(register_form.get("method") or "POST").upper(),
                     url=register_url,
@@ -543,8 +601,8 @@ class ReconExecutorMixin:
             except Exception:
                 pass
 
-        action_url = self._form_action_url(str(features.get("url") or target), auth_form)
-        response = await self._runtime_proxy_action(
+        action_url = ctx.form_action_url(str(features.get("url") or target), auth_form)
+        response = await ctx.runtime_proxy_action(
             "request",
             method="POST",
             url=action_url,
@@ -563,7 +621,7 @@ class ReconExecutorMixin:
         follow_body = post_body
         follow_url = final_url
         if final_url:
-            follow = await self._runtime_proxy_action(
+            follow = await ctx.runtime_proxy_action(
                 "get",
                 url=final_url,
                 timeout=10,
@@ -576,7 +634,7 @@ class ReconExecutorMixin:
 
         follow_forms = _parse_forms_from_html(follow_body, follow_url)
         follow_content = _strip_html_text(follow_body)
-        follow_links = self._extract_embedded_links(follow_body, follow_url)
+        follow_links = ctx.extract_embedded_links(follow_body, follow_url)
         follow_title = _extract_title_from_html(follow_body)
 
         success_markers = (
@@ -632,7 +690,7 @@ class ReconExecutorMixin:
             "username": username,
         }
 
-    def _find_registration_form(
+    def find_registration_form(
         self,
         forms: list[dict[str, Any]],
         *,
@@ -666,7 +724,7 @@ class ReconExecutorMixin:
                 return form
         return None
 
-    def _build_account_form_submission(
+    def build_account_form_submission(
         self,
         form: dict[str, Any],
         *,
@@ -695,12 +753,13 @@ class ReconExecutorMixin:
             submission[name] = value
         return submission
 
-    def _populate_exploration_agenda_from_recon(
+    def populate_exploration_agenda_from_recon(
         self,
         target: str,
         features: dict[str, Any],
+        ctx: ReconExecContext,
     ) -> None:
-        if self.state is None:
+        if ctx.state is None:
             return
 
         current_url = str(features.get("url") or target or "").strip()
@@ -716,18 +775,18 @@ class ReconExecutorMixin:
             text = str(candidate or "").strip()
             if not text:
                 continue
-            if self._should_ignore_exploration_candidate(text, base_url=current_url):
+            if ctx.should_ignore_exploration_candidate(text, base_url=current_url):
                 continue
             discovery_source = "recon_url" if text == current_url else "link_href"
-            self.state.add_exploration_item(
+            ctx.state.add_exploration_item(
                 text,
                 discovery_source=discovery_source,
-                hint_strength=self._classify_exploration_hint_strength(text, discovery_source),
+                hint_strength=ctx.classify_exploration_hint_strength(text, discovery_source),
             )
 
-        self._seed_framework_conventional_routes(current_url or target)
+        self.seed_framework_conventional_routes(current_url or target, ctx)
 
-    def _seed_framework_conventional_routes(self, base_url: str) -> None:
+    def seed_framework_conventional_routes(self, base_url: str, ctx: ReconExecContext) -> None:
         """Seed conventional entry routes for any fingerprinted framework.
 
         Recon's link scrape depends on a usable response body, but CTF instances
@@ -738,7 +797,7 @@ class ReconExecutorMixin:
         points instead of degrading to blind backup/dotfile guessing when the
         landing page yields no scrapable links.
         """
-        if self.state is None:
+        if ctx.state is None:
             return
         base = str(base_url or "").strip()
         if not base:
@@ -754,34 +813,36 @@ class ReconExecutorMixin:
         clean_base = parsed._replace(netloc=netloc).geturl()
         frameworks = {
             str(getattr(o, "value", "")).lower()
-            for o in self.state.observations
+            for o in ctx.state.observations
             if str(getattr(o, "kind", "")) == "framework_detected"
         }
         for framework in frameworks:
-            for route in self._FRAMEWORK_CONVENTIONAL_ROUTES.get(framework, ()):
+            for route in ctx.framework_conventional_routes.get(framework, ()):
                 absolute = _normalize_exploration_url(_join_relative_url(clean_base, route))
-                if self._should_ignore_exploration_candidate(absolute, base_url=clean_base):
+                if ctx.should_ignore_exploration_candidate(absolute, base_url=clean_base):
                     continue
-                self.state.add_exploration_item(
+                ctx.state.add_exploration_item(
                     absolute,
                     discovery_source="framework_convention",
                     hint_strength=2,
                 )
 
-    async def _explore_agenda_items(self, target: str, items: list[Any]) -> bool:
-        if self.state is None:
+    async def explore_agenda_items(
+        self, target: str, items: list[Any], ctx: ReconExecContext
+    ) -> bool:
+        if ctx.state is None:
             return False
 
         progress = False
         for item in items:
             absolute = urljoin(target, item.url_or_path)
-            if self.runtime is None or not hasattr(self.runtime, "proxy_action"):
+            if ctx.runtime is None or not hasattr(ctx.runtime, "proxy_action"):
                 item.explored = True
                 item.exploration_result = "proxy runtime unavailable"
                 continue
 
             try:
-                response = await self.runtime.proxy_action("get", url=absolute, timeout=10)
+                response = await ctx.runtime.proxy_action("get", url=absolute, timeout=10)
             except Exception as exc:
                 response = {"error": str(exc)}
 
@@ -790,7 +851,7 @@ class ReconExecutorMixin:
                 status_code = response.get("status_code")
                 item.explored = True
                 item.exploration_result = f"status={status_code} body_len={len(body)}"
-                self.state.add_observation(
+                ctx.state.add_observation(
                     "agenda_exploration",
                     absolute,
                     source="exploration_agenda",
@@ -801,7 +862,7 @@ class ReconExecutorMixin:
                     },
                 )
                 if body:
-                    await self._scan_and_store(
+                    await ctx.scan_and_store(
                         body,
                         absolute,
                         evidence_source="response_body",
@@ -815,3 +876,106 @@ class ReconExecutorMixin:
 
         return progress
 
+
+class ReconExecutorMixin:
+    """Recon phase orchestration and exploration.
+
+    Thin delegation shells over the stateless :class:`ReconExecutor` held by the
+    dispatcher as ``self._recon_executor``. Shells preserve the original
+    names/signatures (and ``__module__`` anchoring) and build a fresh
+    :class:`ReconExecContext` per call from the live dispatcher state/handles, the
+    ``_FRAMEWORK_CONVENTIONAL_ROUTES`` table and the twelve injected sibling
+    dispatcher methods, so replay/fork state swaps are never captured by a stale
+    reference. ``_phase_recon`` and ``_explore_agenda_items`` keep their original
+    names/signatures so the ``CoordinatorDispatcherServices`` Protocol stays
+    satisfied and coordinator/tui call sites are unchanged.
+    """
+
+    def _recon_exec_context(self) -> ReconExecContext:
+        return ReconExecContext(
+            state=self.state,
+            runtime=self.runtime,
+            reasoning_layer=self.reasoning_layer,
+            framework_conventional_routes=self._FRAMEWORK_CONVENTIONAL_ROUTES,
+            runtime_browser_action=self._runtime_browser_action,
+            is_legacy_browser_runtime_probe=self._is_legacy_browser_runtime_probe,
+            proxy_get_with_retry=self._proxy_get_with_retry,
+            runtime_proxy_action=self._runtime_proxy_action,
+            scan_and_store=self._scan_and_store,
+            store_note=self._store_note,
+            should_ignore_exploration_candidate=self._should_ignore_exploration_candidate,
+            extract_embedded_links=self._extract_embedded_links,
+            emit=self._emit,
+            fingerprint_framework=self._fingerprint_framework,
+            classify_exploration_hint_strength=self._classify_exploration_hint_strength,
+            form_action_url=self._form_action_url,
+        )
+
+    async def _phase_recon(self, target: str) -> dict[str, Any]:
+        return await self._recon_executor.phase_recon(target, self._recon_exec_context())
+
+    def _candidate_auth_page_urls(
+        self,
+        target: str,
+        features: dict[str, Any],
+    ) -> list[str]:
+        return self._recon_executor.candidate_auth_page_urls(
+            target, features, self._recon_exec_context()
+        )
+
+    async def _harvest_auth_forms_from_routes(
+        self,
+        target: str,
+        features: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        return await self._recon_executor.harvest_auth_forms_from_routes(
+            target, features, self._recon_exec_context()
+        )
+
+    async def _attempt_post_auth_recon(
+        self,
+        target: str,
+        features: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        return await self._recon_executor.attempt_post_auth_recon(
+            target, features, self._recon_exec_context()
+        )
+
+    def _find_registration_form(
+        self,
+        forms: list[dict[str, Any]],
+        *,
+        login_form: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        return self._recon_executor.find_registration_form(forms, login_form=login_form)
+
+    def _build_account_form_submission(
+        self,
+        form: dict[str, Any],
+        *,
+        username: str,
+        email: str,
+        password: str,
+    ) -> dict[str, str]:
+        return self._recon_executor.build_account_form_submission(
+            form, username=username, email=email, password=password
+        )
+
+    def _populate_exploration_agenda_from_recon(
+        self,
+        target: str,
+        features: dict[str, Any],
+    ) -> None:
+        self._recon_executor.populate_exploration_agenda_from_recon(
+            target, features, self._recon_exec_context()
+        )
+
+    def _seed_framework_conventional_routes(self, base_url: str) -> None:
+        self._recon_executor.seed_framework_conventional_routes(
+            base_url, self._recon_exec_context()
+        )
+
+    async def _explore_agenda_items(self, target: str, items: list[Any]) -> bool:
+        return await self._recon_executor.explore_agenda_items(
+            target, items, self._recon_exec_context()
+        )
