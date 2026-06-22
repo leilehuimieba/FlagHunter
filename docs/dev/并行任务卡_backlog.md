@@ -472,6 +472,21 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 
 ---
 
+## 卡 L4b — 承载收尾主线封线(jwt pilot 判决·主控坐实·零代码改动) 🏁(用户拍板封线)
+
+> **状态:主线封线于 L4a,L4b 为只读判决 + 收口,无代码改动。** L4a 接通 ctx seam 后,拟开"逐个承载 executor"线;用户先要求"尽量拆多卡开并行 agent 提速"。主控两轮只读测绘(carry-recipe + 8-executor 边普查)+ jwt pilot 专项测绘,**逐层证伪了"per-executor 并行"前提**,最终用户拍板封线。
+>
+> **🔍 测绘判决(主控亲核坐实,精确 file:line)**:
+> - **承载=纯符号**:全目录**零处**经 `ctx._<exec>` 读 executor;8 个 executor 的读点全是 dispatcher mixin 内 `self._<exec>`(`self`=dispatcher 非 ctx)。加白名单(`coordinator.py:533`)+ 构造镜像(`__init__`)只是让 ctx 持同一引用 → 行为字节级零变、零解耦。
+> - **链层全程 ctx-blind**:`_run_solve_loop` 持 ctx,但只喂 7 个 contract,跑链跳 `_execute_chain`(`ctf_dispatcher.py:489` 调用 / `:1142` 签名 `chain_name/target/page_features/hint`)**把 ctx 丢掉**;`chains/jwt.py:13` `_execute_jwt_chain(self,target,page_features)` 与 `jwt_contact_chain.py:34` `_run_jwt_manipulation_strategy(self,target,page_features)` 均**无 ctx 形参**。dispatcher 也**无 `_active_ctx` 持有字段**(grep 仅命中无关 `pa_agent.py:508`)。
+> - **jwt pilot 结局 =(生命周期错位)∧(循环空转)**:6 个 jwt 壳调用站(`jwt_contact_chain.py:41/58/59/60/65/75`)全在 ctx-blind 路径 → 经 carrier 读 = no-op(无 carrier 可读);且全代码仅一处 `JWTExecutor()`(`ctf_dispatcher.py:306`),carrier 镜像/代理恒指同一引用 → `ctx._jwt_executor is dispatcher._jwt_executor` 恒真。**此结论对 8 个 executor 全适用**(壳全从同款 ctx-blind 链路/自调边被调)。
+>
+> **真 façade 的真实成本(为何封线)**:依赖链 ① seam 延伸穿过 `_execute_chain` 进链层(中风险·additive)→ ② executor ownership 从 dispatcher 迁到 ctx(高风险·真倒置·壳须改读 ctx)→ ③ 各壳读点经 ctx 读(才可并行,但①②未就位前是空转)。**三步全零行为变更,却要穿最热链分发路径 + 做所有权倒置**。边际递减明确。
+>
+> **裁决(用户拍板)**:**承载收尾主线封线于 L4a**。ctx seam(L4a)是干净停点,已接通 contract 层可达性;再往下全是零行为收益 / 高风险。seam 留作未来"真需要 run-scoped carrier"时的基建,架构精力转向别处。**无 per-executor 并行单元可开**——这是本次"开多并行 agent 提速"诉求的诚实结论:并行无处落地,因为读迁移单元在 ① 未做前不存在。
+
+---
+
 ## 卡 M — benchmark_runner 合并跑死锁取证 ✅(已复核·main 上非现存缺陷·关单·解除 eval 互斥锁)
 
 > **状态:阶段 0 取证完成,关单。** 卡 L1 完工报告里浮出"`benchmark_runner` 合并跑死锁"的怀疑,经只读复现 + 结构性排除,**当前 main 上死锁复现不出**——五种"合并跑"解释全部跑绿,卡面假设的两个共享资源根因被结构性排除。**降级为"已复核·非现存缺陷",解除它对 eval 卡的互斥锁。**
