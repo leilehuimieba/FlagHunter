@@ -438,7 +438,9 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 
 ---
 
-## 卡 L3i ⏳(派发中)— LLM executor 对象化(切法 A·L3 执行体对象化第八刀·中风险大刀)
+## 卡 L3i ✅(d7f97ac)— LLM executor 对象化(切法 A·L3 执行体对象化第八刀·中风险大刀)
+
+> **完工(2026-06-22,refactor `d7f97ac`)**:`LLMExecutorMixin` 15 方法抽成 stateless `LLMExecutor`(`vars()=={}`),退 15 个委派壳保签名+保 hasattr;`self.llm`/`self.state`/runtime/collector_port/capability_registry 全经 per-call 短命 `LLMExecContext`(每调现造,绝不入实例)传、6 个兄弟方法作回调注入;2 个 `@staticmethod` 随迁。`strategy_registry` 的 `hasattr(dispatcher,'_run_llm_driven_exploration')` 运行时仍 True;MRO/coordinator/strategy_registry/ssti_executor 零改。门禁:`tests/unit/agents` **542 passed**(基线 538 + 4 新 detached,零回归)+ **replay 整文件 6 passed**(5 fixture 重放 LLM-driven exploration 全 reproduced=入口行为零变核心兜底)+ detached 5——主控独立坐实(亲跑 replay 6 + 全量 542 + `git show --stat` 3 文件无越界)。执行 agent 回报规范。
 
 > **文档锚点**:ADR §5.2 L3h(切法 A 范本 `7c92ff4`)。**主控测绘坐实**:`llm_executor.py:32 LLMExecutorMixin` 769 行 15 方法(本系列最大一刀),适配度 4/5。**切法 A**:抽 stateless `LLMExecutor`(`vars()=={}`),15 方法逐字搬;`self.llm`+`self.state`+runtime/collector_port/capability_registry **per-call 传**(绝不入实例,replay/fork 换 state/llm 持旧引用=非零行为)、6 个兄弟方法(`_scan_and_store`/`_extract_flag`/`_observe_flag`/`_recent_observed_source_fetch_write_exploit`/`_runtime_proxy_action`/`_runtime_execute_command`)注入;有外部调用者的方法退委派壳保签名。**关键**:`strategy_registry.py:513/542/575` 有 `hasattr(dispatcher, '_run...')` 守卫——委派壳必须留确保 hasattr 仍 True、调用站零改。**真坑**:llm 句柄/state 绝不入实例。**coordinator/Protocol 零依赖,strategy_registry/ssti_executor 调用站零改**。**文件锁**:`llm_executor.py` + `ctf_dispatcher.py`(import+__init__)+ llm 测试(含 detached 单测)。不碰 coordinator/strategy_registry/ssti_executor。**门禁(中风险)**:`tests/unit/agents` 全量零回归(基线 538)+ **replay 整文件 6 passed**(5 fixture 重放 LLM-driven exploration 路径=核心兜底)+ detached 单测 `vars()=={}` + llm 入口/hasattr 守卫用例绿。**后续**:L3j(Recon·中·兄弟耦合最宽+触 Protocol,留最后);碰 `ctf_dispatcher.py` 须与 L3i 串行。
 
