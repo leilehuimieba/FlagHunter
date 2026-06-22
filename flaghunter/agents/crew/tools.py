@@ -17,7 +17,6 @@ def create_crew_tools(pool: "WorkerPool", llm: "LLM") -> List[Tool]:
     async def spawn_agent_fn(arguments: dict, runtime: "Runtime") -> str:
         """Spawn a new agent to work on a task."""
         task = arguments.get("task", "")
-        priority = arguments.get("priority", 1)
         depends_on = arguments.get("depends_on", [])
         worker_type = arguments.get("worker_type", "default")
 
@@ -29,7 +28,7 @@ def create_crew_tools(pool: "WorkerPool", llm: "LLM") -> List[Tool]:
             if worker_type in {"default", "web", "recon", "exploit", "crypto"}
             else "default"
         )
-        agent_id = await pool.spawn(task, priority, depends_on, normalized_worker_type)
+        agent_id = await pool.spawn(task, depends_on, normalized_worker_type)
         return f"Spawned {agent_id} [{normalized_worker_type}]: {task}"
 
     async def wait_for_agents_fn(arguments: dict, runtime: "Runtime") -> str:
@@ -183,10 +182,6 @@ Provide a unified summary of what was accomplished and key findings."""
                     "task": {
                         "type": "string",
                         "description": "Clear, action-oriented task description. Be specific about what to scan/test and the target.",
-                    },
-                    "priority": {
-                        "type": "integer",
-                        "description": "Execution priority (higher = runs sooner). Default 1.",
                     },
                     "depends_on": {
                         "type": "array",

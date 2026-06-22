@@ -99,7 +99,6 @@ class WorkerPool:
     async def spawn(
         self,
         task: str,
-        priority: int = 1,
         depends_on: Optional[List[str]] = None,
         worker_type: str = "default",
     ) -> str:
@@ -108,7 +107,6 @@ class WorkerPool:
 
         Args:
             task: The task description for the agent
-            priority: Higher priority runs first (for future use)
             depends_on: List of agent IDs that must complete first
 
         Returns:
@@ -126,7 +124,6 @@ class WorkerPool:
                 id=worker_id,
                 task=task,
                 worker_type=normalized_worker_type,
-                priority=priority,
                 depends_on=depends_on or [],
             )
             self._workers[worker_id] = worker

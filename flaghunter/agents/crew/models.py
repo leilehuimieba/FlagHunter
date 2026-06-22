@@ -34,7 +34,6 @@ class AgentWorker:
     task: str
     worker_type: str = "default"
     status: AgentStatus = AgentStatus.PENDING
-    priority: int = 1
     depends_on: List[str] = field(default_factory=list)
     result: Optional[str] = None
     error: Optional[str] = None
@@ -49,7 +48,6 @@ class AgentWorker:
             "task": self.task,
             "worker_type": self.worker_type,
             "status": self.status.value,
-            "priority": self.priority,
             "depends_on": self.depends_on,
             "result": self.result,
             "error": self.error,

@@ -152,8 +152,8 @@ async def test_spawn_agent_tool_exposes_worker_type_and_normalizes_unknown():
         def __init__(self):
             self.calls = []
 
-        async def spawn(self, task, priority=1, depends_on=None, worker_type="default"):
-            self.calls.append((task, priority, depends_on, worker_type))
+        async def spawn(self, task, depends_on=None, worker_type="default"):
+            self.calls.append((task, depends_on, worker_type))
             return "agent-3"
 
     pool = _Pool()
@@ -163,7 +163,6 @@ async def test_spawn_agent_tool_exposes_worker_type_and_normalizes_unknown():
     result = await spawn_tool.execute(
         {
             "task": "enumerate web app",
-            "priority": 2,
             "depends_on": ["agent-0"],
             "worker_type": "weird",
         },
@@ -171,10 +170,11 @@ async def test_spawn_agent_tool_exposes_worker_type_and_normalizes_unknown():
     )
 
     assert pool.calls == [
-        ("enumerate web app", 2, ["agent-0"], "default")
+        ("enumerate web app", ["agent-0"], "default")
     ]
     assert result == "Spawned agent-3 [default]: enumerate web app"
     assert "worker_type" in spawn_tool.schema.properties
+    assert "priority" not in spawn_tool.schema.properties
     assert spawn_tool.schema.properties["worker_type"]["enum"] == [
         "default",
         "web",
