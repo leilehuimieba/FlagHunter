@@ -366,6 +366,17 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 
 ---
 
+## 卡 L3b — ProgressTracker 对象化(L3「真断透传」线·执行体对象化第一刀·切法 A·不动 MRO) ✅(35d7649)
+
+> **裁决换序**:原 L3 路线 L3b=承载 state、L3c=executor 对象化。测绘暴露 **state 是最难安全承载的字段**——唯一运行期 rebind 在 `ctf_dispatcher.py:1680`(`_restore_context` resume 路径,`CTFState.from_snapshot()` 返新身份),eager 引用承载(切法 B)会在 resume 后与 dispatcher 新 state **分叉失同步**,且 dispatcher 不持 ctx 引用、回写要走反向通道。故 **state 延后**,先在最闭合·零扇出的 **ProgressTracker** 上验证对象化范式。
+> **切法 A(裁定落点)**:`progress_tracker.py` 抽出独立 `ProgressTracker` 类(方法显式收 `state` 参,**绝不 eager 持 state 引用**——规避 rebind 坑);`ProgressTrackerMixin` 两方法(`_snapshot_flag_counts`/`_derive_progress_delta`)退化为 thin 委派壳(`__module__` 锚定测试仍成立);`CTFTaskDispatcher.__init__` 持 `self._progress = ProgressTracker()`。**两个调用站不动**(`ctf_dispatcher.py:448` / `coordinator.py:1467` 经委派壳行为等价),**不动 MRO**(`:260` 保留)。
+> **不选 B/C 的理由**:B 摘 MRO + 注入 ctx 承载,但 `dispatcher.py:448` 无 ctx 句柄 → 要么退化成 A,要么透传 ctx 进 solve-loop 造新扇出,违"最闭合"初衷;承载/路径切 ctx 留独立后续卡。
+> **不变量**:5-key dict 等价;terminal/strong/rejected/weak/none 分级逐条等价,尤其 `:66 chain_outcome.progress` 短路返回 `"none"`(非 `"rejected"`)这条 bug-fix。
+> **门禁**:`tests/unit/agents` 全量零回归 + 新单测(独立 new `ProgressTracker` 脱离 dispatcher 跑 None 守卫/计数递增/短路三类)。纯计数·零 I/O,**不跑 live replay**。边界:仅 `progress_tracker.py` + `ctf_dispatcher.py` + 测试文件;不碰 docs/challenges。
+> **✅ 完工(35d7649·独立坐实通过)**:`ProgressTracker` 新类无 `__init__`(零 eager 持 state,规避 rebind 坑),`snapshot_flag_counts(self, state)`/`derive_progress_delta(self, state, before_state, chain_outcome=None)` 显式收 state、无继承、无 dispatcher-only 依赖;mixin 两方法退化为 `return self._progress.<m>(self.state, …)` 委派壳(`__module__` 锚定测试仍过);`ctf_dispatcher.py:73` import、`:301` `self._progress = ProgressTracker()`;**MRO `:260` 未删、调用站 449/1467 未改、coordinator.py 不在 diff**。`:76-78` `chain_outcome.progress` 短路 → `"none"` 逐字保留。门禁:`tests/unit/agents` **425 passed/5 skipped**(零回归)、新测文件 **6 passed**(锚定×1 + None 守卫/计数/分级/短路 true→none/false→rejected 共 5)。3 文件 +140/−24。**后续**:摘 MRO + ctx `_progress` 承载 + 把 1467 路径切 ctx → 独立后续卡(L3c 方向);硬骨头 `state` 承载仍延后(rebind 坑)。
+
+---
+
 ## 卡 M — benchmark_runner 合并跑死锁取证 ✅(已复核·main 上非现存缺陷·关单·解除 eval 互斥锁)
 
 > **状态:阶段 0 取证完成,关单。** 卡 L1 完工报告里浮出"`benchmark_runner` 合并跑死锁"的怀疑,经只读复现 + 结构性排除,**当前 main 上死锁复现不出**——五种"合并跑"解释全部跑绿,卡面假设的两个共享资源根因被结构性排除。**降级为"已复核·非现存缺陷",解除它对 eval 卡的互斥锁。**
