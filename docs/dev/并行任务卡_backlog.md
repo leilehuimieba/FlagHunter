@@ -407,10 +407,20 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 
 ---
 
-## 卡 L3f(预登记·待派)— replay 三处落盘隔离补洞 + AuditInfra store 三簇对象化
+## 卡 L3f-1 — 补 replay 三处落盘隔离洞(infra/bug-fix·生产零行为) ✅(615890c)
 
-> **既有缺陷(L3e 测绘挖出,对象化之前就存在)**:`eval/replay.py:151-152` 仅用 `set_notes_file` 隔离 notes;`run_replay` 调 `dispatcher.run(...)` **未传 `ledger_root`/`checkpoint_root`**,且 `run()` 签名**根本没有 `registry_root` 入参**(coordinator `:709` 硬编码 `registry_root=None`)→ **replay 当前把 session_ledger/artifact_registry/checkpoint 写进真实 `loot/`**。
-> **L3f 应做**:① 先补隔离洞——`run()`/coordinator 增开 `registry_root` 透传,`run_replay` 的 `TemporaryDirectory` 块把三处 root 全指向 tmp(ledger/checkpoint 经 `run()` kwargs、registry 补参),finally 复原,与 `set_notes_file` 一致;② 隔离就绪后再做 AuditInfra 的 store 三簇(S/RA/CP)+ SH 簇切法 A 对象化,带三处产物对拍(改动前后 diff 为空)。**牵动 coordinator/run() 签名 = 中风险,需主控先派测绘+裁决再派**,且与 eval 卡/store 簇卡互斥。
+> **既有缺陷(L3e 测绘挖出,对象化之前就存在)**:`eval/replay.py` 仅 `set_notes_file` 隔离 notes;三个 store 在 `audit_infra.py` `_setup_*` 硬编码 `Path("loot")/...` 默认根、setup 时即 mkdir;`run()`/`coordinator.execute()`/`_bootstrap_dispatcher` 透传链**已有 `ledger_root`/`checkpoint_root` 但缺 `registry_root`**(coordinator `:709` 硬编码 None),`run_replay` 也没传任何 root → **replay 把 session_ledger/artifact_registry/checkpoint 写进真实 `loot/`**。
+> **测绘裁决(拆卡·甲先)**:最小改法 = `run()`/`execute()`/`_bootstrap_dispatcher` 各加 `registry_root`(kwonly·默认 `None`)+ `:709` 改透传 + `run_replay` 在 `TemporaryDirectory` 块给三个 root 指向 tmp 子目录。**不需 finally 复原**(store root 是 per-call 入参非全局 module state,run 完即弃,tmp 退出即清)。生产路径不传 → 默认 None 字节不变。Protocol 的 `_setup_*` 签名已含 registry_root,无需改 Protocol。
+> **门禁**:`test_replay_harness.py` 5 passed + 新断言(replay 前后真实 `loot/{session_ledgers,artifact_registry,checkpoints}` 无新增文件)+ `tests/unit/agents` 全量零回归(改了 run()/coordinator 签名须全量确认生产零回归)。边界:`ctf_dispatcher.py`(run 签名)+ `coordinator.py`(execute+_bootstrap)+ `eval/replay.py` + 测试。**触碰 coordinator 签名但纯增量 None-默认 = 低风险**。⚠ 撞 529 则改动留工作树,主控核后经用户 `!` 落地。
+> **✅ 完工(615890c)**:`run()`/`execute()`/`_bootstrap_dispatcher` 各加 `registry_root`(kwonly·默认 None)+ `:709` 改透传;`run_replay` 在 `TemporaryDirectory` 块给三个 root 指向 tmp 子目录(复用已 import 的 `Path`,未动 finally);三个 `_setup_*` body 未动。生产路径不传→`xxx_root or 默认`原逻辑,字节不变。新测 `test_replay_does_not_touch_real_loot_stores`(replay 前后真实 loot 三目录快照断言无新增)。**连带改动**:`test_ctf_coordinator.py` 的 `_FakeCoordinator.execute` 替身镜像新签名(否则新 kwarg 触发 TypeError fallback 误抛=改前那条 `test_dispatcher_run_delegates_to_coordinator_execute` 失败根因)。门禁:`test_replay_harness.py` **6 passed**(5 fixture reproduced + 新隔离守护)+ `tests/unit/agents` **523 passed**——**主控亲跑 replay 6 passed 独立坐实**。5 文件 +63/−4。**为 L3f-2(乙)的产物对拍开闸**。
+
+---
+
+## 卡 L3f-2(待派·甲合后)— AuditInfra store 簇对象化(切法 A·一次抽全 4 簇·独占 pa_agent·中风险)
+
+> **依赖**:必须等 L3f-1(甲)合入,才能用"replay 写 tmp + 抽前抽后产物逐字节对拍"做硬 DoD。与 L3f-1 都碰 `ctf_dispatcher.py`,**串行**。
+> **测绘裁决**:RT 簇(L3e)已抽走,剩约 10 方法(session ledger / artifact registry / checkpoint / source hint / `_record_recovery_decision`)**一次抽全到单个 stateless `AuditStore`**(分簇会制造 `_record_session_event` sink 跨 class 注入、不划算)。切法 A 4 簇全适用:三个 store 对象 + 三个 run_id + `_registered_local_source_hints_loaded` flag **留 dispatcher**(coordinator 直读 `_ledger_run_id`/Protocol 声明它 + flag;`_restore_context:1644/1661/1663` 直读 `_checkpoint_store`);`_setup_*` 委派壳**返回 `(run_id, store)` 写回 `self._xxx`**(保 setup 接力 + coordinator 回读语义);写事件簇 per-call 传 store 引用+run_id+state+`record_session_event` bound method;`_ingest` 的 loaded-flag 守卫留壳里。`_restore_context` 零改(store 留 dispatcher 传引用的关键收益)。
+> **门禁(独占 pa_agent)**:`tests/unit/agents` 全量零回归(含 `test_ctf_audit_infra`/`test_ctf_dispatcher_artifact_registry`/`test_ctf_dispatcher_checkpoint_store`/`test_ctf_coordinator`)+ **replay 产物对拍**(依赖甲:抽前抽后 tmp 内 session_ledger/artifact_registry/checkpoint 逐字节相同)。理论上**不需改 coordinator**(委派壳保名保签,coordinator 只调 `_setup_*` 名 + 读 `_ledger_run_id`)。边界:`audit_infra.py` + `ctf_dispatcher.py`(+ 必要时测试)。**需主控先确认甲已合再派**。
 > **✅ 完工(2de4d1f)**:`NoteStore` stateless 独立类(6 方法逐字搬入,`_derive_*`→`derive_*`),state/runtime/4 兄弟方法/reasoning_layer 全 per-call 传值;**`_notes_log` 留 dispatcher、委派壳 per-call 传 list 引用、NoteStore 仅 `.append` 从不自持**(新测专门断言 NoteStore 实例无 `_notes_log` 属性 + 传入独立 list 被原地追加),故 `:574 result.notes=list(self._notes_log)` 仍读同一 list 字节级等价。`NoteStoreMixin` 6 方法保原名原签名退委派壳(`__module__` 锚定 note_store);`ctf_dispatcher.__init__` 持 `self._note_store=NoteStore()`;MRO/调用站/coordinator Protocol 桩零改。3 文件 +372/−34。门禁:`tests/unit/agents` **519 passed**(零回归)+ `test_replay_harness.py` **5 passed**(落盘零差)——**主控亲跑门禁独立印证**(519 passed + replay 5 passed,与 agent 报告一致)。⚠ 过程:执行 agent 给非结论 rest("等 monitor")疑似假死,主控先核 git 真相(同 [[feedback-handoff-scripts-when-blocked]] 教训)——实为 agent 在等自起的长 pytest,随后真完成并提交 2de4d1f,无重复派单。**后续**:AuditInfra(底座·166 反向调用·三磁盘 store rebind,留最后/单独立项)→ recon/llm/jwt(难)。
 
 ---
