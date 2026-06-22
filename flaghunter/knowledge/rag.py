@@ -100,7 +100,7 @@ class RAGEngine:
                             e,
                         )
                         try:
-                            from ..interface.notifier import notify
+                            from flaghunter.session.notifier import notify
 
                             notify(
                                 "warning",
@@ -197,7 +197,7 @@ class RAGEngine:
                         "Failed to save RAG index to %s: %s", idx_path, e
                     )
                     try:
-                        from ..interface.notifier import notify
+                        from flaghunter.session.notifier import notify
 
                         notify(
                             "warning", f"Failed to save RAG index to {idx_path}: {e}"
@@ -211,7 +211,7 @@ class RAGEngine:
                 "Error while attempting to persist RAG index: %s", e
             )
             try:
-                from ..interface.notifier import notify
+                from flaghunter.session.notifier import notify
 
                 notify("warning", f"Error while attempting to persist RAG index: {e}")
             except Exception as ne:

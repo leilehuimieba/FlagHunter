@@ -236,7 +236,7 @@ class FlagHunterAgent(BaseAgent):
                 "Failed to gather notes for agent prompt: %s", e
             )
             try:
-                from ...interface.notifier import notify
+                from flaghunter.session.notifier import notify
 
                 notify("warning", f"Agent: failed to gather notes: {e}")
             except Exception:
@@ -922,7 +922,7 @@ class FlagHunterAgent(BaseAgent):
 
         try:
             from ...knowledge.ctf_hint_searcher import search_ctf_hints
-            from ...interface.notifier import notify
+            from flaghunter.session.notifier import notify
 
             hints = await search_ctf_hints(
                 chtype=_chtype,
@@ -946,7 +946,7 @@ class FlagHunterAgent(BaseAgent):
             from ...knowledge.ctf_hint_searcher import (
                 search_ctf_writeup_last_resort,
             )
-            from ...interface.notifier import notify
+            from flaghunter.session.notifier import notify
 
             wp_summary = await search_ctf_writeup_last_resort(
                 _chtype,

@@ -118,7 +118,7 @@ class CrewOrchestrator:
                 "Failed to gather notes for orchestrator prompt: %s", e
             )
             try:
-                from ...interface.notifier import notify
+                from flaghunter.session.notifier import notify
 
                 notify("warning", f"Orchestrator: failed to gather notes: {e}")
             except Exception as ne:
@@ -286,7 +286,7 @@ class CrewOrchestrator:
                                     "Worker tool execution failed (%s): %s", tc_name, e
                                 )
                                 try:
-                                    from ...interface.notifier import notify
+                                    from flaghunter.session.notifier import notify
 
                                     notify(
                                         "warning",
@@ -359,7 +359,7 @@ class CrewOrchestrator:
                                     "Auto-finish failed: %s", e
                                 )
                                 try:
-                                    from ...interface.notifier import notify
+                                    from flaghunter.session.notifier import notify
 
                                     notify("warning", f"Auto-finish failed: {e}")
                                 except Exception as ne:
@@ -388,7 +388,7 @@ class CrewOrchestrator:
 
             logging.getLogger(__name__).exception("Orchestrator run failed: %s", e)
             try:
-                from ...interface.notifier import notify
+                from flaghunter.session.notifier import notify
 
                 notify("error", f"CrewOrchestrator run failed: {e}")
             except Exception as ne:

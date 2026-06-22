@@ -131,7 +131,7 @@ class DockerRuntime(Runtime):
                     "Failed stopping/removing container: %s", e
                 )
                 try:
-                    from ..interface.notifier import notify
+                    from flaghunter.session.notifier import notify
 
                     notify(
                         "warning",
@@ -412,7 +412,7 @@ class DockerRuntime(Runtime):
                 "Failed to determine container running state: %s", e
             )
             try:
-                from ..interface.notifier import notify
+                from flaghunter.session.notifier import notify
 
                 notify("warning", f"DockerRuntime: is_running check failed: {e}")
             except Exception as notify_error:

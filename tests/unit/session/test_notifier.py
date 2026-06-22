@@ -1,13 +1,16 @@
-"""Tests for the notifier bridge (first coverage for this module).
+"""Tests for the notifier bridge (lives in session/, shimmed from interface/).
 
-The general-notification channel (notify/register_callback) now rides on the
+The general-notification channel (notify/register_callback) rides on the
 neutral EventBus (invariant I3); the spawn/despawn/wake-up control hooks stay
-as plain callbacks with return-value semantics.
+as plain callbacks with return-value semantics. The module was moved to
+flaghunter.session.notifier (H8) so non-interface layers can import it without
+a reverse dependency; interface.notifier is now a compat shim (see the shim
+re-export test below).
 """
 
 import pytest
 
-from flaghunter.interface import notifier
+from flaghunter.session import notifier
 from flaghunter.session.event_bus import EventBus
 
 
@@ -71,3 +74,15 @@ def test_spawn_terminal_returns_true_with_callback():
     notifier.register_spawn_terminal_callback(lambda fd, label: calls.append((fd, label)))
     assert notifier.spawn_terminal(7, "child-2") is True
     assert calls == [(7, "child-2")]
+
+
+def test_interface_shim_reexports_same_singletons():
+    """interface.notifier is a backwards-compat shim over session.notifier —
+    the re-exported names must be the SAME objects so UI subscribers and agent
+    emitters share one notify bus (H8)."""
+    from flaghunter.interface import notifier as shim
+
+    assert shim.notify is notifier.notify
+    assert shim.get_notify_bus() is notifier.get_notify_bus()
+    assert shim.spawn_terminal is notifier.spawn_terminal
+    assert shim.register_callback is notifier.register_callback

@@ -218,7 +218,7 @@ class WorkspaceManager:
             )
             try:
                 # Emit operator-visible notification if UI present
-                from ..interface.notifier import notify
+                from flaghunter.session.notifier import notify
 
                 notify("warning", f"Failed to update workspace meta for '{name}': {e}")
             except Exception:

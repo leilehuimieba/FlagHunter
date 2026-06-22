@@ -329,7 +329,7 @@ class WorkerPool:
                 "Worker execution failed (%s): %s", worker.id, e
             )
             try:
-                from ...interface.notifier import notify
+                from flaghunter.session.notifier import notify
 
                 notify("warning", f"Worker execution failed ({worker.id}): {e}")
             except Exception as ne:
@@ -359,7 +359,7 @@ class WorkerPool:
                     "Failed to stop worker runtime for %s: %s", worker.id, e
                 )
                 try:
-                    from ...interface.notifier import notify
+                    from flaghunter.session.notifier import notify
 
                     notify(
                         "warning", f"Failed to stop worker runtime for {worker.id}: {e}"
@@ -383,7 +383,7 @@ class WorkerPool:
                         "Dependency wait failed for %s: %s", dep_id, e
                     )
                     try:
-                        from ...interface.notifier import notify
+                        from flaghunter.session.notifier import notify
 
                         notify("warning", f"Dependency wait failed for {dep_id}: {e}")
                     except Exception as ne:
@@ -418,7 +418,7 @@ class WorkerPool:
                         "Waiting for agent task %s failed: %s", agent_id, e
                     )
                     try:
-                        from ...interface.notifier import notify
+                        from flaghunter.session.notifier import notify
 
                         notify("warning", f"Waiting for agent {agent_id} failed: {e}")
                     except Exception as ne:

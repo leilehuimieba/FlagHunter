@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-import flaghunter.interface.notifier as notifier_module
+import flaghunter.session.notifier as notifier_module
 import flaghunter.tools._tool_env as tool_env
 import flaghunter.tools.notes as notes_module
 from flaghunter.tools._tool_env import check_disk_space, get_tool_install_info

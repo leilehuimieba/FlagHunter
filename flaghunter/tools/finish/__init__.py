@@ -200,7 +200,7 @@ async def _generate_auto_report(runtime: "Runtime") -> None:
     except Exception as e:
         logging.getLogger(__name__).warning("Auto-report failed: %s", e, exc_info=True)
         try:
-            from ...interface.notifier import notify
+            from flaghunter.session.notifier import notify
 
             notify("warning", f"Auto-report failed: {e}")
         except Exception:

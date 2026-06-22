@@ -192,7 +192,7 @@ class BaseAgent(ABC):
 
             logging.getLogger(__name__).exception("Failed importing TaskPlan: %s", e)
             try:
-                from ..interface.notifier import notify
+                from flaghunter.session.notifier import notify
 
                 notify("warning", f"Failed to import TaskPlan: {e}")
             except Exception:
@@ -227,7 +227,7 @@ class BaseAgent(ABC):
                 "Failed to attach plan to runtime: %s", e
             )
             try:
-                from ..interface.notifier import notify
+                from flaghunter.session.notifier import notify
 
                 notify("warning", f"Failed to attach plan to runtime: {e}")
             except Exception:
@@ -865,7 +865,7 @@ class BaseAgent(ABC):
                     "Error executing tool %s: %s", name, e
                 )
                 try:
-                    from ..interface.notifier import notify
+                    from flaghunter.session.notifier import notify
 
                     notify("warning", f"Tool execution failed ({name}): {e}")
                 except Exception:

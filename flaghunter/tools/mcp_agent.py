@@ -82,7 +82,7 @@ async def _watch_child_notifications(
 
             # Operator-visible notification in the TUI status bar / log.
             try:
-                from ..interface.notifier import notify
+                from flaghunter.session.notifier import notify
 
                 notify(
                     "info",
@@ -97,7 +97,7 @@ async def _watch_child_notifications(
             # agent.wake_up() → _run_loop() and routes output to the chat panel.
             try:
                 from ..agents.state import AgentState
-                from ..interface.notifier import agent_wake_up
+                from flaghunter.session.notifier import agent_wake_up
 
                 # IDLE: agent_loop reset; COMPLETE: assist/interact finished
                 if agent.state_manager.current_state in (
@@ -158,7 +158,7 @@ async def spawn_child_agent(
     if no_mcp:
         cmd_args.append("--no-mcp")
 
-    from ..interface.notifier import spawn_terminal
+    from flaghunter.session.notifier import spawn_terminal
 
     tmp_dir = tempfile.mkdtemp(prefix="pa_mcp_")
     fifo_in = os.path.join(tmp_dir, "mcp_in.fifo")
@@ -335,7 +335,7 @@ async def despawn_child_agent(
             pass
 
     try:
-        from ..interface.notifier import despawn_terminal
+        from flaghunter.session.notifier import despawn_terminal
 
         despawn_terminal(server_name)
     except Exception:

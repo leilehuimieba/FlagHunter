@@ -506,7 +506,7 @@ async def _handle_flag_discovery(
             pass
 
         try:
-            from ..interface.notifier import notify
+            from flaghunter.session.notifier import notify
 
             notify("flag_found", flag)
             if ctf_experience_saved:
@@ -696,7 +696,7 @@ class ToolExecutor:
                 last_error = str(e)
                 if _looks_like_missing_tool_error(e):
                     try:
-                        from ..interface.notifier import notify
+                        from flaghunter.session.notifier import notify
                         from .notes import _notes, _notes_lock, _save_notes_unlocked
 
                         confirm_msg, disk, info = (

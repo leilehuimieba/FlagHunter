@@ -643,7 +643,7 @@ class LocalRuntime(Runtime):
                     "Error cleaning up active process: %s", e
                 )
                 try:
-                    from ..interface.notifier import notify
+                    from flaghunter.session.notifier import notify
 
                     notify("warning", f"Runtime: error cleaning up process: {e}")
                 except Exception as ne:
@@ -668,7 +668,7 @@ class LocalRuntime(Runtime):
                     "Failed to close browser page: %s", e
                 )
                 try:
-                    from ..interface.notifier import notify
+                    from flaghunter.session.notifier import notify
 
                     notify("warning", f"Runtime: failed to close browser page: {e}")
                 except Exception as ne:
@@ -686,7 +686,7 @@ class LocalRuntime(Runtime):
                     "Failed to close browser context: %s", e
                 )
                 try:
-                    from ..interface.notifier import notify
+                    from flaghunter.session.notifier import notify
 
                     notify("warning", f"Runtime: failed to close browser context: {e}")
                 except Exception as ne:
@@ -702,7 +702,7 @@ class LocalRuntime(Runtime):
             except Exception as e:
                 logging.getLogger(__name__).exception("Failed to close browser: %s", e)
                 try:
-                    from ..interface.notifier import notify
+                    from flaghunter.session.notifier import notify
 
                     notify("warning", f"Runtime: failed to close browser: {e}")
                 except Exception as ne:
@@ -719,7 +719,7 @@ class LocalRuntime(Runtime):
                     "Failed to stop playwright: %s", e
                 )
                 try:
-                    from ..interface.notifier import notify
+                    from flaghunter.session.notifier import notify
 
                     notify("warning", f"Runtime: failed to stop playwright: {e}")
                 except Exception as ne:
