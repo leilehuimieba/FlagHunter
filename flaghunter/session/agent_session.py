@@ -71,6 +71,8 @@ class AgentSession:
         no_rag: bool = False,
         no_mcp: bool = False,
         on_progress: Optional[Callable[[str, str], None]] = None,
+        after_mcp_load: Optional[Callable[[], None]] = None,
+        prebuilt_rag: Any = None,
         builder: Optional[ComponentBuilder] = None,
     ) -> "AgentSession":
         """Build all shared components via the composition root, then wrap them.
@@ -78,6 +80,12 @@ class AgentSession:
         *builder* lets callers (and tests) inject the component builder. When
         omitted, ``build_agent_components`` is imported lazily from the
         session-owned composition root.
+
+        *after_mcp_load* and *prebuilt_rag* are forwarded to the builder so the
+        TUI (which refreshes its header after external MCP tools load, and may
+        hand in a RAG engine warmed up on a background thread) can adopt this
+        single assembly path instead of calling ``build_agent_components``
+        directly (architecture invariant I2).
         """
         if builder is None:
             from .initializer import build_agent_components as builder
@@ -91,6 +99,8 @@ class AgentSession:
             no_rag=no_rag,
             no_mcp=no_mcp,
             on_progress=on_progress,
+            after_mcp_load=after_mcp_load,
+            prebuilt_rag=prebuilt_rag,
         )
         return cls(components)
 

@@ -3054,8 +3054,9 @@ class FlagHunterTUI(App):
         self._set_status("initializing")
 
         try:
+            from ..session import AgentSession
             from ..tools import get_all_tools
-            from .initializer import build_agent_components, has_ssh_runtime_config
+            from .initializer import has_ssh_runtime_config
 
             if not self.model:
                 self._add_system(
@@ -3086,7 +3087,11 @@ class FlagHunterTUI(App):
                 if self.runtime and self.mcp_manager:
                     self.runtime.mcp_manager = self.mcp_manager
 
-            components = await build_agent_components(
+            # Single assembly path (architecture invariant I2). AgentSession.create
+            # funnels build_agent_components, so the TUI initializes the runtime,
+            # RAG, workspace AND the CPA modules (M1-M6) the same way as the CLI,
+            # web and MCP entrypoints — instead of hand-calling the builder.
+            session = await AgentSession.create(
                 target=self.target,
                 scope=[],
                 model=self.model,
@@ -3098,6 +3103,7 @@ class FlagHunterTUI(App):
                 after_mcp_load=_after_mcp_load,
                 prebuilt_rag=self._prebuilt_rag,
             )
+            components = session.components
 
             self.agent = components["agent"]
             self.runtime = components["runtime"]

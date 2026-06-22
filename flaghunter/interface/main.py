@@ -960,7 +960,7 @@ async def _initialize(args: argparse.Namespace) -> dict:
 
     from ..llm import LLM, ModelConfig
     from ..mcp.server import bootstrap
-    from .initializer import build_agent_components
+    from ..session import AgentSession
 
     console = Console(stderr=True)
 
@@ -970,7 +970,11 @@ async def _initialize(args: argparse.Namespace) -> dict:
         else:
             console.print(msg)
 
-    components = await build_agent_components(
+    # Single assembly path (architecture invariant I2). AgentSession.create
+    # funnels build_agent_components so the MCP server bootstraps the agent,
+    # runtime, RAG AND the CPA modules (M1-M6) the same way every other
+    # entrypoint does — instead of hand-calling the builder.
+    session = await AgentSession.create(
         target=args.target or None,
         scope=list(args.scope),
         model=args.model or None,
@@ -980,6 +984,7 @@ async def _initialize(args: argparse.Namespace) -> dict:
         no_mcp=args.no_mcp,
         on_progress=_on_progress,
     )
+    components = session.components
 
     agent = components["agent"]
     runtime = components["runtime"]
