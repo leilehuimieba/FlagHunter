@@ -1,10 +1,26 @@
-"""LLM-driven exploration executor extracted from ctf_dispatcher.py.
+"""LLM-driven exploration / action-execution cluster extracted from ctf_dispatcher.py.
 
-P5 / Workstream A: the LLM action-execution cluster (15 methods, from
-`_run_llm_driven_exploration` to `_expected_signal_met`) is physically moved
-out of CTFTaskDispatcher into a behaviour-preserving mixin. Method bodies are
-identical; self.* resolves at runtime against the dispatcher that mixes this in,
-so call sites are unchanged. Pure code relocation, near-zero risk.
+L3i / Workstream A (object-ification, cut A): the LLM action-execution cluster
+(15 methods, ``_run_llm_driven_exploration`` .. ``_expected_signal_met``) is lifted
+out of ``LLMExecutorMixin`` into a single independent, stateless ``LLMExecutor``
+class. Method bodies are moved byte-for-byte; the only behavioural inputs — the
+shared ``CTFState``, the live ``llm`` handle, the ``runtime``, ``collector_port``,
+``capability_registry`` and six sibling dispatcher methods (``_scan_and_store``,
+``_extract_flag``, ``_observe_flag``, ``_recent_observed_source_fetch_write_exploit``,
+``_runtime_proxy_action``, ``_runtime_execute_command``) — are supplied per call via
+a lightweight ``LLMExecContext`` rather than read off ``self``. ``LLMExecutor`` holds
+no eager state of its own (``vars(LLMExecutor()) == {}``).
+
+The reason state/llm/runtime are injected per call rather than stored is that the
+shared CTFState and the live llm handle are swapped out on replay/fork, so a stored
+reference would silently go stale (the same trap addressed in L3d ``_notes_log`` and
+L3h state injection).
+
+``LLMExecutorMixin`` retains every method as a thin delegation shell with the
+original names + signatures (and original ``__module__`` anchoring), so the MRO and
+the external call sites (``strategy_registry.py`` ``hasattr`` guards,
+``ssti_executor.py``, ``chains/*.py``) are unchanged. Pure code relocation,
+near-zero risk.
 """
 
 from __future__ import annotations
@@ -17,8 +33,9 @@ import sys
 import tempfile
 import time
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Awaitable, Callable, Optional
 from urllib.parse import parse_qs, urlencode, urljoin, urlparse
 
 from ...llm.utils import parse_llm_json
@@ -29,23 +46,53 @@ from .reasoning import PreActionReasoning
 from .strategy_registry import StrategyContext
 
 
-class LLMExecutorMixin:
-    """LLM-driven exploration and action execution extracted from the dispatcher."""
+@dataclass
+class LLMExecContext:
+    """Per-call behavioural inputs for :class:`LLMExecutor`.
 
-    async def _run_llm_driven_exploration(self, context: StrategyContext) -> _ChainOutcome:
-        if self.state is None:
+    Bundles the live dispatcher state/handles and the six injected sibling methods.
+    A fresh context is built by the delegation shell on every call so nothing is
+    retained across replay/fork state swaps.
+    """
+
+    state: Any
+    llm: Any
+    runtime: Any
+    collector_port: Any
+    capability_registry: Any
+    scan_and_store: Callable[..., Awaitable[Any]]
+    extract_flag: Callable[[str], Optional[str]]
+    observe_flag: Callable[..., Awaitable[Any]]
+    recent_observed_source_fetch_write_exploit: Callable[[], Optional[dict[str, Any]]]
+    runtime_proxy_action: Callable[..., Awaitable[Any]]
+    runtime_execute_command: Callable[..., Awaitable[Any]]
+
+
+class LLMExecutor:
+    """Stateless LLM-driven exploration and action execution.
+
+    No instance state: the shared ``CTFState``, the live ``llm`` handle, the
+    ``runtime``, ``collector_port``, ``capability_registry`` and the six sibling
+    dispatcher methods are supplied per call through an :class:`LLMExecContext`.
+    ``vars(LLMExecutor()) == {}``.
+    """
+
+    async def run_llm_driven_exploration(
+        self, context: StrategyContext, ctx: LLMExecContext
+    ) -> _ChainOutcome:
+        if ctx.state is None:
             return _ChainOutcome(progress=False, reason="llm_exploration_unavailable")
-        if not self.state.is_llm_exploration_allowed():
+        if not ctx.state.is_llm_exploration_allowed():
             return _ChainOutcome(progress=False, reason="llm_exploration_budget_exhausted")
 
-        if self.llm is None:
+        if ctx.llm is None:
             return _ChainOutcome(progress=False, reason="llm_not_configured")
 
         progress = False
         reason_fragments: list[str] = []
         max_steps = 8
-        while self.state.is_llm_exploration_allowed(max_steps=max_steps):
-            action_spec = await self._call_llm_for_action(context)
+        while ctx.state.is_llm_exploration_allowed(max_steps=max_steps):
+            action_spec = await self.call_llm_for_action(context, ctx)
             if not action_spec:
                 return _ChainOutcome(progress=progress, reason="llm_exploration_invalid_action")
 
@@ -53,15 +100,15 @@ class LLMExecutorMixin:
             while True:
                 decision = PreActionReasoning.evaluate(
                     action_spec,
-                    self.state,
-                    capability_registry=self.capability_registry,
+                    ctx.state,
+                    capability_registry=ctx.capability_registry,
                     target=context.target,
-                    collector_base=f"http://127.0.0.1:{self.collector_port}",
+                    collector_base=f"http://127.0.0.1:{ctx.collector_port}",
                 )
-                self._record_llm_reasoning(action_spec, decision)
+                self.record_llm_reasoning(action_spec, decision, ctx)
                 if decision.approve:
                     break
-                self.state.record_weak_decision(decision.reason)
+                ctx.state.record_weak_decision(decision.reason)
                 # ToolGuard blocks (the only one being an out-of-scope/allowlist
                 # violation) are a policy boundary, not a fixable proposal defect
                 # like a missing tool or a vague signal — terminate and surface the
@@ -80,8 +127,9 @@ class LLMExecutorMixin:
                     if decision.downgrade_to:
                         degradation_hint = f"Do not use the missing tool. Re-plan with {decision.downgrade_to}."
                         forced_tool = decision.downgrade_to
-                    action_spec = await self._call_llm_for_action(
+                    action_spec = await self.call_llm_for_action(
                         context,
+                        ctx,
                         degradation_hint=degradation_hint,
                         forced_tool=forced_tool,
                     )
@@ -95,19 +143,19 @@ class LLMExecutorMixin:
                 stop_reason = str(action_spec.get("rationale") or "llm_requested_stop").strip()
                 return _ChainOutcome(progress=progress, reason=stop_reason)
 
-            execution = await self._execute_llm_action(action_spec, context.target)
+            execution = await self.execute_llm_action(action_spec, context.target, ctx)
             response_text = str(execution.get("response_text") or "")
             target_url = str(execution.get("target_url") or context.target)
             verifier_decision = "none"
             verification = None
             if response_text:
-                await self._scan_and_store(
+                await ctx.scan_and_store(
                     response_text,
                     target_url,
                     evidence_source=str(execution.get("evidence_source") or "runtime-output"),
                 )
-                if flag := self._extract_flag(response_text):
-                    verification = await self._observe_flag(
+                if flag := ctx.extract_flag(response_text):
+                    verification = await ctx.observe_flag(
                         flag,
                         target_url,
                         evidence_source=str(execution.get("evidence_source") or "runtime-output"),
@@ -116,25 +164,25 @@ class LLMExecutorMixin:
                     verifier_decision = (
                         str(getattr(verification, "decision", "none") or "none")
                     )
-            expected_signal_met = self._expected_signal_met(
+            expected_signal_met = self.expected_signal_met(
                 str(action_spec.get("expected_signal") or ""),
                 response_text,
                 execution,
             )
-            summary = self._summarize_response(response_text, execution)
-            self.state.record_llm_step(
+            summary = self.summarize_response(response_text, execution)
+            ctx.state.record_llm_step(
                 LLMStepLog(
-                    step=self.state.llm_exploration_steps + 1,
+                    step=ctx.state.llm_exploration_steps + 1,
                     action_type=str(action_spec.get("action_type") or ""),
                     rationale=str(action_spec.get("rationale") or "")[:200],
-                    payload_summary=self._summarize_payload(action_spec),
+                    payload_summary=self.summarize_payload(action_spec),
                     response_summary=summary,
                     verifier_decision=verifier_decision,
                     expected_signal_met=expected_signal_met,
                     timestamp=time.time(),
                 )
             )
-            self.state.add_observation(
+            ctx.state.add_observation(
                 "llm_exploration_step",
                 summary,
                 source="llm_driven_exploration",
@@ -144,7 +192,7 @@ class LLMExecutorMixin:
                     "expected_signal": str(action_spec.get("expected_signal") or ""),
                     "expected_signal_met": expected_signal_met,
                     "verifier_decision": verifier_decision,
-                    "payload_summary": self._summarize_payload(action_spec),
+                    "payload_summary": self.summarize_payload(action_spec),
                     "target_url": target_url,
                 },
             )
@@ -157,7 +205,7 @@ class LLMExecutorMixin:
                     reason="llm_exploration: verified flag",
                 )
             reason_fragments.append(
-                f"step={self.state.llm_exploration_steps}:{action_spec.get('action_type')}:{verifier_decision or 'none'}"
+                f"step={ctx.state.llm_exploration_steps}:{action_spec.get('action_type')}:{verifier_decision or 'none'}"
             )
             next_if_fail = str(action_spec.get("next_if_fail") or "").lower()
             if "switch chain" in next_if_fail or "switch_chain" in next_if_fail:
@@ -170,23 +218,24 @@ class LLMExecutorMixin:
             )
         return _ChainOutcome(progress=False, reason="llm_exploration_exhausted")
 
-    async def _call_llm_for_action(
+    async def call_llm_for_action(
         self,
         context: StrategyContext,
+        ctx: LLMExecContext,
         *,
         degradation_hint: str = "",
         forced_tool: str = "",
     ) -> dict[str, Any] | None:
-        if self.state is None or self.llm is None:
+        if ctx.state is None or ctx.llm is None:
             return None
 
         observation_lines: list[str] = []
-        for observation in self.state.observations[-5:]:
+        for observation in ctx.state.observations[-5:]:
             value = str(observation.value or "")
             if len(value) > 200:
                 value = value[:200] + "..."
             observation_lines.append(f"- {observation.kind}: {value}")
-        rejected = [record.value for record in self.state.rejected_flags[-5:]]
+        rejected = [record.value for record in ctx.state.rejected_flags[-5:]]
         raw_links = list(context.page_features.get("raw_links") or [])[:20]
         artifacts = [
             {
@@ -194,11 +243,11 @@ class LLMExecutorMixin:
                 "location": getattr(item, "location", ""),
                 "metadata": getattr(item, "metadata", {}),
             }
-            for item in (self.state.artifacts[-8:] if self.state is not None else [])
+            for item in (ctx.state.artifacts[-8:] if ctx.state is not None else [])
         ]
-        runtime_summary = self._normalized_runtime_summary()
-        source_fetch_exploit = self._recent_observed_source_fetch_write_exploit()
-        recent_source_probes = self._recent_source_fetch_probe_targets(limit=10)
+        runtime_summary = self.normalized_runtime_summary(ctx)
+        source_fetch_exploit = ctx.recent_observed_source_fetch_write_exploit()
+        recent_source_probes = self.recent_source_fetch_probe_targets(ctx, limit=10)
         prompt = (
             "You are planning the next CTF action.\n"
             "Return JSON only with keys action_type, tool_name, rationale, payload, expected_signal, next_if_fail.\n"
@@ -219,7 +268,7 @@ class LLMExecutorMixin:
         # entry points like /login,/register unexplored. This surfaces the queue
         # so the model can prefer it (protocol augmentation; it does not force a
         # choice).
-        agenda_items = self.state.get_unexplored_priority_items(max_hint_strength=2)
+        agenda_items = ctx.state.get_unexplored_priority_items(max_hint_strength=2)
         if agenda_items:
             agenda_lines = [
                 f"- [{item.discovery_source},hint={item.hint_strength}] {item.url_or_path}"
@@ -240,7 +289,7 @@ class LLMExecutorMixin:
         # (the board exposes the failure; it does not force the switch).
         from ...knowledge.blackboard import project_blackboard
 
-        board = project_blackboard(self.state, intent_limit=8)
+        board = project_blackboard(ctx.state, intent_limit=8)
         if board["intents"]:
             intent_lines = []
             for intent in board["intents"]:
@@ -291,12 +340,12 @@ class LLMExecutorMixin:
 
         raw = ""
         finish_reason = ""
-        if callable(self.llm):
-            result = self.llm(prompt)
+        if callable(ctx.llm):
+            result = ctx.llm(prompt)
             resolved = await result if asyncio.iscoroutine(result) else result
-            raw, finish_reason = self._extract_llm_action_text(resolved)
-        elif hasattr(self.llm, "generate"):
-            generator = getattr(self.llm, "generate")
+            raw, finish_reason = self.extract_llm_action_text(resolved)
+        elif hasattr(ctx.llm, "generate"):
+            generator = getattr(ctx.llm, "generate")
             try:
                 result = generator(prompt)
             except TypeError as exc:
@@ -312,7 +361,7 @@ class LLMExecutorMixin:
                     task_hint="ctf_planning",
                 )
             resolved = await result if asyncio.iscoroutine(result) else result
-            raw, finish_reason = self._extract_llm_action_text(resolved)
+            raw, finish_reason = self.extract_llm_action_text(resolved)
         else:
             return None
 
@@ -330,8 +379,8 @@ class LLMExecutorMixin:
             }
         return None
 
-    def _normalized_runtime_summary(self) -> str:
-        env = getattr(self.runtime, "environment", None)
+    def normalized_runtime_summary(self, ctx: LLMExecContext) -> str:
+        env = getattr(ctx.runtime, "environment", None)
         if env is None:
             return "unknown runtime"
         os_name = str(getattr(env, "os", "") or "").strip() or "unknown-os"
@@ -346,12 +395,14 @@ class LLMExecutorMixin:
         tool_preview = ", ".join(tool_names[:16]) if tool_names else "none-detected"
         return f"os={os_name}; shell={shell_name}; tools={tool_preview}"
 
-    def _recent_source_fetch_probe_targets(self, *, limit: int = 12) -> list[str]:
-        if self.state is None:
+    def recent_source_fetch_probe_targets(
+        self, ctx: LLMExecContext, *, limit: int = 12
+    ) -> list[str]:
+        if ctx.state is None:
             return []
         targets: list[str] = []
         seen: set[str] = set()
-        for observation in reversed(list(self.state.observations)[-max(1, limit):]):
+        for observation in reversed(list(ctx.state.observations)[-max(1, limit):]):
             if str(getattr(observation, "kind", "") or "").strip() != "source_fetch_write_probe":
                 continue
             value = str(getattr(observation, "value", "") or "").strip()
@@ -362,7 +413,7 @@ class LLMExecutorMixin:
         return targets
 
     @staticmethod
-    def _extract_llm_action_text(result: Any) -> tuple[str, str]:
+    def extract_llm_action_text(result: Any) -> tuple[str, str]:
         finish_reason = str(getattr(result, "finish_reason", "") or "")
         if hasattr(result, "content"):
             return str(getattr(result, "content", "") or ""), finish_reason
@@ -370,7 +421,7 @@ class LLMExecutorMixin:
             return str(result.get("content") or result.get("text") or result), finish_reason
         return str(result or ""), finish_reason
 
-    def _normalize_llm_http_payload(
+    def normalize_llm_http_payload(
         self,
         payload: Any,
         target: str,
@@ -422,7 +473,7 @@ class LLMExecutorMixin:
         return normalized
 
     @staticmethod
-    def _looks_like_loopback_or_file_target(value: str) -> bool:
+    def looks_like_loopback_or_file_target(value: str) -> bool:
         candidate = str(value or "").strip().lower()
         if not candidate:
             return False
@@ -434,9 +485,9 @@ class LLMExecutorMixin:
             return True
         return False
 
-    def _normalize_llm_shell_command(self, command: str) -> str:
+    def normalize_llm_shell_command(self, command: str, ctx: LLMExecContext) -> str:
         normalized = str(command or "").strip()
-        env = getattr(self.runtime, "environment", None)
+        env = getattr(ctx.runtime, "environment", None)
         os_name = str(getattr(env, "os", "") or "").lower()
         if not normalized or "windows" not in os_name:
             return normalized
@@ -473,7 +524,7 @@ class LLMExecutorMixin:
         )
         return normalized
 
-    def _build_source_fetch_write_output_urls(
+    def build_source_fetch_write_output_urls(
         self,
         target: str,
         exploit_info: dict[str, Any],
@@ -506,13 +557,14 @@ class LLMExecutorMixin:
         )
         return [output_url] if output_url else []
 
-    def _derive_source_fetch_write_llm_request(
+    def derive_source_fetch_write_llm_request(
         self,
         *,
         payload: dict[str, Any],
         target: str,
+        ctx: LLMExecContext,
     ) -> dict[str, Any] | None:
-        observed = self._recent_observed_source_fetch_write_exploit()
+        observed = ctx.recent_observed_source_fetch_write_exploit()
         if observed is None:
             return None
 
@@ -544,13 +596,13 @@ class LLMExecutorMixin:
                 continue
             for item in values:
                 candidate = str(item or "").strip()
-                if self._looks_like_loopback_or_file_target(candidate):
+                if self.looks_like_loopback_or_file_target(candidate):
                     fetch_target = candidate
                     break
             if fetch_target:
                 break
 
-        if not fetch_target and self._looks_like_loopback_or_file_target(direct_url):
+        if not fetch_target and self.looks_like_loopback_or_file_target(direct_url):
             fetch_target = direct_url
 
         final_url = urljoin(
@@ -579,33 +631,35 @@ class LLMExecutorMixin:
             "fetch_target": fetch_target,
             "trigger_url": trigger_url,
             "headers": headers or None,
-            "output_urls": self._build_source_fetch_write_output_urls(target, exploit_info),
+            "output_urls": self.build_source_fetch_write_output_urls(target, exploit_info),
         }
 
-    async def _execute_llm_action(
+    async def execute_llm_action(
         self,
         action_spec: dict[str, Any],
         target: str,
+        ctx: LLMExecContext,
     ) -> dict[str, Any]:
-        if self.runtime is None:
+        if ctx.runtime is None:
             return {"response_text": "", "target_url": target, "evidence_source": "runtime-output"}
 
         action_type = str(action_spec.get("action_type") or "").strip()
         payload = action_spec.get("payload")
 
-        if action_type == "http_request" and hasattr(self.runtime, "proxy_action"):
-            payload_dict = self._normalize_llm_http_payload(payload, target)
+        if action_type == "http_request" and hasattr(ctx.runtime, "proxy_action"):
+            payload_dict = self.normalize_llm_http_payload(payload, target)
             method = str(payload_dict.get("method") or "GET").upper()
             raw_url = str(payload_dict.get("url") or target).strip() or target
             final_url = urljoin(target if target.endswith("/") else target + "/", raw_url)
-            ssrf_request = self._derive_source_fetch_write_llm_request(
+            ssrf_request = self.derive_source_fetch_write_llm_request(
                 payload=payload_dict,
                 target=target,
+                ctx=ctx,
             )
             if ssrf_request is not None:
                 trigger_url = str(ssrf_request.get("trigger_url") or final_url)
                 headers = ssrf_request.get("headers")
-                trigger_resp = await self._runtime_proxy_action(
+                trigger_resp = await ctx.runtime_proxy_action(
                     "request",
                     method=method,
                     url=trigger_url,
@@ -623,7 +677,7 @@ class LLMExecutorMixin:
                 combined_target = final_trigger_url
                 combined_status = (trigger_resp or {}).get("status_code")
                 for output_url in list(ssrf_request.get("output_urls") or []):
-                    retrieve_resp = await self._runtime_proxy_action(
+                    retrieve_resp = await ctx.runtime_proxy_action(
                         "get",
                         url=output_url,
                         headers=headers,
@@ -648,7 +702,7 @@ class LLMExecutorMixin:
                     "status_code": combined_status,
                     "evidence_source": "source-leak",
                 }
-            response = await self._runtime_proxy_action(
+            response = await ctx.runtime_proxy_action(
                 "request",
                 method=method,
                 url=final_url,
@@ -667,10 +721,11 @@ class LLMExecutorMixin:
                 "evidence_source": "http-response",
             }
 
-        if action_type == "shell" and hasattr(self.runtime, "execute_command"):
+        if action_type == "shell" and hasattr(ctx.runtime, "execute_command"):
             payload_dict = payload if isinstance(payload, dict) else {}
-            command = self._normalize_llm_shell_command(
-                str(payload_dict.get("command") or "").strip()
+            command = self.normalize_llm_shell_command(
+                str(payload_dict.get("command") or "").strip(),
+                ctx,
             )
             if not command:
                 return {
@@ -679,7 +734,7 @@ class LLMExecutorMixin:
                     "status_code": 1,
                     "evidence_source": "command-output",
                 }
-            result = await self._runtime_execute_command(
+            result = await ctx.runtime_execute_command(
                 command,
                 timeout=int(payload_dict.get("timeout") or 120),
                 audit_target=target,
@@ -700,8 +755,10 @@ class LLMExecutorMixin:
 
         return {"response_text": "", "target_url": target, "evidence_source": "runtime-output"}
 
-    def _record_llm_reasoning(self, action_spec: dict[str, Any], decision: Any) -> None:
-        if self.state is None:
+    def record_llm_reasoning(
+        self, action_spec: dict[str, Any], decision: Any, ctx: LLMExecContext
+    ) -> None:
+        if ctx.state is None:
             return
         entry = {
             "type": "llm_pre_action_reasoning",
@@ -715,9 +772,9 @@ class LLMExecutorMixin:
             "downgrade_to": getattr(decision, "downgrade_to", None),
             "repeated_reject": bool(getattr(decision, "repeated_reject", False)),
         }
-        self.state.pre_action_reasonings.append(entry)
+        ctx.state.pre_action_reasonings.append(entry)
 
-    def _summarize_payload(self, action_spec: dict[str, Any]) -> str:
+    def summarize_payload(self, action_spec: dict[str, Any]) -> str:
         payload = action_spec.get("payload")
         summary = json.dumps(
             {
@@ -730,14 +787,14 @@ class LLMExecutorMixin:
         )
         return summary[:200]
 
-    def _summarize_response(self, response_text: str, execution: dict[str, Any]) -> str:
+    def summarize_response(self, response_text: str, execution: dict[str, Any]) -> str:
         response_text = str(response_text or "")
         preview = response_text[:220] + ("..." if len(response_text) > 220 else "")
         status = execution.get("status_code")
         target_url = execution.get("target_url")
         return f"status={status}; url={target_url}; body={preview}"[:300]
 
-    def _expected_signal_met(
+    def expected_signal_met(
         self,
         expected_signal: str,
         response_text: str,
@@ -762,7 +819,125 @@ class LLMExecutorMixin:
             return bool(marker) and marker in response_lower
         return signal in response_lower
 
+
+class LLMExecutorMixin:
+    """LLM-driven exploration and action execution.
+
+    Thin delegation shells over the stateless :class:`LLMExecutor` held by the
+    dispatcher as ``self._llm_executor``. Shells preserve the original
+    names/signatures (and ``__module__`` anchoring) and build a fresh
+    :class:`LLMExecContext` per call from the live dispatcher state/handles and the
+    six injected sibling dispatcher methods, so replay/fork state swaps are never
+    captured by a stale reference.
+    """
+
+    def _llm_exec_context(self) -> LLMExecContext:
+        return LLMExecContext(
+            state=self.state,
+            llm=self.llm,
+            runtime=self.runtime,
+            collector_port=self.collector_port,
+            capability_registry=self.capability_registry,
+            scan_and_store=self._scan_and_store,
+            extract_flag=self._extract_flag,
+            observe_flag=self._observe_flag,
+            recent_observed_source_fetch_write_exploit=self._recent_observed_source_fetch_write_exploit,
+            runtime_proxy_action=self._runtime_proxy_action,
+            runtime_execute_command=self._runtime_execute_command,
+        )
+
+    async def _run_llm_driven_exploration(self, context: StrategyContext) -> _ChainOutcome:
+        return await self._llm_executor.run_llm_driven_exploration(
+            context, self._llm_exec_context()
+        )
+
+    async def _call_llm_for_action(
+        self,
+        context: StrategyContext,
+        *,
+        degradation_hint: str = "",
+        forced_tool: str = "",
+    ) -> dict[str, Any] | None:
+        return await self._llm_executor.call_llm_for_action(
+            context,
+            self._llm_exec_context(),
+            degradation_hint=degradation_hint,
+            forced_tool=forced_tool,
+        )
+
+    def _normalized_runtime_summary(self) -> str:
+        return self._llm_executor.normalized_runtime_summary(self._llm_exec_context())
+
+    def _recent_source_fetch_probe_targets(self, *, limit: int = 12) -> list[str]:
+        return self._llm_executor.recent_source_fetch_probe_targets(
+            self._llm_exec_context(), limit=limit
+        )
+
+    def _extract_llm_action_text(self, result: Any) -> tuple[str, str]:
+        return self._llm_executor.extract_llm_action_text(result)
+
+    def _normalize_llm_http_payload(
+        self,
+        payload: Any,
+        target: str,
+    ) -> dict[str, Any]:
+        return self._llm_executor.normalize_llm_http_payload(payload, target)
+
+    def _looks_like_loopback_or_file_target(self, value: str) -> bool:
+        return self._llm_executor.looks_like_loopback_or_file_target(value)
+
+    def _normalize_llm_shell_command(self, command: str) -> str:
+        return self._llm_executor.normalize_llm_shell_command(
+            command, self._llm_exec_context()
+        )
+
+    def _build_source_fetch_write_output_urls(
+        self,
+        target: str,
+        exploit_info: dict[str, Any],
+    ) -> list[str]:
+        return self._llm_executor.build_source_fetch_write_output_urls(target, exploit_info)
+
+    def _derive_source_fetch_write_llm_request(
+        self,
+        *,
+        payload: dict[str, Any],
+        target: str,
+    ) -> dict[str, Any] | None:
+        return self._llm_executor.derive_source_fetch_write_llm_request(
+            payload=payload, target=target, ctx=self._llm_exec_context()
+        )
+
+    async def _execute_llm_action(
+        self,
+        action_spec: dict[str, Any],
+        target: str,
+    ) -> dict[str, Any]:
+        return await self._llm_executor.execute_llm_action(
+            action_spec, target, self._llm_exec_context()
+        )
+
+    def _record_llm_reasoning(self, action_spec: dict[str, Any], decision: Any) -> None:
+        self._llm_executor.record_llm_reasoning(
+            action_spec, decision, self._llm_exec_context()
+        )
+
+    def _summarize_payload(self, action_spec: dict[str, Any]) -> str:
+        return self._llm_executor.summarize_payload(action_spec)
+
+    def _summarize_response(self, response_text: str, execution: dict[str, Any]) -> str:
+        return self._llm_executor.summarize_response(response_text, execution)
+
+    def _expected_signal_met(
+        self,
+        expected_signal: str,
+        response_text: str,
+        execution: dict[str, Any],
+    ) -> bool:
+        return self._llm_executor.expected_signal_met(
+            expected_signal, response_text, execution
+        )
+
     # ------------------------------------------------------------------
     # 新增 web 策略执行方法（Phase 0.5 easy_tornado 补全）
     # ------------------------------------------------------------------
-
