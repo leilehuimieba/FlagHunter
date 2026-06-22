@@ -394,6 +394,23 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 > **切法 A**:`NoteStore` stateless 类,`store_note(state, *, runtime, register_artifact_record, emit, notes_log, key, value, category, **metadata)` 等——state per-call 传值、兄弟方法(`_record_session_event`/`_register_artifact_record`/`_select_hypothesis_for_chain`/`_emit`)per-call 注入 bound method、`_notes_log` 传引用;两个 `_derive_*` 纯函数随搬;mixin 6 方法保原签名退委派壳;dispatcher `__init__` 持 `self._note_store=NoteStore()`。不动 MRO/调用站/coordinator/Protocol 桩。
 > **不变量**:notes.json 内容/格式逐字(notes_tool 负责);`_notes_log` 追加 `f"[{category}] {key}: {value}"` 逐字 + `result.notes` 取同一 list;artifact 注册/session 事件/`state.add_artifact` 参数逐字;`derive_*` 映射逐 key。
 > **门禁(独占 pa_agent)**:`tests/unit/agents` 全量零回归 + 新 detached 单测(脱离 dispatcher + `set_notes_file(tmp)` + 独立 list 充 notes_log 证传引用)+ `test_replay_harness.py` 5 passed(落盘隔离零差兜底)。边界:`note_store.py` + `ctf_dispatcher.py` + `test_ctf_note_store.py`。⚠ 若执行 agent 撞 529/分类器不可用,改动留工作树未提交,主控核 `--stat` 后经用户 `!` 落地(见 [[feedback-handoff-scripts-when-blocked]])。
+
+---
+
+## 卡 L3e — AuditInfra 的 RT(runtime action)簇对象化(L3「真断透传」线·执行体对象化第四刀·切法 A·独占 pa_agent) ✅(cc75c06)
+
+> **测绘裁决(取拆分方案 B)**:AuditInfra(`AuditInfraMixin` 13 方法)实为 **5 个半独立簇**(session ledger / artifact registry / checkpoint / source hint / **runtime action**)。整体打切法 A 虽 4/5 可行,但有两代价:① `_ledger_run_id` 双向流 + setup 接力(coordinator 回读 dispatcher 字段);② **挖出既有缺陷**(见下)。故**只取最闭合的 RT 簇先吃一口**。
+> **RT 簇为何最干净**:3 个 `_runtime_*_action`(browser/proxy/execute_command)只依赖 `self.runtime`(稳定)+ `self._record_session_event`(兄弟注入),**不碰任何 store 字段/run_id/bool/state**;反向调用面最大(122 处)但形态全 `self.` 统一→委派壳零改;**RT 不持三个 store → 完全绕开 replay 隔离洞**,这刀不动 replay.py/coordinator,纯净低风险。
+> **切法 A**:抽 stateless `RuntimeAuditedActions` 类(3 方法逐字搬,`self.runtime`→`runtime` 注入、`self._record_session_event`→`record_session_event` 注入 bound method);mixin 3 方法保原名原签名退委派壳(122 调用站零改);dispatcher `__init__` 持 `self._runtime_actions`。不动 MRO/调用站/coordinator/其余 10 方法/store 字段/replay.py。
+> **门禁(独占 pa_agent)**:`tests/unit/agents` 全量零回归 + 新 detached 单测(脱离 dispatcher,假 runtime + Mock record_session_event,called/finished 成对发射、无自持状态)+ `test_replay_harness.py` 5 passed。边界:`audit_infra.py` + `ctf_dispatcher.py` + `test_ctf_audit_infra.py`。⚠ 撞 529 则改动留工作树,主控核后经用户 `!` 落地。
+> **✅ 完工(cc75c06)**:`RuntimeAuditedActions` stateless 类(无 `__init__`、`vars()=={}` 证零自持),3 个 `_runtime_*_action`(browser/proxy/execute_command)逐字搬入,`self.runtime`→注入、`self._record_session_event`→注入 bound method;mixin 3 方法保原名原签名退委派壳(122 反向调用站零改);dispatcher `__init__` 持 `self._runtime_actions`。**只动 RT 3 方法,其余 10 个 AuditInfra 方法/三 store 字段/setup/replay.py 零改;MRO 未动**。事件 payload/I/O/返回值逐字,簇内 `_record_session_event` 经注入仍命中同一 sink。3 文件原子提交。门禁:`tests/unit/agents` **523 passed**(零回归)+ `test_replay_harness.py` **5 passed**——**主控独立坐实**(亲跑 `test_ctf_audit_infra` 5 passed + replay 5 passed)。**后续**:store 三簇(S/RA/CP)+ SH 簇 + replay 隔离洞 = 卡 L3f(中风险,牵动 coordinator/run() 签名)。
+
+---
+
+## 卡 L3f(预登记·待派)— replay 三处落盘隔离补洞 + AuditInfra store 三簇对象化
+
+> **既有缺陷(L3e 测绘挖出,对象化之前就存在)**:`eval/replay.py:151-152` 仅用 `set_notes_file` 隔离 notes;`run_replay` 调 `dispatcher.run(...)` **未传 `ledger_root`/`checkpoint_root`**,且 `run()` 签名**根本没有 `registry_root` 入参**(coordinator `:709` 硬编码 `registry_root=None`)→ **replay 当前把 session_ledger/artifact_registry/checkpoint 写进真实 `loot/`**。
+> **L3f 应做**:① 先补隔离洞——`run()`/coordinator 增开 `registry_root` 透传,`run_replay` 的 `TemporaryDirectory` 块把三处 root 全指向 tmp(ledger/checkpoint 经 `run()` kwargs、registry 补参),finally 复原,与 `set_notes_file` 一致;② 隔离就绪后再做 AuditInfra 的 store 三簇(S/RA/CP)+ SH 簇切法 A 对象化,带三处产物对拍(改动前后 diff 为空)。**牵动 coordinator/run() 签名 = 中风险,需主控先派测绘+裁决再派**,且与 eval 卡/store 簇卡互斥。
 > **✅ 完工(2de4d1f)**:`NoteStore` stateless 独立类(6 方法逐字搬入,`_derive_*`→`derive_*`),state/runtime/4 兄弟方法/reasoning_layer 全 per-call 传值;**`_notes_log` 留 dispatcher、委派壳 per-call 传 list 引用、NoteStore 仅 `.append` 从不自持**(新测专门断言 NoteStore 实例无 `_notes_log` 属性 + 传入独立 list 被原地追加),故 `:574 result.notes=list(self._notes_log)` 仍读同一 list 字节级等价。`NoteStoreMixin` 6 方法保原名原签名退委派壳(`__module__` 锚定 note_store);`ctf_dispatcher.__init__` 持 `self._note_store=NoteStore()`;MRO/调用站/coordinator Protocol 桩零改。3 文件 +372/−34。门禁:`tests/unit/agents` **519 passed**(零回归)+ `test_replay_harness.py` **5 passed**(落盘零差)——**主控亲跑门禁独立印证**(519 passed + replay 5 passed,与 agent 报告一致)。⚠ 过程:执行 agent 给非结论 rest("等 monitor")疑似假死,主控先核 git 真相(同 [[feedback-handoff-scripts-when-blocked]] 教训)——实为 agent 在等自起的长 pytest,随后真完成并提交 2de4d1f,无重复派单。**后续**:AuditInfra(底座·166 反向调用·三磁盘 store rebind,留最后/单独立项)→ recon/llm/jwt(难)。
 
 ---
