@@ -161,7 +161,7 @@ async def publish_solve_outcome_to_swarm(
                 )
 
         if state is not None:
-            from ...knowledge.blackboard import project_blackboard
+            from ..pa_agent.blackboard import project_blackboard
 
             messenger = get_messenger(agent_id)
             board = project_blackboard(state)

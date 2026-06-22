@@ -16,7 +16,7 @@ from ..base_agent import AgentMessage
 from ..prompts import pa_agent, pa_assist, pa_interact, pa_mcp
 from ...tools.finish import PlanStep
 from .planner import generate_plan, plan_to_step_descriptions
-from ...knowledge.context_assembler import ContextAssembler
+from .context_assembler import ContextAssembler
 
 _NO_INJECTION_PATTERN = re.compile(
     r"(no injection|not injectable|无法注入)", re.IGNORECASE
@@ -247,7 +247,7 @@ class FlagHunterAgent(BaseAgent):
         # Phase 3: GSSC context assembly (Gather → Select → Structure → Compress)
         gssc_context = ""
         try:
-            from ...knowledge.context_assembler import ContextAssembler
+            from .context_assembler import ContextAssembler
             assembler = ContextAssembler(self)
             gssc_context = assembler.assemble()
         except Exception:
@@ -498,7 +498,7 @@ class FlagHunterAgent(BaseAgent):
         if not run_id or project_root is None:
             return []
         try:
-            from ...knowledge.session_context import SessionContextView
+            from .session_context import SessionContextView
 
             root = Path(project_root)
             context = SessionContextView(

@@ -10,8 +10,8 @@ from flaghunter.agents.pa_agent.ctf_state import (
     ExplorationItem,
     Observation,
 )
-from flaghunter.knowledge.blackboard import project_blackboard
-from flaghunter.knowledge.session_context import SessionContextView
+from flaghunter.agents.pa_agent.blackboard import project_blackboard
+from flaghunter.agents.pa_agent.session_context import SessionContextView
 from flaghunter.harness.checkpoint_store import CheckpointStore
 
 

@@ -10,7 +10,7 @@ from flaghunter.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
 from flaghunter.agents.pa_agent.ctf_state import CTFState
 from flaghunter.harness.artifact_registry import ArtifactRegistry
 from flaghunter.harness.session_ledger import SessionLedger
-from flaghunter.knowledge.session_context import SessionContextView
+from flaghunter.agents.pa_agent.session_context import SessionContextView
 from flaghunter.tools.notes import set_notes_file
 
 

@@ -18,7 +18,7 @@ from unittest.mock import patch
 import flaghunter.tools.notes as notes_module
 from flaghunter.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher, SolveResult
 from flaghunter.agents.pa_agent.ctf_state import CTFState
-from flaghunter.knowledge.session_context import SessionContextView
+from flaghunter.agents.pa_agent.session_context import SessionContextView
 from flaghunter.runtime.runtime import LocalRuntime
 from flaghunter.tools.notes import set_notes_file
 from tests.eval.benchmark_result import BenchmarkReport, ChallengeResult

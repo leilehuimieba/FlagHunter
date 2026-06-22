@@ -417,7 +417,7 @@ def _entry_session_context(entry: TaskEntry) -> dict[str, object]:
     if not run_id:
         return {}
     try:
-        from ...knowledge.session_context import build_workspace_run_context
+        from ...agents.pa_agent.session_context import build_workspace_run_context
 
         ledger_path = str(getattr(entry, "ledgerPath", "") or "").strip()
         checkpoint_path = str(getattr(entry, "checkpointPath", "") or "").strip()

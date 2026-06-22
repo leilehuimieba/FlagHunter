@@ -287,7 +287,7 @@ class LLMExecutor:
         # active+high-value first with already-refuted ones marked, closing the
         # "verification failed -> switch candidate" loop at the protocol level
         # (the board exposes the failure; it does not force the switch).
-        from ...knowledge.blackboard import project_blackboard
+        from .blackboard import project_blackboard
 
         board = project_blackboard(ctx.state, intent_limit=8)
         if board["intents"]:

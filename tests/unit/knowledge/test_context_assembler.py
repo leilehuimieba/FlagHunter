@@ -7,7 +7,7 @@ from flaghunter.agents.pa_agent.ctf_state import CTFState
 from flaghunter.harness.artifact_registry import ArtifactRegistry
 from flaghunter.harness.checkpoint_store import CheckpointStore
 from flaghunter.harness.session_ledger import SessionLedger
-from flaghunter.knowledge.context_assembler import ContextAssembler
+from flaghunter.agents.pa_agent.context_assembler import ContextAssembler
 
 
 class _StubAgent:

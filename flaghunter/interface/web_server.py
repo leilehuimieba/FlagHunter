@@ -29,7 +29,7 @@ from .control_contract import (
     strongest_hypothesis_contract,
 )
 from .mode_router import resolve_mode_contract
-from ..knowledge.session_context import build_workspace_run_context
+from ..agents.pa_agent.session_context import build_workspace_run_context
 
 logger = logging.getLogger(__name__)
 

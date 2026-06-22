@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..agents.pa_agent.ctf_state import CTFState, FlagRecord
+from .ctf_state import CTFState, FlagRecord
 
 _REFUTED_HYPOTHESIS_STATUSES = {"rejected", "exhausted"}
 

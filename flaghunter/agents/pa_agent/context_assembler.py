@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from ..agents.base_agent import BaseAgent
+    from ..base_agent import BaseAgent
 
 _PHASE_PRIORITIES: dict[str, list[str]] = {
     "recon": ["finding", "task"],
@@ -49,7 +49,7 @@ class ContextAssembler:
 
         # 2. Project memory
         try:
-            from .project_memory import ProjectMemory
+            from flaghunter.knowledge.project_memory import ProjectMemory
             pm = ProjectMemory()
             target = getattr(agent, "target", "") or ""
             pm_ctx = pm.get_context_for_prompt(target=target, phase=self._detect_phase())
