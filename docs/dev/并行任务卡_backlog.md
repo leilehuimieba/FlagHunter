@@ -462,6 +462,16 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 
 ---
 
+## 卡 L4a — 承载收尾主线·破冰机制刀:ctx seam 穿进 _run_solve_loop ✅(e286af2)
+
+> **背景**:L3a–L3j 收官后 dispatcher 持 8 个独立 stateless executor,只剩"承载收尾"主线(executor 从 dispatcher 持实例 → coordinator `RunContext` 真 façade 承载)。
+> **🔍 主控测绘坐实(2026-06-22,翻转 Plan 测绘关键断言)**:Plan 测绘原荐首刀 `_progress` 并称"`coordinator.py:1468` 的 `dispatcher` 形参就是 ctx"——**经主控亲核 caller 坐实为错**:唯一 caller `ctf_dispatcher.py:530-531` 传 `self`(raw dispatcher,在 `_run_solve_loop` 内),非 ctx。**真实结构**:`ctx` 只活在 `execute()` setup 阶段(1757–1841),:1841 `ctx.dispatcher._run_solve_loop()` 一交棒就回到 raw dispatcher 驱动、契约回调全传 raw self。故 `_progress`(及 jwt/llm/runtime_actions)**零 ctx-holding 调用站**,任何"承载到 ctx"都够不着 → **没有便宜首刀**。
+> **主控裁决(用户确认)**:取 **L3a 同构机制刀**——把 ctx 穿进 solve loop、零 executor 迁移,接通"承载真可达性"前提。
+> **✅ 完工(e286af2)**:`_run_solve_loop` 加 kwonly `ctx`(默认 None)+ `contract_ctx = ctx if ctx is not None else self` 本地;loop 内 **7 个** `self.coordinator._*` 契约调用(`_prepare_chain_iteration_contract`/`_apply_missing_tools_recovery_contract`/`_apply_wrong_flag_early_stop_contract`/`_apply_terminal_success_contract`/`_apply_progress_evaluation_contract`/`_apply_after_chain_recovery_contract`/`_apply_final_recovery_contract`)从传 raw self 改传 `contract_ctx`;`coordinator.py:1841` handoff 加 `ctx=ctx`;Protocol `_run_solve_loop`(`coordinator.py:137`)同步加 ctx。**ctx 仍零承载透明代理 → `ctx.X` 逐字 `self.X`、行为零变**;只接通后续承载所需可达性。**严格增量**:ctx 默认 None 回退 self == 旧行为;~28 个测试 fake `_run_solve_loop(self, **kwargs)` 自动吸收 ctx 零改;`captured`/`_captured` 断言全 per-key(非 exact-dict)故零破。**风险前置排除**:grep 坐实无任何契约做 `isinstance(dispatcher, Protocol)`(仅 dict attr 上的 isinstance,经 ctx 代理同值)或 `.dispatcher` 访问 → 无 Py3.12 runtime_checkable 翻转风险。**门禁**:`tests/unit/agents` **547 passed**(基线 545 + 2 新 detached 机制测试:seam 转发 / 不传则回退 self,零回归)+ **replay 整文件 6 passed**(solve-loop spine 行为字节级不变)——**主控独立坐实**(亲跑全量 547 + replay 6 + `git diff --stat` 仅 3 白名单文件 + `contract_ctx` 计数 8=1 def+7 切)。3 文件 +87/−8。
+> **后续**:seam 可达后,可逐个把 executor 承载到 ctx(`_OWN_FIELDS` 加字段 + 构造点镜像 + 契约边改读 carrier)。**注意**:`_progress` 的 `_snapshot_flag_counts` 另有 dispatcher 自调边(`ctf_dispatcher.py:457`,`_run_solve_loop` 内 `self._`)无 ctx,承载它仍需处理该自调边;真承载首选可重估 flag_observer(2 ctx 边,但须复制壳注入)vs 继续在 seam 上做更多机制收口。`state` 真承载(resume rebind 坑)仍延后。
+
+---
+
 ## 卡 M — benchmark_runner 合并跑死锁取证 ✅(已复核·main 上非现存缺陷·关单·解除 eval 互斥锁)
 
 > **状态:阶段 0 取证完成,关单。** 卡 L1 完工报告里浮出"`benchmark_runner` 合并跑死锁"的怀疑,经只读复现 + 结构性排除,**当前 main 上死锁复现不出**——五种"合并跑"解释全部跑绿,卡面假设的两个共享资源根因被结构性排除。**降级为"已复核·非现存缺陷",解除它对 eval 卡的互斥锁。**
