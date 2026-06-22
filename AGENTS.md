@@ -23,7 +23,7 @@ Kali image).
 - **Playwright** — browser tool
 - **MCP (Model Context Protocol)** — both client (consuming external servers) and server
   (exposing FlagHunter to Claude Desktop / Cursor / etc.)
-- **FAISS + sentence-transformers** — optional RAG engine (`pip install -e ".[rag]"`)
+- **sentence-transformers + rank-bm25** — optional RAG engine: dense (NumPy cosine) + BM25, RRF fusion (`pip install -e ".[rag]"`)
 
 ## Repository layout
 
@@ -47,7 +47,7 @@ flaghunter/
   knowledge/
     graph.py        # ShadowGraph — derives strategic insights from notes
     indexer.py      # Indexes knowledge sources for RAG
-    rag.py          # FAISS-backed retrieval
+    rag.py          # Hybrid dense (NumPy cosine) + BM25 retrieval, RRF fusion
     embeddings.py   # OpenAI & local sentence-transformer embeddings
   llm/
     config.py       # LiteLLM configuration

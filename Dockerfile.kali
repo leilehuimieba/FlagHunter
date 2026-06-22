@@ -67,7 +67,7 @@ RUN python3 -m venv /opt/venv && \
 
 # Install heavy dependencies first (helps with CI memory limits)
 RUN /opt/venv/bin/pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
-RUN /opt/venv/bin/pip install --no-cache-dir sentence-transformers faiss-cpu
+RUN /opt/venv/bin/pip install --no-cache-dir sentence-transformers
 RUN mkdir -p flaghunter && touch flaghunter/__init__.py && \
     /opt/venv/bin/pip install --no-cache-dir -e ".[rag]"
 
