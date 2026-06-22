@@ -8,7 +8,7 @@ import shutil
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, List, Optional, TypedDict
 from urllib.parse import urlparse, urlunsplit
 
 if TYPE_CHECKING:
@@ -354,6 +354,30 @@ class CommandResult:
         return "\n".join(parts)
 
 
+class BrowserCapabilities(TypedDict, total=False):
+    """Result of ``browser_action("diagnose")`` — a runtime browser capability probe.
+
+    Browser capabilities are RUNTIME-determined, not class-static: e.g.
+    ``rendered_dom`` is True only when a real headless browser (Playwright) is
+    installed and a page launched — the *same* LocalRuntime reports False when
+    Playwright is absent (see ``_diagnose_browser``), while DockerRuntime /
+    SSHRuntime are always ``cli_fetch`` (curl-only, no rendered DOM). Because
+    the answer depends on the environment (install state, host reachability)
+    rather than the concrete class, callers MUST probe via diagnose instead of
+    assuming capabilities per runtime type. This TypedDict makes the probe's
+    previously implicit dict contract explicit (H18).
+    """
+
+    available: bool
+    engine: str  # "playwright" | "cli_fetch"
+    mode: str  # "rendered_browser" | "cli_fetch"
+    rendered_dom: bool  # True only with a real headless browser
+    js_execution: bool
+    cookies: bool
+    supports_actions: List[str]
+    error: str
+
+
 class Runtime(ABC):
     """Abstract base class for runtime environments."""
 
@@ -410,7 +434,12 @@ class Runtime(ABC):
             **kwargs: Action-specific arguments
 
         Returns:
-            Action result
+            Action result. The special action ``"diagnose"`` is a capability-probe
+            protocol returning a :class:`BrowserCapabilities` mapping describing
+            this runtime's *runtime-determined* browser features (rendered_dom,
+            supports_actions, ...). Callers should probe via diagnose rather than
+            assume capabilities per runtime class, since they depend on the
+            environment (Playwright install, host reachability), not the class.
         """
         pass
 
