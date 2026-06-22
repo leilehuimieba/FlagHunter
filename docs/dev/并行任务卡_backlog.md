@@ -416,12 +416,21 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 
 ---
 
-## 卡 L3f-2(待派·甲合后)— AuditInfra store 簇对象化(切法 A·一次抽全 4 簇·独占 pa_agent·中风险)
+## 卡 L3f-2 — AuditInfra store 簇对象化(切法 A·一次抽全 4 簇·独占 pa_agent·中风险) ✅(8ecd999)
 
-> **依赖**:必须等 L3f-1(甲)合入,才能用"replay 写 tmp + 抽前抽后产物逐字节对拍"做硬 DoD。与 L3f-1 都碰 `ctf_dispatcher.py`,**串行**。
+> **依赖**:L3f-1(甲 `615890c`)已合入,用"replay 写 tmp,fixture 仍 reproduced"做产物对拍等效证据。与 L3f-1 都碰 `ctf_dispatcher.py`,**串行**(甲已合,现派乙)。
 > **测绘裁决**:RT 簇(L3e)已抽走,剩约 10 方法(session ledger / artifact registry / checkpoint / source hint / `_record_recovery_decision`)**一次抽全到单个 stateless `AuditStore`**(分簇会制造 `_record_session_event` sink 跨 class 注入、不划算)。切法 A 4 簇全适用:三个 store 对象 + 三个 run_id + `_registered_local_source_hints_loaded` flag **留 dispatcher**(coordinator 直读 `_ledger_run_id`/Protocol 声明它 + flag;`_restore_context:1644/1661/1663` 直读 `_checkpoint_store`);`_setup_*` 委派壳**返回 `(run_id, store)` 写回 `self._xxx`**(保 setup 接力 + coordinator 回读语义);写事件簇 per-call 传 store 引用+run_id+state+`record_session_event` bound method;`_ingest` 的 loaded-flag 守卫留壳里。`_restore_context` 零改(store 留 dispatcher 传引用的关键收益)。
 > **门禁(独占 pa_agent)**:`tests/unit/agents` 全量零回归(含 `test_ctf_audit_infra`/`test_ctf_dispatcher_artifact_registry`/`test_ctf_dispatcher_checkpoint_store`/`test_ctf_coordinator`)+ **replay 产物对拍**(依赖甲:抽前抽后 tmp 内 session_ledger/artifact_registry/checkpoint 逐字节相同)。理论上**不需改 coordinator**(委派壳保名保签,coordinator 只调 `_setup_*` 名 + 读 `_ledger_run_id`)。边界:`audit_infra.py` + `ctf_dispatcher.py`(+ 必要时测试)。**需主控先确认甲已合再派**。
+> **✅ 完工(8ecd999)**:剩余 10 方法一次抽全到 stateless `AuditStore`(`vars()=={}` 零自持);`build_session_ledger`/`build_artifact_registry`/`build_checkpoint_store` 返回 `(run_id, store)`,`_setup_*` 壳回写 `self._x_run_id, self._x`(artifact/checkpoint 经 `fallback_run_id=self._ledger_run_id` 保两步 fallback 接力);写事件簇 per-call 传 store/run_id/state + `record_session_event` 注入;`_ingest` 的 `state is None`→`loaded` 守卫顺序逐字保留在壳、收尾置 `loaded=True`;三 store/三 run_id/flag 全留 dispatcher `__init__`;**`_restore_context` 零改、coordinator 零改、MRO/调用站零改**;落盘默认 `Path("loot")/...` 三处不变。3 文件原子提交。**门禁**:`tests/unit/agents` **534 passed**(零回归)+ DoD 四件套 81 passed + 整文件 replay 6 passed——**主控独立坐实**(亲跑 DoD 四件套 81 passed + 整文件 replay 6 passed + 隔离测试单跑绿)。⚠ agent 报告里 replay 出现的 1 failed(`test_replay_does_not_touch_real_loot_stores`)经查证**与本刀无关**:整文件在主控环境 6 passed、隔离测试单跑绿、534 全量零回归——是 L3f-1 隔离补洞未闭合留下的**间歇旁路泄漏**(见卡 L3g),非 L3f-2 引入。**AuditInfra 至此整体对象化完毕**(RT 簇 L3e + store 簇 L3f-2)。
 > **✅ 完工(2de4d1f)**:`NoteStore` stateless 独立类(6 方法逐字搬入,`_derive_*`→`derive_*`),state/runtime/4 兄弟方法/reasoning_layer 全 per-call 传值;**`_notes_log` 留 dispatcher、委派壳 per-call 传 list 引用、NoteStore 仅 `.append` 从不自持**(新测专门断言 NoteStore 实例无 `_notes_log` 属性 + 传入独立 list 被原地追加),故 `:574 result.notes=list(self._notes_log)` 仍读同一 list 字节级等价。`NoteStoreMixin` 6 方法保原名原签名退委派壳(`__module__` 锚定 note_store);`ctf_dispatcher.__init__` 持 `self._note_store=NoteStore()`;MRO/调用站/coordinator Protocol 桩零改。3 文件 +372/−34。门禁:`tests/unit/agents` **519 passed**(零回归)+ `test_replay_harness.py` **5 passed**(落盘零差)——**主控亲跑门禁独立印证**(519 passed + replay 5 passed,与 agent 报告一致)。⚠ 过程:执行 agent 给非结论 rest("等 monitor")疑似假死,主控先核 git 真相(同 [[feedback-handoff-scripts-when-blocked]] 教训)——实为 agent 在等自起的长 pytest,随后真完成并提交 2de4d1f,无重复派单。**后续**:AuditInfra(底座·166 反向调用·三磁盘 store rebind,留最后/单独立项)→ recon/llm/jwt(难)。
+
+---
+
+## 卡 L3g(待派)— replay session_ledger 间歇旁路泄漏排查 + 补洞(收尾 L3f-1)
+
+> **现象**:L3f-1 加的 `test_replay_does_not_touch_real_loot_stores` **间歇 fail**——replay 偶发往真实 `loot/session_ledgers` 漏写新 `ctf-<uuid>.jsonl`(uuid 每次不同);整文件多数 run 绿(主控 615890c/8ecd999 两次 6 passed),少数 run 红(L3f-2 执行 agent 环境命中)。**间歇 = 旁路 + 异步时序**。
+> **根因方向**:L3f-1 只把 root 线穿过 `run()`/`_bootstrap_dispatcher`/`_setup_*`,但 replay 链路里**某条 store 构造没拿到 tmp root、退回默认 `Path("loot")`**。候选:`_restore_context` resume 路径、异步事件 flush、二次 dispatcher 构造、或某 fixture 走不经 `_setup_session_ledger` 的旁路。
+> **L3g 应做**:① 派只读测绘定位"replay 期间不经 `_setup_*` 而构造 store 的旁路点"(grep `SessionLedger(`/`Path("loot")`/`get_loot_file` 在 replay 可达链路);② 补该旁路 root 透传,或给三个 store 加 replay 可设的基址钩子(类比 notes 的 `set_notes_file`,更稳);③ 隔离测试转稳定绿。**低-中风险,infra/test 收尾,需主控测绘+裁决再派。** 非阻塞(主路径 fixture 全 reproduced,泄漏只污染真实 loot 不影响判定),但 flaky 测试应尽快收。
 
 ---
 
