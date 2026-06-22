@@ -67,7 +67,6 @@ flaghunter/
     runtime.py      # LocalRuntime (Playwright + subprocess)
     docker_runtime.py   # DockerRuntime (container exec)
     ssh_runtime.py      # SSHRuntime (Kali VM)
-    tool_server.py      # TCP tool server for sandbox orchestration
   tools/
     registry.py     # Tool dataclass & global _tools registry
     loader.py       # Discovers & dynamically imports tool modules

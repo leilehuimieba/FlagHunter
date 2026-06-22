@@ -51,7 +51,6 @@ flaghunter/
     thp3_recon.py / thp3_network.py / thp3_web.py
   runtime/
     docker_runtime.py   # Runs tool commands inside Docker
-    tool_server.py      # Local runtime
   tools/
     loader.py       # Discovers & dynamically imports tool modules
     executor.py     # Executes tool calls, tracks tokens

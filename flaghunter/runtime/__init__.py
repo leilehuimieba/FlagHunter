@@ -3,7 +3,6 @@
 from .docker_runtime import DockerRuntime
 from .ssh_runtime import SSHRuntime
 from .runtime import CommandResult, EnvironmentInfo, LocalRuntime, Runtime
-from .tool_server import ToolServer
 
 __all__ = [
     "Runtime",
@@ -11,6 +10,5 @@ __all__ = [
     "LocalRuntime",
     "DockerRuntime",
     "SSHRuntime",
-    "ToolServer",
     "EnvironmentInfo",
 ]
