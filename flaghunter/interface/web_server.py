@@ -3517,6 +3517,14 @@ def _run_agent_task(task_id: str, payload: dict, project_root: Path) -> None:
             rag = session.rag_engine
 
             if str(payload.get("mode") or "").lower() == "ctf":
+                # CTF mode runs a separate execution engine (CTFTaskDispatcher),
+                # NOT the FlagHunterAgent loop. It is intentionally not routed
+                # through the AgentSession facade (which is an agent-loop
+                # assembler/driver): the dispatcher has its own solve-chain
+                # lifecycle and result shape. It reuses session.runtime — the
+                # I2 assembly the facade just performed — which is the right
+                # seam. Folding CTF into the facade would conflate two distinct
+                # engines for no gain (H13: exempt, separate path by design).
                 from ..agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
 
                 ctf_subtype = str(payload.get("modeSubtype") or payload.get("ctfType") or "auto")

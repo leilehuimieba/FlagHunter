@@ -18,6 +18,17 @@ Design choices:
   (architecture invariant I3: events have a single source).
 - **Thread-safe.** ``emit`` may be called from worker threads (tools run in
   executors), so subscriber bookkeeping is guarded by a lock.
+
+One *implementation*, several *channels* (H11). The codebase holds a few
+module-level ``EventBus`` instances — ``notifier._notify_bus`` (general
+notifications), ``web_server._bus`` (browser SSE clients), ``mcp_tools._event_bus``
+(MCP UI hook), and the per-session ``AgentSession._bus``. These are all the
+*same* neutral class (invariant I3, guarded by tests), but they are deliberately
+*separate instances*: each is a distinct channel with its own subscriber set.
+They must NOT be collapsed into one shared singleton — doing so would cross-wire
+unrelated traffic (e.g. a web client's SSE stream into MCP clients, or an MCP
+task's events into the TUI). "Single source" means single implementation, not
+single instance.
 """
 
 from __future__ import annotations

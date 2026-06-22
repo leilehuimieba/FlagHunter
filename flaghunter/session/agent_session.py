@@ -160,6 +160,15 @@ class AgentSession:
         Token accounting here is a naive sum of reported ``total_tokens``;
         callers that need de-duplicated counts may track their own via the
         event subscription (reconciled in P1-b).
+
+        Adoption note (H11): this is the facade's *programmatic* execution path
+        — a thin "assemble → run → RunResult" convenience for headless/embedding
+        callers. The interactive entrypoints (TUI / CLI / web) intentionally do
+        NOT use it: they iterate ``session.agent.agent_loop(...)`` themselves so
+        each can render per-message with its own richly-shaped events (e.g. web's
+        SSE ``tool_call`` carrying task_id/run_id). They still adopt the facade's
+        *assembly* half via :meth:`create` (invariant I2). run() is retained as
+        the clean programmatic entry, not dead code.
         """
         agent = self.agent
         if agent is None:
