@@ -426,7 +426,11 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 
 ---
 
-## 卡 L3g(待派)— replay session_ledger 间歇旁路泄漏排查 + 补洞(收尾 L3f-1)
+## 卡 L3g ✅(6204315)— replay 隔离测试间歇红修复(根因坐实=测试套件漏传 root)
+
+> **完工(2026-06-22,fix `6204315`)**:audit_infra 加 `set_default_loot_root`/`get_default_loot_root` 进程级默认 loot 基址钩子(默认仍 `Path("loot")` 生产字节零改),三个 `build_*` 的 `*_root` fallback 改读该默认值;`tests/unit/agents/conftest.py` 加 autouse fixture 每测试把默认基址指向 `tmp_path`、teardown 还原。门禁:`tests/unit/agents` **534 passed**(零回归)、replay 整文件 **6 passed**(含隔离测试)、隔离测试连跑 **5 次 delta 恒 0**(修前间歇 +26)。**审计教训**:执行 agent 改完代码后陷入轮询空转、未提交未验证就歇手(回报仅"waiting for notification"),主控亲核 git 发现产出在工作树未提交 → 独立坐实门禁 + 显式 pathspec 收尾提交。
+
+> **🔍 主控测绘坐实(2026-06-22,翻转原假设)**:泄漏**不在 replay/生产**——`run_replay` 经内存 monkeypatch 验证 0 命中真实 loot(三 root 全程透传、`_restore_context` 只读不构造)。**真凶在测试侧**:`tests/unit/agents/test_ctf_dispatcher.py` ~26 个 `dispatcher.run(...)` 不传 `ledger_root` → `build_session_ledger` fallback 到 `Path("loot")/session_ledgers` → 每跑一个往真实 loot 写一个 `ctf-<uuid>.jsonl`;隔离测试只在与这些 dispatcher 测试同进程跑时把新文件算进 before/after delta → 间歇红。**采用方案**:audit_infra 加进程级默认 loot 基址钩子(`set_default_loot_root`,默认仍 `Path("loot")` 生产零改)+ 测试 autouse fixture 指向 tmp 根治。门禁:agents 全量零回归 + 隔离测试连跑 5 次 delta 恒 0 + replay 整文件 6 passed。文件锁:`audit_infra.py` + `tests/(unit/agents/)conftest.py`,不碰 replay/coordinator/dispatcher。
 
 > **现象**:L3f-1 加的 `test_replay_does_not_touch_real_loot_stores` **间歇 fail**——replay 偶发往真实 `loot/session_ledgers` 漏写新 `ctf-<uuid>.jsonl`(uuid 每次不同);整文件多数 run 绿(主控 615890c/8ecd999 两次 6 passed),少数 run 红(L3f-2 执行 agent 环境命中)。**间歇 = 旁路 + 异步时序**。
 > **根因方向**:L3f-1 只把 root 线穿过 `run()`/`_bootstrap_dispatcher`/`_setup_*`,但 replay 链路里**某条 store 构造没拿到 tmp root、退回默认 `Path("loot")`**。候选:`_restore_context` resume 路径、异步事件 flush、二次 dispatcher 构造、或某 fixture 走不经 `_setup_session_ledger` 的旁路。
