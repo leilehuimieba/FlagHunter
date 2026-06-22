@@ -432,7 +432,9 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 
 ---
 
-## 卡 L3h ⏳(派发中)— JWT executor 对象化(切法 A·L3 执行体对象化第七刀·破冰·低风险)
+## 卡 L3h ✅(7c92ff4)— JWT executor 对象化(切法 A·L3 执行体对象化第七刀·破冰·低风险)
+
+> **完工(2026-06-22,refactor `7c92ff4`)**:`JWTExecutorMixin` 6 方法抽成 stateless `JWTExecutor`(`vars()=={}`),退委派壳;`self.state` per-call 传值(未入实例)、`_recent_local_source_hint_secret_candidates` 作回调注入;`ctf_dispatcher.__init__` 持 `self._jwt_executor`。MRO/coordinator/jwt_contact_chain 零改。门禁:`tests/unit/agents` **538 passed**(基线 534 + 4 新 detached 单测,零回归)+ jwt 定向 9 passed(executor detached 5 + chain 2 + contact_chain 2)——主控独立坐实(亲跑 9 + 全量 538 + `git show --stat` 3 文件无越界)。执行 agent 本卡回报规范(纪律 prompt 生效,未再轮询空转)。
 
 > **文档锚点**:ADR §5.2 L3d/L3e/L3f-2 切法 A 模式。**主控测绘坐实**(2026-06-22):`jwt_executor.py:19 JWTExecutorMixin` 183 行 6 方法(纯计算/编码,零落盘/零 LLM/零 runtime IO),适配度 **5/5**,三块硬骨头(recon/llm/jwt)里最闭合 → 选作破冰。**切法 A**:抽 stateless `JWTExecutor`(`vars()=={}`),6 方法逐字搬,`self.state` **per-call 传**(绝不搬进实例,同 L3d `_notes_log` 坑)、`_recent_local_source_hint_secret_candidates` 注入;Mixin 退委派壳保原名原签名;dispatcher `__init__` 持 `self._jwt_executor`。**真坑**:state/句柄绝不入实例。**coordinator/Protocol 零依赖、jwt_contact_chain(唯一外部调用面)零改**。**文件锁**:`jwt_executor.py` + `ctf_dispatcher.py`(__init__ 加一行)+ jwt 测试文件(含新 detached 单测)。不碰 coordinator/jwt_contact_chain。**门禁**:`tests/unit/agents` 全量零回归(基线 534)+ detached 单测证 `vars()=={}` + jwt chain 用例绿;纯函数无需 replay/eval。**后续**:LLM(L3i·中·体量大需 eval 兜底)→ Recon(L3j·中·兄弟耦合最宽+触 Protocol,留最后)。
 
