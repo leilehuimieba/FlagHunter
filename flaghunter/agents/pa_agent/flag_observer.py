@@ -20,14 +20,31 @@ from urllib.parse import urlparse
 from ...harness.audit_events import build_verification_decision_event
 
 
-class FlagObserverMixin:
-    """Run a flag candidate through the verifier and persist the decision."""
+class FlagObserver:
+    """Run a flag candidate through the verifier and persist the decision.
 
-    async def _observe_flag(
+    Object-ified (L3c, cut A): independent of ``CTFTaskDispatcher`` and
+    unit-testable fully detached.  Has no ``__init__`` and holds **no** eager
+    reference to ``state`` or the active hypothesis/strategy contexts — those
+    are rebound every turn / on resume by the dispatcher, so they are passed
+    per-call.  The verifier and the collaborator callables are likewise
+    injected per-call (the shell hands over bound methods that follow the MRO).
+    Behaviour is byte-for-byte identical to the previous inline implementation.
+    """
+
+    async def observe_flag(
         self,
+        state,
+        *,
+        verifier,
+        store_note,
+        record_session_event,
+        hydrate_flag_proof,
+        record_wrong_flag_feedback,
+        active_hypothesis_context,
+        active_strategy_context,
         flag: str,
         target: str,
-        *,
         evidence_source: str,
         rationale: str = "",
         evidence_url: str = "",
@@ -36,20 +53,20 @@ class FlagObserverMixin:
         hypothesis_id: str | None = None,
         strategy_kind: str | None = None,
     ):
-        if self.state is None:
+        if state is None:
             return None
 
-        active_hypothesis = hypothesis_id or getattr(self._active_hypothesis_context, "id", None)
+        active_hypothesis = hypothesis_id or getattr(active_hypothesis_context, "id", None)
         active_strategy = (
             strategy_kind
-            or getattr(self._active_hypothesis_context, "kind", None)
-            or getattr(self._active_strategy_context, "kind", None)
+            or getattr(active_hypothesis_context, "kind", None)
+            or getattr(active_strategy_context, "kind", None)
         )
         effective_url = str(evidence_url or target or "").strip()
         effective_snippet = str(evidence_snippet or rationale or flag or "").strip()
 
-        verification = await self.verifier.verify_flag(
-            self.state,
+        verification = await verifier.verify_flag(
+            state,
             flag=flag,
             evidence_source=evidence_source,
             rationale=rationale,
@@ -60,7 +77,7 @@ class FlagObserverMixin:
             strategy_kind=active_strategy,
         )
         if verification is not None and verification.proof is not None:
-            self._hydrate_flag_proof(
+            hydrate_flag_proof(
                 verification.proof,
                 strategy_kind=active_strategy,
                 evidence_source=evidence_source,
@@ -76,13 +93,13 @@ class FlagObserverMixin:
             hypothesis_id=active_hypothesis or "",
             strategy_kind=active_strategy or "",
         )
-        self._record_session_event(
+        record_session_event(
             str(verification_event.get("event_type") or "verification_decision"),
             dict(verification_event.get("payload") or {}),
         )
 
         if verification.decision == "candidate":
-            await self._store_note(
+            await store_note(
                 key="ctf_flag_candidate",
                 value=f"candidate={verification.flag}; reason={verification.rationale}",
                 category="artifact",
@@ -93,7 +110,7 @@ class FlagObserverMixin:
                 artifact_category="flag_candidate",
             )
         elif verification.decision == "runtime":
-            await self._store_note(
+            await store_note(
                 key="ctf_flag_runtime",
                 value=f"runtime={verification.flag}; reason={verification.rationale}",
                 category="artifact",
@@ -104,7 +121,7 @@ class FlagObserverMixin:
                 artifact_category="flag_runtime",
             )
         elif verification.decision == "verified":
-            await self._store_note(
+            await store_note(
                 key="ctf_flag",
                 value=str(verification.flag or ""),
                 category="artifact",
@@ -115,16 +132,53 @@ class FlagObserverMixin:
                 artifact_category="flag_verified",
             )
         elif verification.decision == "rejected":
-            await self._store_note(
+            await store_note(
                 key="ctf_flag_rejected",
                 value=f"rejected={verification.flag}; reason={verification.rationale}",
                 category="task",
                 target=urlparse(target).netloc or target,
             )
             if verification.flag:
-                await self._record_wrong_flag_feedback(
+                await record_wrong_flag_feedback(
                     str(verification.flag),
                     verification.rationale,
                     proof=verification.proof,
                 )
         return verification
+
+
+class FlagObserverMixin:
+    """Thin delegation shell forwarding to the dispatcher's ``FlagObserver``."""
+
+    async def _observe_flag(
+        self,
+        flag: str,
+        target: str,
+        *,
+        evidence_source: str,
+        rationale: str = "",
+        evidence_url: str = "",
+        evidence_snippet: str = "",
+        replayable: bool | None = None,
+        hypothesis_id: str | None = None,
+        strategy_kind: str | None = None,
+    ):
+        return await self._flag_observer.observe_flag(
+            self.state,
+            verifier=self.verifier,
+            store_note=self._store_note,
+            record_session_event=self._record_session_event,
+            hydrate_flag_proof=self._hydrate_flag_proof,
+            record_wrong_flag_feedback=self._record_wrong_flag_feedback,
+            active_hypothesis_context=self._active_hypothesis_context,
+            active_strategy_context=self._active_strategy_context,
+            flag=flag,
+            target=target,
+            evidence_source=evidence_source,
+            rationale=rationale,
+            evidence_url=evidence_url,
+            evidence_snippet=evidence_snippet,
+            replayable=replayable,
+            hypothesis_id=hypothesis_id,
+            strategy_kind=strategy_kind,
+        )

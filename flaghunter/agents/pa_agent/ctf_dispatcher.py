@@ -61,7 +61,7 @@ from .audit_infra import AuditInfraMixin
 from .capability_registry import CapabilityRegistry
 from .ctf_state import CTFState, FlagProof, LLMStepLog
 from .exploit_replay_memory import ExploitReplayMemoryMixin
-from .flag_observer import FlagObserverMixin
+from .flag_observer import FlagObserver, FlagObserverMixin
 from .hypothesis_engine import HypothesisEngine
 from .jwt_contact_chain import JWTContactChainMixin
 from .jwt_executor import JWTExecutorMixin
@@ -299,6 +299,7 @@ class CTFTaskDispatcher(
         self._notes_log: list[str] = []
         self.state: CTFState | None = None
         self._progress = ProgressTracker()
+        self._flag_observer = FlagObserver()
         self.hypothesis_engine = HypothesisEngine()
         self.recovery_controller = RecoveryController(self.hypothesis_engine)
         self.strategy_registry = StrategyRegistry.build_default()
