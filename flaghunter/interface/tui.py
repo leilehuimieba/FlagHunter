@@ -7247,6 +7247,7 @@ Be concise. Use the actual data from notes."""
         try:
             from ..agents.base_agent import AgentMessage
             from ..agents.crew import CrewOrchestrator
+            from ..config.settings import get_settings
             from ..llm import LLM, ModelConfig
 
             # Build prior context from assist/agent conversation history
@@ -7256,7 +7257,8 @@ Be concise. Use the actual data from notes."""
             assert self.model is not None
             assert self.runtime is not None
 
-            llm = LLM(model=self.model, config=ModelConfig(temperature=0.7))
+            # Honour the configured temperature (settings singleton, H15).
+            llm = LLM(model=self.model, config=ModelConfig(temperature=get_settings().temperature))
 
             crew = CrewOrchestrator(
                 llm=llm,

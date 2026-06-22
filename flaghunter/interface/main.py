@@ -986,10 +986,14 @@ async def _initialize(args: argparse.Namespace) -> dict:
     model = components["model"]
 
     # Bootstrap the MCP tool registry so run_task / run_task_async work.
+    # Honour the configured temperature (settings singleton = single source,
+    # H15) rather than hardcoding it for the per-task run_task LLM.
+    from ..config.settings import get_settings
+
     RuntimeClass = type(runtime)
     llm_kwargs = {
         "model": model,
-        "config": ModelConfig(temperature=0.7),
+        "config": ModelConfig(temperature=get_settings().temperature),
         "rag_engine": components["rag_engine"],
     }
     runtime_kwargs: dict = {}

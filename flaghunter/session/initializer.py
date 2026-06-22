@@ -335,9 +335,14 @@ async def build_agent_components(
             "No model configured. Pass --model or set FLAGHUNTER_MODEL."
         )
 
+    # Honour the configured temperature instead of hardcoding it, so the
+    # settings singleton is the single source of truth (H15). Falls back to
+    # DEFAULT_TEMPERATURE via the Settings dataclass default.
+    from ..config.settings import get_settings
+
     llm = LLM(
         model=model,
-        config=ModelConfig(temperature=0.7),
+        config=ModelConfig(temperature=get_settings().temperature),
         rag_engine=rag_engine,
     )
     _log(f"LLM initialised: {model}")
