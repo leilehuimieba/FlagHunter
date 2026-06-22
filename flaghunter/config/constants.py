@@ -62,9 +62,15 @@ def get_openai_api_base() -> Optional[str]:
     return base.rstrip("/") if base else None
 
 # LLM Defaults (set FLAGHUNTER_MODEL in .env or shell)
-DEFAULT_MODEL = os.environ.get(
-    "FLAGHUNTER_MODEL"
-)  # No fallback - requires configuration
+# Intentionally NO fallback — an unset model is a hard config error, not a
+# silent default (avoids silently running the wrong model / surprise API costs).
+# Every entry point validates BEFORE constructing LLM and emits a clear error:
+#   - session/initializer.py:333  (组合根 build_agent_components, raises RuntimeError)
+#   - interface/main.py:1728      (TUI bootstrap guard)
+#   - interface/tui.py:3062       (TUI status message)
+# So DEFAULT_MODEL=None never reaches LiteLLM on any production path; do NOT
+# "fix" this by adding a default model here.
+DEFAULT_MODEL = os.environ.get("FLAGHUNTER_MODEL")
 DEFAULT_TEMPERATURE = 0.7
 DEFAULT_MAX_TOKENS = 8192
 
