@@ -137,6 +137,7 @@ class CoordinatorDispatcherServices(Protocol):
     async def _run_solve_loop(
         self,
         *,
+        ctx: "CoordinatorDispatcherServices | None" = None,
         target: str,
         hint: str,
         page_features: dict[str, Any],
@@ -1839,6 +1840,7 @@ class CTFCoordinator:
         # re-entering dispatcher.run() with _*_ready skip-flags. This removes
         # the dispatcher→coordinator→dispatcher re-entry bounce.
         return await ctx.dispatcher._run_solve_loop(
+            ctx=ctx,
             target=normalized_target,
             hint=normalized_hint,
             page_features=page_features,

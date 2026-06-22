@@ -10,6 +10,7 @@ import pytest
 
 from flaghunter.agents.pa_agent.ctf_dispatcher import (
     CTFTaskDispatcher,
+    SolveResult,
     _normalize_contact_captcha_text,
     _normalize_exploration_url,
     _quote_sql_identifier,
@@ -90,6 +91,69 @@ def test_dispatcher_conforms_to_coordinator_dispatcher_services_protocol():
         exploitation_mode="aggressive",
     )
     assert isinstance(dispatcher, CoordinatorDispatcherServices)
+
+
+@pytest.mark.asyncio
+async def test_run_solve_loop_forwards_ctx_seam_to_coordinator_contracts():
+    # 承载收尾·机制刀(L4a): _run_solve_loop 把 coordinator 传入的 ``ctx`` seam
+    # (而非 raw dispatcher)转发给每个 ``self.coordinator._*`` 契约调用。这是后续
+    # "把 executor 承载到 ctx" 的真可达性前提(solve loop 此前在 raw dispatcher 上
+    # 跑、无 ctx 句柄)。空 chain_order → while 循环跳过、直奔
+    # _apply_final_recovery_contract,足以坐实 seam 转发。
+    runtime = _DispatcherRuntime()
+    dispatcher = CTFTaskDispatcher(runtime=runtime, progress_callback=None)
+
+    captured: dict[str, object] = {}
+
+    class _RecorderCoordinator:
+        async def _apply_final_recovery_contract(
+            self, seam, *, result, target, detected_type, no_progress_rounds
+        ):
+            captured["seam"] = seam
+            return result
+
+    dispatcher.coordinator = _RecorderCoordinator()  # type: ignore[assignment]
+    sentinel_ctx = object()
+
+    result = await dispatcher._run_solve_loop(
+        ctx=sentinel_ctx,
+        target="http://ctf.local",
+        hint="",
+        page_features={},
+        detected_type="web",
+        chain_order=[],
+    )
+
+    assert captured["seam"] is sentinel_ctx
+    assert isinstance(result, SolveResult)
+
+
+@pytest.mark.asyncio
+async def test_run_solve_loop_falls_back_to_self_when_ctx_omitted():
+    # 严格增量:不传 ``ctx`` 时 seam 回退到 raw dispatcher == 机制刀前的旧行为。
+    runtime = _DispatcherRuntime()
+    dispatcher = CTFTaskDispatcher(runtime=runtime, progress_callback=None)
+
+    captured: dict[str, object] = {}
+
+    class _RecorderCoordinator:
+        async def _apply_final_recovery_contract(
+            self, seam, *, result, target, detected_type, no_progress_rounds
+        ):
+            captured["seam"] = seam
+            return result
+
+    dispatcher.coordinator = _RecorderCoordinator()  # type: ignore[assignment]
+
+    await dispatcher._run_solve_loop(
+        target="http://ctf.local",
+        hint="",
+        page_features={},
+        detected_type="web",
+        chain_order=[],
+    )
+
+    assert captured["seam"] is dispatcher
 
 
 def test_collector_public_host_prefers_host_docker_internal_for_local_targets(monkeypatch):

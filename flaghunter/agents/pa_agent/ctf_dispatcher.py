@@ -52,7 +52,7 @@ from .chains.sqli import SQLIChainMixin
 from .chains.upload import UploadChainMixin
 from .chains.web import WebChainMixin
 from .chains.xss import XSSChainMixin
-from .coordinator import CTFCoordinator
+from .coordinator import CTFCoordinator, CoordinatorDispatcherServices
 from .flag_parser import FlagParserMixin
 from .flag_proof import FlagProofMixin
 from .hash_backup_executor import HashBackupExecutorMixin
@@ -429,6 +429,7 @@ class CTFTaskDispatcher(
     async def _run_solve_loop(
         self,
         *,
+        ctx: CoordinatorDispatcherServices | None = None,
         target: str,
         hint: str,
         page_features: dict[str, Any],
@@ -444,10 +445,22 @@ class CTFTaskDispatcher(
         always delegates to ``coordinator.execute``, so the old dual-purpose
         re-entry and its ``_*_ready`` skip-flags are gone. ``result`` defaults to
         a fresh ``SolveResult`` when omitted.
+
+        承载收尾·机制刀(L4a, 2026-06-22): coordinator hands its run-scoped
+        ``RunContext`` in via ``ctx``; the solve loop forwards that seam object
+        (not the raw dispatcher) to every ``self.coordinator._*`` contract call.
+        ``ctx`` is still a zero-carrying transparent proxy, so ``ctx.X`` is
+        byte-for-byte ``self.X`` and behaviour is unchanged — this only wires up
+        the *reachability* a later cut needs to carry executors onto the seam.
+        When ``ctx`` is omitted (direct/legacy call), it falls back to ``self``
+        so the cut is strictly additive. See ADR §5.2 卡 L4a.
         """
         if result is None:
             result = SolveResult(success=False)
         chain_order = list(dict.fromkeys(chain_order))
+        # The seam object the coordinator contracts run against: the carried
+        # ``RunContext`` when supplied, else the raw dispatcher (== old behaviour).
+        contract_ctx: Any = ctx if ctx is not None else self
 
         no_progress_rounds = 0
         chain_index = 0
@@ -457,7 +470,7 @@ class CTFTaskDispatcher(
             self._restore_context()
             before_state = self._snapshot_flag_counts()
             iteration_contract = self.coordinator._prepare_chain_iteration_contract(
-                self,
+                contract_ctx,
                 chain_name=chain_name,
                 target=target,
                 page_features=page_features,
@@ -489,7 +502,7 @@ class CTFTaskDispatcher(
                         self._emit(f"[CTF dispatcher] auto-install {name}: {'ok' if ok else 'failed'}")
                     continue
                 recovery_contract = await self.coordinator._apply_missing_tools_recovery_contract(
-                    self,
+                    contract_ctx,
                     chain_name=chain_name,
                     chain_index=chain_index,
                     chain_order=chain_order,
@@ -508,7 +521,7 @@ class CTFTaskDispatcher(
                 self._active_hypothesis_context = None
                 self._active_strategy_context = None
             wrong_flag_result = await self.coordinator._apply_wrong_flag_early_stop_contract(
-                self,
+                contract_ctx,
                 result=result,
                 outcome=outcome,
                 target=target,
@@ -517,7 +530,7 @@ class CTFTaskDispatcher(
             if wrong_flag_result is not None:
                 return wrong_flag_result
             terminal_result = await self.coordinator._apply_terminal_success_contract(
-                self,
+                contract_ctx,
                 result=result,
                 outcome=outcome,
                 chain_name=chain_name,
@@ -528,7 +541,7 @@ class CTFTaskDispatcher(
                 return terminal_result
 
             progress_contract = self.coordinator._apply_progress_evaluation_contract(
-                self,
+                contract_ctx,
                 chain_name=chain_name,
                 before_state=before_state,
                 outcome=outcome,
@@ -551,7 +564,7 @@ class CTFTaskDispatcher(
                         + ", ".join(h.kind for h in _aborted)
                     )
             recovery_contract = await self.coordinator._apply_after_chain_recovery_contract(
-                self,
+                contract_ctx,
                 chain_name=chain_name,
                 chain_index=chain_index,
                 chain_order=chain_order,
@@ -571,7 +584,7 @@ class CTFTaskDispatcher(
             chain_index = int(recovery_contract["next_chain_index"])
 
         return await self.coordinator._apply_final_recovery_contract(
-            self,
+            contract_ctx,
             result=result,
             target=target,
             detected_type=detected_type,
