@@ -385,7 +385,7 @@ It is a deterministic dispatcher wrapped around LLM-assisted strategy selection:
 - Indexes `.txt`/`.md`/`.json` under `knowledge/` (chunk_size=1000, overlap=200).
 - Supports OpenAI embeddings or local `sentence-transformers` (`all-MiniLM-L6-v2`).
 - Cosine-similarity search with threshold 0.35; results truncated to token budget.
-- Persistent index at `embeddings/index.pkl` (pickle).
+- Persistent index at `embeddings/index.json` (JSON documents + base64 embeddings; never pickle — see tests/security/test_pickle_deserialization.py).
 
 **ShadowGraph** (`knowledge/graph.py`):
 - Incremental NetworkX DiGraph built from `notes.json`.

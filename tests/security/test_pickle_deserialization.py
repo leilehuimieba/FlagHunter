@@ -1,25 +1,29 @@
-"""Security tests: unsafe pickle deserialization in RAG engine.
+"""Security tests: RAG index persistence must not use pickle (H5 hardening).
 
-The RAG engine persists its FAISS index and document store as pickle files.
-A compromised or maliciously crafted pickle file can execute arbitrary code
-during deserialization (classic pickle RCE).
+History: the RAG engine used to persist its index / document store as a pickle
+file (``embeddings/index.pkl``). A compromised or maliciously crafted pickle
+file executes arbitrary code during deserialization (classic pickle RCE), and a
+workspace index file is attacker-writable.
+
+H5 replaced pickle with JSON (documents) + base64-encoded embeddings, and
+renamed the on-disk artifact to ``index.json`` so the loader never touches a
+legacy pickle.
 
 These tests:
-1. Document the RCE vector (pickle.loads executes arbitrary code).
-2. Verify the RAG module DOES use pickle (tracks the attack surface).
-3. Verify that loading a benign pickle via RAGEngine.load_index works.
-4. Recommend safer alternatives for future hardening.
+1. Document the pickle RCE vector (why we moved away from it).
+2. Verify ``RAGEngine.save_index`` / ``load_index`` use JSON, not pickle.
+3. Verify a malicious pickle dropped at the index path does NOT execute on load.
+4. Verify benign round-trip (documents + embeddings) survives save/load.
 """
 
 import os
 import pickle
-from pathlib import Path
 
 import pytest
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Helpers — a module-level pickle RCE payload used to prove load_index is safe
 # ---------------------------------------------------------------------------
 
 # Module-level state so pickle can resolve callables by reference
@@ -41,50 +45,29 @@ def _make_malicious_pickle() -> bytes:
     return pickle.dumps(_RCEPayload())
 
 
-def _make_benign_pickle(data: object) -> bytes:
-    return pickle.dumps(data)
-
-
 # ---------------------------------------------------------------------------
-# Risk documentation tests
+# Risk documentation — why pickle was removed (the vector is real)
 # ---------------------------------------------------------------------------
 
 class TestPickleRiskDocumentation:
     def test_pickle_module_allows_code_execution(self):
-        """Document that standard pickle.loads executes arbitrary code.
+        """Standard pickle.loads executes arbitrary code on deserialization.
 
-        This IS the expected behavior — the test proves the attack vector
-        works, not that it's been blocked.
+        This proves the attack vector that H5 eliminated for the RAG index —
+        it is NOT a claim that pickle itself was blocked.
         """
         class LocalExploit:
             def __reduce__(self):
-                # Use a module-level list append via the os module to ensure
-                # pickle can resolve the callable across modules
                 return (os.getenv, ("HOME",))  # safe: just reads HOME env var
 
         payload = pickle.dumps(LocalExploit())
         result = pickle.loads(payload)
-        # os.getenv("HOME") returns a string or None — proves code was called
-        assert result == os.getenv("HOME"), "pickle.loads should execute the __reduce__ callable"
-
-    def test_malicious_pickle_bytes_are_valid_pickle(self):
-        """The malicious payload is syntactically valid pickle."""
-        payload = _make_malicious_pickle()
-        assert isinstance(payload, bytes)
-        assert len(payload) > 0
-
-    def test_benign_pickle_round_trips(self):
-        """Benign data pickles and unpickles correctly."""
-        data = {"key": "value", "numbers": [1, 2, 3]}
-        payload = _make_benign_pickle(data)
-        restored = pickle.loads(payload)
-        assert restored == data
+        assert result == os.getenv("HOME"), "pickle.loads executes the __reduce__ callable"
 
     def test_module_level_rce_payload_executes(self):
-        """Explicitly verify that a module-level __reduce__ trick works."""
+        """The RCE payload used below really does execute on unpickling."""
         _rce_executed.clear()
-        payload = _make_malicious_pickle()
-        pickle.loads(payload)
+        pickle.loads(_make_malicious_pickle())
         assert "EXECUTED" in _rce_executed, (
             "Module-level pickle RCE payload did not execute — "
             "verify the _RCEPayload class is correct."
@@ -92,120 +75,104 @@ class TestPickleRiskDocumentation:
 
 
 # ---------------------------------------------------------------------------
-# RAG engine pickle risk assessment
+# RAG engine hardening — the index uses JSON, never pickle
 # ---------------------------------------------------------------------------
 
-class TestRAGPickleRisk:
-    def test_rag_module_imports_pickle(self):
-        """Verify that the RAG module uses pickle (documents the attack surface)."""
+class TestRAGIndexHardened:
+    def test_save_index_uses_json_not_pickle(self):
         import inspect
-        import flaghunter.knowledge.rag as rag_module
-        source = inspect.getsource(rag_module)
-        assert "pickle" in source, (
-            "RAG module no longer uses pickle — update this test and "
-            "the security documentation accordingly."
-        )
-
-    def test_rag_has_load_index_method(self):
-        """RAGEngine.load_index exists and would call pickle.load."""
         from flaghunter.knowledge.rag import RAGEngine
-        engine = RAGEngine()
-        assert hasattr(engine, "load_index"), "RAGEngine has no load_index method"
-        assert callable(engine.load_index)
+        source = inspect.getsource(RAGEngine.save_index)
+        assert "json.dump" in source, "save_index must serialize via JSON"
+        assert "pickle.dump" not in source, "save_index must not write pickle"
 
-    def test_rag_has_save_index_method(self):
-        from flaghunter.knowledge.rag import RAGEngine
-        engine = RAGEngine()
-        assert hasattr(engine, "save_index"), "RAGEngine has no save_index method"
-
-    def test_rag_load_index_uses_pickle(self):
-        """Verify that load_index reads pickle (not json/yaml)."""
+    def test_load_index_uses_json_not_pickle(self):
         import inspect
         from flaghunter.knowledge.rag import RAGEngine
         source = inspect.getsource(RAGEngine.load_index)
-        assert "pickle" in source, "load_index no longer uses pickle"
+        assert "json.load" in source, "load_index must read JSON"
+        assert "pickle.load" not in source, "load_index must not unpickle"
 
-    def test_rag_save_uses_pickle(self, tmp_path):
-        """Verify that save_index writes a pickle file."""
-        from flaghunter.knowledge.rag import Document, RAGEngine
+    def test_save_index_writes_json_file(self, tmp_path):
+        import json
         import numpy as np
+        from flaghunter.knowledge.rag import Document, RAGEngine
 
         engine = RAGEngine(knowledge_path=tmp_path)
         engine.documents = [
             Document(content="test document", source="test",
-                     embedding=np.array([0.1, 0.2, 0.3]))
+                     embedding=np.array([0.1, 0.2, 0.3], dtype=np.float32))
         ]
-        pkl_path = tmp_path / "test_idx.pkl"
-        try:
-            engine.save_index(pkl_path)
-            if pkl_path.exists():
-                raw = pkl_path.read_bytes()
-                # Verify it's a valid pickle (starts with proto opcode or similar)
-                assert len(raw) > 0
-                # First 2 bytes of pickle protocol 2+ are \x80\x02 or \x80\x04 etc.
-                assert raw[0] == 0x80 or raw[0] == ord('(')
-        except Exception as e:
-            pytest.skip(f"save_index failed (likely missing FAISS): {e}")
+        engine.embeddings = np.array([[0.1, 0.2, 0.3]], dtype=np.float32)
+        path = tmp_path / "idx.json"
+        engine.save_index(path)
 
-    def test_loading_benign_pickle_via_rag(self, tmp_path):
-        """RAGEngine.load_index can load a benign pickle created by save_index."""
-        from flaghunter.knowledge.rag import Document, RAGEngine
+        assert path.exists()
+        raw = path.read_bytes()
+        # NOT a pickle: pickle protocol 2+ files start with the \x80 opcode.
+        assert raw[0] != 0x80, "index file must not be a pickle stream"
+        # IS valid JSON with the expected shape.
+        parsed = json.loads(path.read_text(encoding="utf-8"))
+        assert parsed["version"] == 2
+        assert parsed["documents"][0]["content"] == "test document"
+
+    def test_round_trip_preserves_documents_and_embeddings(self, tmp_path):
         import numpy as np
+        from flaghunter.knowledge.rag import Document, RAGEngine
 
         engine = RAGEngine(knowledge_path=tmp_path)
-        engine.documents = [
-            Document(content="hello security", source="test.txt",
-                     embedding=np.array([0.1, 0.2]))
-        ]
-        pkl_path = tmp_path / "idx.pkl"
-        try:
-            engine.save_index(pkl_path)
-            assert pkl_path.exists()
+        engine.documents = [Document(content="hello security", source="test.txt")]
+        engine.embeddings = np.array([[0.1, 0.2, 0.3, 0.4]], dtype=np.float32)
+        path = tmp_path / "idx.json"
+        engine.save_index(path)
 
-            engine2 = RAGEngine(knowledge_path=tmp_path)
-            engine2.load_index(pkl_path)
-            assert len(engine2.documents) >= 1
-        except Exception as e:
-            pytest.skip(f"FAISS/save not available: {e}")
+        engine2 = RAGEngine(knowledge_path=tmp_path)
+        engine2.load_index(path)
+
+        assert len(engine2.documents) == 1
+        assert engine2.documents[0].content == "hello security"
+        assert engine2.embeddings is not None
+        np.testing.assert_allclose(engine2.embeddings, engine.embeddings)
+        # per-doc embedding restored from the matrix
+        np.testing.assert_allclose(engine2.documents[0].embedding, engine.embeddings[0])
+
+    def test_load_index_refuses_pickle_rce_payload(self, tmp_path):
+        """A malicious pickle dropped at the index path does NOT execute.
+
+        load_index uses json.load, which raises on raw pickle bytes instead of
+        unpickling them — the RCE vector is gone even if an attacker writes a
+        crafted file to the (attacker-writable) workspace index path.
+        """
+        from flaghunter.knowledge.rag import RAGEngine
+
+        _rce_executed.clear()
+        path = tmp_path / "idx.json"
+        path.write_bytes(_make_malicious_pickle())
+
+        engine = RAGEngine(knowledge_path=tmp_path)
+        with pytest.raises(Exception):
+            engine.load_index(path)
+        assert "EXECUTED" not in _rce_executed, (
+            "load_index executed a pickle payload — the JSON loader must never unpickle"
+        )
 
 
 # ---------------------------------------------------------------------------
-# Recommendations (informational assertions)
+# Recommendations (informational assertions about the safe primitives used)
 # ---------------------------------------------------------------------------
 
-class TestPickleHardeningRecommendations:
-    def test_json_is_available_as_safe_alternative(self):
-        """JSON is available as a safer alternative for non-numpy data."""
+class TestPickleHardeningPrimitives:
+    def test_json_is_a_safe_alternative(self):
         import json
         data = {"key": "value", "numbers": [1, 2, 3]}
         assert json.loads(json.dumps(data)) == data
 
-    def test_numpy_save_is_available(self):
-        """numpy.save is available for arrays instead of pickle."""
+    def test_numpy_frombuffer_is_data_only(self):
+        """np.frombuffer reconstructs arrays from raw bytes without executing code."""
+        import base64
         import numpy as np
-        arr = np.array([1.0, 2.0, 3.0])
-        assert arr.shape == (3,)
 
-    def test_hmac_signed_pickle_concept(self):
-        """HMAC-signed pickles reduce (but don't eliminate) the pickle RCE risk."""
-        import hashlib
-        import hmac
-
-        secret = b"application-secret-key"
-        data = pickle.dumps({"safe": "data"})
-        sig = hmac.new(secret, data, hashlib.sha256).digest()
-        expected_sig = hmac.new(secret, data, hashlib.sha256).digest()
-        assert hmac.compare_digest(sig, expected_sig)
-
-    def test_tampered_pickle_detectable_with_hmac(self):
-        """A tampered pickle payload produces a different HMAC."""
-        import hashlib
-        import hmac
-
-        secret = b"application-secret-key"
-        original = pickle.dumps({"safe": "data"})
-        tampered = original + b"\x00"
-
-        original_sig = hmac.new(secret, original, hashlib.sha256).digest()
-        tampered_sig = hmac.new(secret, tampered, hashlib.sha256).digest()
-        assert not hmac.compare_digest(original_sig, tampered_sig)
+        arr = np.array([1.0, 2.0, 3.0], dtype=np.float32)
+        b64 = base64.b64encode(arr.tobytes()).decode("ascii")
+        restored = np.frombuffer(base64.b64decode(b64), dtype=np.float32)
+        np.testing.assert_allclose(restored, arr)

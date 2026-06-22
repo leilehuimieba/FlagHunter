@@ -88,7 +88,7 @@ class RAGEngine:
             if kp and kp.get("using_workspace"):
                 emb_dir = kp.get("embeddings")
                 emb_dir.mkdir(parents=True, exist_ok=True)
-                idx_path = emb_dir / "index.pkl"
+                idx_path = emb_dir / "index.json"
                 if idx_path.exists() and not force:
                     try:
                         self.load_index(idx_path)
@@ -189,7 +189,7 @@ class RAGEngine:
             if kp and kp.get("using_workspace") and self.embeddings is not None:
                 emb_dir = kp.get("embeddings")
                 emb_dir.mkdir(parents=True, exist_ok=True)
-                idx_path = emb_dir / "index.pkl"
+                idx_path = emb_dir / "index.json"
                 try:
                     self.save_index(idx_path)
                 except Exception as e:
@@ -533,14 +533,29 @@ class RAGEngine:
 
     def save_index(self, path: Path):
         """
-        Save the index to disk.
+        Save the index to disk as JSON (documents) + base64-encoded embeddings.
+
+        Uses JSON instead of pickle to eliminate the arbitrary-code-execution
+        vector from untrusted index deserialization — a workspace index file is
+        attacker-writable, and ``pickle.load`` on it is a classic RCE sink.
+        See tests/security/test_pickle_deserialization.py.
 
         Args:
             path: Path to save the index
         """
-        import pickle
+        import base64
+
+        embeddings_payload = None
+        if self.embeddings is not None:
+            arr = np.ascontiguousarray(self.embeddings)
+            embeddings_payload = {
+                "dtype": str(arr.dtype),
+                "shape": list(arr.shape),
+                "b64": base64.b64encode(arr.tobytes()).decode("ascii"),
+            }
 
         data = {
+            "version": 2,
             "documents": [
                 {
                     "content": doc.content,
@@ -550,14 +565,14 @@ class RAGEngine:
                 }
                 for doc in self.documents
             ],
-            "embeddings": self.embeddings,
+            "embeddings": embeddings_payload,
         }
 
-        with open(path, "wb") as f:
-            pickle.dump(data, f)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, default=str)
 
     def save_index_to_workspace(
-        self, root: Optional[Path] = None, filename: str = "index.pkl"
+        self, root: Optional[Path] = None, filename: str = "index.json"
     ):
         """
         Convenience helper to save the index into the active workspace embeddings path.
@@ -576,15 +591,20 @@ class RAGEngine:
 
     def load_index(self, path: Path):
         """
-        Load the index from disk.
+        Load the index from a JSON file written by :meth:`save_index`.
+
+        JSON-only — this method never unpickles. Pre-v2 pickle index files
+        (``index.pkl``) are not read at all (the loader looks for
+        ``index.json``); a stale pickle is simply ignored and the index is
+        rebuilt from sources, removing the pickle RCE vector entirely.
 
         Args:
             path: Path to load the index from
         """
-        import pickle
+        import base64
 
-        with open(path, "rb") as f:
-            data = pickle.load(f)
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
 
         self.documents = [
             Document(
@@ -595,7 +615,21 @@ class RAGEngine:
             )
             for d in data["documents"]
         ]
-        self.embeddings = data["embeddings"]
+
+        emb = data.get("embeddings")
+        if emb is not None:
+            # np.frombuffer/np.dtype/reshape never execute embedded code, so a
+            # tampered file can at worst raise (not run code). Copy to get a
+            # writable array matching the previous pickle behaviour.
+            self.embeddings = (
+                np.frombuffer(
+                    base64.b64decode(emb["b64"]), dtype=np.dtype(emb["dtype"])
+                )
+                .reshape(emb["shape"])
+                .copy()
+            )
+        else:
+            self.embeddings = None
 
         # Restore embeddings in documents
         if self.embeddings is not None:
@@ -606,7 +640,7 @@ class RAGEngine:
         self._indexed = True
 
     def load_index_from_workspace(
-        self, root: Optional[Path] = None, filename: str = "index.pkl"
+        self, root: Optional[Path] = None, filename: str = "index.json"
     ):
         """
         Convenience helper to load the index from the active workspace embeddings path.
