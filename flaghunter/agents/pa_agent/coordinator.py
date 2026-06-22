@@ -699,6 +699,7 @@ class CTFCoordinator:
         challenge_context: dict[str, Any] | None = None,
         run_id: str | None = None,
         ledger_root: str | Path | None = None,
+        registry_root: str | Path | None = None,
         checkpoint_root: str | Path | None = None,
     ) -> None:
         dispatcher._notes_log = []
@@ -706,7 +707,7 @@ class CTFCoordinator:
         dispatcher._setup_session_ledger(run_id=run_id, ledger_root=ledger_root)
         dispatcher._setup_artifact_registry(
             run_id=dispatcher._ledger_run_id,
-            registry_root=None,
+            registry_root=registry_root,
         )
         dispatcher.state = CTFState(target=target, goal=goal)
         dispatcher._setup_checkpoint_store(
@@ -1738,6 +1739,7 @@ class CTFCoordinator:
         ingress_handoff: dict[str, Any] | None = None,
         run_id: str | None = None,
         ledger_root: str | Path | None = None,
+        registry_root: str | Path | None = None,
         checkpoint_root: str | Path | None = None,
     ):
         normalized_context = _normalize_challenge_context_input(challenge_context)
@@ -1762,6 +1764,7 @@ class CTFCoordinator:
             challenge_context=normalized_context,
             run_id=run_id,
             ledger_root=ledger_root,
+            registry_root=registry_root,
             checkpoint_root=checkpoint_root,
         )
         self._apply_derived_target_contract(

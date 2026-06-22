@@ -162,6 +162,9 @@ async def run_replay(fixture: ReplayFixture) -> ReplayResult:
                 goal=fixture.goal,
                 type=fixture.type,
                 hint=fixture.hint,
+                ledger_root=Path(tmp) / "session_ledgers",
+                registry_root=Path(tmp) / "artifact_registry",
+                checkpoint_root=Path(tmp) / "checkpoints",
             )
             actual = result.flag
             return ReplayResult(

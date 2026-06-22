@@ -117,6 +117,7 @@ class _FakeCoordinator:
         challenge_context: dict[str, object] | None = None,
         run_id: str | None = None,
         ledger_root=None,
+        registry_root=None,
         checkpoint_root=None,
     ):
         self.calls.append(
@@ -130,6 +131,7 @@ class _FakeCoordinator:
                 "challenge_context": challenge_context,
                 "run_id": run_id,
                 "ledger_root": ledger_root,
+                "registry_root": registry_root,
                 "checkpoint_root": checkpoint_root,
             }
         )

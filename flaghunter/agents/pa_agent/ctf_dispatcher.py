@@ -349,6 +349,7 @@ class CTFTaskDispatcher(
         ingress_handoff: dict[str, Any] | None = None,
         run_id: str | None = None,
         ledger_root: str | Path | None = None,
+        registry_root: str | Path | None = None,
         checkpoint_root: str | Path | None = None,
     ) -> SolveResult:
         # Façade (slice 1c): the public entry always delegates to the coordinator,
@@ -363,6 +364,7 @@ class CTFTaskDispatcher(
             "challenge_context": challenge_context,
             "run_id": run_id,
             "ledger_root": ledger_root,
+            "registry_root": registry_root,
             "checkpoint_root": checkpoint_root,
         }
         try:
