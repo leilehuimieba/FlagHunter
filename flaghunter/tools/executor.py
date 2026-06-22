@@ -333,9 +333,16 @@ class ExecutionResult:
 def _m4_scope_check(tool_name: str, args: dict) -> tuple[bool, str]:
     """Run CPA M4 scope validation before tool execution.
 
+    FAIL-OPEN BY DESIGN: if M4 is disabled, unavailable, errors out, or returns
+    no verdict, this degrades to allow-by-default. This is an intentional
+    threat-model decision for FlagHunter's use case (CTF / authorised pentest
+    sandbox) — a scope misfire that blocks a legitimate tool would derail
+    solving, which is worse than an over-broad action inside an engagement that
+    is already authorised. Do NOT switch to fail-closed without revisiting the
+    threat model (it would turn a guard-rail failure into a hard outage).
+
     Returns:
-        Tuple of (allowed, reason). If M4 is disabled, unavailable, or fails to
-        initialize, the executor degrades to allow-by-default behavior.
+        Tuple of (allowed, reason). On disable / no-target / error → (True, "").
     """
     try:
         import os
@@ -362,6 +369,7 @@ def _m4_scope_check(tool_name: str, args: dict) -> tuple[bool, str]:
             tool=tool_name,
             command=tool_name,
         )
+        # fail-open by design (see docstring): a verdict-less result allows.
         allowed = result.get("allowed", True)
         reason = result.get("reason", "")
 
@@ -373,8 +381,11 @@ def _m4_scope_check(tool_name: str, args: dict) -> tuple[bool, str]:
         )
         return allowed, reason
     except RuntimeError:
+        # fail-open by design (see docstring): M4 init/runtime failure must not
+        # block tool execution in the CTF/pentest sandbox.
         return True, ""
     except Exception:
+        # fail-open by design: any unexpected M4 error degrades to allow.
         return True, ""
 
 
