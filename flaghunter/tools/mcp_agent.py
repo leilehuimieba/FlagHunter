@@ -19,6 +19,11 @@ except ImportError:
 
 from .registry import Tool, ToolSchema
 
+# Agent-orchestration meta-tool: it spawns child agents over MCP/stdio, so
+# depending on agents/ is intentional. The tools-layer "no agents import" rule
+# targets capability tools, NOT orchestration meta-tools like this. The agents
+# import below is TYPE_CHECKING-only; AgentMessage/AgentState are imported
+# lazily inside function bodies. See H9.
 if TYPE_CHECKING:
     from ..agents.base_agent import BaseAgent
     from ..mcp.manager import MCPManager

@@ -8,7 +8,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ...agents.subagent import SUBAGENT_CONFIGS, SubagentRunner
+# Agent-orchestration meta-tool: it spawns sub-agents, so depending on agents/
+# is intentional. The tools-layer "no agents import" rule targets capability
+# tools (terminal/browser/sqlmap/...), NOT orchestration meta-tools like this.
+# SUBAGENT_CONFIGS is needed at import time for the schema enum below;
+# SubagentRunner is imported lazily in the tool body to keep the import-time
+# surface minimal. See H9.
+from ...agents.subagent import SUBAGENT_CONFIGS
 from ...runtime.permission_enforcer import PermissionMode
 from ..registry import ToolSchema, register_tool
 
@@ -55,6 +61,7 @@ async def delegate_task(arguments: dict, runtime: "Runtime") -> str:
 
     target = getattr(runtime, "target", "")
 
+    from ...agents.subagent import SubagentRunner
     from ...llm.llm import LLM
 
     llm = LLM()
