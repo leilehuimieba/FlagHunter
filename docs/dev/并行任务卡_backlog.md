@@ -532,6 +532,21 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 
 ---
 
+## 卡 H11–H15 — 健康度治理阶段四·关节A收敛(主控亲核测绘·卡面大翻转·全收口) ✅
+
+> **背景**:健康度治理路线图(H1–H18,从"分析架构"→哑铃形诊断衍生)阶段一二三五先行收官 12 项;阶段四(关节 A·入口→编排)原定性"高风险大工程·TUI 1万行·另起会话专注做"。新会话主控亲核测绘后,**所谓大工程塌缩为"2 真做 + 2 豁免留证 + 1 fork"**,全量 gate **2011 passed/0 failed** 零回归收口。
+>
+> **🔍 主控测绘翻转(对标 P3b/L 系列,caller 须主控亲核)**:
+> - **H11 事件总线"4 实例收敛单源"——实现层早已单源**:`notifier._notify_bus`/`web_server._bus`/`mcp_tools._event_bus`/`AgentSession._bus` 4 个**模块级实例**全建在中立 `session/event_bus.py:EventBus` 上(I3 + 4 条守护测试),是**本质不同频道**(notify/web-SSE/MCP/per-session,订阅者集合各异),合并会把 web SSE 串进 MCP 客户端 → **豁免合并**。`session.run()` 生产**零调用**(cli/web 都只用 `create()` 装配、驱动循环却直接 `session.agent.agent_loop()` 并 emit 各自频道;eval 用的是 `dispatcher.run`),但非死码=门面**程序化薄路径** → **用户拍板留证**(非删)。
+> - **H12 门面全采用——真做(`c17d913`)**:cli/web 早已用 `AgentSession.create` 装配(I2),缺口仅 `tui.py:3089` + `main.py:973` 裸调 `build_agent_components`。扩 `create()` 转发 `after_mcp_load`/`prebuilt_rag`(builder 本就接受),两入口改 `create()` + `components=session.components`、**下游 `components[...]` 读取字节不变=行为保持**,四入口齐 I2。
+> - **H13 CTF dispatcher——豁免留证(`af50e4c`)**:`web_server:3528` 的 `CTFTaskDispatcher` 是**独立求解引擎**(非 agent loop),门面是 agent-loop 装配器,正确复用 `session.runtime` → **用户拍板豁免**,注释标"本质独立路径"。
+> - **H14 interface.initializer 归位——豁免留证(`af50e4c`)**:垫片是 **15+ 个 web_server 测试的 `sys.modules` monkeypatch seam** + `importlib.import_module` 注入点,**load-bearing**,删它崩一片;真组合根早在 `session.initializer`(垫片只 re-export)→ "删 13 行垫片"是 no-op,注释标"测试缝即价值"。
+> - **H15 settings 温度旁路——真做(`e893061`)**:坐实 **3 处**硬编码 `ModelConfig(temperature=0.7)`(`session/initializer.py:340` 组合根 + `main.py:992` MCP per-task + `tui.py:7259` crew,卡面只列 2 处漏 tui)→ 改读 `get_settings().temperature`(默认仍 0.7,行为不变);`llm/config.py` 两处是 ModelConfig 基线默认非旁路,保留。
+>
+> **三 commit**:`e893061` fix(config) H15 温度旁路;`c17d913` refactor(session) H12 门面装配收敛;`af50e4c` docs(arch) H11/H13/H14 裁决留证。**门禁**:`tests/` 全量 **2011 passed/8 skipped/0 failed**(21m17s)——主控独立坐实零回归。**方法论复用**:卡面假设屡翻(H11/H13/H14 三项卡面错→豁免),"识别误报/本质约束、定性保留+留证"与"删除/修复"同等是治理产出。**🎉 健康度治理 H1–H18 全 18 项收官**(17 commit),哑铃形诊断闭环。
+
+---
+
 ## 维护说明(给我自己/未来对话)
 
 - 每完成一张卡,在卡标题后标 `✅(commit 短哈希)`,并回写 ADR §8。
