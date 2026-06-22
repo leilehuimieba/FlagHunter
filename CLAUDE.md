@@ -44,8 +44,10 @@ flaghunter/
     memory.py       # Conversation/token management
     utils.py        # Streaming helpers
   mcp/
-    stdio_adapter.py    # STDIO MCP server transport
-    example_adapter.py  # SSE MCP server transport
+    manager.py          # MCP client: connects to external MCP servers
+    stdio_adapter.py    # Outbound stdio→HTTP bridge (integration aid, NOT the server)
+    example_adapter.py  # In-process mock adapter scaffold (NOT the server)
+    server/             # FlagHunter-as-MCP-server (stdio / SSE / streamable-HTTP)
   playbooks/
     base_playbook.py
     thp3_recon.py / thp3_network.py / thp3_web.py

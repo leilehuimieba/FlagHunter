@@ -2,6 +2,8 @@
 from dataclasses import dataclass
 from typing import Awaitable, Callable
 
+from flaghunter.config.constants import MCP_PROTOCOL_VERSION
+
 # ─── Types ────────────────────────────────────────────────────────────────────
 
 Handler = Callable[[dict], Awaitable[str]]
@@ -95,7 +97,7 @@ class MCPRouter:
                 "jsonrpc": "2.0",
                 "id": id_,
                 "result": {
-                    "protocolVersion": "2024-11-05",
+                    "protocolVersion": MCP_PROTOCOL_VERSION,
                     "serverInfo": {
                         "name": self.SERVER_NAME,
                         "version": self.SERVER_VERSION,

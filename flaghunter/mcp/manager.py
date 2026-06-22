@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from ..config.constants import MCP_PROTOCOL_VERSION
 from ..tools import Tool
 from .transport import FifoTransport, MCPTransport, SSETransport, StdioTransport
 
@@ -349,7 +350,7 @@ class MCPManager:
                     "jsonrpc": "2.0",
                     "method": "initialize",
                     "params": {
-                        "protocolVersion": "2025-11-25",
+                        "protocolVersion": MCP_PROTOCOL_VERSION,
                         "capabilities": {},
                         "clientInfo": {"name": "flaghunter", "version": "0.2.0"},
                     },

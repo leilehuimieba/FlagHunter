@@ -94,5 +94,10 @@ KNOWLEDGE_DATA_EXTENSIONS = [".json"]
 MCP_TRANSPORT_STDIO = "stdio"
 MCP_TRANSPORT_SSE = "sse"
 
+# MCP protocol version advertised in initialize handshakes — single source so
+# the client request (mcp/manager.py) and server response (mcp/server/mcp_core.py)
+# stay aligned (H17).
+MCP_PROTOCOL_VERSION = "2025-11-25"
+
 # Exit Commands
 EXIT_COMMANDS = ["exit", "quit", "q", "bye"]
