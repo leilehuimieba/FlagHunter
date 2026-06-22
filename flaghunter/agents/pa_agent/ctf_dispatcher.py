@@ -64,7 +64,7 @@ from .exploit_replay_memory import ExploitReplayMemoryMixin
 from .flag_observer import FlagObserver, FlagObserverMixin
 from .hypothesis_engine import HypothesisEngine
 from .jwt_contact_chain import JWTContactChainMixin
-from .jwt_executor import JWTExecutorMixin
+from .jwt_executor import JWTExecutor, JWTExecutorMixin
 from .llm_executor import LLMExecutorMixin
 from .note_store import NoteStore, NoteStoreMixin
 from .php_exploit_chain import PHPExploitChainMixin
@@ -303,6 +303,7 @@ class CTFTaskDispatcher(
         self._note_store = NoteStore()
         self._runtime_actions = RuntimeAuditedActions()
         self._audit_store = AuditStore()
+        self._jwt_executor = JWTExecutor()
         self.hypothesis_engine = HypothesisEngine()
         self.recovery_controller = RecoveryController(self.hypothesis_engine)
         self.strategy_registry = StrategyRegistry.build_default()

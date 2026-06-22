@@ -1,28 +1,42 @@
-"""JWT candidate-collection / mutation / encoding mixin extracted from ctf_dispatcher.py.
+"""JWT candidate-collection / mutation / encoding cluster extracted from ctf_dispatcher.py.
 
-P5 / Workstream A: the contiguous JWT helper cluster (6 methods,
-_collect_candidate_jwts .. _jwt_request_headers) is physically moved out of
-CTFTaskDispatcher into a behaviour-preserving mixin. Method bodies are identical;
-self.* (state, _recent_local_source_hint_secret_candidates) resolves at runtime
-against the dispatcher that mixes this in, so call sites are unchanged. Pure code
-relocation, near-zero risk.
+L3h / Workstream A (object-ification, cut A): the JWT helper cluster (6 methods,
+_collect_candidate_jwts .. _jwt_request_headers) is lifted into a single
+independent, stateless ``JWTExecutor`` class. Method bodies are moved byte-for-byte;
+the only behavioural inputs (the shared ``CTFState`` and the sibling
+``_recent_local_source_hint_secret_candidates`` source-hint provider) are passed in
+per call rather than read off ``self`` — ``JWTExecutor`` holds no eager state of its
+own (``vars(JWTExecutor()) == {}``). The reason state/providers are injected per call
+rather than stored is that the shared CTFState is swapped out on replay/fork, so a
+stored reference would silently go stale.
+
+``JWTExecutorMixin`` retains every method as a thin delegation shell with original
+names + signatures (and original ``__module__`` anchoring), so the MRO and the sole
+external call site (jwt_contact_chain.py) are unchanged. Pure code relocation,
+near-zero risk.
 """
 
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, Callable, Optional
 
 from .dispatcher_helpers import _jwt_encode
 
 
-class JWTExecutorMixin:
-    """JWT discovery, payload/alg/secret candidate generation and request headers."""
+class JWTExecutor:
+    """Stateless JWT discovery / payload-alg-secret candidate generation / headers.
 
-    def _collect_candidate_jwts(
+    No instance state: ``state`` and the source-hint secret provider are supplied
+    per call. ``vars(JWTExecutor()) == {}``.
+    """
+
+    def collect_candidate_jwts(
         self,
         target: str,
         page_features: dict[str, Any],
+        *,
+        state: Any | None,
     ) -> list[dict[str, Any]]:
         jwt_pattern = re.compile(
             r"(eyJ[a-zA-Z0-9_\-]*\.[a-zA-Z0-9_\-]*\.[a-zA-Z0-9_\-]*)"
@@ -51,15 +65,15 @@ class JWTExecutorMixin:
             str(page_features.get("cookies") or ""),
             str(target or ""),
         ]
-        if self.state is not None:
-            for obs in self.state.observations:
+        if state is not None:
+            for obs in state.observations:
                 text_blobs.append(str(obs.value or ""))
                 if isinstance(obs.metadata, dict):
                     for key in ("url", "final_url", "location"):
                         value = str(obs.metadata.get(key) or "").strip()
                         if value:
                             text_blobs.append(value)
-            for artifact in self.state.artifacts:
+            for artifact in state.artifacts:
                 text_blobs.append(str(artifact.location or ""))
                 if isinstance(artifact.metadata, dict):
                     text_blobs.append(str(artifact.metadata.get("content") or ""))
@@ -98,7 +112,7 @@ class JWTExecutorMixin:
 
         return candidates
 
-    def _jwt_mutation_candidates(self, payload: dict[str, Any]) -> list[dict[str, Any]]:
+    def jwt_mutation_candidates(self, payload: dict[str, Any]) -> list[dict[str, Any]]:
         base = dict(payload or {})
         variants: list[dict[str, Any]] = [dict(base)]
         elevated = dict(base)
@@ -121,7 +135,7 @@ class JWTExecutorMixin:
         variants.append(elevated)
         return variants
 
-    def _jwt_algorithm_candidates(self, header: dict[str, Any]) -> list[str]:
+    def jwt_algorithm_candidates(self, header: dict[str, Any]) -> list[str]:
         alg = str((header or {}).get("alg") or "").upper()
         candidates: list[str] = ["none"]
         if alg.startswith("HS"):
@@ -136,7 +150,12 @@ class JWTExecutorMixin:
                 ordered.append(item)
         return ordered
 
-    def _jwt_secret_candidates(self) -> list[str]:
+    def jwt_secret_candidates(
+        self,
+        *,
+        state: Any | None,
+        source_hint_secrets: Optional[Callable[[], list[str]]] = None,
+    ) -> list[str]:
         seeds = [
             "",
             "secret",
@@ -147,10 +166,11 @@ class JWTExecutorMixin:
             "flag",
             "tornado_secret",
         ]
-        if self.state is not None:
-            for candidate in self._recent_local_source_hint_secret_candidates():
+        if state is not None:
+            hint_secrets = source_hint_secrets() if source_hint_secrets is not None else []
+            for candidate in hint_secrets:
                 seeds.insert(0, candidate)
-            for obs in self.state.observations:
+            for obs in state.observations:
                 if obs.kind == "cookie_secret_leaked":
                     value = str(obs.value or "").strip()
                     if value:
@@ -164,10 +184,10 @@ class JWTExecutorMixin:
             ordered.append(item)
         return ordered
 
-    def _encode_none_jwt(self, payload: dict[str, Any]) -> str:
+    def encode_none_jwt(self, payload: dict[str, Any]) -> str:
         return _jwt_encode(payload, "", "none")
 
-    def _jwt_request_headers(
+    def jwt_request_headers(
         self,
         candidate: dict[str, Any],
         token: str,
@@ -180,3 +200,44 @@ class JWTExecutorMixin:
         else:
             variants.append({"Cookie": f"token={token}"})
         return variants
+
+
+class JWTExecutorMixin:
+    """JWT discovery, payload/alg/secret candidate generation and request headers.
+
+    Thin delegation shells over the stateless ``JWTExecutor`` held by the dispatcher
+    as ``self._jwt_executor``. Shells preserve the original names/signatures and feed
+    the live dispatcher state (and the sibling source-hint provider) into the
+    executor per call.
+    """
+
+    def _collect_candidate_jwts(
+        self,
+        target: str,
+        page_features: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        return self._jwt_executor.collect_candidate_jwts(
+            target, page_features, state=self.state
+        )
+
+    def _jwt_mutation_candidates(self, payload: dict[str, Any]) -> list[dict[str, Any]]:
+        return self._jwt_executor.jwt_mutation_candidates(payload)
+
+    def _jwt_algorithm_candidates(self, header: dict[str, Any]) -> list[str]:
+        return self._jwt_executor.jwt_algorithm_candidates(header)
+
+    def _jwt_secret_candidates(self) -> list[str]:
+        return self._jwt_executor.jwt_secret_candidates(
+            state=self.state,
+            source_hint_secrets=self._recent_local_source_hint_secret_candidates,
+        )
+
+    def _encode_none_jwt(self, payload: dict[str, Any]) -> str:
+        return self._jwt_executor.encode_none_jwt(payload)
+
+    def _jwt_request_headers(
+        self,
+        candidate: dict[str, Any],
+        token: str,
+    ) -> list[dict[str, str]]:
+        return self._jwt_executor.jwt_request_headers(candidate, token)
