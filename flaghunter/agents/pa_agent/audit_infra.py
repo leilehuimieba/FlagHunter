@@ -41,6 +41,131 @@ from ...harness.checkpoint_store import CheckpointStore
 from ...harness.session_ledger import SessionLedger
 
 
+class RuntimeAuditedActions:
+    """Instrumented runtime passthroughs (browser / proxy / execute_command).
+
+    Object-ified (L3e, cut A): the RT cluster — the three
+    ``_runtime_*_action`` methods — is the most self-contained slice of
+    ``AuditInfraMixin`` (each wraps one ``runtime.*`` I/O call between a
+    ``tool_called`` and a ``tool_finished`` session event). It is independent
+    of ``CTFTaskDispatcher`` and unit-testable fully detached. It has no
+    ``__init__`` and holds **no** eager reference to ``runtime`` or the session
+    event sink — those are rebound per turn / on resume by the dispatcher, so
+    they are passed per-call. Behaviour is byte-for-byte identical to the
+    previous inline implementation.
+    """
+
+    async def browser_action(
+        self,
+        action: str,
+        *,
+        runtime,
+        record_session_event,
+        audit_target: str,
+        audit_metadata: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> Any:
+        called_event = build_tool_called_event(
+            tool_name="browser_action",
+            action=action,
+            target=audit_target,
+            metadata=audit_metadata,
+        )
+        record_session_event(
+            str(called_event.get("event_type") or "tool_called"),
+            dict(called_event.get("payload") or {}),
+        )
+        result = await runtime.browser_action(action, **kwargs)
+        finished_event = build_tool_finished_event(
+            tool_name="browser_action",
+            action=action,
+            ok=isinstance(result, dict) and not bool(result.get("error")),
+            status_code=result.get("status_code") if isinstance(result, dict) else None,
+            target=audit_target,
+            metadata=audit_metadata,
+        )
+        record_session_event(
+            str(finished_event.get("event_type") or "tool_finished"),
+            dict(finished_event.get("payload") or {}),
+        )
+        return result
+
+    async def proxy_action(
+        self,
+        action: str,
+        *,
+        runtime,
+        record_session_event,
+        audit_target: str,
+        audit_metadata: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> Any:
+        called_event = build_tool_called_event(
+            tool_name="proxy_action",
+            action=action,
+            target=audit_target,
+            metadata=audit_metadata,
+        )
+        record_session_event(
+            str(called_event.get("event_type") or "tool_called"),
+            dict(called_event.get("payload") or {}),
+        )
+        result = await runtime.proxy_action(action, **kwargs)
+        finished_event = build_tool_finished_event(
+            tool_name="proxy_action",
+            action=action,
+            ok=isinstance(result, dict) and not bool(result.get("error")),
+            status_code=result.get("status_code") if isinstance(result, dict) else None,
+            target=audit_target,
+            metadata=audit_metadata,
+        )
+        record_session_event(
+            str(finished_event.get("event_type") or "tool_finished"),
+            dict(finished_event.get("payload") or {}),
+        )
+        return result
+
+    async def execute_command(
+        self,
+        command: str,
+        *,
+        runtime,
+        record_session_event,
+        timeout: int,
+        audit_target: str,
+        audit_metadata: dict[str, Any] | None = None,
+    ) -> Any:
+        called_metadata = dict(audit_metadata or {})
+        called_metadata.setdefault("command", command[:240])
+        called_event = build_tool_called_event(
+            tool_name="execute_command",
+            action="shell",
+            target=audit_target,
+            metadata=called_metadata,
+        )
+        record_session_event(
+            str(called_event.get("event_type") or "tool_called"),
+            dict(called_event.get("payload") or {}),
+        )
+        result = await runtime.execute_command(command, timeout=timeout)
+        finished_metadata = dict(audit_metadata or {})
+        finished_metadata.setdefault("command", command[:240])
+        exit_code = getattr(result, "exit_code", None)
+        finished_event = build_tool_finished_event(
+            tool_name="execute_command",
+            action="shell",
+            ok=(exit_code is not None and int(exit_code) == 0),
+            status_code=exit_code,
+            target=audit_target,
+            metadata=finished_metadata,
+        )
+        record_session_event(
+            str(finished_event.get("event_type") or "tool_finished"),
+            dict(finished_event.get("payload") or {}),
+        )
+        return result
+
+
 class AuditInfraMixin:
     """Session ledger, artifact registry, checkpoint store and audited runtime calls."""
 
@@ -247,30 +372,14 @@ class AuditInfraMixin:
         audit_metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> Any:
-        called_event = build_tool_called_event(
-            tool_name="browser_action",
-            action=action,
-            target=audit_target,
-            metadata=audit_metadata,
+        return await self._runtime_actions.browser_action(
+            action,
+            runtime=self.runtime,
+            record_session_event=self._record_session_event,
+            audit_target=audit_target,
+            audit_metadata=audit_metadata,
+            **kwargs,
         )
-        self._record_session_event(
-            str(called_event.get("event_type") or "tool_called"),
-            dict(called_event.get("payload") or {}),
-        )
-        result = await self.runtime.browser_action(action, **kwargs)
-        finished_event = build_tool_finished_event(
-            tool_name="browser_action",
-            action=action,
-            ok=isinstance(result, dict) and not bool(result.get("error")),
-            status_code=result.get("status_code") if isinstance(result, dict) else None,
-            target=audit_target,
-            metadata=audit_metadata,
-        )
-        self._record_session_event(
-            str(finished_event.get("event_type") or "tool_finished"),
-            dict(finished_event.get("payload") or {}),
-        )
-        return result
 
     async def _runtime_proxy_action(
         self,
@@ -280,30 +389,14 @@ class AuditInfraMixin:
         audit_metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> Any:
-        called_event = build_tool_called_event(
-            tool_name="proxy_action",
-            action=action,
-            target=audit_target,
-            metadata=audit_metadata,
+        return await self._runtime_actions.proxy_action(
+            action,
+            runtime=self.runtime,
+            record_session_event=self._record_session_event,
+            audit_target=audit_target,
+            audit_metadata=audit_metadata,
+            **kwargs,
         )
-        self._record_session_event(
-            str(called_event.get("event_type") or "tool_called"),
-            dict(called_event.get("payload") or {}),
-        )
-        result = await self.runtime.proxy_action(action, **kwargs)
-        finished_event = build_tool_finished_event(
-            tool_name="proxy_action",
-            action=action,
-            ok=isinstance(result, dict) and not bool(result.get("error")),
-            status_code=result.get("status_code") if isinstance(result, dict) else None,
-            target=audit_target,
-            metadata=audit_metadata,
-        )
-        self._record_session_event(
-            str(finished_event.get("event_type") or "tool_finished"),
-            dict(finished_event.get("payload") or {}),
-        )
-        return result
 
     async def _runtime_execute_command(
         self,
@@ -313,32 +406,11 @@ class AuditInfraMixin:
         audit_target: str,
         audit_metadata: dict[str, Any] | None = None,
     ) -> Any:
-        called_metadata = dict(audit_metadata or {})
-        called_metadata.setdefault("command", command[:240])
-        called_event = build_tool_called_event(
-            tool_name="execute_command",
-            action="shell",
-            target=audit_target,
-            metadata=called_metadata,
+        return await self._runtime_actions.execute_command(
+            command,
+            runtime=self.runtime,
+            record_session_event=self._record_session_event,
+            timeout=timeout,
+            audit_target=audit_target,
+            audit_metadata=audit_metadata,
         )
-        self._record_session_event(
-            str(called_event.get("event_type") or "tool_called"),
-            dict(called_event.get("payload") or {}),
-        )
-        result = await self.runtime.execute_command(command, timeout=timeout)
-        finished_metadata = dict(audit_metadata or {})
-        finished_metadata.setdefault("command", command[:240])
-        exit_code = getattr(result, "exit_code", None)
-        finished_event = build_tool_finished_event(
-            tool_name="execute_command",
-            action="shell",
-            ok=(exit_code is not None and int(exit_code) == 0),
-            status_code=exit_code,
-            target=audit_target,
-            metadata=finished_metadata,
-        )
-        self._record_session_event(
-            str(finished_event.get("event_type") or "tool_finished"),
-            dict(finished_event.get("payload") or {}),
-        )
-        return result

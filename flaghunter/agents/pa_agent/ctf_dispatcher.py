@@ -57,7 +57,7 @@ from .flag_parser import FlagParserMixin
 from .flag_proof import FlagProofMixin
 from .hash_backup_executor import HashBackupExecutorMixin
 from .artifact_forensics import ArtifactForensicsMixin
-from .audit_infra import AuditInfraMixin
+from .audit_infra import AuditInfraMixin, RuntimeAuditedActions
 from .capability_registry import CapabilityRegistry
 from .ctf_state import CTFState, FlagProof, LLMStepLog
 from .exploit_replay_memory import ExploitReplayMemoryMixin
@@ -301,6 +301,7 @@ class CTFTaskDispatcher(
         self._progress = ProgressTracker()
         self._flag_observer = FlagObserver()
         self._note_store = NoteStore()
+        self._runtime_actions = RuntimeAuditedActions()
         self.hypothesis_engine = HypothesisEngine()
         self.recovery_controller = RecoveryController(self.hypothesis_engine)
         self.strategy_registry = StrategyRegistry.build_default()
