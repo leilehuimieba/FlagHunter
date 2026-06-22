@@ -10,16 +10,26 @@ calls — the three ``_setup_*`` store constructors, the single
 (``_resolve_registered_local_*`` / ``_ingest_registered_local_source_hints``)
 and the three instrumented ``_runtime_*_action`` passthroughs.
 
-Method bodies are identical. The backing attributes (``_session_ledger``,
-``_artifact_registry``, ``_checkpoint_store``, ``_ledger_run_id``,
-``_artifact_run_id``, ``_checkpoint_run_id``,
-``_registered_local_source_hints_loaded``) stay initialised in the
-dispatcher's ``__init__`` and remain visible here via ``self``, resolved at
-runtime through the MRO of the dispatcher that mixes this in. All ~105 call
-sites are ``self.*`` accesses and stay unchanged. Every module-level
-dependency is imported from acyclic ``...harness.*`` modules (the same
-``...harness.audit_events`` path note_store.py already imports from), so
-there is nothing to sink into dispatcher_helpers.py. Pure code relocation,
+L3e / cut A: the RT cluster (``_runtime_*_action``) was object-ified into the
+independent stateless ``RuntimeAuditedActions`` class; the mixin retains thin
+delegation shells.
+
+L3f-2 / cut A: the remaining ~10 store methods (session-ledger / artifact /
+checkpoint setup, the ``_record_session_event`` sink, the audit-event emitters,
+the artifact-registry readbacks and source-hint ingestion) are object-ified
+into the single independent stateless ``AuditStore`` class. ``AuditInfraMixin``
+keeps every method as a thin delegation shell (original names + signatures) so
+the MRO and every call site are unchanged. Method bodies are byte-for-byte
+identical; the only mechanical change is that the backing store objects
+(``_session_ledger`` / ``_artifact_registry`` / ``_checkpoint_store``), their
+run ids and the per-turn collaborators (``state``, the sibling
+``_record_session_event`` sink) are passed per-call rather than resolved via
+``self.*``. The backing attributes stay initialised in — and owned by — the
+dispatcher's ``__init__`` (``coordinator`` reads ``dispatcher._ledger_run_id``
+and writes ``_registered_local_source_hints_loaded``; ``_restore_context``
+reads ``self._checkpoint_store``), so ``AuditStore`` never holds them. The
+``_setup_*`` shells write the constructed store / run id back onto ``self``;
+the source-hint loaded-flag guard stays in the shell. Pure code relocation,
 near-zero risk.
 """
 
@@ -166,84 +176,114 @@ class RuntimeAuditedActions:
         return result
 
 
-class AuditInfraMixin:
-    """Session ledger, artifact registry, checkpoint store and audited runtime calls."""
+class AuditStore:
+    """Session ledger, artifact registry and checkpoint store operations.
 
-    def _setup_session_ledger(
+    Object-ified (L3f-2, cut A): independent of ``CTFTaskDispatcher`` and
+    unit-testable fully detached. Has no ``__init__`` and holds **no** eager
+    reference to the backing store objects (``_session_ledger`` /
+    ``_artifact_registry`` / ``_checkpoint_store``), their run ids, the agent
+    ``state`` or the sibling ``record_session_event`` sink — those are owned by
+    the dispatcher (read by ``coordinator`` / ``_restore_context``) and rebound
+    each run / on resume, so they are passed per-call. The ``build_*`` setup
+    helpers *return* the constructed store and resolved run id for the mixin
+    shell to write back onto ``self``; the write-event helpers receive the
+    store reference + run id + state + sink per call. This class only calls
+    ``.append_event`` / ``.save_checkpoint`` / ``.register_artifact`` /
+    ``.list_artifacts`` on the injected stores — it never mutates external
+    state of its own. Behaviour is byte-for-byte identical to the previous
+    inline implementation.
+    """
+
+    def build_session_ledger(
         self,
         *,
         run_id: str | None,
         ledger_root: str | Path | None,
-    ) -> None:
-        self._ledger_run_id = str(run_id or "").strip() or f"ctf-{uuid.uuid4().hex[:12]}"
-        self._session_ledger = SessionLedger(ledger_root or (Path("loot") / "session_ledgers"))
+    ) -> tuple[str, SessionLedger]:
+        ledger_run_id = str(run_id or "").strip() or f"ctf-{uuid.uuid4().hex[:12]}"
+        session_ledger = SessionLedger(ledger_root or (Path("loot") / "session_ledgers"))
+        return (ledger_run_id, session_ledger)
 
-    def _setup_artifact_registry(
+    def build_artifact_registry(
         self,
         *,
         run_id: str | None,
+        fallback_run_id: str | None,
         registry_root: str | Path | None,
-    ) -> None:
-        self._artifact_run_id = str(run_id or "").strip() or self._ledger_run_id
-        if not self._artifact_run_id:
-            self._artifact_run_id = f"ctf-{uuid.uuid4().hex[:12]}"
-        self._artifact_registry = ArtifactRegistry(
+    ) -> tuple[str, ArtifactRegistry]:
+        artifact_run_id = str(run_id or "").strip() or fallback_run_id
+        if not artifact_run_id:
+            artifact_run_id = f"ctf-{uuid.uuid4().hex[:12]}"
+        artifact_registry = ArtifactRegistry(
             registry_root or (Path("loot") / "artifact_registry")
         )
+        return (artifact_run_id, artifact_registry)
 
-    def _setup_checkpoint_store(
+    def build_checkpoint_store(
         self,
         *,
         run_id: str | None,
+        fallback_run_id: str | None,
         checkpoint_root: str | Path | None,
-    ) -> None:
-        self._checkpoint_run_id = str(run_id or "").strip() or self._ledger_run_id
-        if not self._checkpoint_run_id:
-            self._checkpoint_run_id = f"ctf-{uuid.uuid4().hex[:12]}"
-        self._checkpoint_store = CheckpointStore(
+    ) -> tuple[str, CheckpointStore]:
+        checkpoint_run_id = str(run_id or "").strip() or fallback_run_id
+        if not checkpoint_run_id:
+            checkpoint_run_id = f"ctf-{uuid.uuid4().hex[:12]}"
+        checkpoint_store = CheckpointStore(
             checkpoint_root or (Path("loot") / "checkpoints")
         )
+        return (checkpoint_run_id, checkpoint_store)
 
-    def _record_session_event(
+    def record_session_event(
         self,
+        session_ledger,
+        ledger_run_id: str | None,
         event_type: str,
         payload: dict[str, Any] | None = None,
     ) -> None:
-        if self._session_ledger is None or not self._ledger_run_id:
+        if session_ledger is None or not ledger_run_id:
             return
         try:
-            self._session_ledger.append_event(
-                self._ledger_run_id,
+            session_ledger.append_event(
+                ledger_run_id,
                 event_type,
                 payload,
             )
         except Exception:
             pass
 
-    def _write_checkpoint(
+    def write_checkpoint(
         self,
+        checkpoint_store,
+        checkpoint_run_id: str | None,
+        state,
+        record_session_event,
         label: str,
         metadata: dict[str, Any] | None = None,
     ) -> None:
-        if self._checkpoint_store is None or not self._checkpoint_run_id or self.state is None:
+        if checkpoint_store is None or not checkpoint_run_id or state is None:
             return
         try:
-            record = self._checkpoint_store.save_checkpoint(
-                run_id=self._checkpoint_run_id,
+            record = checkpoint_store.save_checkpoint(
+                run_id=checkpoint_run_id,
                 label=label,
-                state_snapshot=self.state.to_snapshot(),
+                state_snapshot=state.to_snapshot(),
                 metadata=metadata,
             )
             checkpoint_event = build_checkpoint_written_event(record)
-            self._record_session_event(
+            record_session_event(
                 str(checkpoint_event.get("event_type") or "checkpoint_written"),
                 dict(checkpoint_event.get("payload") or {}),
             )
         except Exception:
             pass
 
-    def _register_artifact_record(
+    def register_artifact_record(
         self,
+        artifact_registry,
+        artifact_run_id: str | None,
+        record_session_event,
         *,
         kind: str,
         title: str,
@@ -252,11 +292,11 @@ class AuditInfraMixin:
         producer: str = "",
         metadata: dict[str, Any] | None = None,
     ) -> None:
-        if self._artifact_registry is None or not self._artifact_run_id:
+        if artifact_registry is None or not artifact_run_id:
             return
         try:
-            record = self._artifact_registry.register_artifact(
-                run_id=self._artifact_run_id,
+            record = artifact_registry.register_artifact(
+                run_id=artifact_run_id,
                 kind=kind,
                 title=title,
                 path=path,
@@ -265,25 +305,35 @@ class AuditInfraMixin:
                 metadata=metadata,
             )
             artifact_event = build_artifact_registered_event(record)
-            self._record_session_event(
+            record_session_event(
                 str(artifact_event.get("event_type") or "artifact_registered"),
                 dict(artifact_event.get("payload") or {}),
             )
         except Exception:
             pass
 
-    def _record_recovery_decision(self, decision: Any, *, chain_name: str = "") -> None:
+    def record_recovery_decision(
+        self,
+        record_session_event,
+        decision: Any,
+        *,
+        chain_name: str = "",
+    ) -> None:
         recovery_event = build_recovery_decision_event(decision, chain_name=chain_name)
-        self._record_session_event(
+        record_session_event(
             str(recovery_event.get("event_type") or "recovery_decision"),
             dict(recovery_event.get("payload") or {}),
         )
 
-    def _resolve_registered_local_challenge_paths(self) -> tuple[Path | None, Path | None]:
-        if self._artifact_registry is None or not self._artifact_run_id:
+    def resolve_registered_local_challenge_paths(
+        self,
+        artifact_registry,
+        artifact_run_id: str | None,
+    ) -> tuple[Path | None, Path | None]:
+        if artifact_registry is None or not artifact_run_id:
             return (None, None)
         try:
-            records = self._artifact_registry.list_artifacts(self._artifact_run_id)
+            records = artifact_registry.list_artifacts(artifact_run_id)
         except Exception:
             return (None, None)
 
@@ -312,11 +362,15 @@ class AuditInfraMixin:
             challenge_root = compose_file.parent
         return (challenge_root, compose_file)
 
-    def _resolve_registered_local_key_files(self) -> list[Path]:
-        if self._artifact_registry is None or not self._artifact_run_id:
+    def resolve_registered_local_key_files(
+        self,
+        artifact_registry,
+        artifact_run_id: str | None,
+    ) -> list[Path]:
+        if artifact_registry is None or not artifact_run_id:
             return []
         try:
-            records = self._artifact_registry.list_artifacts(self._artifact_run_id)
+            records = artifact_registry.list_artifacts(artifact_run_id)
         except Exception:
             return []
 
@@ -338,12 +392,15 @@ class AuditInfraMixin:
         files.reverse()
         return files
 
-    def _ingest_registered_local_source_hints(self, *, max_files: int = 3, max_chars: int = 400) -> None:
-        if self.state is None:
-            return
-        if self._registered_local_source_hints_loaded:
-            return
-        for path in self._resolve_registered_local_key_files()[:max_files]:
+    def ingest_registered_local_source_hints(
+        self,
+        state,
+        resolve_registered_local_key_files,
+        *,
+        max_files: int = 3,
+        max_chars: int = 400,
+    ) -> None:
+        for path in resolve_registered_local_key_files()[:max_files]:
             try:
                 content = path.read_text(encoding="utf-8", errors="ignore")
             except Exception:
@@ -353,7 +410,7 @@ class AuditInfraMixin:
                 continue
             if len(snippet) > max_chars:
                 snippet = snippet[: max_chars - 3].rstrip() + "..."
-            self.state.add_observation(
+            state.add_observation(
                 "local_challenge_source_hint",
                 f"{path.name}: {snippet}",
                 source="local_challenge_context",
@@ -362,6 +419,124 @@ class AuditInfraMixin:
                     "file_name": path.name,
                 },
             )
+
+
+class AuditInfraMixin:
+    """Session ledger, artifact registry, checkpoint store and audited runtime calls."""
+
+    def _setup_session_ledger(
+        self,
+        *,
+        run_id: str | None,
+        ledger_root: str | Path | None,
+    ) -> None:
+        self._ledger_run_id, self._session_ledger = self._audit_store.build_session_ledger(
+            run_id=run_id,
+            ledger_root=ledger_root,
+        )
+
+    def _setup_artifact_registry(
+        self,
+        *,
+        run_id: str | None,
+        registry_root: str | Path | None,
+    ) -> None:
+        self._artifact_run_id, self._artifact_registry = self._audit_store.build_artifact_registry(
+            run_id=run_id,
+            fallback_run_id=self._ledger_run_id,
+            registry_root=registry_root,
+        )
+
+    def _setup_checkpoint_store(
+        self,
+        *,
+        run_id: str | None,
+        checkpoint_root: str | Path | None,
+    ) -> None:
+        self._checkpoint_run_id, self._checkpoint_store = self._audit_store.build_checkpoint_store(
+            run_id=run_id,
+            fallback_run_id=self._ledger_run_id,
+            checkpoint_root=checkpoint_root,
+        )
+
+    def _record_session_event(
+        self,
+        event_type: str,
+        payload: dict[str, Any] | None = None,
+    ) -> None:
+        self._audit_store.record_session_event(
+            self._session_ledger,
+            self._ledger_run_id,
+            event_type,
+            payload,
+        )
+
+    def _write_checkpoint(
+        self,
+        label: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        self._audit_store.write_checkpoint(
+            self._checkpoint_store,
+            self._checkpoint_run_id,
+            self.state,
+            self._record_session_event,
+            label,
+            metadata,
+        )
+
+    def _register_artifact_record(
+        self,
+        *,
+        kind: str,
+        title: str,
+        path: str | None = None,
+        location: str | None = None,
+        producer: str = "",
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        self._audit_store.register_artifact_record(
+            self._artifact_registry,
+            self._artifact_run_id,
+            self._record_session_event,
+            kind=kind,
+            title=title,
+            path=path,
+            location=location,
+            producer=producer,
+            metadata=metadata,
+        )
+
+    def _record_recovery_decision(self, decision: Any, *, chain_name: str = "") -> None:
+        self._audit_store.record_recovery_decision(
+            self._record_session_event,
+            decision,
+            chain_name=chain_name,
+        )
+
+    def _resolve_registered_local_challenge_paths(self) -> tuple[Path | None, Path | None]:
+        return self._audit_store.resolve_registered_local_challenge_paths(
+            self._artifact_registry,
+            self._artifact_run_id,
+        )
+
+    def _resolve_registered_local_key_files(self) -> list[Path]:
+        return self._audit_store.resolve_registered_local_key_files(
+            self._artifact_registry,
+            self._artifact_run_id,
+        )
+
+    def _ingest_registered_local_source_hints(self, *, max_files: int = 3, max_chars: int = 400) -> None:
+        if self.state is None:
+            return
+        if self._registered_local_source_hints_loaded:
+            return
+        self._audit_store.ingest_registered_local_source_hints(
+            self.state,
+            self._resolve_registered_local_key_files,
+            max_files=max_files,
+            max_chars=max_chars,
+        )
         self._registered_local_source_hints_loaded = True
 
     async def _runtime_browser_action(
