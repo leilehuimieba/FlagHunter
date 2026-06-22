@@ -50,6 +50,26 @@ from ...harness.audit_events import (
 from ...harness.checkpoint_store import CheckpointStore
 from ...harness.session_ledger import SessionLedger
 
+# Process-level default base directory for the audit stores' *_root fallback.
+# Mirrors the ``notes`` tool's ``set_notes_file`` override hook: the three
+# ``build_*`` helpers fall back to ``<default_loot_root>/<store-subdir>`` only
+# when no explicit ``*_root`` is passed. The default stays ``Path("loot")`` so
+# production behaviour is byte-for-byte unchanged; only tests (via an autouse
+# fixture) call ``set_default_loot_root`` to redirect stray, root-less store
+# constructions into a tmp dir instead of the real ``loot/`` tree.
+_default_loot_root: Path = Path("loot")
+
+
+def set_default_loot_root(path: str | Path) -> None:
+    """Override the process-level default loot base dir for store fallbacks."""
+    global _default_loot_root
+    _default_loot_root = Path(path)
+
+
+def get_default_loot_root() -> Path:
+    """Return the current process-level default loot base dir."""
+    return _default_loot_root
+
 
 class RuntimeAuditedActions:
     """Instrumented runtime passthroughs (browser / proxy / execute_command).
@@ -202,7 +222,9 @@ class AuditStore:
         ledger_root: str | Path | None,
     ) -> tuple[str, SessionLedger]:
         ledger_run_id = str(run_id or "").strip() or f"ctf-{uuid.uuid4().hex[:12]}"
-        session_ledger = SessionLedger(ledger_root or (Path("loot") / "session_ledgers"))
+        session_ledger = SessionLedger(
+            ledger_root or (_default_loot_root / "session_ledgers")
+        )
         return (ledger_run_id, session_ledger)
 
     def build_artifact_registry(
@@ -216,7 +238,7 @@ class AuditStore:
         if not artifact_run_id:
             artifact_run_id = f"ctf-{uuid.uuid4().hex[:12]}"
         artifact_registry = ArtifactRegistry(
-            registry_root or (Path("loot") / "artifact_registry")
+            registry_root or (_default_loot_root / "artifact_registry")
         )
         return (artifact_run_id, artifact_registry)
 
@@ -231,7 +253,7 @@ class AuditStore:
         if not checkpoint_run_id:
             checkpoint_run_id = f"ctf-{uuid.uuid4().hex[:12]}"
         checkpoint_store = CheckpointStore(
-            checkpoint_root or (Path("loot") / "checkpoints")
+            checkpoint_root or (_default_loot_root / "checkpoints")
         )
         return (checkpoint_run_id, checkpoint_store)
 
