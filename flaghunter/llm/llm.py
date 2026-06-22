@@ -6,7 +6,7 @@ import random
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Any, AsyncIterator, List, Optional
+from typing import TYPE_CHECKING, Any, List, Optional
 
 from ..config.constants import DEFAULT_MODEL
 from .config import ModelConfig
@@ -585,65 +585,6 @@ class LLM:
                 model=self.model,
                 finish_reason=finish_reason,
             )
-
-    async def generate_stream(
-        self,
-        system_prompt: str,
-        messages: List[dict],
-        tools: Optional[List["Tool"]] = None,
-    ) -> AsyncIterator[str]:
-        """
-        Stream a response from the LLM.
-
-        Args:
-            system_prompt: The system prompt
-            messages: Conversation messages
-            tools: Available tools for function calling
-
-        Yields:
-            Response content chunks
-        """
-        llm_messages = [{"role": "system", "content": system_prompt}]
-        history = await self.memory.get_messages_with_summary(
-            messages, llm_call=self._summarize_call
-        )
-        llm_messages.extend(history)
-
-        # Anthropic rejects conversations ending with assistant messages
-        llm_messages = self._sanitize_messages_for_anthropic(llm_messages)
-
-        llm_tools = None
-        if tools:
-            llm_tools = [tool.to_llm_format() for tool in tools if tool.enabled]
-
-        try:
-            stream_kwargs = {
-                "model": self.model,
-                "messages": llm_messages,
-                "tools": llm_tools,
-                "max_tokens": self.config.max_tokens,
-                "stream": True,
-            }
-
-            # Newer Anthropic models don't support temperature
-            if not self._is_anthropic_model():
-                stream_kwargs["temperature"] = self.config.temperature
-
-            # Route through a custom OpenAI-compatible endpoint when configured
-            self._apply_api_base(stream_kwargs)
-
-            response = await self._litellm.acompletion(**stream_kwargs)
-
-            async for chunk in response:
-                delta = chunk.choices[0].delta
-                text = getattr(delta, "content", None) or ""
-                if not text:
-                    text = getattr(delta, "reasoning_content", None) or ""
-                if text:
-                    yield text
-
-        except Exception as e:
-            yield f"\nLLM Error: {str(e)}"
 
     async def simple_completion(
         self, prompt: str, system: str = "You are a helpful assistant."

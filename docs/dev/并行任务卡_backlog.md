@@ -524,6 +524,14 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 
 ---
 
+## 卡 H16-defer — llm generate() god-method 拆分(deferred·健康度治理 H16 留存)
+
+> **背景**:健康度治理路线图 H16 拆为两半。死代码部分(`generate_stream` 全仓零消费者)已删。**god-method 拆分留此**:`llm/llm.py` `generate()`(~170 行)含消息构建/kwargs 构建/响应解析/usage+M1 HOOK 记账/错误分类五段,可提取 `_build_request_messages`/`_build_request_kwargs`/`_parse_llm_response`/`_record_usage_and_cost`/`_build_error_response` helper。
+> **为何 defer**:纯可读性(非 bug),动 LLM 热路径有回归风险,值得专注时机做(有 test_provider_failover/test_api_base 保护)。非紧急。
+> **门禁**:llm 套件 + 保 generate 行为字节级不变(call_kwargs 顺序/api_base 经 test_api_base 验证)。
+
+---
+
 ## 维护说明(给我自己/未来对话)
 
 - 每完成一张卡,在卡标题后标 `✅(commit 短哈希)`,并回写 ADR §8。
