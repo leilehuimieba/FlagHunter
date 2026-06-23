@@ -547,6 +547,17 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 
 ---
 
+## 卡 D1–D2 — CTF 智能内核真实欠债收口(负反馈回路闭合 + 死映射归位·主控亲核) ✅
+
+> **背景**:健康度治理(H1–H18)收口的是表层卫生(死码/放错层/反向依赖);本轮按用户"专注 CTF·先解真实欠债"深入智能内核,主控亲核信息素链路(写入端↔消费端)挖出真实欠债,优先做两张低风险高 ROI 卡(D3 M5蚁群/D4 crew可达/D5 半解耦暂缓)。
+>
+> - **卡 D1 负反馈回路闭合——真做(`4cddf0d`)**:`record_failure` 把失败 payload 写进 `failed_payloads`/`failure_reasons`,但全仓 grep **零 reader** = "写了没消费"悬空半成品(与 M5 蚁群同型,但长在**每次求解的热路径**上),系统会在相似题上反复重试已知失败 payload。补消费端:`strategy_memory.recall_failed_payloads(matches)` 纯聚合(0.45 相似度门槛=与 hypothesis 调整同口径、复用装配点已 query 的 matches→零额外 IO、冷记忆 no-op)→ coordinator 装配 `dispatcher._known_failed_payloads`(+Protocol+reset)→ planner prompt(`call_llm_for_action`,经 `run_llm_driven_exploration` 到达)注入"勿重提",与会话内 Rejected flags/REFUTED-intent 同构的协议增强(暴露失败不强制选择);**冷记忆 prompt 字节不变=零回归**。
+> - **卡 D2 `_CHAIN_BY_KIND` 死映射归位——真做(`39c3a0c`,卡面翻转)**:映射把 `graphql_introspection`/`nosql_injection` 指向裸 `graphql`/`nosql` 链名,而 `_chain_handler_map` 无此 key→落 robots.txt 兜底。**卡面初判"热路径白耗迭代",主控亲核 + empirical 核实后翻转**:这两 kind 当前**从不被生成**(基准_CTF能力与可达性 §3.2),故是**潜伏死映射**(正是基准 §1 点名的头号误报陷阱"映射有 kind ≠ 可达"),非活跃浪费——一旦将来任一 kind 获生成点就会误派兜底。graphql/nosql 实为 web 链内部策略(§3.3/§4),归位映射到 `web` 使其与策略真实运行处对齐、消除地雷。
+>
+> **方法论复用**:D2 再次印证"`_CHAIN_BY_KIND` 测绘须 empirical 核实生成点,勿凭映射表下可达/浪费结论"(基准 §1 警告 + 本轮亲核翻转卡面)。**门禁**:两 commit 各自独立 + 全量 `tests/` **2014 passed/8 skipped/0 failed**(19m47s,+3 新测试)主控独立坐实零回归。诊断全貌见 [[reference-redteam-architecture-v2]] 邻近、信息素主线见 [[project-topdown-architecture]]。
+
+---
+
 ## 维护说明(给我自己/未来对话)
 
 - 每完成一张卡,在卡标题后标 `✅(commit 短哈希)`,并回写 ADR §8。
