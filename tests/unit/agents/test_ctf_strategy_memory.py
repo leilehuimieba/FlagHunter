@@ -456,66 +456,6 @@ async def test_strategy_memory_web_subtype_affects_similarity_and_fingerprint(tm
 
 
 @pytest.mark.asyncio
-async def test_recall_shortest_winning_chain_prefers_shortest_solved(tmp_path):
-    store = StrategyMemoryStore(tmp_path / "strategy_memory.json")
-    fp = ChallengeFingerprint(detected_type="web", tech_stack=["php"])
-
-    await store.save(StrategyMemoryEntry(
-        id="mem_long",
-        fingerprint=fp,
-        winning_primitive_sequence=["sqli", "web"],
-        avg_turns_to_flag=8,
-        solved=True,
-        metadata=StrategyMemoryEntryMetadata(
-            created_at=time.time(), manual_status="active", success_correlation=0.9
-        ),
-    ))
-    await store.save(StrategyMemoryEntry(
-        id="mem_short",
-        fingerprint=fp,
-        winning_primitive_sequence=["web"],
-        avg_turns_to_flag=3,
-        solved=True,
-        metadata=StrategyMemoryEntryMetadata(
-            created_at=time.time(), manual_status="active", success_correlation=0.8
-        ),
-    ))
-    await store.save(StrategyMemoryEntry(
-        id="mem_unsolved",
-        fingerprint=fp,
-        winning_primitive_sequence=["misc"],
-        avg_turns_to_flag=1,
-        solved=False,
-        metadata=StrategyMemoryEntryMetadata(created_at=time.time(), manual_status="active"),
-    ))
-    await store.save(StrategyMemoryEntry(
-        id="mem_other",
-        fingerprint=ChallengeFingerprint(detected_type="pwn"),
-        winning_primitive_sequence=["pwn"],
-        avg_turns_to_flag=1,
-        solved=True,
-        metadata=StrategyMemoryEntryMetadata(created_at=time.time(), manual_status="active"),
-    ))
-
-    # shortest solved chain among similar (web) entries; unsolved + dissimilar ignored
-    assert store.recall_shortest_winning_chain(fp) == ["web"]
-
-
-@pytest.mark.asyncio
-async def test_recall_shortest_winning_chain_empty_when_no_solved_match(tmp_path):
-    store = StrategyMemoryStore(tmp_path / "strategy_memory.json")
-    fp = ChallengeFingerprint(detected_type="web")
-    await store.save(StrategyMemoryEntry(
-        id="mem_u",
-        fingerprint=fp,
-        winning_primitive_sequence=["web"],
-        solved=False,
-        metadata=StrategyMemoryEntryMetadata(created_at=time.time(), manual_status="active"),
-    ))
-    assert store.recall_shortest_winning_chain(fp) == []
-
-
-@pytest.mark.asyncio
 async def test_recall_chain_pheromone_shorter_chain_gets_more(tmp_path):
     store = StrategyMemoryStore(tmp_path / "strategy_memory.json")
     fp = ChallengeFingerprint(detected_type="web", tech_stack=["php"])

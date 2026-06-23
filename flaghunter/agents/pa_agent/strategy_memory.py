@@ -103,50 +103,6 @@ class StrategyMemoryStore:
         )
         return matches[:top_k]
 
-    def recall_shortest_winning_chain(
-        self,
-        current_fingerprint: ChallengeFingerprint,
-        *,
-        min_similarity: float = 0.34,
-    ) -> list[str]:
-        """Ant-colony shortest-chain recall.
-
-        Among previously SOLVED entries similar to ``current_fingerprint``,
-        return the *shortest* winning chain (fewest chains; tie-break by fewest
-        turns-to-flag, then higher success correlation, then higher similarity).
-        Returns ``[]`` when no sufficiently-similar solved entry exists.
-
-        This is the "走最短链" bias: the system reinforces the shortest path that
-        solved a similar challenge and tries it first, converging over repeats
-        like ant-colony pheromone settling on the shortest route. Sync (reads the
-        same decayed entries as ``query``) so the chain-order contract can call it.
-        """
-        best_cost: tuple[int, int, float, float] | None = None
-        best_chain: list[str] = []
-        for entry in self._load_entries_with_decay():
-            if not entry.solved or not self._is_queryable(entry):
-                continue
-            sequence = [
-                str(item).strip()
-                for item in (entry.winning_primitive_sequence or [])
-                if str(item).strip()
-            ]
-            if not sequence:
-                continue
-            score = self._similarity(current_fingerprint, entry.fingerprint)
-            if score < min_similarity:
-                continue
-            cost = (
-                len(sequence),
-                int(entry.avg_turns_to_flag or 0),
-                -float(entry.metadata.success_correlation or 0.0),
-                -score,
-            )
-            if best_cost is None or cost < best_cost:
-                best_cost = cost
-                best_chain = sequence
-        return list(best_chain)
-
     def recall_chain_pheromone(
         self,
         current_fingerprint: ChallengeFingerprint,
@@ -155,8 +111,7 @@ class StrategyMemoryStore:
     ) -> dict[str, float]:
         """Ant-colony chain pheromone (走最短链, full loop).
 
-        Generalises ``recall_shortest_winning_chain`` from a single shortest pick
-        to a pheromone-weighted strength per chain, aggregated over all similar
+        A pheromone-weighted strength per chain, aggregated over all similar
         SOLVED entries. Each solved entry deposits on every chain of its winning
         sequence an amount ``(1/len(sequence)) * similarity * decay * quality``:
 

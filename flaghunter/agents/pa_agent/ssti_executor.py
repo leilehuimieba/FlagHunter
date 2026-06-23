@@ -509,10 +509,6 @@ class SSTIExecutorMixin:
                     engine = str(obs.value or "")
                 if obs.kind == "cookie_secret_leaked" and cookie_secret is None:
                     cookie_secret = str(obs.value or "")
-            if engine and cookie_secret:
-                break_early = True
-            else:
-                break_early = False
 
         if engine == "tornado":
             # Fast path: cookie_secret already extracted in identify stage
