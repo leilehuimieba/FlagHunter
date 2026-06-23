@@ -1781,9 +1781,17 @@ class CTFCoordinator:
             ctx,
             derived_target_contract=derived_target_contract,
         )
-        record_ingress_handoff = getattr(ctx, "_record_ingress_handoff_observations", None)
-        if callable(record_ingress_handoff) and isinstance(ingress_handoff, dict):
-            record_ingress_handoff(ingress_handoff)
+        if isinstance(ingress_handoff, dict):
+            # Carry the handoff onto the dispatcher field — the structured read
+            # sites (_structured_followup_*, _strategy_context, and the coordinator
+            # contracts at :344/:467) read self._ingress_handoff, which was only
+            # ever initialised to None and never written from the run() param → the
+            # whole structured-handoff read面 ran dead. Single post-bootstrap write
+            # point covers all entries (run / web handoff). (D1)
+            dispatcher._ingress_handoff = ingress_handoff
+            record_ingress_handoff = getattr(ctx, "_record_ingress_handoff_observations", None)
+            if callable(record_ingress_handoff):
+                record_ingress_handoff(ingress_handoff)
         self._apply_run_start_contract(
             ctx,
             target=normalized_target,

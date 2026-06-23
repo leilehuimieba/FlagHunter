@@ -2194,15 +2194,12 @@ async def test_coordinator_verified_flag_early_finish_from_structured_ingress_ha
             self.written_checkpoints: list[tuple[str, dict[str, object]]] = []
             self.capability_registry = _CapabilityRegistry()
             self.run_called = False
-            self._ingress_handoff = {
-                "decisionKind": "direct_execute",
-                "nextAction": "verify_or_submit_flag",
-                "driver": "blackboard.verified_flag",
-                "reason": "verified flag already present in blackboard",
-                "verifiedFlag": "flag{verified_from_handoff}",
-                "switchedFrom": "verify_runtime_signal",
-                "triggerReason": "runtime verifier rejected candidate",
-            }
+            # D1: NOT pre-set. The structured read sites (_structured_followup_*)
+            # read this field; execute() must carry it from the ingress_handoff
+            # param (the bug was: field stayed None → read面 dead). The stub's
+            # _record_ingress_handoff_observations writes nothing, so the early
+            # finish below can only fire if execute() populated this field.
+            self._ingress_handoff = None
 
         def _setup_session_ledger(self, *, run_id=None, ledger_root=None):
             self._ledger_run_id = run_id
@@ -2258,6 +2255,16 @@ async def test_coordinator_verified_flag_early_finish_from_structured_ingress_ha
 
     dispatcher = _Dispatcher()
 
+    verified_flag_handoff = {
+        "decisionKind": "direct_execute",
+        "nextAction": "verify_or_submit_flag",
+        "driver": "blackboard.verified_flag",
+        "reason": "verified flag already present in blackboard",
+        "verifiedFlag": "flag{verified_from_handoff}",
+        "switchedFrom": "verify_runtime_signal",
+        "triggerReason": "runtime verifier rejected candidate",
+    }
+
     result = await coordinator.execute(
         dispatcher,
         target="127.0.0.1:3000",
@@ -2266,12 +2273,16 @@ async def test_coordinator_verified_flag_early_finish_from_structured_ingress_ha
         hint="",
         submit_profile=None,
         challenge_context={"artifactPaths": []},
-        ingress_handoff=dispatcher._ingress_handoff,
+        ingress_handoff=verified_flag_handoff,
         run_id="run-verified-flag-structured-handoff",
         ledger_root=tmp_path / "ledgers",
         checkpoint_root=tmp_path / "checkpoints",
     )
 
+    # D1 regression guard: execute() carried the handoff onto the dispatcher field
+    # from the param alone (no pre-set), so the structured read面 is live. Without
+    # the fix this stays None and the early finish below never fires.
+    assert dispatcher._ingress_handoff == verified_flag_handoff
     assert result.success is True
     assert result.flag == "flag{verified_from_handoff}"
     assert dispatcher.run_called is False
