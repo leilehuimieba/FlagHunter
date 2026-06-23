@@ -586,35 +586,9 @@ class LLM:
                 finish_reason=finish_reason,
             )
 
-    async def simple_completion(
-        self, prompt: str, system: str = "You are a helpful assistant."
-    ) -> str:
-        """
-        Simple completion without tools.
-
-        Args:
-            prompt: The user prompt
-            system: The system prompt
-
-        Returns:
-            The response text
-        """
-        response = await self.generate(
-            system_prompt=system,
-            messages=[{"role": "user", "content": prompt}],
-            tools=None,
-        )
-        return response.content or ""
-
     def set_model(self, model: str):
         """Change the model."""
         self.model = model
-
-    def update_config(self, **kwargs):
-        """Update configuration parameters."""
-        for key, value in kwargs.items():
-            if hasattr(self.config, key):
-                setattr(self.config, key, value)
 
     async def _summarize_call(self, prompt: str) -> str:
         """
@@ -659,27 +633,3 @@ class LLM:
         """Get memory usage statistics."""
         return self.memory.get_stats()
 
-    def get_available_models(self) -> List[str]:
-        """
-        Get list of commonly available models.
-
-        Returns:
-            List of model names
-        """
-        return [
-            # OpenAI
-            "gpt-5",
-            "gpt-4.1",
-            "gpt-4.1-mini",
-            "gpt-4.1-nano",
-            # Anthropic
-            "claude-sonnet-4-20250514",
-            "claude-opus-4-20250514",
-            # Google
-            "gemini/gemini-2.5-pro",
-            "gemini/gemini-2.5-flash",
-            # Others via LiteLLM
-            "ollama/llama3",
-            "ollama/mixtral",
-            "groq/llama3-70b-8192",
-        ]

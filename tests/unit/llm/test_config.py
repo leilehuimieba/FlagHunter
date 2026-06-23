@@ -2,12 +2,7 @@
 
 import pytest
 
-from flaghunter.llm.config import (
-    BALANCED_CONFIG,
-    CREATIVE_CONFIG,
-    PRECISE_CONFIG,
-    ModelConfig,
-)
+from flaghunter.llm.config import ModelConfig
 
 
 class TestModelConfigDefaults:
@@ -64,39 +59,3 @@ class TestModelConfigToDict:
         d = cfg.to_dict()
         assert "max_retries" not in d
         assert "retry_delay" not in d
-
-
-class TestModelConfigForModel:
-    def test_for_model_returns_model_config(self):
-        cfg = ModelConfig.for_model("gpt-5")
-        assert isinstance(cfg, ModelConfig)
-
-    def test_for_model_has_valid_temperature(self):
-        cfg = ModelConfig.for_model("claude-sonnet")
-        assert 0.0 <= cfg.temperature <= 2.0
-
-    def test_for_model_has_positive_max_tokens(self):
-        cfg = ModelConfig.for_model("any-model")
-        assert cfg.max_tokens > 0
-
-
-class TestPresetConfigs:
-    def test_creative_has_higher_temperature_than_precise(self):
-        assert CREATIVE_CONFIG.temperature > PRECISE_CONFIG.temperature
-
-    def test_precise_has_lower_temperature(self):
-        assert PRECISE_CONFIG.temperature <= 0.3
-
-    def test_creative_has_higher_temperature(self):
-        assert CREATIVE_CONFIG.temperature >= 0.7
-
-    def test_balanced_temperature_between_presets(self):
-        assert PRECISE_CONFIG.temperature <= BALANCED_CONFIG.temperature <= CREATIVE_CONFIG.temperature
-
-    def test_all_presets_valid_top_p(self):
-        for cfg in (CREATIVE_CONFIG, PRECISE_CONFIG, BALANCED_CONFIG):
-            assert 0.0 <= cfg.top_p <= 1.0
-
-    def test_all_presets_positive_max_tokens(self):
-        for cfg in (CREATIVE_CONFIG, PRECISE_CONFIG, BALANCED_CONFIG):
-            assert cfg.max_tokens > 0

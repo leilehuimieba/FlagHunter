@@ -41,22 +41,3 @@ class ModelConfig:
             "frequency_penalty": self.frequency_penalty,
             "presence_penalty": self.presence_penalty,
         }
-
-    @classmethod
-    def for_model(cls, model: str) -> "ModelConfig":
-        """Get configuration for a model. Uses sensible defaults for modern LLMs."""
-        return cls(temperature=0.7, max_tokens=4096, max_context_tokens=128000)
-
-
-# Preset configurations
-CREATIVE_CONFIG = ModelConfig(
-    temperature=0.9, top_p=0.95, frequency_penalty=0.5, presence_penalty=0.5
-)
-
-PRECISE_CONFIG = ModelConfig(
-    temperature=0.1, top_p=1.0, frequency_penalty=0.0, presence_penalty=0.0
-)
-
-BALANCED_CONFIG = ModelConfig(
-    temperature=0.7, top_p=1.0, frequency_penalty=0.0, presence_penalty=0.0
-)
