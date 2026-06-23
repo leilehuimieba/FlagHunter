@@ -558,6 +558,17 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 
 ---
 
+## 卡 D4 — CTF 组队拉齐到命令行/网页(能力够不着收口·共享无头运行器) ✅
+
+> **背景**:接 D1–D2,清单里 D4="CTF 组队只有 TUI 能进"——`CTFCrewCoordinator`(多 worker/共享 CTFState/命中即广播 cancel)仅 `tui.py:_run_ctf_crew_dispatcher_mode` 接线,CLI/web 只能跑单 worker `CTFTaskDispatcher`。与历史 [随便注]/graphql-nosql 同构的"能力已写好但够不着"。用户拍板做 D4。
+>
+> - **共享无头运行器(`4bbdfa9`)**:新增 `agents/pa_agent/ctf_crew_runner.py` `run_ctf_crew_solve` = 从 TUI 抽出的**单题 crew 核心**(建 planning dispatcher→recon→capability→detect_type→hypothesis→worker_runner→`CTFCrewCoordinator`→`SolveResult`),UI 无关(progress=str 回调、worker 生命周期=可选事件回调,**不 import 任何 interface 代码**);返回 `(SolveResult, dispatcher)` 让各入口从单一产物取 `.state`/`._challenge_context`。`derive_crew_stop_reason` 纯函数抽为单一真相源。**不含** TUI 的平台自治多题循环(TUI 专属)。
+> - **CLI**:`run_cli` 加 `crew` 参数 + `--crew` flag;`--mode ctf --crew` 路由到运行器(正交,不碰渗透 crew=`mode==crew`)。**web**:CTF 路径检测 `executionMode=="crew"`/`crew` 标志路由;返回的 dispatcher 让下游 chain_used/snapshot/derived-target 管线零改。**TUI**:`_derive_ctf_crew_stop_reason` 改委托 `derive_crew_stop_reason`(零风险去重,三入口归一口径)。
+>
+> **测试**:`derive_crew_stop_reason` 全分支纯单测 + `run_ctf_crew_solve` 装配/映射 + already_solved 短路(假 dispatcher/coordinator);CLI/web 路由源码检视(贴合 I2 守护测试风格)。**门禁**:全量 `tests/` **2019 passed/8 skipped/0 failed**(22m50s,+5 新测试)主控独立坐实零回归。**诚实留坑**:TUI 仍保留平台自治超集版本(无单测保护、改动风险高、本轮用户只要 CLI/web),后续可低风险让 TUI 每题委托同一运行器;`ingress_handoff` 不穿进 crew worker(与 TUI crew 行为一致)。CTF 欠债清单见 [[project-ctf-intelligence-debts]],剩 D3(M5蚁群)/D5(链mixin半解耦)暂缓。
+
+---
+
 ## 维护说明(给我自己/未来对话)
 
 - 每完成一张卡,在卡标题后标 `✅(commit 短哈希)`,并回写 ADR §8。
