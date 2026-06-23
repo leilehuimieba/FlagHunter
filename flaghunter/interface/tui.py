@@ -8267,31 +8267,11 @@ Be concise. Use the actual data from notes."""
             self._is_running = False
 
     def _derive_ctf_crew_stop_reason(self, summary: Any) -> str:
-        base_reason = str(getattr(summary, "stop_reason", "") or "").strip()
-        if base_reason in {"flag_verified", "crew_timeout"} or base_reason.startswith("worker_error:"):
-            return base_reason
+        # Single source of truth lives in the shared headless crew runner so the
+        # TUI and the CLI/web crew path (D4) agree on stop-reason normalization.
+        from ..agents.pa_agent.ctf_crew_runner import derive_crew_stop_reason
 
-        worker_results = dict(getattr(summary, "worker_results", {}) or {})
-        reasons = [str(item.get("reason") or "").strip().lower() for item in worker_results.values() if isinstance(item, dict)]
-        missing_tools = [
-            tool
-            for item in worker_results.values()
-            if isinstance(item, dict)
-            for tool in list(item.get("missing_tools") or [])
-        ]
-        if any("wrong flag feedback" in reason for reason in reasons):
-            return "wrong_flag_feedback"
-        if any("already solved" in reason for reason in reasons):
-            return "challenge_already_solved"
-        if missing_tools or any(
-            token in reason
-            for reason in reasons
-            for token in ("capability_ceiling", "侦察依赖缺失", "missing tool", "missing_tools")
-        ):
-            return "capability_ceiling"
-        if base_reason == "workers_completed":
-            return "all_hypotheses_exhausted"
-        return base_reason or "workers_completed"
+        return derive_crew_stop_reason(summary)
 
     def _resolve_ctf_auto_switch_context(
         self,

@@ -166,6 +166,12 @@ Examples:
         help="Optional CTF subtype hint: web | crypto | reverse | pwn | misc",
     )
     run_parser.add_argument(
+        "--crew",
+        action="store_true",
+        help="Use multi-worker crew mode. With --mode ctf, runs the CTF challenge "
+        "through CTFCrewCoordinator (parallel recon/exploit workers, shared state).",
+    )
+    run_parser.add_argument(
         "--challenge-path",
         dest="challenge_path",
         help="Optional local challenge directory or extracted challenge path",
@@ -1705,6 +1711,7 @@ def main():
                     ctf_type=args.ctf_type,
                     challenge_path=args.challenge_path,
                     artifact_paths=args.artifact_path,
+                    crew=bool(getattr(args, "crew", False)),
                 )
             )
         except KeyboardInterrupt:

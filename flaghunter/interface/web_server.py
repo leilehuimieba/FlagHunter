@@ -3532,24 +3532,50 @@ def _run_agent_task(task_id: str, payload: dict, project_root: Path) -> None:
                     _apply_control_decision(task)
                     task["ingressHandoff"] = _build_ingress_handoff(task)
                 dispatcher_hint = _ctf_dispatcher_hint(task)
-                emit_log("info", "ctf.dispatcher", f"Task {task_id} started — subtype: {ctf_subtype}, target: {target or '(none)'}")
-                dispatcher = CTFTaskDispatcher(
-                    runtime=runtime,
-                    progress_callback=lambda message: emit_log("info", "ctf.dispatcher", str(message)),
+                crew_requested = (
+                    str(payload.get("executionMode") or "").strip().lower() == "crew"
+                    or bool(payload.get("crew"))
                 )
-                solve_result = await _run_ctf_dispatcher_with_handoff(
-                    dispatcher,
-                    target=target,
-                    goal=goal,
-                    ctf_type=ctf_subtype,
-                    hint=dispatcher_hint,
-                    challenge_context=_build_ctf_challenge_context(task),
-                    ingress_handoff=(
-                        dict(task.get("ingressHandoff") or {})
-                        if isinstance(task.get("ingressHandoff"), dict)
-                        else None
-                    ),
-                )
+                if crew_requested:
+                    # CTF crew (multi-worker via CTFCrewCoordinator) — previously
+                    # TUI-only; the shared headless runner gives web parity (D4).
+                    # Returns the planning dispatcher so the downstream chain/
+                    # snapshot/derived-target plumbing below is unchanged.
+                    from ..agents.pa_agent.ctf_crew_runner import run_ctf_crew_solve
+
+                    emit_log("info", "ctf.crew", f"Task {task_id} started (crew) — subtype: {ctf_subtype}, target: {target or '(none)'}")
+                    solve_result, dispatcher = await run_ctf_crew_solve(
+                        runtime=runtime,
+                        llm=session.llm,
+                        target=target,
+                        goal=goal,
+                        chtype=ctf_subtype,
+                        hint=dispatcher_hint,
+                        challenge_context=_build_ctf_challenge_context(task),
+                        progress_callback=lambda message: emit_log("info", "ctf.crew", str(message)),
+                        worker_event=lambda wid, evt, data: emit_log(
+                            "info", "ctf.crew", f"[{wid}] {evt}" + (f" {data}" if data else "")
+                        ),
+                    )
+                else:
+                    emit_log("info", "ctf.dispatcher", f"Task {task_id} started — subtype: {ctf_subtype}, target: {target or '(none)'}")
+                    dispatcher = CTFTaskDispatcher(
+                        runtime=runtime,
+                        progress_callback=lambda message: emit_log("info", "ctf.dispatcher", str(message)),
+                    )
+                    solve_result = await _run_ctf_dispatcher_with_handoff(
+                        dispatcher,
+                        target=target,
+                        goal=goal,
+                        ctf_type=ctf_subtype,
+                        hint=dispatcher_hint,
+                        challenge_context=_build_ctf_challenge_context(task),
+                        ingress_handoff=(
+                            dict(task.get("ingressHandoff") or {})
+                            if isinstance(task.get("ingressHandoff"), dict)
+                            else None
+                        ),
+                    )
                 chain_used = [str(item) for item in (getattr(solve_result, "chain_used", None) or []) if str(item or "").strip()]
                 task["ctfChainUsed"] = chain_used
                 if chain_used:

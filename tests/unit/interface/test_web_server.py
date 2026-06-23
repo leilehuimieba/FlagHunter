@@ -86,6 +86,16 @@ def test_run_agent_task_routes_through_agent_session():
     assert "get_all_tools(" not in src, "web must not load tools directly"
 
 
+def test_run_agent_task_routes_ctf_crew_through_shared_runner():
+    """D4: web CTF crew must route through the shared headless crew runner."""
+    import inspect
+
+    src = inspect.getsource(web_server._run_agent_task)
+    assert "run_ctf_crew_solve" in src
+    assert "crew_requested" in src
+    assert 'executionMode' in src
+
+
 class _NeverRunAgent:
     """Constructible agent whose loop must never be driven (CTF-mode tests).
 

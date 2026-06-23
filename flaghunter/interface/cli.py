@@ -162,6 +162,7 @@ async def run_cli(
     ctf_type: str | None = None,
     challenge_path: str | None = None,
     artifact_paths: list[str] | None = None,
+    crew: bool = False,
 ):
     """
     Run FlagHunter in non-interactive mode.
@@ -634,11 +635,6 @@ async def run_cli(
                 }
             )
             llm = session.llm
-            dispatcher = CTFTaskDispatcher(
-                runtime=runtime,
-                progress_callback=lambda message: print_status(str(message), PA_DIM),
-                llm=llm,
-            )
             dispatcher_hint = _ctf_dispatcher_hint(
                 challenge_path=challenge_path,
                 artifact_paths=artifact_paths,
@@ -648,14 +644,40 @@ async def run_cli(
                 "challengePath": str(challenge_path or "").strip() or None,
                 "artifactPaths": _normalize_string_list(artifact_paths),
             }
-            solve_result = await dispatcher.run(
-                target=target,
-                goal=task_msg,
-                type=resolved_subtype or "auto",
-                hint=dispatcher_hint,
-                challenge_context=cli_challenge_context,
-            )
-            derived_target = _sync_runtime_challenge_context(cli_challenge_context, dispatcher)
+            if crew:
+                # CTF crew (multi-worker via CTFCrewCoordinator) — previously
+                # TUI-only; the shared headless runner gives CLI/web parity (D4).
+                from ..agents.pa_agent.ctf_crew_runner import run_ctf_crew_solve
+
+                print_status("CTF crew mode (multi-worker)", PA_ACCENT)
+                solve_result, crew_dispatcher = await run_ctf_crew_solve(
+                    runtime=runtime,
+                    llm=llm,
+                    target=target,
+                    goal=task_msg,
+                    chtype=resolved_subtype or "auto",
+                    hint=dispatcher_hint,
+                    challenge_context=cli_challenge_context,
+                    progress_callback=lambda message: print_status(str(message), PA_DIM),
+                    worker_event=lambda wid, evt, data: print_status(
+                        f"[crew:{wid}] {evt}" + (f" ({data})" if data else ""), PA_DIM
+                    ),
+                )
+                derived_target = _sync_runtime_challenge_context(cli_challenge_context, crew_dispatcher)
+            else:
+                dispatcher = CTFTaskDispatcher(
+                    runtime=runtime,
+                    progress_callback=lambda message: print_status(str(message), PA_DIM),
+                    llm=llm,
+                )
+                solve_result = await dispatcher.run(
+                    target=target,
+                    goal=task_msg,
+                    type=resolved_subtype or "auto",
+                    hint=dispatcher_hint,
+                    challenge_context=cli_challenge_context,
+                )
+                derived_target = _sync_runtime_challenge_context(cli_challenge_context, dispatcher)
             if derived_target and not str(target or "").strip():
                 target = derived_target
                 print_status(f"Derived target resolved: {derived_target}", PA_DIM)

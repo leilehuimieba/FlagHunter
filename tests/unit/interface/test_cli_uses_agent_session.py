@@ -32,3 +32,12 @@ def test_run_cli_does_not_import_assembly_primitives():
     assert "from ..session import AgentSession" in src
     assert "import RAGEngine" not in src
     assert "build_runtime" not in src
+
+
+def test_run_cli_routes_ctf_crew_through_shared_runner():
+    """D4: CTF crew (--crew + --mode ctf) must route through the shared headless
+    crew runner, not re-implement the crew assembly inline."""
+    src = inspect.getsource(cli.run_cli)
+    assert "crew" in inspect.signature(cli.run_cli).parameters
+    assert "run_ctf_crew_solve" in src
+    assert "if crew:" in src
