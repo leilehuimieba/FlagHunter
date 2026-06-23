@@ -261,6 +261,23 @@ class LLMExecutor:
             "Allowed tools: http_request, terminal, manual_sqli_payload, manual_path_enumeration, knowledge_search, web_search.\n"
             "For attachment/misc/forensics challenges, you may use shell with python snippets to inspect downloaded artifacts, sqlite databases, WAL files, archives, or to decode/transform extracted fragments.\n"
         )
+        # Cross-challenge negative feedback (consume half of record_failure):
+        # payloads recorded as failures on similar past challenges. Same protocol
+        # augmentation as the within-session "Rejected flags" / REFUTED-intent
+        # signals — surfaces the failures so the planner stops re-proposing them;
+        # it does not force a choice. No-op (byte-identical prompt) when memory is
+        # cold, since the dispatcher leaves the list empty.
+        known_failed_payloads = list(
+            getattr(context.services, "_known_failed_payloads", None) or []
+        )[:12]
+        if known_failed_payloads:
+            prompt += (
+                "Payloads that already FAILED on similar past challenges (do NOT "
+                "re-propose these; they were recorded as failures — try a "
+                "materially different payload/approach):\n"
+                + "\n".join(f"- {payload}" for payload in known_failed_payloads)
+                + "\n"
+            )
         # Surface the structured ExplorationAgenda (recon-discovered + framework
         # conventional entry routes) as an explicit prioritized queue. Without
         # this the planner only saw raw_links buried in the prompt and fell back

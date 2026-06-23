@@ -283,6 +283,54 @@ def test_strategy_memory_adjustments_bonus_penalty_and_clamp():
     assert adjustments["generic_web_recon"] == -0.10
 
 
+def test_recall_failed_payloads_aggregates_above_threshold_with_dedup_and_limit():
+    store = StrategyMemoryStore()
+    fp = ChallengeFingerprint(detected_type="sqli")
+    similar = StrategyMemoryEntry(
+        id="mem_similar",
+        fingerprint=fp,
+        failed_payloads=["' OR 1=1 -- ", "admin' --", "' OR 1=1 -- "],
+        metadata=StrategyMemoryEntryMetadata(manual_status="active"),
+    )
+    other_similar = StrategyMemoryEntry(
+        id="mem_other",
+        fingerprint=fp,
+        failed_payloads=["ADMIN' --", "{{7*7}}"],  # case-dup of admin' -- + new
+        metadata=StrategyMemoryEntryMetadata(manual_status="active"),
+    )
+    dissimilar = StrategyMemoryEntry(
+        id="mem_low",
+        fingerprint=fp,
+        failed_payloads=["below-threshold-should-be-ignored"],
+        metadata=StrategyMemoryEntryMetadata(manual_status="active"),
+    )
+
+    recalled = store.recall_failed_payloads(
+        [(similar, 0.9), (other_similar, 0.6), (dissimilar, 0.30)]
+    )
+
+    # below-similarity entry excluded; payloads normalized (stripped, matching
+    # the record_failure write side); case-insensitive dedup keeps first form;
+    # order preserved across entries.
+    assert recalled == ["' OR 1=1 --", "admin' --", "{{7*7}}"]
+    assert "below-threshold-should-be-ignored" not in recalled
+
+    limited = store.recall_failed_payloads([(similar, 0.9)], limit=1)
+    assert limited == ["' OR 1=1 --"]
+
+
+def test_recall_failed_payloads_empty_on_cold_or_low_similarity():
+    store = StrategyMemoryStore()
+    fp = ChallengeFingerprint(detected_type="sqli")
+    assert store.recall_failed_payloads([]) == []
+    no_failures = StrategyMemoryEntry(id="mem_nf", fingerprint=fp, failed_payloads=[])
+    assert store.recall_failed_payloads([(no_failures, 0.9)]) == []
+    has_failures = StrategyMemoryEntry(
+        id="mem_low_sim", fingerprint=fp, failed_payloads=["x' OR '1'='1"]
+    )
+    assert store.recall_failed_payloads([(has_failures, 0.44)]) == []
+
+
 def test_strategy_memory_build_entry_filters_non_generalizable_rules():
     store = StrategyMemoryStore()
     state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="sqli")

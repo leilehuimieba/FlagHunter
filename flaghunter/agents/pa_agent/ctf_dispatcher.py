@@ -319,6 +319,10 @@ class CTFTaskDispatcher(
         self.platform_orchestrator = PlatformTaskOrchestrator()
         self._current_fingerprint: ChallengeFingerprint | None = None
         self._memory_match_ids: list[str] = []
+        # Negative-feedback recall (consume half of record_failure): payloads that
+        # failed on similar past challenges, surfaced to the planner so it avoids
+        # re-proposing them. Empty until the strategy-memory contract populates it.
+        self._known_failed_payloads: list[str] = []
         self._pending_wrong_flag_feedback: list[dict[str, str]] = []
         self._active_hypothesis_context = None
         self._active_strategy_context = None

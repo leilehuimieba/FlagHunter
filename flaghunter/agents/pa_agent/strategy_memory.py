@@ -717,6 +717,41 @@ class StrategyMemoryStore:
                 )
         return adjustments
 
+    def recall_failed_payloads(
+        self,
+        matches: list[tuple[StrategyMemoryEntry, float]],
+        *,
+        min_similarity: float = 0.45,
+        limit: int = 24,
+    ) -> list[str]:
+        """Negative-feedback recall (consume half of ``record_failure``).
+
+        Aggregate the ``failed_payloads`` recorded on sufficiently-similar past
+        entries (same conservative ``0.45`` threshold as
+        ``compute_hypothesis_adjustments``) into a deduplicated, order-preserving
+        list. The planner surfaces these so it stops re-proposing payloads that
+        already failed on similar challenges — the read side of the trajectory
+        the dispatcher writes via ``record_failure``. Pure (operates on the
+        ``matches`` the strategy-memory contract already fetched → no extra IO);
+        empty when no similar entry carries failures, so it is a no-op on a cold
+        memory.
+        """
+        collected: list[str] = []
+        seen: set[str] = set()
+        for entry, score in matches:
+            if score < min_similarity:
+                continue
+            for payload in entry.failed_payloads:
+                normalized = str(payload or "").strip()
+                key = normalized.lower()
+                if not normalized or key in seen:
+                    continue
+                seen.add(key)
+                collected.append(normalized)
+                if len(collected) >= limit:
+                    return collected
+        return collected
+
     def build_entry(
         self,
         *,

@@ -47,6 +47,7 @@ class CoordinatorDispatcherServices(Protocol):
     _ledger_run_id: str
     _current_fingerprint: Any
     _memory_match_ids: list[Any]
+    _known_failed_payloads: list[str]
     _pending_wrong_flag_feedback: list[dict[str, Any]]
     _exhausted_visit_url_targets: set[str]
     _restored_resume_checkpoint_id: Any
@@ -717,6 +718,7 @@ class CTFCoordinator:
         )
         dispatcher._current_fingerprint = None
         dispatcher._memory_match_ids = []
+        dispatcher._known_failed_payloads = []
         dispatcher._pending_wrong_flag_feedback = []
         dispatcher._exhausted_visit_url_targets = set()
         dispatcher._restored_resume_checkpoint_id = None
@@ -1281,6 +1283,13 @@ class CTFCoordinator:
         if dispatcher._memory_match_ids:
             await strategy_memory.record_query_usage(dispatcher._memory_match_ids)
         state.hypothesis_memory_adjustments = strategy_memory.compute_hypothesis_adjustments(
+            memory_matches
+        )
+        # Consume half of the negative-feedback trajectory (record_failure write
+        # side): payloads that failed on similar past challenges, surfaced to the
+        # planner so it avoids re-proposing them. Reuses the matches just fetched
+        # (no extra IO); empty on a cold memory → no behaviour change.
+        dispatcher._known_failed_payloads = strategy_memory.recall_failed_payloads(
             memory_matches
         )
         if memory_matches:

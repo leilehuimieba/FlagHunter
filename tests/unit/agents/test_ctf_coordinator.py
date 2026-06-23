@@ -3859,6 +3859,9 @@ async def test_coordinator_applies_strategy_memory_contract_before_inner_run(
         def compute_hypothesis_adjustments(self, memory_matches):
             return {"auth_form_sqli": 0.35}
 
+        def recall_failed_payloads(self, memory_matches):
+            return ["' OR 1=1 -- ", "admin' --"]
+
         def build_atomic_facts(self, *, state, fingerprint):
             return ["detected:sqli", "auth:form_login"]
 
@@ -3928,6 +3931,7 @@ async def test_coordinator_applies_strategy_memory_contract_before_inner_run(
             captured.update(kwargs)
             captured["current_fingerprint"] = self._current_fingerprint
             captured["memory_match_ids"] = list(self._memory_match_ids)
+            captured["known_failed_payloads"] = list(self._known_failed_payloads)
             captured["hypothesis_memory_adjustments"] = dict(
                 getattr(self.state, "hypothesis_memory_adjustments", {}) or {}
             )
@@ -3955,6 +3959,7 @@ async def test_coordinator_applies_strategy_memory_contract_before_inner_run(
         "detected_type": "sqli",
     }
     assert captured["memory_match_ids"] == ["mem-1"]
+    assert captured["known_failed_payloads"] == ["' OR 1=1 -- ", "admin' --"]
     assert captured["hypothesis_memory_adjustments"] == {"auth_form_sqli": 0.35}
     assert query_usage_calls == [["mem-1"]]
     assert any(
@@ -3999,6 +4004,9 @@ async def test_coordinator_applies_hypothesis_contract_before_inner_run(tmp_path
 
         def compute_hypothesis_adjustments(self, memory_matches):
             return {}
+
+        def recall_failed_payloads(self, memory_matches):
+            return []
 
         def build_atomic_facts(self, *, state, fingerprint):
             return []
