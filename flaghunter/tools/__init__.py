@@ -1,7 +1,7 @@
 """Tool system for FlagHunter."""
 
 from .executor import ToolExecutor
-from .loader import discover_tools, get_tool_info, load_all_tools, reload_tools
+from .loader import discover_tools, load_all_tools
 from .mcp_agent import create_despawn_mcp_agent_tool, create_spawn_mcp_agent_tool
 from .registry import (
     Tool,
@@ -37,8 +37,6 @@ __all__ = [
     "ToolExecutor",
     # Loader
     "load_all_tools",
-    "get_tool_info",
-    "reload_tools",
     "discover_tools",
     "create_spawn_mcp_agent_tool",
     "create_despawn_mcp_agent_tool",
