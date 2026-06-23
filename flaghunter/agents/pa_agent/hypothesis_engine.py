@@ -36,8 +36,17 @@ _CHAIN_BY_KIND = {
     "ssti_exploit": "web",
     # P4: New strategies
     "jwt_manipulation": "jwt",
-    "graphql_introspection": "graphql",
-    "nosql_injection": "nosql",
+    # graphql/nosql run as web-chain strategies (see chains/web.py
+    # web_strategy_order + 基准_CTF能力与可达性 §3.3/§4), not standalone chains.
+    # These two kinds are currently never generated (基准 §3.2), so the bare
+    # "graphql"/"nosql" chain names this map used to emit were a latent dead
+    # mapping — the exact "_CHAIN_BY_KIND has a kind ≠ it's reachable" landmine
+    # 基准 §1 flags as the top false-positive trap: if either kind ever gets a
+    # generation point, emitting "graphql"/"nosql" would miss _chain_handler_map
+    # and fall through to the robots.txt default handler. Map onto "web" so the
+    # mapping matches where the strategy actually runs.
+    "graphql_introspection": "web",
+    "nosql_injection": "web",
 }
 
 

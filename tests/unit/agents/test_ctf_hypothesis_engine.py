@@ -55,6 +55,36 @@ def test_hypothesis_engine_choose_chain_order_uses_ranked_hypotheses():
     assert "web" in chain_order
 
 
+def test_choose_chain_order_maps_graphql_nosql_onto_web_not_dead_chain():
+    # graphql/nosql run as web-chain strategies. Defensive-consistency guard:
+    # were these kinds ever generated (they are not today — 基准 §3.2), they must
+    # map onto "web" (which dispatches them) rather than surface as bare
+    # "graphql"/"nosql" chain names that have no handler (→ robots.txt default).
+    # This pins the _CHAIN_BY_KIND fix against regressing back to the dead names.
+    state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="web")
+    state.hypotheses = [
+        Hypothesis(
+            id="hyp-graphql",
+            kind="graphql_introspection",
+            description="introspect graphql schema",
+            confidence=0.8,
+        ),
+        Hypothesis(
+            id="hyp-nosql",
+            kind="nosql_injection",
+            description="nosql auth bypass",
+            confidence=0.7,
+        ),
+    ]
+
+    engine = HypothesisEngine()
+    chain_order = engine.choose_chain_order(state)
+
+    assert "graphql" not in chain_order
+    assert "nosql" not in chain_order
+    assert "web" in chain_order
+
+
 def test_hypothesis_engine_generates_xss_hypothesis_from_local_source_hints():
     state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="web")
     state.add_observation(
