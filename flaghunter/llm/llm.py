@@ -417,7 +417,6 @@ class LLM:
         system_prompt: str,
         messages: List[dict],
         tools: Optional[List["Tool"]] = None,
-        stream: bool = False,
         max_tokens: Optional[int] = None,
         task_hint: str = "default",
     ) -> LLMResponse:
@@ -428,7 +427,6 @@ class LLM:
             system_prompt: The system prompt
             messages: Conversation messages
             tools: Available tools for function calling
-            stream: Whether to stream the response
             max_tokens: Override max_tokens for this call (default: use config)
             task_hint: Optional routing hint for model/provider selection
 

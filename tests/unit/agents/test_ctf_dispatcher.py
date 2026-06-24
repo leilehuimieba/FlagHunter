@@ -1473,7 +1473,6 @@ class _ProjectStyleLLM:
         system_prompt,
         messages,
         tools=None,
-        stream=False,
         max_tokens=None,
         task_hint="default",
     ):

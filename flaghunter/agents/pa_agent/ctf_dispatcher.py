@@ -483,8 +483,6 @@ class CTFTaskDispatcher(
             )
             active_hypothesis = iteration_contract["active_hypothesis"]
             strategy = iteration_contract["strategy"]
-            capability_primitive = iteration_contract["capability_primitive"]
-            capability_choice = iteration_contract["capability_choice"]
             self._active_hypothesis_context = active_hypothesis
             self._active_strategy_context = strategy
             experiment = iteration_contract["experiment"]
