@@ -8847,3 +8847,26 @@ def test_select_hypothesis_for_chain_matches_jwt_after_single_source_merge():
     dispatcher.state.hypotheses = [decoy, jwt_hyp]
 
     assert dispatcher._select_hypothesis_for_chain("jwt") is jwt_hyp
+
+
+def test_chain_handler_map_covers_all_routable_chains():
+    # Guard the routable⊆handled invariant (债池 第三波 收尾):
+    # choose_chain_order emits chain names drawn from _CHAIN_BY_KIND.values();
+    # _execute_chain then looks each up in _chain_handler_map. Any routable
+    # chain WITHOUT a handler silently falls through to the robots.txt default
+    # handler — the exact landmine the hypothesis_engine single-source comment
+    # warns about for graphql/nosql. These two reps (kind→chain values vs
+    # chain→handler keys) can't share a literal (handlers bind to methods), so
+    # lock their agreement here instead.
+    from flaghunter.agents.pa_agent.hypothesis_engine import _CHAIN_BY_KIND
+
+    runtime = _DispatcherRuntime()
+    dispatcher = CTFTaskDispatcher(runtime=runtime, progress_callback=None)
+    handler_keys = set(
+        dispatcher._chain_handler_map(
+            target="http://127.0.0.1:3000", page_features={}, hint=""
+        ).keys()
+    )
+    routable_chains = set(_CHAIN_BY_KIND.values())
+    missing = routable_chains - handler_keys
+    assert not missing, f"routable chains with no handler (→robots.txt fallback): {missing}"
