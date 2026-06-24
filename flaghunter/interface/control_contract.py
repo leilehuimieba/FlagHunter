@@ -160,6 +160,88 @@ def strongest_hypothesis_contract(
     return contract
 
 
+def build_control_decision_parts(
+    control_decision: Mapping[str, Any] | None,
+    blackboard_snapshot: Mapping[str, Any] | None,
+    *,
+    endpoint_fallback: str = "",
+) -> list[str]:
+    """Build the ``[control_decision]`` field lines shared by the cli / web / mcp
+    dispatcher-hint producers.
+
+    The three entry points differ only in how they adapt their input (kwargs /
+    task dict / TaskEntry) and how they wrap the result (base-hint prefix,
+    resume blocks, decision-block gating). This is the byte-identical core they
+    all duplicated: the field chain derived purely from ``(decision, snapshot)``.
+
+    ``endpoint_fallback`` reproduces the mcp-only behaviour of falling back to
+    ``handoff["endpoint"]`` when ``nextAction == probe_discovered_endpoint`` and
+    the snapshot yields no ``discovered_endpoint`` fact. cli/web pass ``""`` and
+    so are unaffected.
+    """
+    decision = control_decision if isinstance(control_decision, Mapping) else {}
+    snapshot = blackboard_snapshot if isinstance(blackboard_snapshot, Mapping) else {}
+    decision_parts: list[str] = []
+    if str(decision.get("decisionKind") or "").strip():
+        decision_parts.append(f"decisionKind={str(decision.get('decisionKind') or '').strip()}")
+    if str(decision.get("nextAction") or "").strip():
+        decision_parts.append(f"nextAction={str(decision.get('nextAction') or '').strip()}")
+    if str(decision.get("driver") or "").strip():
+        decision_parts.append(f"driver={str(decision.get('driver') or '').strip()}")
+    if str(decision.get("reason") or "").strip():
+        decision_parts.append(f"reason={str(decision.get('reason') or '').strip()}")
+    strongest_hypothesis = strongest_hypothesis_contract(decision, snapshot)
+    if str(strongest_hypothesis.get("kind") or "").strip():
+        decision_parts.append(
+            f"strongestHypothesisKind={str(strongest_hypothesis.get('kind') or '').strip()}"
+        )
+    if str(strongest_hypothesis.get("status") or "").strip():
+        decision_parts.append(
+            f"strongestHypothesisStatus={str(strongest_hypothesis.get('status') or '').strip()}"
+        )
+    if strongest_hypothesis.get("confidence") is not None:
+        decision_parts.append(
+            f"strongestHypothesisConfidence={strongest_hypothesis.get('confidence')}"
+        )
+    next_action = str(decision.get("nextAction") or "").strip()
+    if next_action == "probe_discovered_endpoint":
+        endpoint = next(
+            (
+                str(item.get("value") or "").strip()
+                for item in list(snapshot.get("facts") or [])
+                if isinstance(item, dict) and str(item.get("kind") or "").strip() == "discovered_endpoint"
+            ),
+            "",
+        )
+        if not endpoint:
+            endpoint = str(endpoint_fallback or "").strip()
+        if endpoint:
+            decision_parts.append(f"endpoint={endpoint}")
+    if next_action == "verify_runtime_signal":
+        runtime_flag = next(
+            (
+                str(item.get("value") or "").strip()
+                for item in list(snapshot.get("pending_verifications") or [])
+                if isinstance(item, dict) and str(item.get("kind") or "").strip() == "runtime_flag"
+            ),
+            "",
+        )
+        if runtime_flag:
+            decision_parts.append(f"runtimeFlag={runtime_flag}")
+    if next_action == "verify_or_submit_flag":
+        verified_flag = next(
+            (
+                str(item.get("value") or "").strip()
+                for item in list(snapshot.get("facts") or [])
+                if isinstance(item, dict) and str(item.get("kind") or "").strip() == "verified_flag"
+            ),
+            "",
+        )
+        if verified_flag:
+            decision_parts.append(f"verifiedFlag={verified_flag}")
+    return decision_parts
+
+
 def _hypothesis_contract(
     hypothesis: Mapping[str, Any],
     *,

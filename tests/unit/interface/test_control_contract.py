@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from flaghunter.interface.control_contract import build_decision_record, resolve_control_decision
+from flaghunter.interface.control_contract import (
+    build_control_decision_parts,
+    build_decision_record,
+    resolve_control_decision,
+)
 
 
 def test_resume_context_prefers_resume_execute() -> None:
@@ -842,3 +846,56 @@ def test_control_decision_priority_matrix(
     assert decision["decisionKind"] == expected_kind, name
     assert decision["nextAction"] == expected_action, name
     assert str(decision.get("driver") or "") == expected_driver, name
+
+
+def test_build_control_decision_parts_emits_full_field_chain() -> None:
+    # Locks the byte-identical core that cli / web / mcp dispatcher-hint
+    # producers previously duplicated (债池 第四波 入口层去重下沉).
+    decision = {
+        "decisionKind": "execute",
+        "nextAction": "verify_or_submit_flag",
+        "driver": "blackboard.verified_flag",
+        "reason": "flag is verified",
+        "facts": [
+            "strongestHypothesisKind=jwt",
+            "strongestHypothesisStatus=confirmed",
+            "strongestHypothesisConfidence=0.9",
+        ],
+    }
+    snapshot = {
+        "facts": [{"kind": "verified_flag", "value": "flag{done}"}],
+        "hypotheses": [{"kind": "jwt", "status": "confirmed", "confidence": 0.9}],
+    }
+
+    parts = build_control_decision_parts(decision, snapshot)
+
+    assert parts == [
+        "decisionKind=execute",
+        "nextAction=verify_or_submit_flag",
+        "driver=blackboard.verified_flag",
+        "reason=flag is verified",
+        "strongestHypothesisKind=jwt",
+        "strongestHypothesisStatus=confirmed",
+        "strongestHypothesisConfidence=0.9",
+        "verifiedFlag=flag{done}",
+    ]
+
+
+def test_build_control_decision_parts_endpoint_fallback_is_mcp_only() -> None:
+    # endpoint_fallback reproduces the mcp-only handoff fallback: used only when
+    # nextAction == probe_discovered_endpoint AND the snapshot yields no
+    # discovered_endpoint fact. cli/web pass "" and never get it.
+    decision = {"decisionKind": "execute", "nextAction": "probe_discovered_endpoint"}
+    empty_snapshot: dict = {"facts": []}
+
+    # No fallback (cli/web): no endpoint line.
+    assert "endpoint=/admin" not in build_control_decision_parts(decision, empty_snapshot)
+    # With fallback (mcp): emitted.
+    assert "endpoint=/admin" in build_control_decision_parts(
+        decision, empty_snapshot, endpoint_fallback="/admin"
+    )
+    # Snapshot fact wins over fallback.
+    snap = {"facts": [{"kind": "discovered_endpoint", "value": "/from-snapshot"}]}
+    parts = build_control_decision_parts(decision, snap, endpoint_fallback="/admin")
+    assert "endpoint=/from-snapshot" in parts
+    assert "endpoint=/admin" not in parts

@@ -27,7 +27,10 @@ from rich.panel import Panel
 from rich.text import Text
 
 from ..config.constants import AGENT_MAX_ITERATIONS, ORCHESTRATOR_MAX_ITERATIONS
-from .control_contract import resolve_control_decision, strongest_hypothesis_contract
+from .control_contract import (
+    build_control_decision_parts,
+    resolve_control_decision,
+)
 from .mode_router import resolve_mode_contract
 
 console = Console(emoji=False, legacy_windows=False)
@@ -67,61 +70,7 @@ def _ctf_dispatcher_hint(
     snapshot = dict(blackboard_snapshot or {})
     challenge_path = str(challenge_path or "").strip()
     artifact_paths = _normalize_string_list(artifact_paths)
-    decision_parts: list[str] = []
-    if str(decision.get("decisionKind") or "").strip():
-        decision_parts.append(f"decisionKind={str(decision.get('decisionKind') or '').strip()}")
-    if str(decision.get("nextAction") or "").strip():
-        decision_parts.append(f"nextAction={str(decision.get('nextAction') or '').strip()}")
-    if str(decision.get("driver") or "").strip():
-        decision_parts.append(f"driver={str(decision.get('driver') or '').strip()}")
-    if str(decision.get("reason") or "").strip():
-        decision_parts.append(f"reason={str(decision.get('reason') or '').strip()}")
-    strongest_hypothesis = strongest_hypothesis_contract(decision, snapshot)
-    if str(strongest_hypothesis.get("kind") or "").strip():
-        decision_parts.append(
-            f"strongestHypothesisKind={str(strongest_hypothesis.get('kind') or '').strip()}"
-        )
-    if str(strongest_hypothesis.get("status") or "").strip():
-        decision_parts.append(
-            f"strongestHypothesisStatus={str(strongest_hypothesis.get('status') or '').strip()}"
-        )
-    if strongest_hypothesis.get("confidence") is not None:
-        decision_parts.append(
-            f"strongestHypothesisConfidence={strongest_hypothesis.get('confidence')}"
-        )
-    if str(decision.get("nextAction") or "").strip() == "probe_discovered_endpoint":
-        endpoint = next(
-            (
-                str(item.get("value") or "").strip()
-                for item in list(snapshot.get("facts") or [])
-                if isinstance(item, dict) and str(item.get("kind") or "").strip() == "discovered_endpoint"
-            ),
-            "",
-        )
-        if endpoint:
-            decision_parts.append(f"endpoint={endpoint}")
-    if str(decision.get("nextAction") or "").strip() == "verify_or_submit_flag":
-        verified_flag = next(
-            (
-                str(item.get("value") or "").strip()
-                for item in list(snapshot.get("facts") or [])
-                if isinstance(item, dict) and str(item.get("kind") or "").strip() == "verified_flag"
-            ),
-            "",
-        )
-        if verified_flag:
-            decision_parts.append(f"verifiedFlag={verified_flag}")
-    if str(decision.get("nextAction") or "").strip() == "verify_runtime_signal":
-        runtime_flag = next(
-            (
-                str(item.get("value") or "").strip()
-                for item in list(snapshot.get("pending_verifications") or [])
-                if isinstance(item, dict) and str(item.get("kind") or "").strip() == "runtime_flag"
-            ),
-            "",
-        )
-        if runtime_flag:
-            decision_parts.append(f"runtimeFlag={runtime_flag}")
+    decision_parts = build_control_decision_parts(decision, snapshot)
     if decision_parts:
         structured_parts.append("[control_decision]\n" + "\n".join(decision_parts))
     if challenge_path:
