@@ -342,7 +342,10 @@ async def build_agent_components(
 
     llm = LLM(
         model=model,
-        config=ModelConfig(temperature=get_settings().temperature),
+        config=ModelConfig(
+            temperature=get_settings().temperature,
+            max_tokens=get_settings().max_tokens,
+        ),
         rag_engine=rag_engine,
     )
     _log(f"LLM initialised: {model}")

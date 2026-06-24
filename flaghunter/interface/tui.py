@@ -7123,8 +7123,14 @@ class FlagHunterTUI(App):
             assert self.model is not None
             assert self.runtime is not None
 
-            # Honour the configured temperature (settings singleton, H15).
-            llm = LLM(model=self.model, config=ModelConfig(temperature=get_settings().temperature))
+            # Honour the configured temperature + max_tokens (settings singleton, H15).
+            llm = LLM(
+                model=self.model,
+                config=ModelConfig(
+                    temperature=get_settings().temperature,
+                    max_tokens=get_settings().max_tokens,
+                ),
+            )
 
             crew = CrewOrchestrator(
                 llm=llm,

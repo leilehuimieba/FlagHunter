@@ -1004,7 +1004,10 @@ async def _initialize(args: argparse.Namespace) -> dict:
     RuntimeClass = type(runtime)
     llm_kwargs = {
         "model": model,
-        "config": ModelConfig(temperature=get_settings().temperature),
+        "config": ModelConfig(
+            temperature=get_settings().temperature,
+            max_tokens=get_settings().max_tokens,
+        ),
         "rag_engine": components["rag_engine"],
     }
     runtime_kwargs: dict = {}

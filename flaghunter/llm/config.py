@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
-from ..config.constants import get_openai_api_base
+from ..config.constants import DEFAULT_MAX_TOKENS, get_openai_api_base
 
 
 @dataclass
@@ -12,7 +12,7 @@ class ModelConfig:
 
     # Generation parameters
     temperature: float = 0.7
-    max_tokens: int = 4096
+    max_tokens: int = DEFAULT_MAX_TOKENS
     top_p: float = 1.0
     frequency_penalty: float = 0.0
     presence_penalty: float = 0.0
