@@ -64,6 +64,9 @@ from .web_resume_summaries import (
     _normalize_exploit_provenance,
     _normalize_outcome_action_path_summary,
 )
+from .web_leaf_utils import (
+    _duration_ms_for_task, _friendly_tool_name, _message_role_for, _message_time_at, _normalize_string_list, _now_iso, _parse_iso, _single_line_preview, _sort_time_key, _truncate_text,
+)
 from ..agents.pa_agent.session_context import build_workspace_run_context
 
 logger = logging.getLogger(__name__)
@@ -233,32 +236,6 @@ def _run_id() -> str:
     return f"run_{ts}_{uuid.uuid4().hex[:4]}"
 
 
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-def _parse_iso(value: str | None) -> datetime | None:
-    if not value:
-        return None
-    try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except Exception:
-        return None
-
-
-def _duration_ms_for_task(task: dict[str, Any]) -> int | None:
-    started = _parse_iso(task.get("startedAt"))
-    finished = _parse_iso(task.get("finishedAt"))
-    duration_ms = task.get("durationMs")
-    if duration_ms is not None:
-        return duration_ms
-    if started and finished:
-        return int((finished - started).total_seconds() * 1000)
-    if started and task.get("status") == "running":
-        return int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
-    return None
-
-
 def _task_capabilities(task: dict[str, Any]) -> dict[str, bool]:
     status = str(task.get("status") or "")
     return {
@@ -283,17 +260,6 @@ def _task_detail_defaults() -> dict[str, list[Any]]:
         "ctfMissingTools": [],
         "ctfNotes": [],
     }
-
-
-def _normalize_string_list(value: Any) -> list[str]:
-    if not isinstance(value, list):
-        return []
-    normalized: list[str] = []
-    for item in value:
-        text = str(item or "").strip()
-        if text:
-            normalized.append(text)
-    return normalized
 
 
 def _normalize_task_collections(task: dict[str, Any]) -> dict[str, Any]:
@@ -1136,37 +1102,6 @@ def _pick_session_snapshot(project_root: Path, task: dict[str, Any]) -> tuple[di
     return best[1], best[2], meta
 
 
-def _message_time_at(task: dict[str, Any], snapshot: dict[str, Any], index: int, total: int) -> str:
-    start_dt = _parse_iso(task.get("startedAt") or task.get("createdAt")) or _parse_iso(snapshot.get("created_at")) or datetime.now(timezone.utc)
-    end_dt = _parse_iso(snapshot.get("updated_at")) or _parse_iso(task.get("finishedAt")) or start_dt
-    if total <= 1 or end_dt <= start_dt:
-        return start_dt.isoformat()
-    ratio = index / max(total - 1, 1)
-    return (start_dt + (end_dt - start_dt) * ratio).isoformat()
-
-
-def _message_role_for(role: str) -> str:
-    if role == "assistant":
-        return "agent"
-    if role == "user":
-        return "user"
-    return "system"
-
-
-def _truncate_text(text: str, limit: int = 1000) -> str:
-    if len(text) <= limit:
-        return text
-    return text[: limit - 3].rstrip() + "..."
-
-
-def _single_line_preview(text: str | None, limit: int = 180) -> str:
-    raw = str(text or "").strip()
-    if not raw:
-        return "no output captured"
-    compact = " ".join(raw.split())
-    return _truncate_text(compact, limit)
-
-
 def _build_messages_from_snapshot(task: dict[str, Any], snapshot: dict[str, Any]) -> list[dict[str, Any]]:
     raw_messages = snapshot.get("conversation") or []
     if not isinstance(raw_messages, list):
@@ -1312,13 +1247,6 @@ def _build_hint_timeline(task: dict[str, Any]) -> list[dict[str, Any]]:
             "tool": None,
         })
     return events
-
-
-def _sort_time_key(value: str | None) -> tuple[int, datetime]:
-    dt = _parse_iso(value)
-    if dt is None:
-        return (1, datetime.max.replace(tzinfo=timezone.utc))
-    return (0, dt)
 
 
 _KNOWLEDGE_TOOLS = {"knowledge_search", "rag", "memory_query"}
@@ -2104,10 +2032,6 @@ def _pick_metrics_for_task(project_root: Path, task: dict[str, Any]) -> dict[str
 
     candidates.sort(key=lambda x: (x[0], x[1]))
     return candidates[0][3]
-
-
-def _friendly_tool_name(name: str) -> str:
-    return str(name or "").replace("_", " ").strip() or "unknown"
 
 
 def _build_control_decision_timeline_event(task: dict[str, Any]) -> dict[str, Any] | None:
