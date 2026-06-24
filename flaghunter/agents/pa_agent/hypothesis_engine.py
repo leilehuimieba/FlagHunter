@@ -8,12 +8,19 @@ from urllib.parse import parse_qs, urlparse
 from .ctf_state import CTFState, Experiment, FlagProof, Hypothesis
 
 
+# Single source of truth for hypothesis-kind → chain routing. Consumed both
+# here (generation-time chain ordering, choose_chain_order) and in
+# ctf_dispatcher as _CHAIN_NAME_FOR_HYPOTHESIS (solve-time reverse lookup,
+# _select_hypothesis_for_chain). Do NOT fork a second copy — the two used to
+# drift (dispatcher map lacked jwt_manipulation, so the jwt chain could never
+# select its own hypothesis).
 _CHAIN_BY_KIND = {
     "llm_driven_exploration": "web",
     "artifact_forensics": "misc",
     "auth_form_sqli": "sqli",
     "generic_param_sqli": "sqli",
     "backup_source_leak": "web",
+    "contact_report_chain": "web",
     "unicode_numeric_form_bypass": "web",
     "php_unserialize_magic_method": "web",
     "xss_admin_bot_sid": "xss",

@@ -62,7 +62,7 @@ from .capability_registry import CapabilityRegistry
 from .ctf_state import CTFState, FlagProof, LLMStepLog
 from .exploit_replay_memory import ExploitReplayMemoryMixin
 from .flag_observer import FlagObserver, FlagObserverMixin
-from .hypothesis_engine import HypothesisEngine
+from .hypothesis_engine import _CHAIN_BY_KIND, HypothesisEngine
 from .jwt_contact_chain import JWTContactChainMixin
 from .jwt_executor import JWTExecutor, JWTExecutorMixin
 from .llm_executor import LLMExecutor, LLMExecutorMixin
@@ -208,33 +208,11 @@ _SERVER_SIDE_PATH_SUFFIXES = (
     ".yml",
     ".zip",
 )
-_CHAIN_NAME_FOR_HYPOTHESIS = {
-    "artifact_forensics": "misc",
-    "auth_form_sqli": "sqli",
-    "generic_param_sqli": "sqli",
-    "backup_source_leak": "web",
-    "contact_report_chain": "web",
-    "unicode_numeric_form_bypass": "web",
-    "php_unserialize_magic_method": "web",
-    "xss_admin_bot_sid": "xss",
-    "lfi": "lfi",
-    "cmdi": "cmdi",
-    "ssrf": "ssrf",
-    "upload": "upload",
-    "generic_web_recon": "web",
-    # 结构感知假设（Phase 0.5 easy_tornado 补全）
-    "hint_chain_followup": "web",
-    "file_read_endpoint": "web",
-    "path_traversal": "web",
-    "hash_guarded_file_read": "web",
-    "hash_reconstruction_attack": "web",
-    "ssti_via_render_parameter": "web",
-    "tornado_ssti": "web",
-    # Phase 7: three-stage SSTI pipeline
-    "ssti_probe": "web",
-    "ssti_identify": "web",
-    "ssti_exploit": "web",
-}
+# Solve-time reverse lookup (_select_hypothesis_for_chain) shares the single
+# source of truth defined in hypothesis_engine._CHAIN_BY_KIND. Aliased rather
+# than copied so the two can never drift again (the old fork lacked
+# jwt_manipulation → the jwt chain could never select its own hypothesis).
+_CHAIN_NAME_FOR_HYPOTHESIS = _CHAIN_BY_KIND
 
 
 @dataclass

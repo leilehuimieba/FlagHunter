@@ -8822,3 +8822,28 @@ def test_exploration_candidate_normalizes_default_port():
     assert d._should_ignore_exploration_candidate(
         "http://h.example.com:8080/x", base_url="http://h.example.com:80"
     ) is True
+
+
+def test_select_hypothesis_for_chain_matches_jwt_after_single_source_merge():
+    # Regression guard for the kind→chain single-source merge (债池 第三波):
+    # _CHAIN_NAME_FOR_HYPOTHESIS is now an alias of hypothesis_engine._CHAIN_BY_KIND,
+    # which carries jwt_manipulation→"jwt". Before the merge the dispatcher fork
+    # lacked that key, so solving the "jwt" chain fell back to hypotheses[0]
+    # (a decoy) instead of selecting the actual jwt hypothesis.
+    from flaghunter.agents.pa_agent.ctf_state import Hypothesis
+
+    runtime = _DispatcherRuntime()
+    dispatcher = CTFTaskDispatcher(runtime=runtime, progress_callback=None)
+    dispatcher.state = CTFState(
+        target="http://127.0.0.1:3000", goal="拿到flag", detected_type="web"
+    )
+    decoy = Hypothesis(
+        id="hyp-web", kind="generic_web_recon", description="decoy", confidence=0.9
+    )
+    jwt_hyp = Hypothesis(
+        id="hyp-jwt", kind="jwt_manipulation", description="forge jwt", confidence=0.5
+    )
+    # decoy is hypotheses[0]; a broken reverse lookup would wrongly return it.
+    dispatcher.state.hypotheses = [decoy, jwt_hyp]
+
+    assert dispatcher._select_hypothesis_for_chain("jwt") is jwt_hyp
