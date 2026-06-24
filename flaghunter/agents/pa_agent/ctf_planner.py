@@ -7,8 +7,12 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 from urllib.parse import urlparse
 
+from .dispatcher_helpers import _FLAG_BODY
 
-FLAG_PATTERN = r"[A-Za-z][A-Za-z0-9_]{1,20}\{[A-Za-z0-9_!@#$%^&*+=:.,?\-]{3,200}\}"
+
+# Single-sourced from dispatcher_helpers (0-group body). Used as success_pattern
+# strings in CTF_TOOL_CHAINS, flowing to submit_success_pattern → re.search().
+FLAG_PATTERN = _FLAG_BODY
 
 CTF_TOOL_CHAINS: dict[str, dict[str, Any]] = {
     "xss": {

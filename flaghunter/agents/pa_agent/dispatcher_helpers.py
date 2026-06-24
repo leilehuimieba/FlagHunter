@@ -77,10 +77,15 @@ _ADMIN_PASSWORD_LOG_RE = re.compile(r"Admin password set to:\s*([^\s]+)")
 _SCRIPT_SRC_RE = re.compile(r"<script[^>]+src=[\"']([^\"']+)[\"']", re.IGNORECASE)
 _BACKUP_CLUE_RE = re.compile(r"(备份|backup|source code|源码|压缩包|\.zip|\.bak|\.swp)", re.IGNORECASE)
 
-# (moved from ctf_dispatcher) — flag extraction
-_FLAG_RE = re.compile(
-    r"([A-Za-z][A-Za-z0-9_]{1,20}\{[A-Za-z0-9_!@#$%^&*+=:.,?\-]{3,200}\})"
-)
+# (moved from ctf_dispatcher) — flag extraction.
+# Canonical broad-flag body (single source). _FLAG_RE wraps it in ONE capture
+# group for finditer/.group(1) extraction; verifier._DEFAULT_FLAG_PATTERNS and
+# ctf_planner.FLAG_PATTERN reuse the bare 0-group body for .search() existence
+# checks (their capture-group count must stay 0). The two inline RCE scripts
+# (php_exploit_chain.py / artifact_forensics.py) keep their own copy by
+# necessity — they ship as self-contained remote scripts.
+_FLAG_BODY = r"[A-Za-z][A-Za-z0-9_]{1,20}\{[A-Za-z0-9_!@#$%^&*+=:.,?\-]{3,200}\}"
+_FLAG_RE = re.compile(rf"({_FLAG_BODY})")
 _STRICT_FLAG_RE = re.compile(
     r"((?:DASCTF|FLAG|CTF|BUU|NSSCTF|HGAME|ACTF|QWB)[A-Za-z0-9_]{0,16}\{[A-Za-z0-9_!@#$%^&*+=:.,?\-]{3,200}\})",
     re.IGNORECASE,
@@ -1306,6 +1311,7 @@ __all__ = [
     '_ADMIN_PASSWORD_LOG_RE',
     '_SCRIPT_SRC_RE',
     '_BACKUP_CLUE_RE',
+    '_FLAG_BODY',
     '_FLAG_RE',
     '_STRICT_FLAG_RE',
     '_JWT_ALG_HASH',

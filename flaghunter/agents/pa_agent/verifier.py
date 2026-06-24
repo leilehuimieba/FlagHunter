@@ -9,12 +9,14 @@ from datetime import datetime, timezone
 from typing import Awaitable, Callable
 
 from .ctf_state import CTFState, FlagProof, VerificationResult
+from .dispatcher_helpers import _FLAG_BODY
 from .platform_orchestrator import PlatformTaskOrchestrator
 
 
-_BROAD_FLAG_PATTERN = r"[A-Za-z][A-Za-z0-9_]{1,20}\{[A-Za-z0-9_!@#$%^&*+=:.,?\-]{3,200}\}"
+# Broad-flag body is single-sourced from dispatcher_helpers; consumed here only
+# as a string spliced into ^(?:...)$ for .search() existence checks (0 groups).
 _DEFAULT_FLAG_PATTERNS = (
-    _BROAD_FLAG_PATTERN,
+    _FLAG_BODY,
     r"flag\{[^}]{4,128}\}",
     r"FLAG\{[^}]{4,128}\}",
     r"ctfshow\{[^}]+\}",
