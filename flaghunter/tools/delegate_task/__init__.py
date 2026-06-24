@@ -62,9 +62,21 @@ async def delegate_task(arguments: dict, runtime: "Runtime") -> str:
     target = getattr(runtime, "target", "")
 
     from ...agents.subagent import SubagentRunner
+    from ...config.settings import get_settings
+    from ...llm.config import ModelConfig
     from ...llm.llm import LLM
 
-    llm = LLM()
+    # Honour the configured model + temperature + max_tokens (settings singleton =
+    # single source, H15) rather than letting the delegated subagent silently run
+    # on ModelConfig() hardcoded defaults (temperature 0.7).
+    settings = get_settings()
+    llm = LLM(
+        model=settings.model,
+        config=ModelConfig(
+            temperature=settings.temperature,
+            max_tokens=settings.max_tokens,
+        ),
+    )
 
     from ..registry import get_all_tools
 
