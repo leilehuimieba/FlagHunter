@@ -139,6 +139,12 @@ from .web_trace_events import (
     _extract_tool_audit_events_from_session_context,
     _extract_tool_events_from_snapshot,
 )
+from .web_control_decision import (
+    _apply_control_decision,
+    _apply_followup_recommended_control_decision,
+    _inherit_source_blackboard_seed,
+    _task_blackboard_snapshot_for_decision,
+)
 from ..agents.pa_agent.session_context import build_workspace_run_context
 
 logger = logging.getLogger(__name__)
@@ -306,94 +312,6 @@ def _task_id() -> str:
 def _run_id() -> str:
     ts = datetime.now(timezone.utc).strftime("%y%m%d%H%M%S")
     return f"run_{ts}_{uuid.uuid4().hex[:4]}"
-
-
-def _task_blackboard_snapshot_for_decision(
-    task: dict[str, Any],
-    explicit_snapshot: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    rebuilt_snapshot = _normalized_blackboard_snapshot(build_task_blackboard_snapshot(task))
-    existing_snapshot = task.get("blackboardSnapshot")
-    merged_snapshot = _merge_blackboard_snapshots(rebuilt_snapshot, existing_snapshot)
-    if isinstance(explicit_snapshot, dict) and explicit_snapshot:
-        merged_snapshot = _merge_blackboard_snapshots(merged_snapshot, explicit_snapshot)
-    if (
-        merged_snapshot["facts"]
-        or merged_snapshot["hypotheses"]
-        or merged_snapshot["pendingVerifications"]
-        or merged_snapshot["decisions"]
-        or merged_snapshot["candidates"]
-        or merged_snapshot["actionResults"]
-        or merged_snapshot["recommendedAction"]
-        or merged_snapshot["activeDecision"]
-    ):
-        return merged_snapshot
-    return rebuilt_snapshot
-
-
-def _inherit_source_blackboard_seed(task: dict[str, Any], source_task: dict[str, Any] | None) -> None:
-    if not isinstance(source_task, dict):
-        return
-    if isinstance(source_task.get("ctfStateSnapshot"), dict) and not isinstance(task.get("ctfStateSnapshot"), dict):
-        task["ctfStateSnapshot"] = dict(source_task.get("ctfStateSnapshot") or {})
-    task["blackboardSnapshot"] = _task_blackboard_snapshot_for_decision(source_task)
-
-
-def _apply_control_decision(
-    task: dict[str, Any],
-    *,
-    blackboard_snapshot: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    decision_payload = dict(task)
-    decision_payload["blackboardSnapshot"] = _task_blackboard_snapshot_for_decision(
-        task,
-        blackboard_snapshot,
-    )
-    task["blackboardSnapshot"] = decision_payload["blackboardSnapshot"]
-    decision = resolve_control_decision(decision_payload)
-    task["controlDecision"] = decision
-    task["decisionRecords"] = [
-        build_decision_record(decision, source="web_ingress")
-    ]
-    return decision
-
-
-def _apply_followup_recommended_control_decision(
-    task: dict[str, Any],
-    *,
-    source: str,
-) -> dict[str, Any]:
-    blackboard_snapshot = _task_blackboard_snapshot_for_decision(task)
-    recommended_action = (
-        dict(blackboard_snapshot.get("recommendedAction") or {})
-        if isinstance(blackboard_snapshot, dict)
-        and isinstance(blackboard_snapshot.get("recommendedAction"), dict)
-        else {}
-    )
-    if not str(recommended_action.get("action") or "").strip():
-        return _apply_control_decision(task, blackboard_snapshot=blackboard_snapshot)
-    decision_payload = dict(task)
-    decision_payload.pop("resumeFromRunId", None)
-    decision_payload.pop("resumeFromCheckpointId", None)
-    decision_payload.pop("resumeSummary", None)
-    session_context = (
-        dict(task.get("sessionContext") or {})
-        if isinstance(task.get("sessionContext"), dict)
-        else {}
-    )
-    session_context.pop("resumeContext", None)
-    if session_context:
-        decision_payload["sessionContext"] = session_context
-    else:
-        decision_payload.pop("sessionContext", None)
-    decision_payload["blackboardSnapshot"] = blackboard_snapshot
-    decision = resolve_control_decision(decision_payload)
-    task["blackboardSnapshot"] = decision_payload["blackboardSnapshot"]
-    task["controlDecision"] = decision
-    task["decisionRecords"] = [
-        build_decision_record(decision, source=source)
-    ]
-    return decision
 
 
 def _build_ingress_handoff(task: dict[str, Any]) -> dict[str, Any]:
