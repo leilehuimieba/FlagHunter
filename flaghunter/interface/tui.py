@@ -40,6 +40,31 @@ from textual.widgets import Button, Static, Switch, TextArea, Tree
 from textual.widgets.tree import TreeNode
 
 from ..config.constants import DEFAULT_MODEL
+from .tui_messages import (
+    ChildAgentWakeUpMessage,
+    DespawnTerminalMessage,
+    MCPTaskEvent,
+    SpawnTerminalMessage,
+)
+from .tui_message_widgets import (
+    AssistantMessage,
+    CopyButton,
+    CopyableMixin,
+    ForkButton,
+    RewindButton,
+    SystemMessage,
+    ThinkingMessage,
+    ToolMessage,
+    ToolResultMessage,
+    UserMessage,
+    wrap_text_lines,
+)
+from .tui_tab_complete import (
+    _get_display_parts,
+    _is_placeholder,
+    _sig_matches,
+    _tab_complete,
+)
 
 # ANSI escape sequence pattern for stripping control codes from input
 _ANSI_ESCAPE = re.compile(
@@ -186,14 +211,6 @@ COMMAND_SIGNATURES: List[tuple] = [
     ("/help", "Show help"),
     ("/quit", "Exit FlagHunter"),
 ]
-
-
-from .tui_tab_complete import (
-    _get_display_parts,
-    _is_placeholder,
-    _sig_matches,
-    _tab_complete,
-)
 
 
 class CommandSuggestions(Widget):
@@ -1169,14 +1186,6 @@ class MCPScreen(ModalScreen):
         self.app.pop_screen()
 
 
-from .tui_messages import (
-    ChildAgentWakeUpMessage,
-    DespawnTerminalMessage,
-    MCPTaskEvent,
-    SpawnTerminalMessage,
-)
-
-
 # ----- Rewind confirmation modal -----
 
 
@@ -1317,21 +1326,6 @@ class ForkConfirmScreen(ModalScreen[bool]):
     @on(Button.Pressed, "#fork-no")
     def cancel(self) -> None:
         self.dismiss(False)
-
-
-from .tui_message_widgets import (
-    AssistantMessage,
-    CopyButton,
-    CopyableMixin,
-    ForkButton,
-    RewindButton,
-    SystemMessage,
-    ThinkingMessage,
-    ToolMessage,
-    ToolResultMessage,
-    UserMessage,
-    wrap_text_lines,
-)
 
 
 # ----- Status Bar -----
