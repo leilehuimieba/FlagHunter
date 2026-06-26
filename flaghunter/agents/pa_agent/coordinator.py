@@ -1515,7 +1515,7 @@ class CTFCoordinator:
                 dispatcher.state.mark_no_progress(chain_name)
                 if (
                     no_progress_rounds >= 1
-                    and chain_name in {"web", "xss", "sqli", "lfi", "cmdi", "ssti", "upload"}
+                    and chain_name in {"web", "xss", "sqli", "lfi", "cmdi", "upload"}
                     and _is_stuck_trajectory(dispatcher.state)
                     and isinstance(dispatcher.state.stop_report, dict)
                     and dispatcher.state.stop_report.get("reason") != "stuck_trajectory"
