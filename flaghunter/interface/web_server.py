@@ -29,7 +29,6 @@ from .control_contract import (
     resolve_control_decision,
     strongest_hypothesis_contract,
 )
-from .mode_router import resolve_mode_contract
 from .web_decision_summaries import (
     _build_action_path_summary,
     _build_active_decision_summary,
@@ -108,6 +107,13 @@ from .web_task_notes import (
     _candidate_notes_files,
     _load_task_notes,
     _note_matches_task,
+)
+from .web_task_contract import (
+    _apply_mode_contract,
+    _apply_task_asset_contract,
+    _default_goal_for_payload,
+    _ensure_effective_goal,
+    _normalize_task_asset_contract,
 )
 from ..agents.pa_agent.session_context import build_workspace_run_context
 
@@ -554,49 +560,6 @@ def _merge_resume_lineage_with_source_task(
     return merged
 
 
-def _apply_mode_contract(
-    task: dict[str, Any],
-    payload: dict[str, Any],
-    *,
-    source_task: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    contract = resolve_mode_contract(payload, source_task=source_task)
-    task["mode"] = contract["mode"]
-    task["modeSubtype"] = contract["modeSubtype"]
-    task["goalStyle"] = contract["goalStyle"]
-    normalized_payload = dict(payload)
-    normalized_payload.update(contract)
-    if contract["mode"] == "ctf":
-        ctf_type = str(normalized_payload.get("ctfType") or contract["modeSubtype"] or "unknown").strip().lower()
-        task["ctfType"] = ctf_type or "unknown"
-        normalized_payload["ctfType"] = task["ctfType"]
-    else:
-        task.pop("ctfType", None)
-        normalized_payload.pop("ctfType", None)
-    task.pop("detectedType", None)
-    normalized_payload.pop("detectedType", None)
-    return normalized_payload
-
-
-def _default_goal_for_payload(payload: dict[str, Any]) -> str:
-    mode = str(payload.get("mode") or "").lower()
-    subtype = str(payload.get("modeSubtype") or payload.get("ctfType") or "unknown").lower()
-    if mode == "ctf":
-        return f"CTF {subtype} challenge — capture the flag"
-    target = str(payload.get("target") or "").strip()
-    if target:
-        return f"Assess target {target} and produce concrete security evidence"
-    return "Assess the target and produce concrete security evidence"
-
-
-def _ensure_effective_goal(task: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
-    effective_goal = str(payload.get("goal") or "").strip() or _default_goal_for_payload(payload)
-    task["goal"] = effective_goal
-    normalized_payload = dict(payload)
-    normalized_payload["goal"] = effective_goal
-    return normalized_payload
-
-
 def _latest_user_hint(task: dict[str, Any]) -> str:
     hints = task.get("hints") if isinstance(task.get("hints"), list) else []
     for raw in reversed(hints):
@@ -607,21 +570,6 @@ def _latest_user_hint(task: dict[str, Any]) -> str:
             continue
         return text
     return ""
-
-
-def _normalize_task_asset_contract(payload: dict[str, Any]) -> dict[str, Any]:
-    normalized = dict(payload)
-    challenge_path = str(normalized.get("challengePath") or "").strip()
-    normalized["challengePath"] = challenge_path or None
-    normalized["artifactPaths"] = _normalize_string_list(normalized.get("artifactPaths"))
-    return normalized
-
-
-def _apply_task_asset_contract(task: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
-    normalized = _normalize_task_asset_contract(payload)
-    task["challengePath"] = normalized.get("challengePath")
-    task["artifactPaths"] = list(normalized.get("artifactPaths") or [])
-    return normalized
 
 
 def _ctf_dispatcher_hint(task: dict[str, Any]) -> str:
