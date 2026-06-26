@@ -146,6 +146,7 @@ from .web_control_decision import (
     _task_blackboard_snapshot_for_decision,
 )
 from .web_dispatcher_hint import _ctf_dispatcher_hint, _latest_user_hint
+from .web_ingress_handoff import _build_ingress_handoff
 from ..agents.pa_agent.session_context import build_workspace_run_context
 
 logger = logging.getLogger(__name__)
@@ -313,104 +314,6 @@ def _task_id() -> str:
 def _run_id() -> str:
     ts = datetime.now(timezone.utc).strftime("%y%m%d%H%M%S")
     return f"run_{ts}_{uuid.uuid4().hex[:4]}"
-
-
-def _build_ingress_handoff(task: dict[str, Any]) -> dict[str, Any]:
-    decision = task.get("controlDecision") if isinstance(task.get("controlDecision"), dict) else {}
-    blackboard_snapshot = _task_blackboard_snapshot_for_decision(task)
-    challenge_context = _build_ctf_challenge_context(task)
-    resume_context = (
-        dict(challenge_context.get("resumeContext") or {})
-        if isinstance(challenge_context.get("resumeContext"), dict)
-        else {}
-    )
-    resume_bootstrap: dict[str, Any] | None = None
-    resume_run_id = str(resume_context.get("runId") or "").strip()
-    resume_checkpoint_id = str(resume_context.get("checkpointId") or "").strip()
-    resume_summary = str(resume_context.get("summary") or "").strip()
-    if str(decision.get("decisionKind") or "").strip() == "resume_execute":
-        resume_bootstrap = {
-            "nextAction": str(decision.get("nextAction") or "").strip() or "resume_from_checkpoint",
-            "runId": resume_run_id,
-            "checkpointId": resume_checkpoint_id,
-            "summary": resume_summary,
-        }
-    recommended_source_type = ""
-    recommended_switched_from = ""
-    recommended_trigger_reason = ""
-    recommended_trigger_action_driver = ""
-    recommended_trigger_at = ""
-    for raw_fact in list(decision.get("facts") or []):
-        fact = str(raw_fact or "").strip()
-        if fact.startswith("recommendedActionSourceType="):
-            recommended_source_type = fact.split("=", 1)[1].strip()
-        elif fact.startswith("recommendedActionSwitchedFrom="):
-            recommended_switched_from = fact.split("=", 1)[1].strip()
-        elif fact.startswith("recommendedActionTriggerReason="):
-            recommended_trigger_reason = fact.split("=", 1)[1].strip()
-        elif fact.startswith("recommendedActionTriggerActionDriver="):
-            recommended_trigger_action_driver = fact.split("=", 1)[1].strip()
-        elif fact.startswith("recommendedActionTriggerAt="):
-            recommended_trigger_at = fact.split("=", 1)[1].strip()
-    strongest_hypothesis = strongest_hypothesis_contract(decision, blackboard_snapshot)
-    handoff = {
-        "decisionKind": str(decision.get("decisionKind") or "").strip(),
-        "nextAction": str(decision.get("nextAction") or "").strip(),
-        "driver": str(decision.get("driver") or "").strip(),
-        "reason": str(decision.get("reason") or "").strip(),
-        "challengeContext": challenge_context,
-        "resumeBootstrap": resume_bootstrap,
-    }
-    if recommended_source_type:
-        handoff["sourceType"] = recommended_source_type
-    if recommended_switched_from:
-        handoff["switchedFrom"] = recommended_switched_from
-    if recommended_trigger_reason:
-        handoff["triggerReason"] = recommended_trigger_reason
-    if recommended_trigger_action_driver:
-        handoff["triggerActionDriver"] = recommended_trigger_action_driver
-    if recommended_trigger_at:
-        handoff["triggerAt"] = recommended_trigger_at
-    if str(strongest_hypothesis.get("kind") or "").strip():
-        handoff["strongestHypothesisKind"] = str(strongest_hypothesis.get("kind") or "").strip()
-    if str(strongest_hypothesis.get("status") or "").strip():
-        handoff["strongestHypothesisStatus"] = str(strongest_hypothesis.get("status") or "").strip()
-    if strongest_hypothesis.get("confidence") is not None:
-        handoff["strongestHypothesisConfidence"] = strongest_hypothesis.get("confidence")
-    if str(decision.get("nextAction") or "").strip() == "probe_discovered_endpoint":
-        endpoint = next(
-            (
-                str(item.get("value") or "").strip()
-                for item in list(blackboard_snapshot.get("facts") or [])
-                if isinstance(item, dict) and str(item.get("kind") or "").strip() == "discovered_endpoint"
-            ),
-            "",
-        )
-        if endpoint:
-            handoff["endpoint"] = endpoint
-    if str(decision.get("nextAction") or "").strip() == "verify_runtime_signal":
-        runtime_flag = next(
-            (
-                str(item.get("value") or "").strip()
-                for item in list(blackboard_snapshot.get("pendingVerifications") or [])
-                if isinstance(item, dict) and str(item.get("kind") or "").strip() == "runtime_flag"
-            ),
-            "",
-        )
-        if runtime_flag:
-            handoff["runtimeFlag"] = runtime_flag
-    if str(decision.get("nextAction") or "").strip() == "verify_or_submit_flag":
-        verified_flag = next(
-            (
-                str(item.get("value") or "").strip()
-                for item in list(blackboard_snapshot.get("facts") or [])
-                if isinstance(item, dict) and str(item.get("kind") or "").strip() == "verified_flag"
-            ),
-            "",
-        )
-        if verified_flag:
-            handoff["verifiedFlag"] = verified_flag
-    return handoff
 
 
 def _session_context_has_observed_data(context: Any) -> bool:
