@@ -71,7 +71,7 @@ from .web_trace_timeline import (
     _build_trace_timeline,
 )
 from .web_leaf_utils import (
-    _duration_ms_for_task, _friendly_tool_name, _message_time_at, _normalize_string_list, _now_iso, _parse_iso, _single_line_preview, _sort_time_key, _truncate_text,
+    _duration_ms_for_task, _friendly_tool_name, _load_json_file, _message_time_at, _normalize_string_list, _now_iso, _parse_iso, _single_line_preview, _sort_time_key, _truncate_text, _workspace_name_for_target,
 )
 from .web_serialize_task import (
     _merge_blackboard_snapshots,
@@ -856,23 +856,6 @@ def _derived_target_detail_source(task: dict[str, Any]) -> dict[str, Any]:
     if derived_target_compose_path:
         payload["derivedTargetComposePath"] = derived_target_compose_path
     return payload
-
-
-def _workspace_name_for_target(target: str | None) -> str:
-    if not target:
-        return ""
-    return re.sub(
-        r"[^\w.-]",
-        "_",
-        str(target).replace("http://", "").replace("https://", ""),
-    ).strip("._-")[:64] or "target"
-
-
-def _load_json_file(path: Path) -> Any | None:
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return None
 
 
 def _candidate_notes_files(project_root: Path, task: dict[str, Any]) -> list[Path]:

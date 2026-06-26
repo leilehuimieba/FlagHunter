@@ -11,7 +11,10 @@ web_server (down-closed leaf layer); web_server re-imports the whole set so that
 
 from __future__ import annotations
 
+import json
+import re
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 
@@ -92,3 +95,20 @@ def _message_role_for(role: str) -> str:
     if role == "user":
         return "user"
     return "system"
+
+
+def _workspace_name_for_target(target: str | None) -> str:
+    if not target:
+        return ""
+    return re.sub(
+        r"[^\w.-]",
+        "_",
+        str(target).replace("http://", "").replace("https://", ""),
+    ).strip("._-")[:64] or "target"
+
+
+def _load_json_file(path: Path) -> Any | None:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
