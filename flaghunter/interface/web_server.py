@@ -123,6 +123,11 @@ from .web_challenge_context import (
     _source_derived_target_contract,
     _sync_runtime_challenge_context,
 )
+from .web_metrics_pick import (
+    _iter_metric_files,
+    _load_metrics_data,
+    _pick_metrics_for_task,
+)
 from ..agents.pa_agent.session_context import build_workspace_run_context
 
 logger = logging.getLogger(__name__)
@@ -1357,72 +1362,6 @@ def _task_session_lookup(project_root: Path) -> dict[str, dict[str, Any]]:
         if session_id:
             lookup[session_id] = item
     return lookup
-
-
-def _iter_metric_files(project_root: Path) -> list[Path]:
-    metrics_dir = project_root / "loot" / "metrics"
-    if not metrics_dir.exists():
-        return []
-    return sorted(metrics_dir.glob("metrics_*.json"))
-
-
-def _load_metrics_data(path: Path) -> dict[str, Any] | None:
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return None
-
-
-def _pick_metrics_for_task(project_root: Path, task: dict[str, Any]) -> dict[str, Any] | None:
-    started = _parse_iso(task.get("startedAt")) or _parse_iso(task.get("createdAt"))
-    files = _iter_metric_files(project_root)
-    if not files:
-        return None
-
-    candidates: list[tuple[int, float, Path, dict[str, Any]]] = []
-    expected_tool_calls = int(task.get("toolCalls") or 0)
-    expected_duration = _duration_ms_for_task(task)
-    expected_run_id = str(task.get("currentRunId") or "")
-    expected_task_id = str(task.get("id") or "")
-    expected_target = str(task.get("target") or "")
-
-    for path in files:
-        data = _load_metrics_data(path)
-        if not data:
-            continue
-
-        match_rank = 3
-        metric_run_id = str(data.get("run_id") or "")
-        metric_task_id = str(data.get("task_id") or "")
-        metric_target = str(data.get("target") or "")
-        if expected_run_id and metric_run_id == expected_run_id:
-            match_rank = 0
-        elif expected_task_id and metric_task_id == expected_task_id:
-            match_rank = 1
-        elif expected_target and metric_target and metric_target == expected_target:
-            match_rank = 2
-
-        score = 0.0
-        metric_started = _parse_iso(data.get("started_at"))
-        if started and metric_started:
-            score += abs((metric_started - started).total_seconds())
-        elif started or metric_started:
-            score += 86_400.0
-
-        metric_tools = int(data.get("total_tool_calls") or 0)
-        score += abs(metric_tools - expected_tool_calls) * 30.0
-
-        metric_duration = data.get("total_wall_time_ms")
-        if expected_duration is not None and metric_duration is not None:
-            score += abs(float(metric_duration) - float(expected_duration)) / 1000.0
-
-        candidates.append((match_rank, score, path, data))
-
-    if not candidates:
-        return None
-
-    candidates.sort(key=lambda x: (x[0], x[1]))
-    return candidates[0][3]
 
 
 def _build_trace_payload(project_root: Path, task: dict[str, Any], include_timeline: bool = False) -> dict[str, Any]:
