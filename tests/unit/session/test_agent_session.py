@@ -65,6 +65,24 @@ def test_default_builder_lives_below_interface_layer():
     assert callable(session_initializer.build_agent_components)
 
 
+def test_build_agent_components_publishes_resolved_model_to_singleton():
+    """Single-source write-side: the resolved model lands in get_settings().
+
+    build_agent_components is the one assembly path (invariant I2); it must
+    publish whatever model the main agent runs (CLI --model / env / override)
+    to the settings singleton so the singleton's readers (delegate_task
+    sub-agents, web_server, mcp_tools) converge on the SAME model instead of
+    drifting back to FLAGHUNTER_MODEL. Locked at source level (running the real
+    heavy assembly — RAG/runtime/CPA — is not unit-testable cheaply).
+    """
+    import flaghunter.session.initializer as session_initializer
+
+    src = inspect.getsource(session_initializer.build_agent_components)
+
+    assert "update_settings(model=model)" in src
+    assert "from ..config.settings import get_settings, update_settings" in src
+
+
 def test_interface_initializer_is_compatibility_reexport():
     """Old imports remain valid, but the composition root is session-owned."""
     import flaghunter.interface.initializer as interface_initializer

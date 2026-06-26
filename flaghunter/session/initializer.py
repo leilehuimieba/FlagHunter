@@ -335,11 +335,20 @@ async def build_agent_components(
             "No model configured. Pass --model or set FLAGHUNTER_MODEL."
         )
 
+    # Publish the resolved model to the settings singleton — the write-side of
+    # the single-source-of-truth invariant. This is the one assembly path
+    # (invariant I2), so whatever model the main agent runs (CLI --model, env,
+    # or a caller override) lands in get_settings(); the singleton's readers
+    # (delegate_task sub-agents, web_server, mcp_tools) then converge on the
+    # SAME model instead of silently falling back to FLAGHUNTER_MODEL. Without
+    # this, --model only reached the main LLM and sub-agents drifted to env.
+    from ..config.settings import get_settings, update_settings
+
+    update_settings(model=model)
+
     # Honour the configured temperature instead of hardcoding it, so the
     # settings singleton is the single source of truth (H15). Falls back to
     # DEFAULT_TEMPERATURE via the Settings dataclass default.
-    from ..config.settings import get_settings
-
     llm = LLM(
         model=model,
         config=ModelConfig(

@@ -172,15 +172,29 @@ class TestGetSettings:
         s2 = get_settings()
         assert s1 is s2
 
-    def test_update_settings_replaces_singleton(self):
+    def test_update_settings_mutates_singleton_in_place(self):
         import flaghunter.config.settings as settings_module
         settings_module._settings = None
         s1 = get_settings()
         s2 = update_settings(max_iterations=5)
+        # Field-merge: same singleton object, identity preserved.
+        assert s1 is s2
         assert get_settings() is s2
         assert s2.max_iterations == 5
 
-    def test_update_settings_returns_new_instance(self):
+    def test_update_settings_preserves_unspecified_fields(self):
+        import flaghunter.config.settings as settings_module
+        settings_module._settings = None
         s1 = get_settings()
-        s2 = update_settings(temperature=0.1)
-        assert s1 is not s2
+        original_temperature = s1.temperature
+        update_settings(model="patched-model")
+        # Only the patched field changes; everything else is preserved.
+        assert get_settings().model == "patched-model"
+        assert get_settings().temperature == original_temperature
+
+    def test_update_settings_rejects_unknown_field(self):
+        import flaghunter.config.settings as settings_module
+        settings_module._settings = None
+        get_settings()
+        with pytest.raises(AttributeError):
+            update_settings(no_such_setting=123)

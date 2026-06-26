@@ -97,10 +97,24 @@ def get_settings() -> Settings:
 
 
 def update_settings(**kwargs) -> Settings:
-    """Update global settings with new values."""
-    global _settings
-    _settings = Settings(**kwargs)
-    return _settings
+    """Patch the global settings singleton in place (field-merge).
+
+    Mutates the existing singleton so unspecified fields are preserved — unlike
+    a full ``Settings(**kwargs)`` replace, which would reset target/scope/api
+    keys back to defaults. This is the write-side of the single-source-of-truth
+    invariant: runtime overrides (CLI ``--model``, MCP ``update_config``) land
+    here so every reader of ``get_settings()`` (delegate_task sub-agents,
+    web_server, mcp_tools) observes the same resolved value.
+
+    Unknown setting names raise ``AttributeError`` rather than being silently
+    swallowed. The singleton's identity is preserved.
+    """
+    settings = get_settings()
+    for key, value in kwargs.items():
+        if not hasattr(settings, key):
+            raise AttributeError(f"Unknown setting: {key!r}")
+        setattr(settings, key, value)
+    return settings
 
 
 def resolve_model_provider(
