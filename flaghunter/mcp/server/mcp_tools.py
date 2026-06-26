@@ -1000,11 +1000,14 @@ async def get_config(args: dict[str, object]) -> str:
     if not _primary_agent:
         return "[error] Primary agent not initialised."
     tools = [t.name for t in _primary_agent.get_tools()]
+    _llm = getattr(_primary_agent, "llm", None)
+    active_model = getattr(_llm, "model", None) if _llm is not None else None
     return "\n".join(
         [
             f"target:         {getattr(_primary_agent, 'target', 'none')}",
             f"scope:          {getattr(_primary_agent, 'scope', [])}",
             f"max_iterations: {_primary_agent.max_iterations}",
+            f"model:          {active_model or 'none'}",
             f"tools ({len(tools)}): {', '.join(tools)}",
         ]
     )
@@ -1019,6 +1022,7 @@ async def get_config(args: dict[str, object]) -> str:
             "target": {"type": "string"},
             "scope": {"type": "array", "items": {"type": "string"}},
             "max_iterations": {"type": "integer"},
+            "model": {"type": "string"},
         },
         "required": [],
     },
@@ -1027,6 +1031,9 @@ async def update_config(args: dict[str, object]) -> str:
     if not _primary_agent:
         return "[error] Primary agent not initialised."
     updated: list[str] = []
+    # target/scope/max_iterations have NO settings-singleton reader — the agent's
+    # own attributes are their only live path, so write the agent directly (a
+    # singleton write here would be dead config, the anti-pattern we fight).
     if "target" in args:
         _primary_agent.target = str(args["target"])
         updated.append(f"target → {args['target']}")
@@ -1036,6 +1043,21 @@ async def update_config(args: dict[str, object]) -> str:
     if "max_iterations" in args:
         _primary_agent.max_iterations = int(args["max_iterations"])  # type: ignore[arg-type]
         updated.append(f"max_iterations → {args['max_iterations']}")
+    if "model" in args:
+        # model is the one field with a settings-singleton reader
+        # (delegate_task sub-agents read get_settings().model), so it needs the
+        # double write — the last model write-side bypass on this entry:
+        #   1) publish to the singleton so sub-agents/web converge (mirrors
+        #      initializer's resolve→publish single-source invariant);
+        #   2) re-point the primary agent's live LLM so its OWN subsequent runs
+        #      use the new model (the main loop reads self.llm.model live).
+        from ...config.settings import update_settings
+
+        model = str(args["model"])
+        update_settings(model=model)
+        if getattr(_primary_agent, "llm", None) is not None:
+            _primary_agent.llm.set_model(model)
+        updated.append(f"model → {model}")
     return (
         "Updated:\n" + "\n".join(updated)
         if updated

@@ -52,6 +52,58 @@ def _reset_mcp_task_state(monkeypatch: pytest.MonkeyPatch, tmp_path):
     monkeypatch.setattr(mcp_tools, "_primary_agent", _PrimaryAgentStub())
 
 
+class _LLMStub:
+    def __init__(self, model: str = "init-model") -> None:
+        self.model = model
+
+    def set_model(self, model: str) -> None:
+        self.model = model
+
+
+class _PrimaryAgentWithLLMStub(_PrimaryAgentStub):
+    def __init__(self) -> None:
+        self.llm = _LLMStub()
+
+
+def test_update_config_schema_accepts_model() -> None:
+    schema = mcp_tools.mcp_tool_registry._tools["update_config"].schema
+
+    assert "model" in schema["properties"]
+
+
+@pytest.mark.asyncio
+async def test_update_config_model_writes_singleton_and_live_llm(monkeypatch) -> None:
+    """model write-side: update_config publishes to the singleton (so
+    delegate_task sub-agents converge) AND re-points the primary agent's live
+    LLM (so its own runs use it) — closing the last model write bypass."""
+    from flaghunter.config.settings import get_settings
+
+    agent = _PrimaryAgentWithLLMStub()
+    monkeypatch.setattr(mcp_tools, "_primary_agent", agent)
+
+    result = await mcp_tools.update_config({"model": "claude-opus-4-8"})
+
+    assert get_settings().model == "claude-opus-4-8"  # singleton / sub-agents
+    assert agent.llm.model == "claude-opus-4-8"  # primary agent live LLM
+    assert "model → claude-opus-4-8" in result
+
+
+@pytest.mark.asyncio
+async def test_update_config_target_does_not_touch_singleton_model(monkeypatch) -> None:
+    """target/scope/max_iterations have no singleton reader — they must stay
+    agent-direct and never write a dead singleton field."""
+    from flaghunter.config.settings import get_settings
+
+    agent = _PrimaryAgentWithLLMStub()
+    monkeypatch.setattr(mcp_tools, "_primary_agent", agent)
+    model_before = get_settings().model
+
+    await mcp_tools.update_config({"target": "10.0.0.5"})
+
+    assert agent.target == "10.0.0.5"
+    assert get_settings().model == model_before
+
+
 def test_run_task_schema_accepts_mode_and_ctf_type() -> None:
     schema = mcp_tools.mcp_tool_registry._tools["run_task"].schema
 
