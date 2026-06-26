@@ -104,6 +104,11 @@ from .web_settings_io import (
     _settings_to_api,
     _write_env_key,
 )
+from .web_task_notes import (
+    _candidate_notes_files,
+    _load_task_notes,
+    _note_matches_task,
+)
 from ..agents.pa_agent.session_context import build_workspace_run_context
 
 logger = logging.getLogger(__name__)
@@ -856,69 +861,6 @@ def _derived_target_detail_source(task: dict[str, Any]) -> dict[str, Any]:
     if derived_target_compose_path:
         payload["derivedTargetComposePath"] = derived_target_compose_path
     return payload
-
-
-def _candidate_notes_files(project_root: Path, task: dict[str, Any]) -> list[Path]:
-    target = str(task.get("target") or "")
-    workspace_name = _workspace_name_for_target(target)
-    candidates = [
-        project_root / "loot" / "notes.json",
-    ]
-    if workspace_name:
-        candidates.append(project_root / "workspaces" / workspace_name / "loot" / "notes.json")
-    seen: set[Path] = set()
-    result: list[Path] = []
-    for path in candidates:
-        if path.exists() and path not in seen:
-            result.append(path)
-            seen.add(path)
-    return result
-
-
-def _note_matches_task(key: str, note: dict[str, Any], task: dict[str, Any]) -> bool:
-    target = str(task.get("target") or "").lower()
-    run_id = str(task.get("currentRunId") or "")
-    task_id = str(task.get("id") or "")
-    haystacks = [key.lower(), str(note.get("content") or "").lower()]
-    meta = note.get("metadata") if isinstance(note.get("metadata"), dict) else {}
-    for value in meta.values():
-        if isinstance(value, (str, int, float)):
-            haystacks.append(str(value).lower())
-    if run_id and any(run_id.lower() in text for text in haystacks):
-        return True
-    if task_id and any(task_id.lower() in text for text in haystacks):
-        return True
-    if target and any(target in text for text in haystacks):
-        return True
-    return False
-
-
-def _load_task_notes(project_root: Path, task: dict[str, Any]) -> tuple[list[dict[str, Any]], list[str]]:
-    items: list[dict[str, Any]] = []
-    sources: list[str] = []
-    for path in _candidate_notes_files(project_root, task):
-        raw = _load_json_file(path)
-        if not isinstance(raw, dict):
-            continue
-        relative_source = str(path.relative_to(project_root))
-        sources.append(relative_source)
-        for idx, (key, note) in enumerate(raw.items(), start=1):
-            if not isinstance(note, dict):
-                continue
-            meta = note.get("metadata") if isinstance(note.get("metadata"), dict) else {}
-            entry = {
-                "id": f"{path.stem}:{idx}",
-                "key": key,
-                "value": str(note.get("content") or ""),
-                "category": note.get("category") or "info",
-                "confidence": note.get("confidence") or "medium",
-                "status": note.get("status") or "confirmed",
-                "metadata": meta,
-                "source": relative_source,
-            }
-            if _note_matches_task(key, note, task):
-                items.append(entry)
-    return items[:12], sources
 
 
 def _iter_session_paths(project_root: Path, task: dict[str, Any]) -> list[Path]:
