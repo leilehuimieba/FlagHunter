@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 from contextlib import contextmanager
+import inspect
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import os
@@ -22,6 +23,7 @@ from flaghunter.agents.pa_agent.session_context import SessionContextView
 from flaghunter.runtime.runtime import LocalRuntime
 from flaghunter.tools.notes import set_notes_file
 from tests.eval.benchmark_result import BenchmarkReport, ChallengeResult
+from tests.eval.llm_inferred_path_server import llm_inferred_path_server
 from tests.integration import test_ctf_dispatcher_acceptance as auth_sqli_module
 from tests.integration import test_ctf_dispatcher_backup_acceptance as backup_module
 from tests.integration import (
@@ -544,29 +546,59 @@ async def _run_auth_sqli(
 
 async def _run_llm_unknown_web(
     verification_callback: Callable[[str], Any] | None = None,
+    llm: Any | None = None,
 ) -> tuple[SolveResult, CTFState | None, dict[str, Any]]:
     with tempfile.TemporaryDirectory(prefix="benchmark_llm_unknown_web_") as temp_dir:
         tmp_path = Path(temp_dir)
         with _temporary_cwd(tmp_path), _isolated_notes(tmp_path):
             with _fixture_server(llm_unknown_module.unknown_web_server.__wrapped__) as server:
-                llm = llm_unknown_module._FakeLLM(
-                    [
-                        {
-                            "action_type": "http_request",
-                            "tool_name": "http_request",
-                            "rationale": (
-                                "known strategies found no anchor; probe secret-looking "
-                                "admin text file directly"
-                            ),
-                            "payload": {
-                                "method": "GET",
-                                "url": f"{server['base_url']}/admin/secret.txt",
-                            },
-                            "expected_signal": "200 且 body 含 flag",
-                            "next_if_fail": "switch chain",
-                        }
-                    ]
+                # Model matrix injects a real LLM(model=...); the deterministic
+                # default benchmark passes none and uses a scripted FakeLLM so the
+                # case stays solvable without network (existing behaviour).
+                effective_llm = llm
+                if effective_llm is None:
+                    effective_llm = llm_unknown_module._FakeLLM(
+                        [
+                            {
+                                "action_type": "http_request",
+                                "tool_name": "http_request",
+                                "rationale": (
+                                    "known strategies found no anchor; probe secret-looking "
+                                    "admin text file directly"
+                                ),
+                                "payload": {
+                                    "method": "GET",
+                                    "url": f"{server['base_url']}/admin/secret.txt",
+                                },
+                                "expected_signal": "200 且 body 含 flag",
+                                "next_if_fail": "switch chain",
+                            }
+                        ]
+                    )
+                return await _execute_dispatcher(
+                    target=server["base_url"],
+                    goal="拿到flag",
+                    challenge_type="auto",
+                    llm=effective_llm,
+                    verification_callback=verification_callback or (lambda flag: "yes"),
                 )
+
+
+async def _run_llm_inferred_path(
+    verification_callback: Callable[[str], Any] | None = None,
+    llm: Any | None = None,
+) -> tuple[SolveResult, CTFState | None, dict[str, Any]]:
+    """LLM-differentiating challenge: flag at a path the model must construct.
+
+    No scripted fallback — with ``llm=None`` the deterministic dispatcher never
+    builds ``/exports/<archive id>.txt`` and honestly returns no flag, so this
+    case only succeeds when a capable injected model reads the page and infers
+    the URL. That is what makes the model matrix discriminate.
+    """
+    with tempfile.TemporaryDirectory(prefix="benchmark_llm_inferred_path_") as temp_dir:
+        tmp_path = Path(temp_dir)
+        with _temporary_cwd(tmp_path), _isolated_notes(tmp_path):
+            with _fixture_server(llm_inferred_path_server) as server:
                 return await _execute_dispatcher(
                     target=server["base_url"],
                     goal="拿到flag",
@@ -707,6 +739,15 @@ _CHALLENGE_CATALOG: dict[str, _ChallengeSpec] = {
         expected_solved=True,
         source="tests/integration/test_ctf_dispatcher_llm_fallback_acceptance.py::unknown_web_server",
         runner=_run_llm_unknown_web,
+    ),
+    "llm_inferred_path": _ChallengeSpec(
+        challenge_id="llm_inferred_path",
+        # Deterministic dispatcher (llm=None) cannot construct the inferred path,
+        # so this is "unsolved" without a model — it only solves under the matrix
+        # when a capable injected model reads the page and builds the URL.
+        expected_solved=False,
+        source="tests/eval/llm_inferred_path_server.py::llm_inferred_path_server",
+        runner=_run_llm_inferred_path,
     ),
     "local_easy_login_runtime_only": _ChallengeSpec(
         challenge_id="local_easy_login_runtime_only",
@@ -933,6 +974,8 @@ async def run_benchmark(
     challenges: list[str] | None = None,
     report_path: str | None = None,
     verification_callback: Callable[[str], Any] | None = None,
+    llm: Any | None = None,
+    write_report: bool = True,
 ) -> BenchmarkReport:
     selected_ids = _normalize_challenge_ids(challenges)
     callback = verification_callback or (lambda flag: "yes")
@@ -944,7 +987,18 @@ async def run_benchmark(
     for challenge_id in selected_ids:
         spec = _CHALLENGE_CATALOG[challenge_id]
         started = time.perf_counter()
-        raw_result = await spec.runner(callback)
+        # Only forward the injected LLM to runners that declare an ``llm``
+        # parameter, so legacy/fake runners that take just the verification
+        # callback keep working unchanged.
+        runner_kwargs: dict[str, Any] = {}
+        if llm is not None:
+            try:
+                runner_params = inspect.signature(spec.runner).parameters
+            except (TypeError, ValueError):
+                runner_params = {}
+            if "llm" in runner_params:
+                runner_kwargs["llm"] = llm
+        raw_result = await spec.runner(callback, **runner_kwargs)
         result, state, harness_summary = _normalize_runner_result(raw_result)
         wall_time = time.perf_counter() - started
         if harness_summary is None and state is not None:
@@ -978,8 +1032,9 @@ async def run_benchmark(
         git_sha=git_sha,
         results=collected,
     )
-    destination = Path(report_path) if report_path else _default_report_path()
-    report.write_json(destination)
+    if write_report:
+        destination = Path(report_path) if report_path else _default_report_path()
+        report.write_json(destination)
     return report
 
 
