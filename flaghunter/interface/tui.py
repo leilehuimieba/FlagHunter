@@ -102,6 +102,7 @@ from .tui_ctf_apply import CtfApplyMixin
 from .tui_ctf_runners import CtfRunnerMixin
 from .tui_ctf_commands import CtfCommandMixin
 from .tui_info_commands import InfoCommandMixin
+from .tui_retry_commands import RetryCommandMixin
 
 # ANSI escape sequence pattern for stripping control codes from input
 _ANSI_ESCAPE = re.compile(
@@ -116,7 +117,7 @@ if TYPE_CHECKING:
 # ----- Main TUI App -----
 
 
-class FlagHunterTUI(ToolResultFormatMixin, ScanCommandMixin, ConversationMixin, CpaCommandMixin, ModeCommandMixin, TerminalSpawnMixin, CtfMemoryMixin, CrewMixin, CtfRenderMixin, CtfApplyMixin, CtfRunnerMixin, CtfCommandMixin, InfoCommandMixin, App):
+class FlagHunterTUI(ToolResultFormatMixin, ScanCommandMixin, ConversationMixin, CpaCommandMixin, ModeCommandMixin, TerminalSpawnMixin, CtfMemoryMixin, CrewMixin, CtfRenderMixin, CtfApplyMixin, CtfRunnerMixin, CtfCommandMixin, InfoCommandMixin, RetryCommandMixin, App):
     """Main FlagHunter TUI Application"""
 
     # ═══════════════════════════════════════════════════════════
@@ -1069,208 +1070,6 @@ class FlagHunterTUI(ToolResultFormatMixin, ScanCommandMixin, ConversationMixin, 
             logging.getLogger(__name__).exception(
                 "Exception in notifier callback handling: %s", e
             )
-
-    def _find_retryable_plan_step(self) -> Optional[Any]:
-        """Find the most recent FAIL or IN_PROGRESS plan step."""
-        runtime = self.runtime or getattr(self.agent, "runtime", None)
-        plan = getattr(runtime, "plan", None) if runtime else None
-        if not plan or not getattr(plan, "steps", None):
-            return None
-
-        try:
-            from ..tools.finish import StepStatus
-
-            retryable = {
-                StepStatus.FAIL,
-                StepStatus.IN_PROGRESS,
-                "fail",
-                "in_progress",
-            }
-            for step in reversed(plan.steps):
-                if getattr(step, "status", None) in retryable:
-                    return step
-        except Exception:
-            return None
-        return None
-
-    async def _handle_retry_command(self) -> None:
-        """Re-run the most recent failed/in-progress step without resetting the plan."""
-        if not self.agent:
-            self._add_system("[!] Agent not ready")
-            return
-        if self._is_running:
-            self._add_system("[!] Agent is already running.")
-            return
-
-        step = self._find_retryable_plan_step()
-        if not step:
-            self._add_system("[!] No FAIL or IN_PROGRESS plan step available for /retry.")
-            return
-
-        try:
-            from ..tools.finish import StepStatus
-
-            step.status = StepStatus.PENDING
-            step.result = None
-        except Exception as exc:
-            self._add_system(f"[!] Failed to reset retry step: {exc}")
-            return
-
-        tool_context = ""
-        if self._pending_tool_install and self._pending_tool_install.get("tool"):
-            tool_context = (
-                f" Missing tool context: {self._pending_tool_install['tool']} "
-                f"({self._pending_tool_install.get('install_hint', 'install manually')})."
-            )
-
-        self._add_system(
-            f"[retry] Re-queued Step {step.id}: {step.description}"
-        )
-        self._pending_tool_install = None
-        self._current_worker = self._run_retry_plan_step(
-            step.id,
-            str(step.description),
-            tool_context,
-        )
-
-    @work(thread=False)
-    async def _run_retry_plan_step(
-        self, step_id: int, step_description: str, tool_context: str = ""
-    ) -> None:
-        """Continue the existing plan from a retried step."""
-        if not self.agent:
-            self._add_system("[!] Agent not ready")
-            return
-
-        self._is_running = True
-        self._should_stop = False
-        self._set_status("thinking", "agent")
-
-        retry_prompt = (
-            f"Retry the current plan from Step {step_id}: {step_description}."
-            f"{tool_context} Re-execute this step and continue the existing plan."
-            " Do not reset the task or create a brand-new unrelated plan unless the"
-            " current plan is no longer feasible."
-        )
-
-        try:
-            tool_messages_mapping: dict[str, ToolMessage] = {}
-            await self._display_responses(
-                self.agent.continue_conversation(retry_prompt),
-                tool_messages_mapping,
-                is_agent=True,
-            )
-            self._set_status("complete", "agent")
-            self._add_system("+ Retry complete. Back to assist mode.")
-            await asyncio.sleep(1)
-            self._set_status("idle", "assist")
-        except asyncio.CancelledError:
-            self._add_system("[!] Retry cancelled")
-            self._set_status("idle", "assist")
-        except Exception as e:
-            self._add_system(f"[!] Retry error: {e}")
-            self._set_status("error")
-        finally:
-            await self._save_current_conversation()
-            self._is_running = False
-
-    async def _handle_copy_command(self, cmd: str) -> None:
-        """Copy the last N agent/system messages to the clipboard.
-
-        Usage: /copy [n]   (default n=5)
-        On Windows uses clip.exe; on Linux/macOS tries xclip/pbcopy.
-        """
-        import subprocess as _sp
-
-        parts = cmd.strip().split()
-        try:
-            n = int(parts[1]) if len(parts) > 1 else 5
-        except (IndexError, ValueError):
-            n = 5
-
-        # Collect text from the most recent N message widgets
-        snippets: list[str] = []
-        for w in self._chat_widgets[-n * 2 :]:  # overshoot, then trim
-            if hasattr(w, "_copy_content"):
-                snippets.append(w._copy_content)
-            elif hasattr(w, "message_content"):
-                snippets.append(w.message_content)
-            if len(snippets) >= n:
-                break
-
-        if not snippets:
-            self._add_system("[copy] No messages to copy.")
-            return
-
-        text = "\n\n---\n\n".join(snippets)
-
-        try:
-            import sys as _sys
-            if _sys.platform == "win32":
-                _sp.run(["clip"], input=text.encode("utf-16"), check=True)
-            elif _sys.platform == "darwin":
-                _sp.run(["pbcopy"], input=text.encode(), check=True)
-            else:
-                _sp.run(["xclip", "-selection", "clipboard"], input=text.encode(), check=True)
-            self._add_system(f"[copy] {len(snippets)} message(s) copied to clipboard.")
-        except Exception as e:
-            # Fallback: write to a temp file
-            import tempfile, pathlib
-            tf = pathlib.Path(tempfile.gettempdir()) / "flaghunter_copy.txt"
-            tf.write_text(text, encoding="utf-8")
-            self._add_system(f"[copy] clipboard unavailable ({e}); saved to {tf}")
-
-    async def _handle_retro_command(self, cmd: str) -> None:
-        """Show unresolved retrospective items or resolve an item by id."""
-        parts = cmd.strip().split()
-
-        try:
-            from ..knowledge.retrospective import (
-                get_unresolved_entries,
-                mark_resolved,
-            )
-        except Exception as exc:
-            self._add_system(f"[retro] unavailable: {exc}")
-            return
-
-        if len(parts) >= 3 and parts[1].lower() == "resolve":
-            try:
-                entry_id = int(parts[2])
-            except Exception:
-                self._add_system("[retro] Usage: /retro resolve <id>")
-                return
-
-            try:
-                mark_resolved(entry_id)
-                self._add_system(f"[retro] Marked entry #{entry_id} as resolved.")
-            except Exception as exc:
-                self._add_system(f"[retro] resolve failed: {exc}")
-            return
-
-        unresolved = get_unresolved_entries()
-        lines = [
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-            f"[CTF Retrospective] {len(unresolved)} unresolved items",
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        ]
-
-        for entry in unresolved:
-            ts = str(entry.get("timestamp", ""))
-            date_str = ts[:10] if len(ts) >= 10 else ts
-            lines.append(
-                f"#{entry.get('id')} [{entry.get('category', 'other')}] {date_str}"
-            )
-            lines.append(f"   {entry.get('description', '')}")
-            suggestion = str(entry.get("suggestion", "") or "").strip()
-            if suggestion:
-                lines.append(f"   Suggestion: {suggestion}")
-            lines.append("")
-
-        if not unresolved:
-            lines.append("No unresolved retrospective items.")
-
-        lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        self._add_system("\n".join(lines))
 
     def _add_message(self, widget: Static) -> None:
         """Add a message widget to chat"""
