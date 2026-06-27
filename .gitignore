@@ -118,3 +118,9 @@ flaghunter/mcp/mcp_servers.json
 /tools/
 !/tools/README.md
 /tmp_*
+
+# Local CTF challenge working dirs — packed/unpacked ELF binaries, libc/ld
+# blobs, exploit scripts, and captured flags. These are per-challenge local
+# artifacts (like loot/), NOT framework assets, and must not enter repo history.
+# Solve write-ups live in agent memory; keep working files on disk only.
+/challenges/
