@@ -44,6 +44,21 @@ def test_reversible_encoders_round_trip():
     assert gzip.decompress(gz).decode() == _SAMPLE
     a85 = get_transform("ascii85").apply(_SAMPLE)
     assert base64.a85decode(a85, adobe=True).decode() == _SAMPLE
+    us = get_transform("base64_urlsafe").apply(_SAMPLE)
+    assert base64.urlsafe_b64decode(us).decode() == _SAMPLE
+    gz32 = base64.b32decode(get_transform("gzip_base32").apply(_SAMPLE))
+    assert gzip.decompress(gz32).decode() == _SAMPLE
+
+
+def test_base64_urlsafe_uses_urlsafe_alphabet():
+    """URL-safe variant must differ from standard base64 for inputs whose
+    standard encoding contains '+' or '/', exercising the -_ alphabet."""
+    payload = "\xff\xfe\xfd payload >>> ???"
+    std = get_transform("base64").apply(payload)
+    us = get_transform("base64_urlsafe").apply(payload)
+    assert "+" in std or "/" in std
+    assert "+" not in us and "/" not in us
+    assert base64.urlsafe_b64decode(us).decode() == payload
 
 
 def test_octal_escape_round_trips():

@@ -76,6 +76,12 @@ def _base32(text: str) -> str:
     return base64.b32encode(_b(text)).decode("ascii")
 
 
+def _base64_urlsafe(text: str) -> str:
+    # URL-safe alphabet uses '-' and '_' instead of '+' and '/'. A defender that
+    # only feeds the standard alphabet to its base64 rescan misses this variant.
+    return base64.urlsafe_b64encode(_b(text)).decode("ascii")
+
+
 def _base85(text: str) -> str:
     return base64.b85encode(_b(text)).decode("ascii")
 
@@ -110,6 +116,11 @@ def _html_decimal(text: str) -> str:
 def _gzip_b64(text: str) -> str:
     # mtime=0 makes the gzip header deterministic.
     return base64.b64encode(gzip.compress(_b(text), mtime=0)).decode("ascii")
+
+
+def _gzip_b32(text: str) -> str:
+    # gzip then Base32: pairs a multi-stage decode with the non-standard alphabet.
+    return base64.b32encode(gzip.compress(_b(text), mtime=0)).decode("ascii")
 
 
 def _morse(text: str) -> str:
@@ -179,6 +190,8 @@ _TRANSFORMS: Dict[str, Transform] = {
                   "Lowercase hex. Control: Fulcrum's rescan decodes and re-flags it.", False),
         Transform("base32", "encoding", _base32,
                   "Base32 — not covered by the base64/hex rescan.", True),
+        Transform("base64_urlsafe", "encoding", _base64_urlsafe,
+                  "URL-safe Base64 (-_ alphabet) — standard-alphabet rescans miss it.", True),
         Transform("base85", "encoding", _base85,
                   "Base85 (b85/RFC1924) — not covered by the rescan.", True),
         Transform("ascii85", "encoding", _ascii85,
@@ -197,6 +210,8 @@ _TRANSFORMS: Dict[str, Transform] = {
                   "International Morse code.", True),
         Transform("gzip_base64", "encoding", _gzip_b64,
                   "gzip-compressed then Base64 (multi-stage decode needed).", True),
+        Transform("gzip_base32", "encoding", _gzip_b32,
+                  "gzip-compressed then Base32 (multi-stage + non-standard alphabet).", True),
         Transform("homoglyph", "unicode", _homoglyph,
                   "Latin->Cyrillic/Greek visual confusables.", True),
         Transform("zero_width", "unicode", _zero_width,
