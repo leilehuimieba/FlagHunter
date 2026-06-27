@@ -681,6 +681,37 @@ def _task_session_lookup(project_root: Path) -> dict[str, dict[str, Any]]:
     return lookup
 
 
+def _build_attack_graph_payload(project_root: Path, task: dict[str, Any]) -> dict[str, Any]:
+    """Derive a structured attack graph (ShadowGraph) from the task's notes.
+
+    Notes are the ShadowGraph source-of-truth, so we re-derive the graph view on
+    demand here. The live crew ShadowGraph instance is not reachable from the web
+    trace path (which replays persisted task/session/notes data rather than
+    holding an in-memory crew graph), so we rebuild from the same notes the real
+    graph consumes. Returns ``{"nodes": [...], "edges": [...]}`` for the frontend.
+    """
+    from ..knowledge.graph import ShadowGraph
+
+    matched: dict[str, Any] = {}
+    for path in _candidate_notes_files(project_root, task):
+        raw = _load_json_file(path)
+        if not isinstance(raw, dict):
+            continue
+        for key, note in raw.items():
+            if isinstance(note, dict) and _note_matches_task(key, note, task):
+                matched[key] = note
+
+    graph = ShadowGraph()
+    try:
+        graph.update_from_notes(matched)
+        return graph.to_dict()
+    except Exception:
+        logger.debug(
+            "attack graph derivation failed for task %s", task.get("id"), exc_info=True
+        )
+        return {"nodes": [], "edges": []}
+
+
 def _build_trace_payload(project_root: Path, task: dict[str, Any], include_timeline: bool = False) -> dict[str, Any]:
     item = _serialize_task(task)
     metrics = _pick_metrics_for_task(project_root, item)
@@ -763,6 +794,7 @@ def _build_trace_payload(project_root: Path, task: dict[str, Any], include_timel
         audit_tool_events = _extract_tool_audit_events_from_session_context(session_context)
         payload["toolEvents"] = [*snapshot_tool_events, *audit_tool_events]
         payload["sessionArtifacts"] = list(session_context.get("artifacts") or []) if isinstance(session_context, dict) else []
+        payload["attackGraph"] = _build_attack_graph_payload(project_root, item)
         payload["latestCheckpoint"] = (
             dict(session_context.get("latestCheckpoint") or {})
             if isinstance(session_context, dict) and isinstance(session_context.get("latestCheckpoint"), dict)
