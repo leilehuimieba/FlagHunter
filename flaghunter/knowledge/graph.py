@@ -449,33 +449,76 @@ class ShadowGraph:
 
         return paths
 
+    def to_dict(self) -> Dict[str, List[Dict[str, Any]]]:
+        """Export the graph as structured, JSON-serializable data.
+
+        Returns a dict with ``nodes`` and ``edges`` lists. Each node has
+        ``id``/``type``/``label``/``metadata``; each edge has
+        ``source``/``target``/``type``/``metadata``. ``metadata`` collects any
+        extra attributes stored on the NetworkX node/edge (e.g. service
+        ``product``/``version``, edge ``protocol``).
+
+        This is the single structured serialization of the graph; ``to_mermaid``
+        renders from this same view so the two never diverge.
+        """
+        nodes: List[Dict[str, Any]] = []
+        for node_id, data in self.graph.nodes(data=True):
+            metadata = {k: v for k, v in data.items() if k not in ("type", "label")}
+            nodes.append(
+                {
+                    "id": node_id,
+                    "type": data.get("type", ""),
+                    "label": data.get("label", node_id),
+                    "metadata": metadata,
+                }
+            )
+
+        edges: List[Dict[str, Any]] = []
+        for source, target, data in self.graph.edges(data=True):
+            metadata = {k: v for k, v in data.items() if k != "type"}
+            edges.append(
+                {
+                    "source": source,
+                    "target": target,
+                    "type": data.get("type", ""),
+                    "metadata": metadata,
+                }
+            )
+
+        return {"nodes": nodes, "edges": edges}
+
     def to_mermaid(self) -> str:
-        """Export graph to Mermaid flowchart format."""
+        """Export graph to Mermaid flowchart format.
+
+        Rendered from :meth:`to_dict` so both serializations share one source.
+        """
+        graph_data = self.to_dict()
         lines = ["graph TD"]
 
         # Add nodes
-        for node, data in self.graph.nodes(data=True):
+        for node in graph_data["nodes"]:
             # Sanitize ID for mermaid
-            safe_id = re.sub(r"[^a-zA-Z0-9]", "_", node)
-            label = data.get("label", node).replace('"', "'")
+            safe_id = re.sub(r"[^a-zA-Z0-9]", "_", node["id"])
+            label = str(node["label"]).replace('"', "'")
+            node_type = node["type"]
 
             # Style based on type
-            if data["type"] == "host":
+            if node_type == "host":
                 lines.append(f'    {safe_id}["🖥️ {label}"]')
-            elif data["type"] == "credential":
+            elif node_type == "credential":
                 lines.append(f'    {safe_id}["🔑 {label}"]')
-            elif data["type"] == "vulnerability":
+            elif node_type == "vulnerability":
                 lines.append(f'    {safe_id}["⚠️ {label}"]')
-            elif data["type"] == "service":
+            elif node_type == "service":
                 lines.append(f'    {safe_id}["🔌 {label}"]')
             else:
                 lines.append(f'    {safe_id}["{label}"]')
 
         # Add edges
-        for u, v, data in self.graph.edges(data=True):
-            safe_u = re.sub(r"[^a-zA-Z0-9]", "_", u)
-            safe_v = re.sub(r"[^a-zA-Z0-9]", "_", v)
-            edge_label = data.get("type", "")
+        for edge in graph_data["edges"]:
+            safe_u = re.sub(r"[^a-zA-Z0-9]", "_", edge["source"])
+            safe_v = re.sub(r"[^a-zA-Z0-9]", "_", edge["target"])
+            edge_label = edge["type"]
             lines.append(f"    {safe_u} -->|{edge_label}| {safe_v}")
 
         return "\n".join(lines)

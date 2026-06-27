@@ -38,6 +38,51 @@ _FAMILY_DEFAULTS = {
     },
 }
 
+# Conservative list of substrings that mark a model as vision-capable
+# (accepts image input). Based on documented capabilities:
+#   - Anthropic Claude 3+ (claude-3*, sonnet/opus/haiku-4) accept images.
+#   - OpenAI gpt-4o / gpt-4-vision / gpt-4-turbo / gpt-4.1 accept images.
+#   - DeepSeek-VL, Qwen-VL, Gemini, and common Ollama vision models (llava,
+#     llama3.2-vision, minicpm-v, moondream) accept images.
+_VISION_CAPABLE_TOKENS = (
+    "claude-3",
+    "claude-4",
+    "sonnet",
+    "opus",
+    "haiku-4",
+    "gpt-4o",
+    "gpt-4-vision",
+    "gpt-4-turbo",
+    "gpt-4.1",
+    "deepseek-vl",
+    "qwen-vl",
+    "qwen2-vl",
+    "qwen2.5-vl",
+    "llava",
+    "bakllava",
+    "llama3.2-vision",
+    "llama-3.2-vision",
+    "minicpm-v",
+    "moondream",
+    "gemini",
+)
+
+# When a caller requires vision, vision-capable models receive a bonus and
+# non-vision models receive a penalty. The combined swing (120) exceeds the
+# maximum achievable tier base score (~110), so a vision-capable model always
+# outranks a non-vision one when vision is required, while tier ordering still
+# decides *within* each class (every vision model gets the same +bonus).
+_VISION_BONUS = 60
+_VISION_PENALTY = 60
+
+
+def _is_vision_capable(model: str) -> bool:
+    """Return True if ``model`` is known to accept image input."""
+    normalized = _normalize_text(model)
+    if not normalized:
+        return False
+    return any(token in normalized for token in _VISION_CAPABLE_TOKENS)
+
 
 def _normalize_text(value: str) -> str:
     return (value or "").strip().lower()
@@ -89,7 +134,7 @@ def _detect_available_families(available_items: Iterable[str]) -> list[str]:
     return families
 
 
-def _score_available_model(model: str, tier: str) -> int:
+def _score_available_model(model: str, tier: str, require_vision: bool = False) -> int:
     normalized = _normalize_text(model)
     if normalized in {"anthropic", "openai"}:
         return 0
@@ -122,10 +167,22 @@ def _score_available_model(model: str, tier: str) -> int:
     if "gpt" in normalized or "openai" in normalized:
         score += 10
 
+    # Vision preference: only applied when the caller explicitly needs image
+    # input. Vision-capable models are boosted, non-vision ones penalised, so a
+    # vision-capable model is always preferred when vision is required while the
+    # tier ordering is preserved within each class.
+    if require_vision:
+        if _is_vision_capable(normalized):
+            score += _VISION_BONUS
+        else:
+            score -= _VISION_PENALTY
+
     return score
 
 
-def _select_best_available_model(available_items: Iterable[str], tier: str) -> str | None:
+def _select_best_available_model(
+    available_items: Iterable[str], tier: str, require_vision: bool = False
+) -> str | None:
     items = [
         item for item in available_items
         if _normalize_text(item) and _normalize_text(item) not in {"anthropic", "openai"}
@@ -134,7 +191,7 @@ def _select_best_available_model(available_items: Iterable[str], tier: str) -> s
         return None
 
     scored = sorted(
-        ((item, _score_available_model(item, tier)) for item in items),
+        ((item, _score_available_model(item, tier, require_vision)) for item in items),
         key=lambda pair: pair[1],
         reverse=True,
     )
@@ -142,13 +199,19 @@ def _select_best_available_model(available_items: Iterable[str], tier: str) -> s
     return best_item if best_score > 0 else None
 
 
-def route(task_hint: str, available_providers: list[str]) -> str:
+def route(
+    task_hint: str,
+    available_providers: list[str],
+    require_vision: bool = False,
+) -> str:
     """
     根据任务提示与当前可用 provider / model 描述，返回推荐模型字符串。
 
     Args:
         task_hint: 调用方传入的场景标签，如 ``planning`` / ``tool_parse``。
         available_providers: 可用 provider、provider id、provider name 或 model 描述列表。
+        require_vision: 若为 True，则在打分时偏好 vision-capable（可接受图像输入）的
+            模型；默认 False 保持原有行为不变。
 
     Returns:
         推荐模型字符串。
@@ -158,7 +221,9 @@ def route(task_hint: str, available_providers: list[str]) -> str:
 
     for candidate in candidates:
         if _candidate_supported(candidate, available_providers):
-            best_available = _select_best_available_model(available_providers, tier)
+            best_available = _select_best_available_model(
+                available_providers, tier, require_vision
+            )
             if best_available:
                 return best_available
             return candidate
