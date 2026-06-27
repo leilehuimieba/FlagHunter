@@ -244,6 +244,9 @@ function TraceDetail({ runId, onNav }) {
     ? resolvedRun.outcomeEvents.map((event, index) => normalizeTraceEvent(event, index, 'outcome'))
     : [];
   const sessionArtifacts = Array.isArray(resolvedRun.sessionArtifacts) ? resolvedRun.sessionArtifacts : [];
+  const attackGraph = resolvedRun.attackGraph && typeof resolvedRun.attackGraph === 'object'
+    ? resolvedRun.attackGraph
+    : { nodes: [], edges: [] };
   const latestCheckpoint = resolvedRun.latestCheckpoint && typeof resolvedRun.latestCheckpoint === 'object'
     ? resolvedRun.latestCheckpoint
     : null;
@@ -578,9 +581,13 @@ function TraceDetail({ runId, onNav }) {
 
         {tab === 'timeline' && <TimelineView events={timeline} onPick={setDrawer} isActive={isActive} emptyState={traceEmptyState} />}
         {tab === 'graph' && (
-          graph.nodes.length > 0
-            ? <GraphView graph={graph} run={resolvedRun} onPick={setDrawer} />
-            : <Empty>{isActive ? t('tr.empty.awaitingFirstEvent') : t('tr.empty.graph')}</Empty>
+          <GraphTab
+            flowGraph={graph}
+            attackGraph={attackGraph}
+            run={resolvedRun}
+            onPick={setDrawer}
+            isActive={isActive}
+          />
         )}
         {tab === 'data' && <DataTables run={resolvedRun} events={timeline} />}
       </Panel>
@@ -879,6 +886,163 @@ function LegendDot({ c, t: tx }) {
   return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
     <span style={{ width: 8, height: 8, borderRadius: 2, background: c }}></span>{tx}
   </span>;
+}
+
+// ----------------------------------------------------------------
+// Attack graph view (consumes payload.attackGraph = ShadowGraph.to_dict())
+//   nodes: [{ id, type, label, metadata }]
+//   edges: [{ source, target, type, metadata }]
+// ----------------------------------------------------------------
+function attackNodeMeta(type) {
+  switch (type) {
+    case 'host':          return { col: 0, color: 'blue',    tag: 'HOST' };
+    case 'service':       return { col: 1, color: 'cyan',    tag: 'SERVICE' };
+    case 'endpoint':      return { col: 1, color: 'cyan',    tag: 'ENDPOINT' };
+    case 'vulnerability': return { col: 2, color: 'red',     tag: 'VULN' };
+    case 'credential':    return { col: 3, color: 'amber',   tag: 'CRED' };
+    default:              return { col: 1, color: 'magenta', tag: String(type || 'node').toUpperCase() };
+  }
+}
+
+function buildAttackGraphLayout(nodes, edges) {
+  const COL_W = 188, ROW_H = 96, PAD_X = 28, PAD_Y = 52, W = 150, H = 48;
+  const safeNodes = Array.isArray(nodes) ? nodes : [];
+  const safeEdges = Array.isArray(edges) ? edges : [];
+  const colCounts = {};
+  const placed = safeNodes
+    .filter(n => n && n.id != null)
+    .map((n) => {
+      const meta = attackNodeMeta(n.type);
+      const row = colCounts[meta.col] || 0;
+      colCounts[meta.col] = row + 1;
+      return {
+        id: n.id,
+        raw: n,
+        type: n.type,
+        label: n.label || n.id,
+        color: meta.color,
+        tag: meta.tag,
+        x: PAD_X + meta.col * COL_W,
+        y: PAD_Y + row * ROW_H,
+        w: W, h: H,
+      };
+    });
+  const byId = Object.fromEntries(placed.map(p => [p.id, p]));
+  const validEdges = safeEdges.filter(e => e && byId[e.source] && byId[e.target]);
+  const colValues = Object.values(colCounts);
+  const maxRow = colValues.length ? Math.max(...colValues) : 1;
+  const maxCol = placed.length ? Math.max(...placed.map(p => attackNodeMeta(p.type).col)) : 0;
+  const height = Math.max(360, PAD_Y + maxRow * ROW_H + 24);
+  const width = PAD_X + (maxCol + 1) * COL_W + 40;
+  return { placed, byId, edges: validEdges, height, width };
+}
+
+function attackNodeToEvent(node) {
+  const raw = node.raw || {};
+  const meta = raw.metadata && typeof raw.metadata === 'object' ? raw.metadata : {};
+  const parts = Object.entries(meta)
+    .filter(([, v]) => v != null && v !== '')
+    .map(([k, v]) => `${k}=${typeof v === 'object' ? JSON.stringify(v) : v}`);
+  return normalizeTraceEvent({
+    id: `attack_${node.id}`,
+    type: 'system',
+    kind: `attack.${node.type || 'node'}`,
+    title: node.label || node.id,
+    summary: parts.length ? parts.join(' · ') : (node.type || 'node'),
+    status: 'done',
+    output: JSON.stringify(raw, null, 2),
+  }, 0, 'attack');
+}
+
+function AttackGraphView({ nodes, edges, run, onPick }) {
+  const layout = uM(() => buildAttackGraphLayout(nodes, edges), [nodes, edges]);
+  const { placed, byId, edges: gEdges, height, width } = layout;
+
+  return (
+    <div className="graph-shell" style={{ height, overflowX: 'auto' }}>
+      <div style={{ position: 'absolute', top: 10, left: 14, fontSize: 10, color: 'var(--fg-3)', letterSpacing: '0.16em', textTransform: 'uppercase' }}>
+        {t('tr.graph.attackHeader', run.id, placed.length, gEdges.length)}
+      </div>
+      <div style={{ position: 'absolute', top: 10, right: 14, display: 'flex', gap: 10, fontSize: 10, color: 'var(--fg-2)' }}>
+        <LegendDot c="var(--blue)" t={t('tr.graph.host')} />
+        <LegendDot c="var(--cyan)" t={t('tr.graph.service')} />
+        <LegendDot c="var(--red)" t={t('tr.graph.vuln')} />
+        <LegendDot c="var(--amber)" t={t('tr.graph.credential')} />
+      </div>
+      <svg width={width} height={height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+        <defs>
+          <marker id="aarrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--line-3)" />
+          </marker>
+        </defs>
+        {gEdges.map((e, i) => {
+          const A = byId[e.source], B = byId[e.target];
+          if (!A || !B) return null;
+          const ax = A.x + A.w / 2, ay = A.y + A.h / 2;
+          const bx = B.x + B.w / 2, by = B.y + B.h / 2;
+          const dx = bx - ax, dy = by - ay;
+          const len = Math.hypot(dx, dy) || 1;
+          const ux = dx / len, uy = dy / len;
+          const sx = ax + ux * (A.w / 2 + 4), sy = ay + uy * (A.h / 2 + 4);
+          const tx = bx - ux * (B.w / 2 + 10), ty = by - uy * (B.h / 2 + 10);
+          const mx = (sx + tx) / 2, my = (sy + ty) / 2;
+          return (
+            <g key={i}>
+              <path d={`M${sx},${sy} L${tx},${ty}`} className="gedge" markerEnd="url(#aarrow)" />
+              {e.type && (
+                <text x={mx} y={my - 4} textAnchor="middle" style={{ fontSize: 9, fill: 'var(--fg-3)', letterSpacing: '0.04em' }}>{e.type}</text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+      {placed.map(n => (
+        <div
+          key={n.id}
+          className={`gnode ${n.color || ''}`}
+          style={{ left: n.x, top: n.y, minWidth: n.w, cursor: 'pointer' }}
+          onClick={() => onPick(attackNodeToEvent(n))}
+        >
+          <div className="gk">{n.tag}</div>
+          <div className="gt">{n.label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Graph tab: toggle between the derived attack graph (notes/ShadowGraph) and
+// the execution-flow DAG (timeline-derived). Defaults to the attack graph when
+// the backend supplied one, else falls back to the execution flow.
+function GraphTab({ flowGraph, attackGraph, run, onPick, isActive }) {
+  const attackNodes = Array.isArray(attackGraph?.nodes) ? attackGraph.nodes : [];
+  const attackEdges = Array.isArray(attackGraph?.edges) ? attackGraph.edges : [];
+  const hasAttack = attackNodes.length > 0;
+  const hasFlow = flowGraph.nodes.length > 0;
+  const [mode, setMode] = uS(hasAttack ? 'attack' : 'flow');
+
+  return (
+    <>
+      <div className="tabs" style={{ padding: '0 14px' }}>
+        <div className={`tab ${mode === 'attack' ? 'active' : ''}`} onClick={() => setMode('attack')}>
+          {t('tr.graph.attack')} <span className="count">{attackNodes.length}</span>
+        </div>
+        <div className={`tab ${mode === 'flow' ? 'active' : ''}`} onClick={() => setMode('flow')}>
+          {t('tr.graph.flow')} <span className="count">{flowGraph.nodes.length}</span>
+        </div>
+      </div>
+      {mode === 'attack' && (
+        hasAttack
+          ? <AttackGraphView nodes={attackNodes} edges={attackEdges} run={run} onPick={onPick} />
+          : <Empty>{t('tr.empty.attackGraph')}</Empty>
+      )}
+      {mode === 'flow' && (
+        hasFlow
+          ? <GraphView graph={flowGraph} run={run} onPick={onPick} />
+          : <Empty>{isActive ? t('tr.empty.awaitingFirstEvent') : t('tr.empty.graph')}</Empty>
+      )}
+    </>
+  );
 }
 
 // ----------------------------------------------------------------

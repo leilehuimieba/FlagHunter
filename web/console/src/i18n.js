@@ -304,6 +304,13 @@ const DICT = {
     'tr.graph.knowledge': 'knowledge',
     'tr.graph.note': 'note',
     'tr.graph.notReady': 'graph view not yet generated for {0}',
+    'tr.graph.attack': 'attack graph',
+    'tr.graph.flow': 'execution flow',
+    'tr.graph.attackHeader': '{0} · attack graph · {1} nodes / {2} edges',
+    'tr.graph.host': 'host',
+    'tr.graph.service': 'service / endpoint',
+    'tr.graph.vuln': 'vulnerability',
+    'tr.graph.credential': 'credential',
 
     'tr.data.steps': 'steps ({0})',
     'tr.data.tools': 'tool calls ({0})',
@@ -334,6 +341,7 @@ const DICT = {
     'tr.empty.timeline': 'no observed trace timeline yet',
     'tr.empty.awaitingFirstEvent': 'waiting for first trace event',
     'tr.empty.graph': 'no observed trace graph events yet',
+    'tr.empty.attackGraph': 'no attack graph derived from this run\'s notes yet',
     'tr.empty.toolIo': 'no observed tool I/O snapshot for this event',
     'tr.empty.chunkExcerpt': 'no observed chunk excerpt',
 
@@ -851,6 +859,13 @@ const DICT = {
     'tr.graph.knowledge': '知识',
     'tr.graph.note': '笔记',
     'tr.graph.notReady': '{0} 的图还未生成',
+    'tr.graph.attack': '攻击图',
+    'tr.graph.flow': '执行流',
+    'tr.graph.attackHeader': '{0} · 攻击图 · {1} 节点 / {2} 边',
+    'tr.graph.host': '主机',
+    'tr.graph.service': '服务/端点',
+    'tr.graph.vuln': '漏洞',
+    'tr.graph.credential': '凭据',
 
     'tr.data.steps': '步骤 ({0})',
     'tr.data.tools': '工具调用 ({0})',
@@ -881,6 +896,7 @@ const DICT = {
     'tr.empty.timeline': '尚未观测到追踪时间线',
     'tr.empty.awaitingFirstEvent': '正在等待第一个追踪事件',
     'tr.empty.graph': '尚未观测到追踪图事件',
+    'tr.empty.attackGraph': '尚未从本次运行的笔记中推导出攻击图',
     'tr.empty.toolIo': '当前事件尚未观测到工具 I/O 快照',
     'tr.empty.chunkExcerpt': '尚未观测到 chunk 摘要',
 

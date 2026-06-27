@@ -293,11 +293,37 @@ const TIMELINE_001 = [
   ev('w14', -2028,'verify',    'verifier.flag.verified','flag verified ✓',             'task.finished · duration 11.28s', { tokens: 0 }),
 ];
 
+// ------------------------------------------------------------
+// ATTACK GRAPH for run_002 — ShadowGraph.to_dict() shape, derived from notes:
+//   nodes: [{ id, type, label, metadata }]
+//   edges: [{ source, target, type, metadata }]
+// ------------------------------------------------------------
+const ATTACK_GRAPH_002 = {
+  nodes: [
+    { id: '10.10.20.45', type: 'host', label: '10.10.20.45', metadata: {} },
+    { id: 'svc_10.10.20.45_8080', type: 'service', label: '8080/http · nginx 1.25.3',
+      metadata: { product: 'nginx', version: '1.25.3', port: 8080 } },
+    { id: 'ep_admin_login', type: 'endpoint', label: '/admin/login',
+      metadata: { methods: 'POST' } },
+    { id: 'vuln_blind_sqli', type: 'vulnerability', label: 'Blind SQLi (JSON body)',
+      metadata: { severity: 'high', category: 'sqli', dbms: 'postgres' } },
+    { id: 'cred_admin', type: 'credential', label: 'admin (db enumerated)',
+      metadata: { source: 'pg_user', via: 'timing_based_blind' } },
+  ],
+  edges: [
+    { source: '10.10.20.45', target: 'svc_10.10.20.45_8080', type: 'HAS_SERVICE', metadata: { protocol: 'tcp' } },
+    { source: '10.10.20.45', target: 'ep_admin_login', type: 'HAS_ENDPOINT', metadata: {} },
+    { source: '10.10.20.45', target: 'vuln_blind_sqli', type: 'AFFECTED_BY', metadata: {} },
+    { source: 'cred_admin', target: '10.10.20.45', type: 'AUTH_ACCESS', metadata: { protocol: 'http' } },
+  ],
+};
+
 const TRACES = [
   { id: 'run_002', taskId: 'task_002', target: 'http://10.10.20.45:8080/admin/login',
     status: 'running', startedAt: nowOffset(-258), finishedAt: null,
     durationMs: 258_000, totalSteps: 20, totalToolCalls: 9, totalTokens: 18420,
-    inputTokens: 12_310, outputTokens: 6_110, finalFlag: null, timeline: TIMELINE_002 },
+    inputTokens: 12_310, outputTokens: 6_110, finalFlag: null, timeline: TIMELINE_002,
+    attackGraph: ATTACK_GRAPH_002 },
   { id: 'run_001', taskId: 'task_001', target: 'http://127.0.0.1:8765/challenges/wal_recover/',
     status: 'success', startedAt: nowOffset(-2040), finishedAt: nowOffset(-2028),
     durationMs: 11_280, totalSteps: 14, totalToolCalls: 3, totalTokens: 8412,
@@ -752,6 +778,7 @@ window.MOCK = {
   TRACES,
   TIMELINE_002, TIMELINE_001,
   GRAPH_002,
+  ATTACK_GRAPH_002,
   MESSAGES_002,
   TASK_002_PANEL,
   KNOWLEDGE,
