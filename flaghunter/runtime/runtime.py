@@ -1168,7 +1168,22 @@ class LocalRuntime(Runtime):
 
                 await self._page.screenshot(path=str(filepath), full_page=True)
 
-                return {"path": str(filepath)}
+                # Read the screenshot back and base64-encode it so it can be
+                # fed to vision-capable LLMs. The on-disk path is preserved for
+                # backward compatibility; the base64 field is additive.
+                result: dict = {"path": str(filepath)}
+                try:
+                    image_bytes = filepath.read_bytes()
+                    result["base64"] = base64.b64encode(image_bytes).decode("ascii")
+                    result["media_type"] = "image/png"
+                except OSError as exc:
+                    # Encoding is best-effort; never fail the screenshot action
+                    # just because the readback could not be base64-encoded.
+                    logging.getLogger(__name__).warning(
+                        "Failed to base64-encode screenshot %s: %s", filepath, exc
+                    )
+
+                return result
 
             elif action == "get_content":
                 if kwargs.get("url"):

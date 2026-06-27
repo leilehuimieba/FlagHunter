@@ -122,6 +122,11 @@ def _format_browser_result(action: str, result: dict) -> str:
         return f"Navigated to: {result.get('url', 'unknown')}\nTitle: {result.get('title', 'N/A')}"
 
     elif action == "screenshot":
+        # The runtime result dict also carries a base64-encoded copy of the
+        # image (result["base64"] / result["media_type"]) for vision-capable
+        # LLMs. It is intentionally NOT rendered into this human/LLM-facing
+        # text to avoid flooding the context with a huge base64 blob; the
+        # structured field is consumed by the vision/LLM-message layers.
         return f"Screenshot saved to: {result.get('path', 'unknown')}"
 
     elif action == "get_content":
