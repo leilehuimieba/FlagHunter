@@ -267,4 +267,77 @@ class KnowledgeMemory:
 
 ---
 
+## 10. 能力维现状与扩展接缝（2026-06-27 四路代码亲核追加）
+
+本节把"将来只加能力层就行"的愿景落到**扩展接缝**上：哪些接缝已稳、哪些缺。证据均 file:line。
+
+### 10.1 四接入口对照（怎么看 / 展示什么 / 区别）
+
+| 入口 | 技术 | 做题时实际展示 | 适用 |
+|---|---|---|---|
+| TUI | Textual | 对话流+工具结果+CTF 文本面板（reasoning belief/status/queue/memory/flag 分桶），按需快照、纯文本、信息密度最高 | 本地交互 |
+| CLI | argparse(main.py)+Typer(cli.py，**双入口债**) | `run/tui/mcp_server/workspace/ctf`，日志流 | 批量/脚本 |
+| Web Console | **aiohttp + React SPA**（`web/console/` 7 页）+ **SSE 实时** | dashboard/tasks/traces(SVG 执行轨迹图)/memory/knowledge/logs；状态徽章/token/checkpoint/hint 交互 | 远程/可视化 |
+| MCP Server | MCP stdio/SSE | 不展示，暴露 `run_task` 等工具表给 Claude Desktop/Cursor | 被其它 AI 编排 |
+
+注意：①CLI 双入口债（argparse+Typer）；②**Web 可视化虽强但 CTF 专用状态没做成 Web UI**，与 TUI 文本面板不对齐。
+
+### 10.2 模型与多模态（两个诚实的"没有"）
+
+- 接入成熟：LiteLLM 统一层 + `m1_api_hub` 多 provider failover/错误分级/预算（`llm.py:285-388`）。支持 Anthropic/OpenAI/**DeepSeek**/Ollama/中继。默认故意无兜底 model（`constants.py:64-75`）。
+- **DeepSeek = 能用非一等公民**：有 reasoning_content 适配（`llm.py:32-57`），但 `model_router` 智能择优**只内建 Claude/GPT 两族打分**（`model_router.py:92-125`），DeepSeek 不被主动择优。
+- 🔴 **模型效果无实测**：benchmarks 无 model 字段、eval/replay 不用 LLM（`eval/replay.py:1-11`）。**回答"Claude vs DeepSeek 效果"须先建模型横评 eval**。
+- 🔴 **多模态对 LLM 完全没有**：消息体永远纯文本，无 image 通道；截图只存盘不喂模型（`runtime.py:1151`/`browser/__init__.py:124`）；唯一图像识别是硬编码 easyocr 验证码 OCR（`dispatcher_helpers.py:1123`，非 LLM）。**对 CTF 是真能力缺口**（图片 flag/二维码/隐写/验证码全瞎）。
+
+### 10.3 可视化（半成型 + 一处浪费）
+
+- Web>TUI。Web 有 SSE + SVG 图，但**那图是"执行事件时间线"非攻击链路图**（`traces.jsx:772`）。
+- 🔴 **最大浪费**：黑板（facts/intents/hints/decision）**已序列化进 API**（`web_server.py:525`），数据已到浏览器，**前端零渲染**（`web/console/src` grep blackboard 无命中）。
+- 攻击链路图（ShadowGraph）只 `to_mermaid()` 文本（`graph.py:452`），TUI `/graph` 让用户自己拷到 mermaid.live，Web 不展示。**实时管道与数据都到位，差"画出来"的 UI 层。**
+
+### 10.4 解题四环现状（细节锚点）
+
+- **目标确认**：多路归一（用户 URL + docker-compose 端口推导 `coordinator.py:206` + 偏好端口打分）。无独立存活探针，靠 recon 隐式 + 冷启动重试（`ctf_dispatcher.py:1076`）。
+- **信息收集**：`recon_executor.py`——浏览器探针 + 框架指纹（8 签名）+ 惯例路由播种 + 认证表单收割；单次 phase + 可重复探索议程（`add_exploration_item`，hint_strength 分级）。
+- **学习回路**：session 内置信度调整 → 跨题 `strategy_memory.json` 沉淀（learned_rules 强制泛化 `:1053`）→ 下次 query top-3 + 信息素重排 chain_order。**注意 learned_rules 注入今天证明坏死（§4-Bug1）。**
+
+### 10.5 ★反僵化现状：受约束 exploitation + 缺主动探索
+
+**好消息——已有 5 道护栏防"经验压制证据"**（非纯利用）：
+
+| 护栏 | 机制 | 证据 |
+|---|---|---|
+| 幅度夹紧 | 记忆调整 clamp ±0.25，加性偏置不覆盖 | `strategy_memory.py:927` |
+| 证据地板 | 无观察支持的假设被记忆抬过有证据者→降权 | `hypothesis_engine.py:107` |
+| 矛盾清零 | 当前事实与记忆矛盾→调整置 0 | `hypothesis_engine.py:771` |
+| 原子事实门控 | 正向加成需本题事实匹配历史，否则封顶 0.05 | `hypothesis_engine.py:784` |
+| 时间衰减+自禁 | 30 天 ×0.9、<0.3 deprecated；坏经验 muted | `strategy_memory.py:861` |
+
+外加信息素只重排不增删、web 链兜底、负反馈软降权不硬锁、被拒假设黑板保留可见排最后。
+
+**真缺口——缺主动探索**：全仓无 ε-greedy/无随机/无强制试未试链；novelty 奖励形同虚设（×0.1→+0.01）。当历史经验与当前证据都指向同一条已知失败路时，无随机扰动跳出，只能靠 LLM 兜底（确定性、排最后）。**这不是接缝问题，是控制面策略问题——归 §3.1 混合控制面，作显式探索策略加上去（如探索预算/N 轮无进展强制 novelty 链），不塞进 strategy_memory。**
+
+### 10.6 扩展接缝总表（"只加能力层"的前置条件）
+
+| 想加什么 | 接缝现状 | 缺口/落点 |
+|---|---|---|
+| 新攻击链/策略 | ✅ `StrategyRegistry`（关节B）干净插入 | chain_order 须够得着（N4） |
+| 新工具 | ✅ `tools/loader` 自注册 | — |
+| 新知识/记忆源 | ❌ 无门面，到处裸 new | **KnowledgeMemory 门面（关节C / N3）** |
+| 新模型/provider | ⚠️ 能配能调 | router 择优不认非 Claude/GPT（N7 顺带） |
+| **新输入模态（视觉）** | ❌ 完全无接缝 | **多模态消息层 + vision tool（N7）** |
+| 新可视化 | ⚠️ SPA 页可加，数据已就绪 | 黑板/攻击图差渲染（N8） |
+
+### 10.7 路线增补（并入 §6）
+
+| 序 | 任务 | 优先 | DoD |
+|---|---|---|---|
+| **N7** | 多模态输入接缝 | P1 | LLM 消息层开 image 通道（base64/image_url）+ 一个 vision tool（截图/图片 flag/二维码/验证码送模型识别）；顺带 model_router 支持非 Claude/GPT 择优 |
+| **N8** | 可视化接黑板/攻击图 | P2 | Web SPA 渲染 blackboardSnapshot（facts/intents/hints/decision，数据已在 `web_server.py:525`）；ShadowGraph 前端图形化（非 mermaid 文本） |
+| **N9** | 主动探索策略 | P2 | 混合控制面加显式探索：探索预算或 N 轮无进展强制试一条 novelty 链；归 §3.1，不动 strategy_memory |
+
+**模型横评能力**：要回答"Claude vs DeepSeek 效果"，须在 eval（`flaghunter/eval`）加 model 维度横评——当前 eval 不用 LLM，无此能力，列为 N5（全量 ledger）之后的增补项。
+
+---
+
 *本文为活文档的"决策层"。现状类断言若与代码不符，以代码为准并触发本文修订（出 V4）。*
