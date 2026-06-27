@@ -38,6 +38,7 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Optional
 from urllib.parse import parse_qs, urlencode, urljoin, urlparse
 
+from ...harness import build_tool_called_event, build_tool_finished_event
 from ...llm.utils import parse_llm_json
 from .chains.base import _ChainOutcome
 from .ctf_state import LLMStepLog
@@ -66,6 +67,10 @@ class LLMExecContext:
     recent_observed_source_fetch_write_exploit: Callable[[], Optional[dict[str, Any]]]
     runtime_proxy_action: Callable[..., Awaitable[Any]]
     runtime_execute_command: Callable[..., Awaitable[Any]]
+    # Session-ledger recorder for non-runtime tools (e.g. web_search, which does
+    # not flow through the audited runtime actions). Optional so contexts built
+    # without a ledger still work; None ⇒ events are simply not recorded.
+    record_session_event: Optional[Callable[..., None]] = None
 
 
 class LLMExecutor:
@@ -657,10 +662,19 @@ class LLMExecutor:
         target: str,
         ctx: LLMExecContext,
     ) -> dict[str, Any]:
+        action_type = str(action_spec.get("action_type") or "").strip()
+        tool_name = str(action_spec.get("tool_name") or "").strip()
+
+        # web_search is runtime-independent (pure HTTP backends). Dispatch it
+        # before the runtime guard so an LLM web_search request is executed and
+        # ledger-audited instead of being silently swallowed (the "能力够不着"
+        # gap: the prompt allowed web_search but no branch ran it).
+        if action_type == "web_search" or tool_name == "web_search":
+            return await self._execute_web_search_action(action_spec, target, ctx)
+
         if ctx.runtime is None:
             return {"response_text": "", "target_url": target, "evidence_source": "runtime-output"}
 
-        action_type = str(action_spec.get("action_type") or "").strip()
         payload = action_spec.get("payload")
 
         if action_type == "http_request" and hasattr(ctx.runtime, "proxy_action"):
@@ -772,6 +786,111 @@ class LLMExecutor:
 
         return {"response_text": "", "target_url": target, "evidence_source": "runtime-output"}
 
+    async def _execute_web_search_action(
+        self,
+        action_spec: dict[str, Any],
+        target: str,
+        ctx: LLMExecContext,
+    ) -> dict[str, Any]:
+        """Run the web_search tool for an LLM-requested search and ledger-audit it.
+
+        Returns the standard execute_llm_action response shape so the existing
+        downstream pipeline (scan_and_store + observation recording) handles the
+        result. Records paired tool_called/tool_finished ledger events here
+        because web_search does not flow through the audited runtime actions, so
+        it would otherwise be invisible to the session ledger.
+        """
+        query = self._extract_web_search_query(action_spec)
+        if not query:
+            return {
+                "response_text": "Error: empty web_search query",
+                "target_url": target,
+                "status_code": 1,
+                "evidence_source": "web-search",
+            }
+
+        self._record_web_search_event(ctx, "called", query=query)
+        try:
+            from ...tools.web_search import web_search as _web_search_tool
+
+            result_text = str(await _web_search_tool({"query": query}, ctx.runtime) or "")
+        except Exception as exc:  # never let a backend error vanish silently
+            result_text = f"Error: web_search backend raised: {exc}"
+
+        ok = not result_text.startswith("Error:")
+        self._record_web_search_event(ctx, "finished", query=query, ok=ok, result_text=result_text)
+        return {
+            "response_text": result_text,
+            "target_url": target,
+            "status_code": 0 if ok else 1,
+            "evidence_source": "web-search",
+        }
+
+    @staticmethod
+    def _extract_web_search_query(action_spec: dict[str, Any]) -> str:
+        """Pull the search query from payload (dict/str) or a top-level field."""
+        payload = action_spec.get("payload")
+        if isinstance(payload, dict):
+            query = payload.get("query") or payload.get("q") or ""
+        elif isinstance(payload, str):
+            query = payload
+        else:
+            query = action_spec.get("query") or ""
+        return str(query or "").strip()
+
+    def _record_web_search_event(
+        self,
+        ctx: LLMExecContext,
+        phase: str,
+        *,
+        query: str,
+        ok: Optional[bool] = None,
+        result_text: str = "",
+    ) -> None:
+        """Record a paired tool_called/tool_finished ledger event for web_search.
+
+        No-op when the context carries no ledger recorder (e.g. ledger inactive).
+        """
+        recorder = getattr(ctx, "record_session_event", None)
+        if recorder is None:
+            return
+        target = query[:200]
+        metadata: dict[str, Any] = {"query": query[:500]}
+        if phase == "called":
+            event = build_tool_called_event(
+                tool_name="web_search",
+                action="search",
+                target=target,
+                metadata=metadata,
+            )
+            fallback_type = "tool_called"
+        else:
+            metadata.update(self._summarize_web_search_result(result_text))
+            event = build_tool_finished_event(
+                tool_name="web_search",
+                action="search",
+                ok=bool(ok),
+                status_code=0 if ok else 1,
+                target=target,
+                metadata=metadata,
+            )
+            fallback_type = "tool_finished"
+        recorder(
+            str(event.get("event_type") or fallback_type),
+            dict(event.get("payload") or {}),
+        )
+
+    @staticmethod
+    def _summarize_web_search_result(result_text: str) -> dict[str, Any]:
+        """Best-effort summary of a web_search result for the ledger payload."""
+        text = str(result_text or "")
+        urls = re.findall(r"https?://\S+", text)
+        return {
+            "hit_count": len(urls),
+            "top_url": urls[0] if urls else "",
+            "error": text.startswith("Error:"),
+        }
+
     def record_llm_reasoning(
         self, action_spec: dict[str, Any], decision: Any, ctx: LLMExecContext
     ) -> None:
@@ -861,6 +980,7 @@ class LLMExecutorMixin:
             recent_observed_source_fetch_write_exploit=self._recent_observed_source_fetch_write_exploit,
             runtime_proxy_action=self._runtime_proxy_action,
             runtime_execute_command=self._runtime_execute_command,
+            record_session_event=getattr(self, "_record_session_event", None),
         )
 
     async def _run_llm_driven_exploration(self, context: StrategyContext) -> _ChainOutcome:
