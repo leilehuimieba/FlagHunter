@@ -81,20 +81,47 @@ class ProjectMemory:
         path.write_text(json.dumps(profile, indent=2, ensure_ascii=False), encoding="utf-8")
 
     def _load_learned_rules(self) -> list[str]:
-        """Extract learned rules from strategy memory store."""
+        """Extract learned rules from strategy memory store.
+
+        The writer (StrategyMemoryStore.save) appends JSONL — one entry dict
+        per line. Parse line-by-line so a multi-line file is read correctly,
+        while staying tolerant of a legacy single-blob file (a JSON list, or a
+        wrapper dict with an ``entries`` key).
+        """
         rules: list[str] = []
         sm_path = self._root / "loot" / "strategy_memory.json"
         if not sm_path.exists():
             return rules
         try:
-            data = json.loads(sm_path.read_text(encoding="utf-8"))
-            entries = data if isinstance(data, list) else data.get("entries", [])
-            for entry in entries[-5:]:
-                for rule in entry.get("learned_rules", []):
-                    if rule and rule not in rules:
-                        rules.append(rule)
-        except (json.JSONDecodeError, OSError):
-            pass
+            text = sm_path.read_text(encoding="utf-8")
+        except OSError:
+            return rules
+
+        entries: list[Any] = []
+        for line in text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                parsed = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, list):
+                # Legacy single-blob: a JSON array of entry dicts.
+                entries.extend(parsed)
+            elif isinstance(parsed, dict) and isinstance(parsed.get("entries"), list):
+                # Legacy wrapper: {"entries": [...]}.
+                entries.extend(parsed["entries"])
+            else:
+                # JSONL path: a bare entry dict.
+                entries.append(parsed)
+
+        for entry in entries[-5:]:
+            if not isinstance(entry, dict):
+                continue
+            for rule in entry.get("learned_rules", []):
+                if rule and rule not in rules:
+                    rules.append(rule)
         return rules[-5:]
 
     def get_context_for_prompt(self, target: str = "", phase: str = "") -> str:
