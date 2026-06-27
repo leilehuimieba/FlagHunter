@@ -1,0 +1,109 @@
+[importlinter]
+root_package = flaghunter
+
+# ===========================================================================
+# Invariant I1: dependencies only point DOWNWARD through the 6-layer skeleton.
+#
+# Layers (highest -> lowest):
+#   1. ENTRY         flaghunter.interface, flaghunter.mcp.server
+#   2. SESSION       flaghunter.session.{agent_session, session_store,
+#                    initializer}  -- the AgentSession facade (joint A)
+#   3. ORCHESTRATION flaghunter.agents
+#   4. STRATEGY      (lives inside flaghunter.agents.pa_agent - not split out)
+#   5. CAPABILITY    flaghunter.tools, flaghunter.knowledge,
+#                    flaghunter.runtime, flaghunter.llm
+#   6. FOUNDATION    flaghunter.config
+#
+# NOTE on the event bus: flaghunter.session.notifier / .event_bus physically
+# live under session/ but are a DELIBERATE base-layer shared bus. H8 moved
+# them down precisely so agents/tools/runtime/knowledge/workspaces may import
+# them WITHOUT a reverse dependency on the interface/ layer (see the module
+# docstring). They are therefore NOT part of the SESSION facade for layering
+# purposes and are intentionally excluded from the forbidden sets below.
+#
+# Contracts marked CLEAN hold against current code with no exceptions.
+# `ignore_imports` edges are tagged either `# DEBT:` (a genuine reverse
+# dependency to fix later) or `# BY-DESIGN:` (a governance-ratified exception).
+# The gate enforces "no NEW violations" on top of the recorded baseline.
+# ===========================================================================
+
+
+# --- CLEAN: FOUNDATION imports nothing higher --------------------------------
+[importlinter:contract:foundation-independence]
+name = FOUNDATION (config) imports nothing above it
+type = forbidden
+source_modules =
+    flaghunter.config
+forbidden_modules =
+    flaghunter.interface
+    flaghunter.mcp.server
+    flaghunter.session
+    flaghunter.agents
+    flaghunter.tools
+    flaghunter.knowledge
+    flaghunter.runtime
+    flaghunter.llm
+
+
+# --- CLEAN: nothing below ENTRY imports ENTRY --------------------------------
+[importlinter:contract:no-lower-imports-entry]
+name = Lower layers must not import ENTRY (interface)
+type = forbidden
+source_modules =
+    flaghunter.config
+    flaghunter.llm
+    flaghunter.runtime
+    flaghunter.tools
+    flaghunter.knowledge
+    flaghunter.agents
+    flaghunter.session
+forbidden_modules =
+    flaghunter.interface
+
+
+# --- CLEAN: CAPABILITY must not reach up into the SESSION facade --------------
+# Direct edges only (the base-layer event bus is excluded by construction).
+# The one allowed upward reach is the agent-spawning meta-tool glue, which H9
+# ratified as intentional (tools that spawn child agents legitimately depend
+# on ORCHESTRATION). Recorded BY-DESIGN so NEW capability->agents edges fail.
+[importlinter:contract:capability-below-orchestration]
+name = CAPABILITY must not import ORCHESTRATION or the SESSION facade
+type = forbidden
+allow_indirect_imports = true
+source_modules =
+    flaghunter.tools
+    flaghunter.knowledge
+    flaghunter.runtime
+    flaghunter.llm
+forbidden_modules =
+    flaghunter.agents
+    flaghunter.session.agent_session
+    flaghunter.session.session_store
+    flaghunter.session.initializer
+ignore_imports =
+    # BY-DESIGN (H9): agent-spawning meta-tools depend on ORCHESTRATION by
+    # nature; this is a ratified exception, not debt.
+    flaghunter.tools.mcp_agent -> flaghunter.agents.state
+    flaghunter.tools.mcp_agent -> flaghunter.agents.base_agent
+    flaghunter.tools.delegate_task -> flaghunter.agents.subagent
+
+
+# --- BASELINED: ORCHESTRATION must not reach up into the SESSION facade -------
+# Direct edges only. The lone genuine reverse dependency is base_agent reaching
+# the SessionStore persistence layer directly; recorded as DEBT (candidate for
+# the KnowledgeMemory/AgentSession facade pass). New agents->SESSION-facade
+# edges will fail the gate.
+[importlinter:contract:orchestration-below-session]
+name = ORCHESTRATION (agents) must not import the SESSION facade
+type = forbidden
+allow_indirect_imports = true
+source_modules =
+    flaghunter.agents
+forbidden_modules =
+    flaghunter.session.agent_session
+    flaghunter.session.session_store
+    flaghunter.session.initializer
+ignore_imports =
+    # DEBT: base_agent imports SessionStore directly (orchestration -> SESSION
+    # facade). Fix by passing the store down from AgentSession instead.
+    flaghunter.agents.base_agent -> flaghunter.session.session_store
