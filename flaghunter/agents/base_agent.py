@@ -1660,13 +1660,16 @@ Output only the JSON array, no other text."""
         self.state_manager.transition_to(AgentState.COMPLETE)
 
     def save_session(self) -> str | None:
-        """Save current agent state to session store. Returns session_id or None."""
+        """Save current agent state to the injected session store.
+
+        The SESSION layer (AgentSession / initialize_session) injects
+        ``_session_store`` when persistence is wanted. Without an injected
+        store this degrades to a no-op instead of reaching UP into the SESSION
+        layer to self-construct one (invariant I1: ORCHESTRATION must not
+        import the SESSION facade).
+        """
         if self._session_store is None:
-            try:
-                from ..session.session_store import SessionStore
-                self._session_store = SessionStore()
-            except Exception:
-                return None
+            return None
         try:
             self._session_id = self._session_store.save(self, session_id=self._session_id)
             return self._session_id
@@ -1674,26 +1677,18 @@ Output only the JSON array, no other text."""
             return None
 
     def resume_session(self, session_id: str) -> bool:
-        """Restore agent state from a saved session."""
+        """Restore agent state from a saved session (no-op if no store injected)."""
         if self._session_store is None:
-            try:
-                from ..session.session_store import SessionStore
-                self._session_store = SessionStore()
-            except Exception:
-                return False
+            return False
         ok = self._session_store.resume(self, session_id)
         if ok:
             self._session_id = session_id
         return ok
 
     def list_saved_sessions(self) -> list[dict]:
-        """List saved sessions (newest first)."""
+        """List saved sessions, newest first (empty if no store injected)."""
         if self._session_store is None:
-            try:
-                from ..session.session_store import SessionStore
-                self._session_store = SessionStore()
-            except Exception:
-                return []
+            return []
         return self._session_store.list_sessions()
 
     def _format_tool_results(self, results: List[ToolResult]) -> str:

@@ -88,11 +88,10 @@ ignore_imports =
     flaghunter.tools.delegate_task -> flaghunter.agents.subagent
 
 
-# --- BASELINED: ORCHESTRATION must not reach up into the SESSION facade -------
-# Direct edges only. The lone genuine reverse dependency is base_agent reaching
-# the SessionStore persistence layer directly; recorded as DEBT (candidate for
-# the KnowledgeMemory/AgentSession facade pass). New agents->SESSION-facade
-# edges will fail the gate.
+# --- CLEAN: ORCHESTRATION must not reach up into the SESSION facade ----------
+# Direct edges only. base_agent no longer self-constructs a SessionStore; the
+# SESSION layer (initialize_session) injects _session_store and save/resume
+# degrade to a no-op without it (N3b removed the last reverse dependency).
 [importlinter:contract:orchestration-below-session]
 name = ORCHESTRATION (agents) must not import the SESSION facade
 type = forbidden
@@ -103,7 +102,3 @@ forbidden_modules =
     flaghunter.session.agent_session
     flaghunter.session.session_store
     flaghunter.session.initializer
-ignore_imports =
-    # DEBT: base_agent imports SessionStore directly (orchestration -> SESSION
-    # facade). Fix by passing the store down from AgentSession instead.
-    flaghunter.agents.base_agent -> flaghunter.session.session_store
