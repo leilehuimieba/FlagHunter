@@ -43,6 +43,10 @@ class Tool:
     enabled: bool = True
     required_permission: int = 99  # PermissionMode.ALLOW by default
     metadata: Dict[str, Any] = field(default_factory=dict)
+    # ATT&CK technique IDs this tool maps onto. Usually backfilled from the
+    # central taxonomy (flaghunter.knowledge.attack_taxonomy) at load time; an
+    # inline declaration via register_tool(technique_ids=...) takes precedence.
+    technique_ids: List[str] = field(default_factory=list)
 
     async def execute(self, arguments: dict, runtime: "Runtime") -> str:
         """
@@ -131,6 +135,7 @@ def register_tool(
     schema: ToolSchema,
     category: str = "general",
     required_permission: int = 99,
+    technique_ids: Optional[List[str]] = None,
 ) -> Callable:
     """
     Decorator to register a tool.
@@ -141,6 +146,9 @@ def register_tool(
         schema: The parameter schema
         category: Tool category for organization
         required_permission: Minimum PermissionMode required (default ALLOW=99)
+        technique_ids: Optional ATT&CK technique IDs. When omitted, they are
+            backfilled from the central taxonomy at load time; when given here
+            they take precedence over the map.
 
     Returns:
         Decorator function
@@ -158,6 +166,7 @@ def register_tool(
             execute_fn=wrapper,
             category=category,
             required_permission=required_permission,
+            technique_ids=list(technique_ids) if technique_ids else [],
         )
         _tools[name] = tool
         return wrapper

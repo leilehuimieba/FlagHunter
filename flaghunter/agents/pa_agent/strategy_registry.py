@@ -123,6 +123,9 @@ class StrategyDefinition:
     escalation_condition: str
     precondition: Callable[[StrategyContext], bool]
     execute: Callable[[StrategyContext], Awaitable[Any]]
+    # OWASP WSTG (+ ATT&CK) technique IDs this strategy maps onto. Backfilled
+    # from the central taxonomy (knowledge.attack_taxonomy) in build_default().
+    technique_ids: list[str] = field(default_factory=list)
 
     def is_applicable(self, context: StrategyContext) -> bool:
         """Input: StrategyContext；Output: 当前策略是否满足前提；Success: 返回稳定布尔值；Failure: 上层 Coordinator/Registry 负责换策略。"""
@@ -150,6 +153,10 @@ class StrategyRegistry:
 
     def get(self, kind: str) -> StrategyDefinition | None:
         return self._strategies.get(kind)
+
+    def all(self) -> list[StrategyDefinition]:
+        """All registered strategies (e.g. for technique-coverage reporting)."""
+        return list(self._strategies.values())
 
     def get_contract(self, kind: str) -> dict[str, str] | None:
         """Input: strategy kind；Output: 契约摘要 dict；Success: 能程序化读取策略契约；Failure: 调用方处理 None。"""
@@ -181,6 +188,11 @@ class StrategyRegistry:
         _register_web_exploitation_strategies(registry)
         _register_ssti_strategies(registry)
         _register_api_injection_strategies(registry)
+        # Backfill WSTG/ATT&CK technique IDs from the central taxonomy
+        # (ORCHESTRATION → CAPABILITY import, allowed by I1).
+        from ...knowledge.attack_taxonomy import tag_strategies
+
+        tag_strategies(registry.all())
         return registry
 
 

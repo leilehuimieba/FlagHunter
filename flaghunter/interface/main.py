@@ -235,6 +235,16 @@ Examples:
     # tools env
     tools_subparsers.add_parser("env", help="Show detected CLI tools in environment")
 
+    coverage_parser = subparsers.add_parser(
+        "coverage",
+        help="Show ATT&CK/WSTG technique coverage of the tool + strategy arsenal",
+    )
+    coverage_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit the coverage matrix as JSON instead of a text report",
+    )
+
     mcp_server_parser = subparsers.add_parser("mcp_server", help="Act as MCP server")
     mcp_server_parser.add_argument(
         "--type",
@@ -412,6 +422,19 @@ Examples:
     )
 
     return parser, parser.parse_args()
+
+
+def handle_coverage_command(args: argparse.Namespace):
+    """Handle the coverage subcommand: ATT&CK/WSTG arsenal coverage matrix."""
+    from ..agents.attack_coverage import build_coverage_report, format_coverage_report
+
+    report = build_coverage_report()
+    if getattr(args, "json", False):
+        import json
+
+        print(json.dumps(report, indent=2, ensure_ascii=False))
+    else:
+        print(format_coverage_report(report))
 
 
 def handle_tools_command(args: argparse.Namespace):
@@ -1621,11 +1644,19 @@ def handle_ctf_command(args: argparse.Namespace):
 def main():
     """Main entry point."""
     parser, args = parse_arguments()
-    _log_startup_context(args)
+    # `coverage` is a read-only introspection command whose --json output must be
+    # pure machine-parseable JSON on stdout; the startup-context log goes to
+    # stdout, so skip it here (debug context adds little for this trivial query).
+    if args.command != "coverage":
+        _log_startup_context(args)
 
     # Handle subcommands
     if args.command == "tools":
         handle_tools_command(args)
+        return
+
+    if args.command == "coverage":
+        handle_coverage_command(args)
         return
 
     if args.command == "mcp":

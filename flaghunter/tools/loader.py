@@ -97,6 +97,12 @@ def load_all_tools(tools_dir: Optional[Path] = None) -> List[str]:
         if load_tool_module(module_name, tools_dir):
             loaded.append(module_name)
 
+    # Backfill ATT&CK technique IDs from the central taxonomy (intra-CAPABILITY
+    # import; tools that declared their own tags inline are left untouched).
+    from ..knowledge.attack_taxonomy import tag_tools
+
+    tag_tools(get_all_tools())
+
     return loaded
 
 
