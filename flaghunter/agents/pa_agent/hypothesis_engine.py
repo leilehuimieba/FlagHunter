@@ -38,6 +38,7 @@ _CHAIN_BY_KIND = {
     "contact_report_chain": "web",
     "unicode_numeric_form_bypass": "web",
     "php_unserialize_magic_method": "web",
+    "insecure_deserialization": "web",
     "xss_admin_bot_sid": "xss",
     "lfi": "lfi",
     "cmdi": "cmdi",

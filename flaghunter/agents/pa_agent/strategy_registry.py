@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Protocol, runtime_checkable
 
@@ -577,6 +578,54 @@ async def _execute_nosql_probe(context: StrategyContext):
     return {"progress": False, "reason": "No NoSQL handler available"}
 
 
+def _deserialization_precondition(context: StrategyContext) -> bool:
+    """疑似不安全反序列化面：序列化 blob 载体或源码/框架线索。
+
+    强信号：cookie / 参数 / 表单字段里出现 Java（base64 ``rO0``/魔数 ``\\xac\\xed``）
+    或 Python pickle（base64 ``gA…``/``\\x80\\x0[2-5]``）blob。弱信号：内容里出现
+    pickle/ObjectInputStream/ysoserial/反序列化等关键词。
+    """
+    cookies = str(context.page_features.get("cookies") or "")
+    raw_links = [str(item or "") for item in (context.page_features.get("raw_links") or [])]
+    blob_carriers = [cookies, *raw_links]
+    if any("rO0" in carrier or "\xac\xed" in carrier for carrier in blob_carriers):
+        return True
+    # base64 pickle blobs start "gA"; require a longer run to avoid false hits.
+    for carrier in blob_carriers:
+        if re.search(r"\bgA[A-Za-z0-9+/]{16,}={0,2}", carrier):
+            return True
+    combined = (
+        str(context.page_features.get("content") or "")
+        + " "
+        + str(context.page_features.get("html") or "")
+    ).lower()
+    clues = (
+        "pickle",
+        "cpickle",
+        "__reduce__",
+        "objectinputstream",
+        "readobject",
+        "ysoserial",
+        "deserialization",
+        "反序列化",
+        "yaml.load",
+        "marshal.loads",
+    )
+    return any(clue in combined for clue in clues)
+
+
+async def _execute_deserialization_probe(context: StrategyContext):
+    """执行不安全反序列化探测（Java 检测 / Python pickle RCE）。"""
+    # ``_run_insecure_deserialization_strategy``:Protocol 外 optional duck-typed 面(见 _execute_jwt_probe)。
+    dispatcher = context.services
+    target = context.target
+    if hasattr(dispatcher, "_run_insecure_deserialization_strategy"):
+        return await dispatcher._run_insecure_deserialization_strategy(target, context.page_features)
+    if hasattr(dispatcher, "_run_llm_driven_exploration"):
+        return await dispatcher._run_llm_driven_exploration(context)
+    return {"progress": False, "reason": "No deserialization handler available"}
+
+
 __all__ = [
     "ChainContext",
     "StrategyContext",
@@ -987,6 +1036,21 @@ def _register_api_injection_strategies(registry: "StrategyRegistry") -> None:
             escalation_condition="若基础绕过失败，尝试时间盲注或结合 JS 表达式注入。",
             precondition=lambda ctx: _nosql_precondition(ctx),
             execute=lambda ctx: _execute_nosql_probe(ctx),
+        )
+    )
+
+    # 不安全反序列化策略（Java 检测 / Python pickle RCE）
+    registry.register(
+        StrategyDefinition(
+            kind="insecure_deserialization",
+            chain_name="web",
+            precondition_description="cookie/参数/表单中出现 Java(rO0/\\xac\\xed)或 Python pickle(gA…)序列化 blob，或源码/页面含 pickle/ObjectInputStream/反序列化线索。",
+            minimal_experiment="定位序列化载体；对 Python pickle 载体回灌 stdlib pickle gadget（读 flag + id），对 Java 载体沉淀漏洞 note。",
+            success_signal="响应回显 verified/runtime flag，或出现 DESER_RCE_OK / uid= 等命令执行证据。",
+            failure_signal="未发现序列化载体，或所有 pickle payload 回灌均无 flag/RCE 证据。",
+            escalation_condition="Java 载体需外部 ysoserial gadget 链；pickle 盲打无回显时转向 OOB/时间盲注或 LLM 驱动探索。",
+            precondition=lambda ctx: _deserialization_precondition(ctx),
+            execute=lambda ctx: _execute_deserialization_probe(ctx),
         )
     )
 

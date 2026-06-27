@@ -28,6 +28,7 @@ WEB_STRATEGY_ORDER = [
     "contact_report_chain",
     "backup_source_leak",
     "php_unserialize_magic_method",
+    "insecure_deserialization",
     "generic_param_sqli",
     "jwt_manipulation",
     "generic_param_cmdi",
