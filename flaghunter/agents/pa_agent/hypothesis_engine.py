@@ -70,6 +70,9 @@ _CHAIN_BY_KIND = {
     # mapping matches where the strategy actually runs.
     "graphql_introspection": "web",
     "nosql_injection": "web",
+    # XXE runs as a web-chain strategy (chains/web.py WEB_STRATEGY_ORDER), like
+    # graphql/nosql/insecure_deserialization — not a standalone chain.
+    "xxe_injection": "web",
 }
 
 

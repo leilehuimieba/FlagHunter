@@ -35,6 +35,7 @@ WEB_STRATEGY_ORDER = [
     "generic_param_ssrf",
     "graphql_introspection",
     "nosql_injection",
+    "xxe_injection",
 ]
 
 

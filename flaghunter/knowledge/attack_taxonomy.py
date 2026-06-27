@@ -163,6 +163,7 @@ STRATEGY_TECHNIQUES: dict[str, list[str]] = {
     "jwt_manipulation": ["WSTG-SESS-10"],
     "graphql_introspection": ["WSTG-APIT-01"],
     "nosql_injection": ["WSTG-INPV-05", "T1190"],
+    "xxe_injection": ["WSTG-INPV-07", "T1190"],
 }
 
 # Strategy kinds intentionally without a technique tag (meta / navigation /

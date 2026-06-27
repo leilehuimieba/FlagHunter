@@ -133,8 +133,13 @@ def test_coverage_report_aggregates_and_surfaces_gaps():
     assert "strategy:insecure_deserialization" in inpv11
     assert "strategy:php_unserialize_magic_method" in inpv11
 
-    # known gap: XXE is catalogued (WSTG-INPV-07) but unimplemented → a gap.
-    assert "WSTG-INPV-07" in report["gaps"]
+    # XXE (WSTG-INPV-07) is now covered by the xxe_injection strategy.
+    inpv07 = report["covered"].get("WSTG-INPV-07", [])
+    assert "strategy:xxe_injection" in inpv07
+
+    # known remaining gap: reflected XSS (WSTG-INPV-01) is catalogued but
+    # unimplemented (only stored XSS exists) → still a gap.
+    assert "WSTG-INPV-01" in report["gaps"]
 
     # gaps and covered are disjoint
     assert not (set(report["gaps"]) & set(report["covered"]))

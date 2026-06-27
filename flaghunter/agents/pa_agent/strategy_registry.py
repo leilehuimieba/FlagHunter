@@ -638,6 +638,51 @@ async def _execute_deserialization_probe(context: StrategyContext):
     return {"progress": False, "reason": "No deserialization handler available"}
 
 
+def _xxe_precondition(context: StrategyContext) -> bool:
+    """疑似 XML 解析面：XML 内容/内容类型线索，或 XML 风格端点。
+
+    强信号：内容/HTML/响应头出现 ``<?xml``、``application/xml``、``text/xml``、
+    ``<!DOCTYPE``/``<!ENTITY``、SOAP/XML-RPC/WSDL 等。结构信号：endpoints/raw_links
+    指向 ``/xml``、``.xml``、``/soap``、``/wsdl``、``/rss``、``/feed``、xmlrpc。
+    """
+    combined = (
+        str(context.page_features.get("content") or "")
+        + " "
+        + str(context.page_features.get("html") or "")
+        + " "
+        + str(context.page_features.get("headers") or "")
+    ).lower()
+    clues = (
+        "<?xml",
+        "application/xml",
+        "text/xml",
+        "<!doctype",
+        "<!entity",
+        "soap",
+        "xmlrpc",
+        "wsdl",
+        "xxe",
+    )
+    if any(clue in combined for clue in clues):
+        return True
+    endpoints = [str(e or "").lower() for e in (context.page_features.get("endpoints") or [])]
+    raw_links = [str(u or "").lower() for u in (context.page_features.get("raw_links") or [])]
+    url_patterns = ("/xml", ".xml", "/soap", "/wsdl", "/rss", "/feed", "xmlrpc")
+    return any(p in item for item in (*endpoints, *raw_links) for p in url_patterns)
+
+
+async def _execute_xxe_probe(context: StrategyContext):
+    """执行 XXE 探测（外部实体读取文件）。"""
+    # ``_run_xxe_injection_strategy``:Protocol 外 optional duck-typed 面(见 _execute_jwt_probe)。
+    dispatcher = context.services
+    target = context.target
+    if hasattr(dispatcher, "_run_xxe_injection_strategy"):
+        return await dispatcher._run_xxe_injection_strategy(target, context.page_features)
+    if hasattr(dispatcher, "_run_llm_driven_exploration"):
+        return await dispatcher._run_llm_driven_exploration(context)
+    return {"progress": False, "reason": "No XXE handler available"}
+
+
 __all__ = [
     "ChainContext",
     "StrategyContext",
@@ -1063,6 +1108,21 @@ def _register_api_injection_strategies(registry: "StrategyRegistry") -> None:
             escalation_condition="Java 载体需外部 ysoserial gadget 链；pickle 盲打无回显时转向 OOB/时间盲注或 LLM 驱动探索。",
             precondition=lambda ctx: _deserialization_precondition(ctx),
             execute=lambda ctx: _execute_deserialization_probe(ctx),
+        )
+    )
+
+    # XXE 注入策略（外部实体读取服务端文件 / SSRF 原语）
+    registry.register(
+        StrategyDefinition(
+            kind="xxe_injection",
+            chain_name="web",
+            precondition_description="内容/响应头出现 XML 解析线索（<?xml、application/xml、SOAP/WSDL、<!DOCTYPE/<!ENTITY），或端点指向 /xml、/soap、/wsdl、.xml、xmlrpc。",
+            minimal_experiment="向 XML 端点 POST 经典外部实体 DOCTYPE（<!ENTITY xxe SYSTEM \"file:///flag\">），用 application/xml 与 text/xml 两种 content-type 探读 flag / /etc/passwd。",
+            success_signal="响应回显 verified/runtime flag，或出现 root:x:0:0:（外部实体文件读取证据）。",
+            failure_signal="未发现 XML 端点，或所有外部实体 payload 均无 flag/文件读取回显。",
+            escalation_condition="若实体被禁用或无回显，转向 OOB XXE（外带通道）、参数实体或 LLM 驱动探索。",
+            precondition=lambda ctx: _xxe_precondition(ctx),
+            execute=lambda ctx: _execute_xxe_probe(ctx),
         )
     )
 
