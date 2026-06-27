@@ -1,0 +1,270 @@
+# FlagHunter 目标架构 · 北极星 V3
+
+- 日期：2026-06-27
+- 状态：**已确认（唯一真相源）**
+- 收敛自：2026-06-27 三轮亲核审计 —— ①知识层一致性审计、②既有架构文档消化、③控制面代码亲核
+- 取代：本文是架构的**唯一真相源**，收敛此前散落的 6 份架构文档（见 §9 索引，原文不删，作历史依据）
+
+---
+
+## 0. 本文地位与边界
+
+本文存在的理由：仓里**不是没有架构设计，而是设计散在 6+ 份文档里、没收敛成一张可执行的总图，且有未调和的内部矛盾**——多套并行设计本身就是屎山源头。本文把三轮亲核的结论收敛成一张图 + 一份施工 checklist。
+
+铁律（沿用 `项目工程治理流程_V1.md` 心法）：
+- **本文是"决策 + 闸门"，不是"现状描述"**。现状描述类断言必须配 file:line 证据或守护测试，否则视为过期。
+- **任何不变量都必须被测试钉死**，不靠自觉。"没被测试钉死的不变量"是三个月后变屎山的头号原因。
+- ADR 只增不改：本文为 V3，推翻或修订须出 V4，不原地改写既成决策。
+
+诚实分维结论（本文的核心判断）：
+
+| 维度 | 状态 | 本文动作 |
+|---|---|---|
+| **结构维**（骨架/接缝/依赖） | ✅ 优秀且已收敛 | §2 固化，保留不动 |
+| **能力维**（执行/解题/知识/记录/学习/搜集/多 agent） | ❌ 欠架构 + 没收敛 + 没护栏 | §3 补目标架构 |
+| **已确证缺陷**（今天审计坐实） | 🔴 2 个真 bug + 死代码 | §4 登记 |
+| **防屎山护栏** | ⚠️ 点状非面状 | §5 面状化 |
+
+---
+
+## 1. 一页纸全景
+
+结构维 6 层骨架**保留不动**（它是对的）；本文的新增是叠加其上的**纵向能力线**，核心是补一个**待建的第三关节：KnowledgeMemory 门面**。
+
+```
+ ENTRY      TUI / CLI / Web / MCP            ← 只做 I/O 与渲染，经关节A装配
+   │
+ SESSION    AgentSession 门面  ★关节A(已建)   ← 唯一装配 + 单一事件总线
+   │
+ ORCHEST.   solve-loop（混合控制面）          ← §3.1 既定路线=形式化混合
+   │   ┌──────────── 读 / 写 ─────────────┐
+   │   ↓                                   ↓
+ STRATEGY   registry + chains ★关节B(已建)  ┌─ KnowledgeMemory 门面 ★关节C(待建)─┐
+   │        ChainContext 显式传状态         │  · Ledger     唯一事实源(append-only)│
+   │                                        │  · Notes      本题发现               │
+ CAPABILITY tools/ + cpa m1–m6              │  · StrategyMemory  跨题学习          │
+   │        + web_search(网络搜集)          │  · RAG        外部知识库             │
+   │        + capability_registry(工具路由)  │  · ShadowGraph 攻击路径图(派生)      │
+ FOUNDATION runtime / llm / config          └─ project_for_prompt() 统一投影注入 ──┘
+            （无环）
+```
+
+三个关节（接缝）：
+- **关节 A — AgentSession**（入口↔编排）：✅ 已建并闭合
+- **关节 B — ChainContext + registry**（编排↔策略）：✅ 已建并收口
+- **关节 C — KnowledgeMemory 门面**（编排/策略↔知识记忆）：❌ **待建**，本文新增。今天审计证明它"不存在"是能力维一切混乱的根（7 组件各自裸 new、各自落盘、3 条互不相交装配链）。
+
+---
+
+## 2. 结构维：已收敛（保留不动）
+
+来源：`FlagHunter_架构决策记录_自顶向下骨架与两关节契约_2026-06-17_V1.md`（状态：P0 完成）。本文原样固化，不重述论证。
+
+### 2.1 六层骨架 + 职责约束
+
+| 层 | 内容 | 职责约束 |
+|---|---|---|
+| **ENTRY（薄）** | TUI / CLI / web / MCP | 只做 I/O + 渲染；**不直接 new** LLM/Tools/Runtime；仅依赖关节 A 契约 |
+| **SESSION ★A** | `AgentSession` 门面 | 唯一装配入口 + 单一事件总线 + 会话/结果生命周期 |
+| **ORCHESTRATION** | `BaseAgent.agent_loop()` / solve-loop | 控制环；§3.1 混合控制面 |
+| **STRATEGY ★B** | `StrategyRegistry` 单一分发 + `chains/{web,sqli,xss,ssti,…}` | registry 驱动取代 if/elif；`ChainContext` 显式传状态 |
+| **CAPABILITY** | `tools/` + `cpa_modules/m1..m6` + `capability_registry` | 工具与横切能力层 |
+| **FOUNDATION** | `runtime / llm / knowledge / config` | 无环 |
+
+### 2.2 不变量 I1–I5（统一编号）
+
+> 收敛说明：ADR 定义 I1–I4；`项目工程治理流程_V1.md` 另定义 I5（可达性）并已有守护测试。本文统一为 I1–I5 canonical 集。
+
+- **I1 依赖单向向下**：foundation 不得 import capability/orchestration/entry；capability 不得 import orchestration/entry。**守护：待建 import-linter（§5.1，当前最大缺口）**。
+- **I2 唯一装配入口**：任何入口构造 agent 必须经 `build_agent_components()`，不得自己 new LLM/Tools/Runtime。守护：`test_run_cli_does_not_import_assembly_primitives` 等点状断言。
+- **I3 事件单源**：agent 事件只走关节 A 的一条 EventBus，入口只订阅。守护：**待补面状测试**。
+- **I4 chain 不读上帝对象**：策略/chain 经 `ChainContext` 取状态，禁止新增对 `dispatcher.*` 的隐式访问。
+- **I5 注册策略可达**：每个注册进 `StrategyRegistry` 的策略必须有可达路径被触发。守护：`tests/unit/agents/test_strategy_reachability.py`（已落地）。**注意：I5 的"可达"目前只校验"注册了能被 list_for_chain 取到"，不校验"chain 在 chain_order 里"——这正是 §3.1 "够不着" 缺口的所在**。
+
+### 2.3 两个已建关节契约
+
+**关节 A — `AgentSession`**（`flaghunter/session/agent_session.py`）
+- API：`create(...)`（唯一装配，内部必调 `build_agent_components`）/ `events() -> EventBus` / `run(task) -> RunResult{flag,findings,tokens,status,session_id}` / `session_store()` / `metrics()`
+- 满足 I2 + I3。状态：CLI/web/mcp/tui 全迁，已全闭合。
+
+**关节 B — `ChainContext` + registry 分发**
+- `ChainContext` 8 字段：`services / target / page_features / hint / extras / state / ingress_handoff / challenge_context`
+- 分发：`_execute_chain` 按 `chain_name` 从 `StrategyRegistry` 取有序策略跑 `_run_strategy_sequence`
+- **关键不变量（零回归前提，不可改）：仅 `outcome.flag` 短路，progress 不短路**
+- 状态：if/elif→registry、破上帝对象（L1 收窄为 `StrategyServices` Protocol）已收口。
+
+### 2.4 依赖方向规则
+
+- I1 是硬规则，严格单向向下，禁反向 import。
+- 唯一合规的"看似反向"：`llm/llm.py` 对 `cpa_modules.m1_api_hub` 是**函数内动态 import，不构成模块级环**。
+- composition root（`build_agent_components`/`build_runtime`）已下沉到 `session/initializer.py`，`interface/initializer.py` 退为兼容 re-export。
+
+---
+
+## 3. 能力维：目标架构（本文新增收敛）
+
+### 3.1 控制面 = 混合（既定路线，代码已 80% 成型）
+
+**翻转结论（2026-06-27 控制面代码亲核坐实）**：红队 V2（控制派：算法打分挑边）与黑板方案（协议派：决策权给模型）在文档里被描绘成"未调和的二选一"。但读代码真身，**当前已落在'混合'路线上，且约 80% 成型**——文档的分歧在代码里早已务实解决。
+
+证据：
+
+| 层 | 形态 | 证据 |
+|---|---|---|
+| **外层循环** | 控制派残留：按预播种 `chain_order` 序列迭代 | `ctf_dispatcher.py:449` `while chain_index < len(chain_order)` |
+| **内层动作选择** | 协议派：黑板 Fact/Intent/Hint 投影注入 prompt，模型自选 | `llm_executor.py:302-326` `project_blackboard(...)` + "prefer the top active intent" + `ctx.llm(prompt)` |
+| **排序** | 轻量建议（非算法控制器）：value→directness(最短链)→confidence | `blackboard.py:138` `intents.sort(key=lambda i:(i["refuted"],-i["value_score"],-i["directness"],-i["confidence"]))`（全文件仅 152 行） |
+
+即：红队 V2 的 `path_shortening_bonus / 最短链` 思想**已实现，但作为给模型的排序建议**，不是 Dijkstra 硬控制器；黑板方案的"协议为主、决策权给模型"**也已落地**（B2 slice）。纯 A 与纯 B 谁都没建。
+
+**决策（推荐，待最终拍板见 §7-O1）**：**形式化混合**。理由：
+- 代码已投票（80% 成型），形式化是低成本；砸向纯 A（Dijkstra 控制器）高成本且跟模型能力赛跑、文档 B 已论证会变冗余代码；拆掉 ranking 退纯 B 会丢掉 directness/最短链信号。
+
+**"强能力够不着"的真正杠杆 = `chain_order` 播种，不是控制哲学**：
+- 历史实证（记忆 [[project_web_chain_reachability_sqli]]）：随便注 SQLi 6m27s 未解，把 `generic_param_sqli` 追加进 web 链后 59s 解出——根因是该 chain **不在 chain_order 里，内层黑板再聪明也轮不到**。
+- 目标修法：**让黑板高分 intent 能把不在 chain_order 里的链动态顶进来**（intent→动态扩 chain_order），而非重写控制器。这是一刀小手术（见 §6-N4）。I5 守护应相应升级为"注册策略在真实运行里可达"。
+
+### 3.2 KnowledgeMemory 门面 = 待建第三关节（关节 C）
+
+**今天知识层一致性审计的核心发现**：担心的"职责重叠"基本不存在——7 个记忆/知识组件语义边界其实干净；真正的债是**没有中心化门面**（各自裸 new、3 条互不相交装配链：dispatcher / crew / session），由此连出 2 个真 bug（§4）。
+
+7 组件归位（亲核测绘）：
+
+| 组件 | 性质 | 存储 | 作用域 | 归属 |
+|---|---|---|---|---|
+| `harness/session_ledger` | **唯一事实源** append-only 事件流 | JSONL | 单 session | **门面·事实源** |
+| `tools/notes`（note_store 封装） | 本题发现 | `loot/notes.json`（workspace 路由） | 单题 | **门面·记录** |
+| `strategy_memory` | 跨题 learned 经验 | `loot/strategy_memory.json`(JSONL) | 跨题持久 | **门面·学习** |
+| `knowledge/rag` | 外部静态知识检索 | `knowledge/embeddings/index.json` | 跨题静态 | **门面·知识库** |
+| `knowledge/graph`(ShadowGraph) | notes 派生攻击图 | 纯内存（从 notes 重建） | 单 session | **门面·攻击图** |
+| `exploit_replay_memory` | 内置 exploit 配方+运行期重建 | 不落盘 | 单题 | ⚠️ 实为 capability，**命名误导**（§4） |
+| `capability_registry` | 工具健康/降级路由 | 纯内存 | 运行期 | capability 层，**不属知识门面** |
+
+**门面 API 草案**（`flaghunter/knowledge/memory_facade.py`，经关节 A 单一注入）：
+```python
+class KnowledgeMemory:
+    ledger: SessionLedger                  # 唯一事实源
+    # —— 写（一切落盘走 workspace 路由，统一根目录）——
+    def record_fact(event): ...            # → ledger
+    def record_finding(note): ...          # → notes(本题) + ledger
+    def record_learned(retro): ...         # → strategy_memory(跨题) + ledger
+    # —— 读 / 检索 ——
+    def recall_strategy(fingerprint): ...  # ← strategy_memory（修复 §4-Bug1 格式）
+    def search_knowledge(query): ...       # ← RAG
+    def attack_graph(): ...                # ← ShadowGraph（从 ledger/notes 派生）
+    # —— 统一投影（注入 LLM planner）——
+    def project_for_prompt(): ...          # {facts, intents, hints}
+```
+原则（取自黑板方案 §2.3，本文采纳为硬约束）：
+- **唯一事实源 = Ledger**，投影是纯只读派生，**绝不持久化第二份真相**。
+- 落盘统一走 `workspaces.utils.get_loot_file`（修 §4-Bug2）。
+- `exploit_replay_memory` / `capability_registry` **不进** KnowledgeMemory（它们是 capability 层），但应改名消歧（§4）。
+
+### 3.3 七问七答（目标态 vs 当前缺口 vs 落点）
+
+| 你的问题 | 目标架构 | 当前缺口 | 落点 |
+|---|---|---|---|
+| **如何执行** | coordinator 持 8 stateless executor，按 ChainContext 驱动 | ✅ 结构已做 | `coordinator` + `*_executor.py` |
+| **如何解题** | solve-loop = 混合控制面（外层 chain_order + 内层黑板协议） | ⚠️ 80% 成型，待形式化 + chain_order 动态化 | `ctf_dispatcher._run_solve_loop:411` |
+| **怎么查知识库** | 经 KnowledgeMemory.search_knowledge 统一检索 | ❌ RAG 散装裸 new ≥6 处，无门面 | 关节 C·RAG |
+| **怎么记录** | 单一 Ledger 事实源 + Notes 投影 | ⚠️ 清楚但无统一门面 | 关节 C·Ledger/Notes |
+| **怎么学习** | 解题后 record_learned→strategy_memory→下题 recall_strategy 注入 | 🔴 **learned_rules 注入坏死**（§4-Bug1） | 关节 C·StrategyMemory |
+| **网络搜集** | web_search 作为 recon executor 一能力，结果进 Ledger | ❌ 无架构，孤立 tavily tool | recon_executor + Ledger |
+| **多 agent / 模块化** | 单 agent 为主 + crew 可选，经同一门面/事件总线 | ⚠️ 装配已拉齐(D4)，协作智能(M5 蚁群)悬空默认关 | `crew/` + M5 |
+
+---
+
+## 4. 已确证缺陷（2026-06-27 审计坐实，带 file:line）
+
+| # | 缺陷 | 证据 | 严重度 |
+|---|---|---|---|
+| **Bug1** | `project_memory` 读 `strategy_memory.json` 格式契约错位 → **跨题 learned_rules 注入静默坏死** | 写=JSONL（`strategy_memory.py:188` append + `_load_entries:781` 逐行）；读=整文件 `json.loads` 找 `data["entries"]`（`project_memory.py:90`）。≥1 条 entry 时必返 `[]`，`except` 吞掉无声 | 🔴 高（智能主链死） |
+| **Bug2** | `strategy_memory` 落盘**无视 workspace 隔离** | `strategy_memory.py:78` 硬编码 `Path("loot")`，仅 env 可覆盖；而 `note_store` 走 workspace 路由（`tools/notes/__init__.py:70/93`）。开隔离时两份记忆落不同根 | 🟡 中 |
+| D1 | `KnowledgeIndexer` 类生产无人构造 + chunking 双实现 | rag.py 只借 `resolve_knowledge_scan_paths`，切块 `rag.py:222-269` 与 `indexer.py:173-224` 重复 | 🟢 低（死代码） |
+| D2 | `workspaces/utils.py:120` `graph` 持久化路径是死配置 | ShadowGraph 永不落盘，与该路径矛盾 | 🟢 低 |
+| D3 | `exploit_replay_memory` 命名误导 | 叫 "memory" 但不持久化、不跨题，实为"内置配方运行期重建" | 🟢 低（命名） |
+
+---
+
+## 5. 防屎山执法层（回答"好不好维护 / 预防屎山"）
+
+诚实判断：治理**意识与骨架优秀**（控制面三足 ADR+基准+流程、守护测试心法、能力层主动对账），但**自动化护栏是点状而非面状**。最该有的两项恰恰缺：
+
+### 5.1 import-linter（I1 自动化）— 最高优先
+
+当前 I1"依赖单向向下"只是纸面不变量 + 2~3 个手写断言，**无 `.importlinter`、无全局依赖图守护**。模块一多，跨层乱 import 不会被自动拦。
+- 动作：写 `.importlinter` 配置声明 6 层 + 单向规则，进 CI。**这是单人+AI 项目防屎山的命根子。**
+
+### 5.2 其余护栏
+
+| 护栏 | 现状 | 目标 |
+|---|---|---|
+| 不变量守护测试 | 点状（I2/I5 有，I1/I3 无面状） | I1–I5 全覆盖守护测试 |
+| eval 确定性回归门 | **未进 CI**（基准 S5 标"无"） | 进 CI：改 prompt/策略把已解题搞挂→自动红 |
+| lint 阻断 | `continue-on-error: true` 不阻断 | ruff+black 阻断合并 |
+| 覆盖率门槛 | 仅 30% | 分阶段抬升 |
+| 失败分类 | 10 类散在字符串（`recovery.py`） | `FailureCategory` enum + 可重试/终止硬区分（绝不重试 ValueError/TypeError） |
+| 新增模块规约 | 靠人记 | 模板 checklist：注册可达测试 + 门面接入 + 不变量绑定 |
+| 风险登记 risk register | ❌ 缺 | 建立 |
+| 文档叙事对账 | roadmap/cpa/verifier 对"权限门现状"描述不一致 | 本 V3 收敛，后续以本文为准 |
+
+---
+
+## 6. 照图施工路线（增量，非重写）
+
+铁律：**增量重构，绝不推倒重写**；每刀独立 commit 可回滚；每项绑 DoD + 守护测试 + 不变量。
+
+| 序 | 任务 | 优先 | DoD | 守护 |
+|---|---|---|---|---|
+| **N1** | 修学习链路（Bug1） | 🥇 P0 | `project_memory` 按 JSONL 读，或调 `strategy_memory.load_learned_rules()` API（去裸路径耦合）；写 N 条后 prompt 能拿到 rules | 新回归测试：注入 N 条→`get_context_for_prompt` 含 rules |
+| **N2** | import-linter（I1） | 🥈 P0 | `.importlinter` 声明 6 层单向，CI 跑通现状 0 违规 | CI job |
+| **N3** | KnowledgeMemory 门面（关节 C） | P1 | `memory_facade.py` 收口 5 组件；经关节 A 注入；落盘统一 workspace 路由（顺修 Bug2） | 门面契约测试 + 装配测试 |
+| **N4** | 控制面形式化 + chain_order 动态化 | P1 | 文档化混合为既定；高分 intent 可动态扩 chain_order；I5 升级为"真实运行可达" | 可达性回归（含 generic_param_sqli 型 fixture） |
+| **N5** | web_search 归位 + 全量 ledger | P2 | web_search 进 recon executor；动作（成功+失败）全量入 ledger | — |
+| **N6** | 死代码清理 + 命名（D1/D2/D3） | P2 | KnowledgeIndexer/重复 chunking 收敛单实现；删 graph 死路径；`exploit_replay_memory` 改名 | 全量门零回归 |
+
+---
+
+## 7. 决定 / 未决 / 不做（诚实边界）
+
+**已决（本文确认）**：
+- 6 层骨架 + I1–I5 不变量（§2）保留为硬约束
+- KnowledgeMemory 门面（关节 C）为目标架构（§3.2）
+- 防屎山护栏面状化，import-linter 最高优先（§5）
+- 施工增量、绑守护测试（§6）
+
+**未决（待用户拍板）**：
+- **O1 控制面最终形式**：本文记录"代码现状=混合（80%）"为**事实**，并**推荐**形式化混合；但最终是否正式批准"混合为唯一路线"（vs 仍保留向纯 A/纯 B 演进的口子）由用户保留。在 O1 拍板前，N4 只做"chain_order 动态化"这一无争议的"够不着"修复，不动控制哲学。
+
+**显式不做（非目标）**：
+- 不重写 foundation 依赖、不改 LLM provider/api_hub 路由
+- 不把控制面砸成纯 A（Dijkstra 算法控制器）——文档 B 已论证会变冗余
+- 不用数据库替 JSONL、不拆双进程、不重写 crew
+- 不在结构债治理期新增叶子 CTF 解题能力补丁
+
+---
+
+## 8. 与既有不变量/治理的衔接
+
+- 本文不替代 `项目工程治理流程_V1.md` 的流程（七阶段生命周期、逐功能内循环、WIP 限制），只替代**架构内容**。
+- 本文不变量 I1–I5 与治理流程一致；新增的护栏（§5）是治理流程"回归门待建"的具体兑现项。
+- 验证/解题判定（done-criteria 四条硬规则）与评估指标，仍以 `基准_验证与解题判定_2026-06-18_V1.md` / `基准_评估指标与失败分类_2026-06-18_V1.md` 为准，本文 §3.3"如何解题"与之衔接。
+
+---
+
+## 9. 被收敛文档索引（指针，原文保留作历史依据）
+
+| 文档 | 本文如何收敛 |
+|---|---|
+| `FlagHunter_架构决策记录_自顶向下骨架与两关节契约_2026-06-17_V1.md` | §2 全盘采纳（结构维），固化为骨架 |
+| `FlagHunter_红队智能体架构_对标顶级红队工程学_2026-06-17_V2.md` | §3.1 采纳"最短链/directness"思想（已落地为排序建议）；不采纳"算法控制器"主张 |
+| `FlagHunter_架构优化方案_黑板控制单元与façade收尾_2026-06-16_V1.md` | §3.1/§3.2 采纳"协议为主、唯一事实源、投影不持久化第二真相" |
+| `FlagHunter_红队黑板智能体架构学习笔记_2026-06-17_V1.md` | 背景笔记，§3 综合参考 |
+| `docs/agent-intelligence-roadmap.md` | §3.3/§5 部分采纳（解除强制计划、子代理、可观测）；权限门叙事与 cpa M4 对账，以本文为准 |
+| `cpa_modules_m1-m6_职责对照表_2026-06-20_V1.md` | §2.1 capability 层引用，保留为能力层权威 |
+| `项目工程治理流程_V1.md` | §5/§8 衔接，流程部分不被替代 |
+| `结构债总账_全仓审计_2026-06-23_V1.md` | 结构债执行账本，与本文 §6 互补（账本记"已做什么"，本文记"该往哪走"） |
+
+---
+
+*本文为活文档的"决策层"。现状类断言若与代码不符，以代码为准并触发本文修订（出 V4）。*
