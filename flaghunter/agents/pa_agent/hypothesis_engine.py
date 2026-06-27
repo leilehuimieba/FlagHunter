@@ -8,6 +8,21 @@ from urllib.parse import parse_qs, urlparse
 from .ctf_state import CTFState, Experiment, FlagProof, Hypothesis
 
 
+# N9 主动探索（O1=C 之 C5，V3 §3.1 / §10.6）：novelty 加成的常开权重 + 卡死升级。
+# 历史 bug（§10.6 点名）：_base_score 里 ``novelty_bonus * 0.1`` 把"未试假设"加成
+# 压成最多 +0.01，在 ``confidence × 0.6`` 面前纯噪声 → 等于没有主动探索。
+# N9 改为**有意义但从属于证据**的加成：常开 base 让未试假设浮过同等证据的已试败者；
+# 随 ``state.no_progress_count`` 升级，卡死越久越偏好未试链（§10.6 "N 轮无进展强制
+# novelty 链"）。**纯确定性**（无 random，守护可复现，项目禁不确定性）。**只重排不删**：
+# 本权重不改 choose_chain_order 的链**集合**（C1 覆盖底线由外层 ``while chain_order``
+# 循环保证够得着的链终被遍历），只改**顺序**；证据地板 capped_ids（rank:107）仍封顶
+# 无观察支持的假设——探索在护栏允许的范围内重排，不砸经验/证据护栏。
+_EXPLORATION_BASE_WEIGHT = 0.1       # 档1 常开（同等证据下未试 > 已试败）
+_EXPLORATION_STUCK_THRESHOLD = 3     # 档2 触发阈值（对齐 recovery._agenda_trigger_threshold 默认）
+_EXPLORATION_STUCK_STEP = 0.1        # 每多卡 1 轮的递增
+_EXPLORATION_WEIGHT_CAP = 0.5        # 上限（有界，配合证据地板不致盖死高置信证据）
+
+
 # Single source of truth for hypothesis-kind → chain routing. Consumed both
 # here (generation-time chain ordering, choose_chain_order) and in
 # ctf_dispatcher as _CHAIN_NAME_FOR_HYPOTHESIS (solve-time reverse lookup,
@@ -78,11 +93,13 @@ class HypothesisEngine:
 
         max_obs = max(1, len(state.observations) + len(state.artifacts))
         seen_experiments = {exp.hypothesis_id for exp in state.experiments}
+        exploration_weight = self._exploration_weight(state)
         base_scores = {
             hypothesis.id: self._base_score(
                 hypothesis,
                 max_obs=max_obs,
                 seen_experiments=seen_experiments,
+                exploration_weight=exploration_weight,
             )
             for hypothesis in items
         }
@@ -688,19 +705,34 @@ class HypothesisEngine:
             return
         hypotheses.append(candidate)
 
+    def _exploration_weight(self, state: CTFState) -> float:
+        """N9 主动探索权重（O1=C·C5）：常开 base + 卡死递增，上限封顶。纯确定性。
+
+        ``state.no_progress_count`` 是活信号（CTFState.mark_no_progress 维护）。
+        阈值内返回常开权重（档1），越过阈值后每多卡 1 轮线性递增（档2），到上限封顶。
+        """
+        no_progress = max(0, int(getattr(state, "no_progress_count", 0) or 0))
+        stuck_over = max(0, no_progress - _EXPLORATION_STUCK_THRESHOLD + 1)
+        weight = _EXPLORATION_BASE_WEIGHT + _EXPLORATION_STUCK_STEP * stuck_over
+        return min(_EXPLORATION_WEIGHT_CAP, weight)
+
     def _base_score(
         self,
         hypothesis: Hypothesis,
         *,
         max_obs: int,
         seen_experiments: set[str],
+        exploration_weight: float = _EXPLORATION_BASE_WEIGHT,
     ) -> float:
         confidence = max(0.0, min(1.0, float(hypothesis.confidence)))
         if hypothesis.kind == "llm_driven_exploration":
             return confidence
         support_score = min(1.0, len(hypothesis.supporting_observations) / max_obs)
-        novelty_bonus = 0.1 if hypothesis.id not in seen_experiments else 0.0
-        return confidence * 0.6 + support_score * 0.3 + novelty_bonus * 0.1
+        # N9: 未试假设拿 exploration_weight（档1 常开 + 档2 卡死升级），已试拿 0。
+        # 加成有意义但从属于证据（confidence×0.6 主导 + 证据地板 capped_ids 封顶
+        # 无观察假设），且只影响排序不改链集合（C1 覆盖底线见模块常量注释）。
+        novelty_bonus = exploration_weight if hypothesis.id not in seen_experiments else 0.0
+        return confidence * 0.6 + support_score * 0.3 + novelty_bonus
 
     def _effective_memory_adjustment(
         self,
