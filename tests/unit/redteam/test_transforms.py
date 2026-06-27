@@ -42,6 +42,16 @@ def test_reversible_encoders_round_trip():
     assert urllib.parse.unquote(urllib.parse.unquote(dbl)) == _SAMPLE
     gz = base64.b64decode(get_transform("gzip_base64").apply(_SAMPLE))
     assert gzip.decompress(gz).decode() == _SAMPLE
+    a85 = get_transform("ascii85").apply(_SAMPLE)
+    assert base64.a85decode(a85, adobe=True).decode() == _SAMPLE
+
+
+def test_octal_escape_round_trips():
+    out = get_transform("octal_escape").apply(_SAMPLE)
+    assert out != _SAMPLE
+    assert "\\" in out
+    decoded = bytes(int(tok, 8) for tok in out.split("\\") if tok).decode()
+    assert decoded == _SAMPLE
 
 
 def test_zero_width_strips_back_to_original():

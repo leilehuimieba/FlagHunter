@@ -80,6 +80,15 @@ def _base85(text: str) -> str:
     return base64.b85encode(_b(text)).decode("ascii")
 
 
+def _ascii85(text: str) -> str:
+    # Adobe/ASCII85 (distinct from b85): <~ ... ~> framing is common.
+    return base64.a85encode(_b(text), adobe=True).decode("ascii")
+
+
+def _octal_escape(text: str) -> str:
+    return "".join(f"\\{b:03o}" for b in _b(text))
+
+
 def _rot13(text: str) -> str:
     import codecs
 
@@ -171,7 +180,11 @@ _TRANSFORMS: Dict[str, Transform] = {
         Transform("base32", "encoding", _base32,
                   "Base32 — not covered by the base64/hex rescan.", True),
         Transform("base85", "encoding", _base85,
-                  "Base85 (b85) — not covered by the rescan.", True),
+                  "Base85 (b85/RFC1924) — not covered by the rescan.", True),
+        Transform("ascii85", "encoding", _ascii85,
+                  "Adobe ASCII85 (<~...~>) — not covered by the rescan.", True),
+        Transform("octal_escape", "encoding", _octal_escape,
+                  "Per-byte octal backslash escapes (\\NNN) — rescan does not un-escape.", True),
         Transform("rot13", "encoding", _rot13,
                   "ROT13 letter rotation — trivial but rescan-blind.", True),
         Transform("url_encode", "encoding", _url,

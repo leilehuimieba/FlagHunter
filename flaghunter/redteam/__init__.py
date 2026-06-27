@@ -28,6 +28,14 @@ from .transforms import (
 )
 from .seeds import AttackSeed, CANARIES, list_seeds, seed_categories
 from .generator import Payload, generate, payloads_to_jsonl, write_batch
+from .probe import (
+    ProbeResult,
+    classify,
+    probe_endpoint,
+    results_to_jsonl,
+    results_to_tsv,
+    summarize,
+)
 
 __all__ = [
     "Transform",
@@ -43,4 +51,10 @@ __all__ = [
     "generate",
     "payloads_to_jsonl",
     "write_batch",
+    "ProbeResult",
+    "classify",
+    "probe_endpoint",
+    "results_to_jsonl",
+    "results_to_tsv",
+    "summarize",
 ]

@@ -137,6 +137,7 @@ TOOL_EXEMPT: frozenset[str] = frozenset(
         "generate_plan",   # planning
         "finish",          # workflow control
         "llm_payload_gen", # red-team payload factory for guardrail eval (generator, not a network action)
+        "guardrail_probe", # red-team runner that probes a guardrail endpoint (eval harness, not a network action)
     }
 )
 
