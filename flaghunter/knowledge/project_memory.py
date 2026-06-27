@@ -89,7 +89,13 @@ class ProjectMemory:
         wrapper dict with an ``entries`` key).
         """
         rules: list[str] = []
-        sm_path = self._root / "loot" / "strategy_memory.json"
+        # Bug2 fix: resolve through the same workspace-aware helper the writer
+        # (StrategyMemoryStore) uses, so learned-rule injection reads the SAME
+        # file the dispatcher wrote under an isolated workspace — not a stale
+        # CWD/project-root copy.
+        from ..workspaces.utils import get_strategy_memory_file
+
+        sm_path = get_strategy_memory_file(root=self._root)
         if not sm_path.exists():
             return rules
         try:

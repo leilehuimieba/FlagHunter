@@ -5,6 +5,7 @@ This module will emit a single warning per run if no active workspace is set.
 """
 
 import logging
+import os
 import shutil
 from pathlib import Path
 from typing import Optional
@@ -79,6 +80,25 @@ def get_loot_file(relpath: str, root: Optional[Path] = None) -> Path:
     p = base / relpath
     p.parent.mkdir(parents=True, exist_ok=True)
     return p
+
+
+def get_strategy_memory_file(root: Optional[Path] = None) -> Path:
+    """Resolve the cross-challenge strategy-memory file path (single source).
+
+    Precedence: ``FLAGHUNTER_STRATEGY_MEMORY_PATH`` env override (ops / test
+    isolation) > active-workspace-routed loot file > global ``loot/``.
+
+    Both the writer (``StrategyMemoryStore``) and the learned-rules reader
+    (``ProjectMemory._load_learned_rules``) MUST resolve through this one
+    function so they always agree on which file holds the active workspace's
+    memory. Routing only the writer through the workspace while the reader kept
+    a CWD/project-root path is exactly the Bug2 split that left learned-rule
+    injection reading a stale file under an isolated workspace.
+    """
+    env = os.environ.get("FLAGHUNTER_STRATEGY_MEMORY_PATH")
+    if env:
+        return Path(env)
+    return get_loot_file("strategy_memory.json", root=root)
 
 
 def resolve_knowledge_paths(root: Optional[Path] = None) -> dict:

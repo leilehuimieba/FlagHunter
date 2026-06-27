@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import math
-import os
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -72,11 +71,14 @@ class StrategyMemoryEntry:
 class StrategyMemoryStore:
     def __init__(self, path: str | Path | None = None):
         if path is None:
-            # Allow ops (and test isolation) to relocate the cross-challenge
-            # memory file without changing CWD.
-            path = os.environ.get("FLAGHUNTER_STRATEGY_MEMORY_PATH") or (
-                Path("loot") / "strategy_memory.json"
-            )
+            # Bug2 fix: the default must follow the active workspace (like the
+            # notes store) so isolated workspaces keep separate cross-challenge
+            # memory instead of all writing to one CWD-relative loot/ file. The
+            # learned-rules reader (ProjectMemory) resolves the same path via
+            # the same helper, so writer and reader never split.
+            from ...workspaces.utils import get_strategy_memory_file
+
+            path = get_strategy_memory_file()
         self.path = Path(path)
 
     async def query(

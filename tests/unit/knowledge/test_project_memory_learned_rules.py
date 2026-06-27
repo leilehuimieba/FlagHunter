@@ -11,7 +11,17 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from flaghunter.knowledge.project_memory import ProjectMemory
+
+
+@pytest.fixture(autouse=True)
+def _clear_strategy_env(monkeypatch):
+    """These tests pin the file via ``project_root``, so the env override
+    (set by conftest's autouse isolation fixture) must be cleared — otherwise
+    the now-shared resolver would read the env path instead of root/loot/."""
+    monkeypatch.delenv("FLAGHUNTER_STRATEGY_MEMORY_PATH", raising=False)
 
 
 def _write_jsonl(root: Path, entries: list[dict]) -> None:
