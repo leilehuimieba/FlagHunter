@@ -140,7 +140,7 @@
 | `exploit_replay_memory` | 内置 exploit 配方+运行期重建 | 不落盘 | 单题 | ⚠️ 实为 capability，**命名误导**（§4） |
 | `capability_registry` | 工具健康/降级路由 | 纯内存 | 运行期 | capability 层，**不属知识门面** |
 
-**门面 API 草案**（`flaghunter/knowledge/memory_facade.py`，经关节 A 单一注入）：
+**门面 API**（`flaghunter/agents/pa_agent/memory_facade.py` — ⚠️ **非** `knowledge/`；见下"归属修正"）：
 ```python
 class KnowledgeMemory:
     ledger: SessionLedger                  # 唯一事实源
@@ -159,6 +159,13 @@ class KnowledgeMemory:
 - **唯一事实源 = Ledger**，投影是纯只读派生，**绝不持久化第二份真相**。
 - 落盘统一走 `workspaces.utils.get_loot_file`（修 §4-Bug2）。
 - `exploit_replay_memory` / `capability_registry` **不进** KnowledgeMemory（它们是 capability 层），但应改名消歧（§4）。
+
+**归属修正（as-built，N3c 实证）**：草案把门面放 `knowledge/`，但门面组合 `strategy_memory` / `session_context`（都在 `agents/pa_agent` = ORCHESTRATION）。若放 `knowledge/`（CAPABILITY）则 import 它们=CAPABILITY→ORCHESTRATION，**违反 I1，被 N2 的 `.importlinter` 当场拦下**。门面正确归属由"它组合什么"决定 = **`agents/pa_agent/memory_facade.py`**（与消费者 ContextAssembler 同层，向下 import knowledge、平行 import strategy/session_context）。教训：门面层级不能拍脑袋，由依赖闭包反推；执法层（import-linter）正是在此处替我们把关。
+
+**N3 收官（2026-06-27，双 agent 并行 + 主控亲核 + 用户拍板"读侧先收口"）**：
+- ✅ **N3a（39e55c1）修 Bug2**：writer(StrategyMemoryStore)/reader(ProjectMemory._load_learned_rules) 统一走新增单一解析器 `workspaces.utils.get_strategy_memory_file`（精度 env>workspace>global），杜绝 workspace 模式下二者分裂（否则 N1 复活的 learned_rules 注入会再断）。5 守护 + 724 回归零回归。
+- ✅ **N3b（b7d8cbc）消 base_agent→session_store 真债**：改依赖注入 + 优雅降级（SESSION 层 initializer:386 早已注入，lazy 自构造多余），删 import 边，`.importlinter` orchestration-below-session 契约**零 baseline 全清**。169 回归零回归。
+- ✅ **N3c（本提交）门面本体 + 读侧接线**：`memory_facade.py` 建为**协调器非新存储**（owns no state / persists no 2nd truth），读侧 `project_context`/`rag_search`/`session_run_context`/`search_knowledge`/`attack_graph` 接进 ContextAssembler（**字节级一致**，3 守护 + 14 单测 + 637 回归零回归），recall/写侧 `recall_strategy`/`record_learned`/`record_finding` **定义为对同一 canonical sink 的诚实薄委托**（非假 stub=无第二写真相）；**3 条写链暂不强迁**（下一增量 N3c-2）。
 
 ### 3.3 七问七答（目标态 vs 当前缺口 vs 落点）
 
@@ -218,7 +225,7 @@ class KnowledgeMemory:
 |---|---|---|---|---|
 | **N1** | 修学习链路（Bug1） | 🥇 P0 | `project_memory` 按 JSONL 读，或调 `strategy_memory.load_learned_rules()` API（去裸路径耦合）；写 N 条后 prompt 能拿到 rules | 新回归测试：注入 N 条→`get_context_for_prompt` 含 rules |
 | **N2** | import-linter（I1） | 🥈 P0 | `.importlinter` 声明 6 层单向，CI 跑通现状 0 违规 | CI job |
-| **N3** | KnowledgeMemory 门面（关节 C） | P1 | `memory_facade.py` 收口 5 组件；经关节 A 注入；落盘统一 workspace 路由（顺修 Bug2） | 门面契约测试 + 装配测试 |
+| **N3** | KnowledgeMemory 门面（关节 C） | P1 | ✅ **收官**（N3a Bug2 / N3b base_agent DI / N3c 门面+读侧接线 ContextAssembler）；门面落 `agents/pa_agent/memory_facade.py`（归属修正见 §3.2）；写侧 3 链暂不迁=N3c-2 | ✅ 门面 14 单测 + ContextAssembler 字节级守护 + import-linter 4 kept |
 | **N4** | 控制面形式化 + chain_order 动态化 | P1 | 文档化混合为既定；高分 intent 可动态扩 chain_order；I5 升级为"真实运行可达" | 可达性回归（含 generic_param_sqli 型 fixture） |
 | **N5** | web_search 归位 + 全量 ledger | P2 | web_search 进 recon executor；动作（成功+失败）全量入 ledger | — |
 | **N6** | 死代码清理 + 命名（D1/D2/D3） | P2 | KnowledgeIndexer/重复 chunking 收敛单实现；删 graph 死路径；`exploit_replay_memory` 改名 | 全量门零回归 |

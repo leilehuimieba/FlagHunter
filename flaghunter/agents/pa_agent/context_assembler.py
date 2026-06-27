@@ -31,6 +31,19 @@ class ContextAssembler:
 
     def __init__(self, agent: BaseAgent):
         self._agent = agent
+        self._km_cache: Any = None
+
+    def _knowledge(self):
+        """Lazily build the KnowledgeMemory front door for this agent.
+
+        All knowledge-store access in this assembler routes through the facade
+        (关节C) instead of newing ProjectMemory / SessionContextView / reaching
+        agent.rag_engine directly."""
+        if self._km_cache is None:
+            from .memory_facade import KnowledgeMemory
+
+            self._km_cache = KnowledgeMemory.from_agent(self._agent)
+        return self._km_cache
 
     def assemble(self, phase: str = "") -> str:
         """Run the full pipeline and return a prompt-ready context string."""
@@ -47,17 +60,12 @@ class ContextAssembler:
         # 1. Notes — skip; already handled by pa_agent.get_system_prompt()
         sources["notes"] = []
 
-        # 2. Project memory
-        try:
-            from flaghunter.knowledge.project_memory import ProjectMemory
-            pm = ProjectMemory()
-            target = getattr(agent, "target", "") or ""
-            pm_ctx = pm.get_context_for_prompt(target=target, phase=self._detect_phase())
-            if pm_ctx:
-                sources["project"] = [{"key": "project_memory", "content": pm_ctx, "category": "info", "confidence": "high"}]
-            else:
-                sources["project"] = []
-        except Exception:
+        # 2. Project memory (via the KnowledgeMemory front door)
+        target = getattr(agent, "target", "") or ""
+        pm_ctx = self._knowledge().project_context(target=target, phase=self._detect_phase())
+        if pm_ctx:
+            sources["project"] = [{"key": "project_memory", "content": pm_ctx, "category": "info", "confidence": "high"}]
+        else:
             sources["project"] = []
 
         # 3. Harness session context
@@ -73,10 +81,9 @@ class ContextAssembler:
                 }
             ]
 
-        # 4. RAG (only if engine is available)
+        # 4. RAG (via the KnowledgeMemory front door)
         sources["rag"] = []
-        rag_engine = getattr(agent, "rag_engine", None)
-        if rag_engine and agent.conversation_history:
+        if agent.conversation_history:
             try:
                 last_msg = agent.conversation_history[-1].content
                 if isinstance(last_msg, list):
@@ -84,7 +91,7 @@ class ContextAssembler:
                         str(p.get("text", "")) for p in last_msg if isinstance(p, dict)
                     )
                 if last_msg:
-                    rag_results = rag_engine.search(last_msg)
+                    rag_results = self._knowledge().rag_search(last_msg)
                     if rag_results:
                         sources["rag"] = [
                             {"key": f"rag_{i}", "content": r, "category": "info", "confidence": "medium"}
@@ -100,17 +107,12 @@ class ContextAssembler:
         project_root = getattr(self._agent, "project_root", None)
         if not run_id or project_root is None:
             return ""
-        try:
-            from pathlib import Path
-            from .session_context import SessionContextView
-
-            root = Path(project_root)
-            context = SessionContextView(
-                ledger_root=root / "loot" / "session_ledgers",
-                artifact_root=root / "loot" / "artifact_registry",
-                checkpoint_root=root / "loot" / "checkpoints",
-            ).build_run_context(run_id, event_limit=5, artifact_limit=5)
-        except Exception:
+        # Session-ledger store access routes through the KnowledgeMemory front
+        # door; this method keeps its own projection/formatting below.
+        context = self._knowledge().session_run_context(
+            run_id, event_limit=5, artifact_limit=5
+        )
+        if not context:
             return ""
 
         recent_event_types = [
