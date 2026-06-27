@@ -6,6 +6,36 @@ from typing import Any
 
 from .base import _ChainOutcome
 
+# Single source of truth for the ordered web-strategy sequence. Every kind here
+# MUST resolve to a registered StrategyDefinition (StrategyRegistry.build_default);
+# the I5 reachability guard (tests/unit/agents/test_chain_reachability_invariant.py)
+# pins this so the order can never silently reference a phantom strategy.
+# `path_traversal` is intentionally absent: it is generated as a hypothesis kind
+# (hypothesis_engine `_CHAIN_BY_KIND`/_rule_based_hypotheses) but has no distinct
+# strategy — the same `_has_file_endpoint` trigger is exploited by
+# `file_read_endpoint`, so listing it here only produced a silently-skipped no-op
+# (strategy_registry.get → None → `continue`). A distinct path-traversal technique
+# is a capability-layer gap, not a reachability bug.
+WEB_STRATEGY_ORDER = [
+    "hint_chain_followup",
+    "file_read_endpoint",
+    "hash_guarded_file_read",
+    "hash_reconstruction_attack",
+    "ssti_probe",
+    "ssti_identify",
+    "ssti_exploit",
+    "unicode_numeric_form_bypass",
+    "contact_report_chain",
+    "backup_source_leak",
+    "php_unserialize_magic_method",
+    "generic_param_sqli",
+    "jwt_manipulation",
+    "generic_param_cmdi",
+    "generic_param_ssrf",
+    "graphql_introspection",
+    "nosql_injection",
+]
+
 
 class WebChainMixin:
     """Generic web route wrapper and ordered web-strategy orchestration."""
@@ -41,26 +71,7 @@ class WebChainMixin:
             if observed_outcome.reason:
                 reasons.append(observed_outcome.reason)
 
-        web_strategy_order = [
-            "hint_chain_followup",
-            "file_read_endpoint",
-            "path_traversal",
-            "hash_guarded_file_read",
-            "hash_reconstruction_attack",
-            "ssti_probe",
-            "ssti_identify",
-            "ssti_exploit",
-            "unicode_numeric_form_bypass",
-            "contact_report_chain",
-            "backup_source_leak",
-            "php_unserialize_magic_method",
-            "generic_param_sqli",
-            "jwt_manipulation",
-            "generic_param_cmdi",
-            "generic_param_ssrf",
-            "graphql_introspection",
-            "nosql_injection",
-        ]
+        web_strategy_order = list(WEB_STRATEGY_ORDER)
         if self._recent_php_unserialize_source_exploit():
             web_strategy_order = [
                 kind
