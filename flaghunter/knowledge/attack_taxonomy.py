@@ -136,6 +136,7 @@ TOOL_EXEMPT: frozenset[str] = frozenset(
         "delegate_task",   # orchestration glue
         "generate_plan",   # planning
         "finish",          # workflow control
+        "llm_payload_gen", # red-team payload factory for guardrail eval (generator, not a network action)
     }
 )
 
