@@ -137,9 +137,14 @@ def test_coverage_report_aggregates_and_surfaces_gaps():
     inpv07 = report["covered"].get("WSTG-INPV-07", [])
     assert "strategy:xxe_injection" in inpv07
 
-    # known remaining gap: reflected XSS (WSTG-INPV-01) is catalogued but
-    # unimplemented (only stored XSS exists) → still a gap.
-    assert "WSTG-INPV-01" in report["gaps"]
+    # Reflected XSS (WSTG-INPV-01) is now covered by the reflected_xss strategy
+    # (was the previously-surfaced web gap; stored XSS = WSTG-INPV-02).
+    inpv01 = report["covered"].get("WSTG-INPV-01", [])
+    assert "strategy:reflected_xss" in inpv01
+
+    # known remaining gap: External Remote Services (T1133) is catalogued but
+    # has no covering tool/strategy → still a gap.
+    assert "T1133" in report["gaps"]
 
     # gaps and covered are disjoint
     assert not (set(report["gaps"]) & set(report["covered"]))

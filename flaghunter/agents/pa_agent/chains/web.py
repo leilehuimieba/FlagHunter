@@ -36,6 +36,7 @@ WEB_STRATEGY_ORDER = [
     "graphql_introspection",
     "nosql_injection",
     "xxe_injection",
+    "reflected_xss",
 ]
 
 

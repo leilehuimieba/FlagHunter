@@ -683,6 +683,38 @@ async def _execute_xxe_probe(context: StrategyContext):
     return {"progress": False, "reason": "No XXE handler available"}
 
 
+def _reflected_xss_precondition(context: StrategyContext) -> bool:
+    """疑似反射型 XSS 面：可注入查询参数面，或搜索/回显类内容线索。
+
+    主信号：带命名输入的 GET 表单或带 query 参数的链接（与 cmdi 同型的可注入面，
+    探针走 GET 反射）。弱信号：内容/HTML 出现 search / 关键词回显语义，使裸搜索框
+    也能经 fallback 参数名获得一次真实探测。
+    """
+    if _generic_param_cmdi_precondition(context):
+        return True
+    combined = (
+        str(context.page_features.get("content") or "")
+        + " "
+        + str(context.page_features.get("html") or "")
+    ).lower()
+    return any(
+        token in combined
+        for token in ("search", "type=\"search\"", "type='search'", "?q=", "&q=", "keyword", "echo")
+    )
+
+
+async def _execute_reflected_xss_probe(context: StrategyContext):
+    """执行反射型 XSS 探测（注入 canary，确认未转义回显）。"""
+    # ``_run_reflected_xss_strategy``:Protocol 外 optional duck-typed 面(见 _execute_jwt_probe)。
+    dispatcher = context.services
+    target = context.target
+    if hasattr(dispatcher, "_run_reflected_xss_strategy"):
+        return await dispatcher._run_reflected_xss_strategy(target, context.page_features)
+    if hasattr(dispatcher, "_run_llm_driven_exploration"):
+        return await dispatcher._run_llm_driven_exploration(context)
+    return {"progress": False, "reason": "No reflected XSS handler available"}
+
+
 __all__ = [
     "ChainContext",
     "StrategyContext",
@@ -1123,6 +1155,21 @@ def _register_api_injection_strategies(registry: "StrategyRegistry") -> None:
             escalation_condition="若实体被禁用或无回显，转向 OOB XXE（外带通道）、参数实体或 LLM 驱动探索。",
             precondition=lambda ctx: _xxe_precondition(ctx),
             execute=lambda ctx: _execute_xxe_probe(ctx),
+        )
+    )
+
+    # 反射型 XSS 策略（客户端注入原语：未转义回显 canary 确认）
+    registry.register(
+        StrategyDefinition(
+            kind="reflected_xss",
+            chain_name="web",
+            precondition_description="存在可注入查询参数面（带命名输入的 GET 表单或带 query 参数的链接），或内容含 search/关键词回显语义。",
+            minimal_experiment="向每个反射面注入带唯一 marker 的 canary（<script>/<img onerror>/<svg onload>/\"><b>），观察 marker 是否在可执行 HTML 上下文中未转义回显。",
+            success_signal="响应未转义回显 canary（证明客户端注入原语），或顺带回显 verified/runtime flag。",
+            failure_signal="所有反射面 canary 均被实体编码（&lt;script&gt;）或无回显。",
+            escalation_condition="确认反射但需取 flag 时，转 admin-bot / SID 窃取（xss_admin_bot_sid）或 OOB 外带。",
+            precondition=lambda ctx: _reflected_xss_precondition(ctx),
+            execute=lambda ctx: _execute_reflected_xss_probe(ctx),
         )
     )
 

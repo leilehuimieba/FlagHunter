@@ -146,6 +146,7 @@ STRATEGY_TECHNIQUES: dict[str, list[str]] = {
     "generic_param_sqli": ["WSTG-INPV-05", "T1190"],
     "generic_param_cmdi": ["WSTG-INPV-12", "T1190"],
     "generic_param_ssrf": ["WSTG-INPV-19", "T1190"],
+    "reflected_xss": ["WSTG-INPV-01", "T1059"],
     "xss_admin_bot_sid": ["WSTG-INPV-02", "T1190"],
     "unicode_numeric_form_bypass": ["WSTG-BUSL-01"],
     "contact_report_chain": ["WSTG-BUSL-07"],

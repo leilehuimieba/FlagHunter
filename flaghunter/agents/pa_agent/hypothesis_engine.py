@@ -73,6 +73,9 @@ _CHAIN_BY_KIND = {
     # XXE runs as a web-chain strategy (chains/web.py WEB_STRATEGY_ORDER), like
     # graphql/nosql/insecure_deserialization — not a standalone chain.
     "xxe_injection": "web",
+    # Reflected XSS runs as a web-chain strategy too (client-side injection
+    # primitive), not a standalone chain — see chains/web.py WEB_STRATEGY_ORDER.
+    "reflected_xss": "web",
 }
 
 

