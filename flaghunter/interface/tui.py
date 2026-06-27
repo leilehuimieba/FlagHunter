@@ -105,6 +105,7 @@ from .tui_info_commands import InfoCommandMixin
 from .tui_retry_commands import RetryCommandMixin
 from .tui_mcp_mode import McpModeMixin
 from .tui_runtime_probe import RuntimeProbeMixin
+from .tui_notification import NotificationMixin
 
 # ANSI escape sequence pattern for stripping control codes from input
 _ANSI_ESCAPE = re.compile(
@@ -119,7 +120,7 @@ if TYPE_CHECKING:
 # ----- Main TUI App -----
 
 
-class FlagHunterTUI(ToolResultFormatMixin, ScanCommandMixin, ConversationMixin, CpaCommandMixin, ModeCommandMixin, TerminalSpawnMixin, CtfMemoryMixin, CrewMixin, CtfRenderMixin, CtfApplyMixin, CtfRunnerMixin, CtfCommandMixin, InfoCommandMixin, RetryCommandMixin, McpModeMixin, RuntimeProbeMixin, App):
+class FlagHunterTUI(ToolResultFormatMixin, ScanCommandMixin, ConversationMixin, CpaCommandMixin, ModeCommandMixin, TerminalSpawnMixin, CtfMemoryMixin, CrewMixin, CtfRenderMixin, CtfApplyMixin, CtfRunnerMixin, CtfCommandMixin, InfoCommandMixin, RetryCommandMixin, McpModeMixin, RuntimeProbeMixin, NotificationMixin, App):
     """Main FlagHunter TUI Application"""
 
     # ═══════════════════════════════════════════════════════════
@@ -702,55 +703,6 @@ class FlagHunterTUI(ToolResultFormatMixin, ScanCommandMixin, ConversationMixin, 
                 logging.getLogger(__name__).exception(
                     "Failed to notify operator about status bar update failure: %s", ne
                 )
-
-    def _show_notification(self, level: str, message: Any) -> None:
-        """Display a short operator-visible notification in the chat area."""
-        try:
-            if level.lower() == "flag_found":
-                self._flag_banner = message
-                self._add_system(f"🚩 FLAG FOUND: {message}")
-                self._update_header()
-                return
-            if level.lower() == "tool_install_required":
-                payload = message if isinstance(message, dict) else {"message": str(message)}
-                self._pending_tool_install = payload
-                self._add_system(self._format_tool_install_panel(payload))
-                self._set_status("waiting", "agent" if self._mode == "agent" else self._mode)
-                return
-            # Prepend a concise system message so it is visible in the chat
-            prefix = "[!]" if level.lower() in ("error", "critical") else "[!]"
-            self._add_system(f"{prefix} {message}")
-            # Set status bar to error briefly for emphasis
-            if level.lower() in ("error", "critical"):
-                self._set_status("error")
-        except Exception as e:
-            logging.getLogger(__name__).exception(
-                "Failed to show notification in TUI: %s", e
-            )
-
-    def _notifier_callback(self, level: str, message: Any) -> None:
-        """Callback wired to `flaghunter.interface.notifier`.
-
-        This will be registered on mount so other modules can emit notifications.
-        """
-        try:
-            try:
-                asyncio.get_running_loop()
-                # Already on the app's event loop (e.g. called from an asyncio task).
-                # call_from_thread would raise here — call directly instead.
-                self._show_notification(level, message)
-                return
-            except RuntimeError:
-                pass
-            # Called from a worker thread — use call_from_thread.
-            if hasattr(self, "call_from_thread"):
-                self.call_from_thread(self._show_notification, level, message)
-            else:
-                self._show_notification(level, message)
-        except Exception as e:
-            logging.getLogger(__name__).exception(
-                "Exception in notifier callback handling: %s", e
-            )
 
     def _add_message(self, widget: Static) -> None:
         """Add a message widget to chat"""
