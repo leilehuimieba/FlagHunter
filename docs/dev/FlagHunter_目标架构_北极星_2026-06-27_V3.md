@@ -289,26 +289,80 @@ class KnowledgeMemory:
 
 注意：①CLI 双入口债（argparse+Typer）；②**Web 可视化虽强但 CTF 专用状态没做成 Web UI**，与 TUI 文本面板不对齐。
 
-### 10.2 模型与多模态（两个诚实的"没有"）
+### 10.2 感知链：agent 如何探知环境 + 采集有效信息（Runtime→diagnose→phase_recon→CTFState）
+
+10.1 讲"信息怎么出去（展示）"，本节讲**信息怎么进来**——agent"睁眼看世界"的完整链路。这是"只加能力层"愿景里**最被忽视的一条接缝**：感知断了，上层再聪明也是盲打。证据均 file:line。
+
+**对外接口边界（你问的"具体实现依靠能力层、是不是还有对外接口"——是）**：能力层对外的唯一法定接缝 = `Runtime` ABC（`runtime.py:381`），agent 逻辑层只对着 5 个动词编程、**从不直接** new socket/subprocess/playwright：
+
+```
+   agent 逻辑（chains / strategies / hypotheses / recon_executor）—— 只表达"意图"
+        │
+        ▼  ═══════ Runtime ABC（对外接口·5 动词，I1 钉死，import-linter[N2] 执法）═══════
+   execute_command │ browser_action │ proxy_action │ start·stop │ is_running·get_status
+        ▲  —— 实现"怎么做"
+   LocalRuntime / DockerRuntime / SSHRuntime / HybridBrowserRuntime
+   （旁路：tools/loader 自注册工具 · mcp/manager 消费外部 MCP server）
+```
+
+**感知链五环（实证流水线）**：
+
+```
+① 自知（能力探测）  browser_action("diagnose") → BrowserCapabilities   runtime.py:357
+   ├ 铁律(H18)：能力是"运行时决定"非"类静态" → 调用方必须探测、绝不按类假设
+   └ 字段：available / engine(playwright|cli_fetch) / rendered_dom / js_execution
+            / cookies / supports_actions[...]
+        │  （同一 LocalRuntime：装了 Playwright=rendered_dom，没装=cli_fetch；Docker/SSH 恒 curl）
+        ▼
+② 采集（phase_recon）                                                  recon_executor.py:92
+   ├ diagnose 通过 → navigate → get_content → get_forms → get_cookies  （浏览器渲染态）
+   ├ 无论如何再 proxy_action("get") 补采/回退                          recon_executor.py:226
+   ├ 抽端点 / 表单 / 内嵌链接 + _fingerprint_framework（8 签名）+ 惯例路由播种
+   └ 优雅降级而非崩：缺工具记 recon_missing_tools、错误记 recon_errors  dispatcher_helpers.py:854
+        │  产出 page_features{html,content,title,forms,cookies,endpoints,recon_errors,...}
+        ▼
+③ 定型（detect_type）  page_source+url → web/sqli/xss/lfi/ssrf/upload/jwt/misc   ctf_planner.py:324
+        │  （纯证据启发式 → 喂 choose_chain_order 播种 chain_order，即 N4 那条链的源头）
+        ▼
+④ 沉淀（CTFState）  add_observation(kind/value/source/metadata) + add_artifact(name+location 去重)
+        │                                                              ctf_state.py:196 / :234
+        ▼
+⑤ 认知（黑板 → 假设 → 决策）  blackboard 投影 → HypothesisEngine 消费 → choose_chain_order
+   = "感知 → 认知 → 决策"闭环，接回 §3.1 混合控制面
+```
+
+**架构原则落点**：你全局 CLAUDE.md 的"先被动观察"在此**字面编码**——先 diagnose 探针、再渲染态采集、curl 兜底、失败软记录，全程不抛异常。
+
+**这条链上的三处断点（机制丰富，认知通道窄）**：
+
+| # | 断点 | 后果 | 落点 |
+|---|---|---|---|
+| 🔴 | ②采集只取 html/text；**截图存盘不喂模型**（`runtime.py:1151`/`browser/__init__.py:124`） | 感知链在"视觉"维断裂——图片 flag/二维码/隐写/验证码全瞎 | **N7 多模态**（详 §10.3） |
+| 🔴 | ③`detect_type` 是**硬编码启发式非模型驱动** | 启发式未覆盖的题型一律退 `web` 兜底，定型粗糙 | N7 顺带（vision/LLM 辅助定型）或留观 |
+| 🟡 | ①能力探测**只覆盖 browser**，`execute_command`/`proxy_action` 无对称 capability-probe | shell 能力（nmap 等）靠失败后记 `recon_missing_tools`，无主动自检 | 待办：对称探针（小手术，非 N 系列） |
+
+**一句话**：对外接口 = `Runtime` 5 动词（I1/import-linter 钉死）；探知环境 = `diagnose` 能力探针（铁律：探测不假设）；采集信息 = `phase_recon` 五环流水线沉淀进 `CTFState`/黑板供假设消费。**缺口集中在"纯文本、无多模态"，即 §10.3 + N7。**
+
+### 10.3 模型与多模态（两个诚实的"没有"）
 
 - 接入成熟：LiteLLM 统一层 + `m1_api_hub` 多 provider failover/错误分级/预算（`llm.py:285-388`）。支持 Anthropic/OpenAI/**DeepSeek**/Ollama/中继。默认故意无兜底 model（`constants.py:64-75`）。
 - **DeepSeek = 能用非一等公民**：有 reasoning_content 适配（`llm.py:32-57`），但 `model_router` 智能择优**只内建 Claude/GPT 两族打分**（`model_router.py:92-125`），DeepSeek 不被主动择优。
 - 🔴 **模型效果无实测**：benchmarks 无 model 字段、eval/replay 不用 LLM（`eval/replay.py:1-11`）。**回答"Claude vs DeepSeek 效果"须先建模型横评 eval**。
 - 🔴 **多模态对 LLM 完全没有**：消息体永远纯文本，无 image 通道；截图只存盘不喂模型（`runtime.py:1151`/`browser/__init__.py:124`）；唯一图像识别是硬编码 easyocr 验证码 OCR（`dispatcher_helpers.py:1123`，非 LLM）。**对 CTF 是真能力缺口**（图片 flag/二维码/隐写/验证码全瞎）。
 
-### 10.3 可视化（半成型 + 一处浪费）
+### 10.4 可视化（半成型 + 一处浪费）
 
 - Web>TUI。Web 有 SSE + SVG 图，但**那图是"执行事件时间线"非攻击链路图**（`traces.jsx:772`）。
 - 🔴 **最大浪费**：黑板（facts/intents/hints/decision）**已序列化进 API**（`web_server.py:525`），数据已到浏览器，**前端零渲染**（`web/console/src` grep blackboard 无命中）。
 - 攻击链路图（ShadowGraph）只 `to_mermaid()` 文本（`graph.py:452`），TUI `/graph` 让用户自己拷到 mermaid.live，Web 不展示。**实时管道与数据都到位，差"画出来"的 UI 层。**
 
-### 10.4 解题四环现状（细节锚点）
+### 10.5 解题四环现状（细节锚点）
 
 - **目标确认**：多路归一（用户 URL + docker-compose 端口推导 `coordinator.py:206` + 偏好端口打分）。无独立存活探针，靠 recon 隐式 + 冷启动重试（`ctf_dispatcher.py:1076`）。
-- **信息收集**：`recon_executor.py`——浏览器探针 + 框架指纹（8 签名）+ 惯例路由播种 + 认证表单收割；单次 phase + 可重复探索议程（`add_exploration_item`，hint_strength 分级）。
+- **信息收集**：`recon_executor.py`——浏览器探针 + 框架指纹（8 签名）+ 惯例路由播种 + 认证表单收割；单次 phase + 可重复探索议程（`add_exploration_item`，hint_strength 分级）。**完整感知链（对外接口→能力探测→采集→定型→沉淀→认知）见 §10.2。**
 - **学习回路**：session 内置信度调整 → 跨题 `strategy_memory.json` 沉淀（learned_rules 强制泛化 `:1053`）→ 下次 query top-3 + 信息素重排 chain_order。**注意 learned_rules 注入今天证明坏死（§4-Bug1）。**
 
-### 10.5 ★反僵化现状：受约束 exploitation + 缺主动探索
+### 10.6 ★反僵化现状：受约束 exploitation + 缺主动探索
 
 **好消息——已有 5 道护栏防"经验压制证据"**（非纯利用）：
 
@@ -324,7 +378,7 @@ class KnowledgeMemory:
 
 **真缺口——缺主动探索**：全仓无 ε-greedy/无随机/无强制试未试链；novelty 奖励形同虚设（×0.1→+0.01）。当历史经验与当前证据都指向同一条已知失败路时，无随机扰动跳出，只能靠 LLM 兜底（确定性、排最后）。**这不是接缝问题，是控制面策略问题——归 §3.1 混合控制面，作显式探索策略加上去（如探索预算/N 轮无进展强制 novelty 链），不塞进 strategy_memory。**
 
-### 10.6 扩展接缝总表（"只加能力层"的前置条件）
+### 10.7 扩展接缝总表（"只加能力层"的前置条件）
 
 | 想加什么 | 接缝现状 | 缺口/落点 |
 |---|---|---|
@@ -335,7 +389,7 @@ class KnowledgeMemory:
 | **新输入模态（视觉）** | ❌ 完全无接缝 | **多模态消息层 + vision tool（N7）** |
 | 新可视化 | ⚠️ SPA 页可加，数据已就绪 | 黑板/攻击图差渲染（N8） |
 
-### 10.7 路线增补（并入 §6）
+### 10.8 路线增补（并入 §6）
 
 | 序 | 任务 | 优先 | DoD |
 |---|---|---|---|
