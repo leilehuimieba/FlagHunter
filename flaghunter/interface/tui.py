@@ -106,6 +106,7 @@ from .tui_retry_commands import RetryCommandMixin
 from .tui_mcp_mode import McpModeMixin
 from .tui_runtime_probe import RuntimeProbeMixin
 from .tui_notification import NotificationMixin
+from .tui_wakeup import WakeUpMixin
 
 # ANSI escape sequence pattern for stripping control codes from input
 _ANSI_ESCAPE = re.compile(
@@ -120,7 +121,7 @@ if TYPE_CHECKING:
 # ----- Main TUI App -----
 
 
-class FlagHunterTUI(ToolResultFormatMixin, ScanCommandMixin, ConversationMixin, CpaCommandMixin, ModeCommandMixin, TerminalSpawnMixin, CtfMemoryMixin, CrewMixin, CtfRenderMixin, CtfApplyMixin, CtfRunnerMixin, CtfCommandMixin, InfoCommandMixin, RetryCommandMixin, McpModeMixin, RuntimeProbeMixin, NotificationMixin, App):
+class FlagHunterTUI(ToolResultFormatMixin, ScanCommandMixin, ConversationMixin, CpaCommandMixin, ModeCommandMixin, TerminalSpawnMixin, CtfMemoryMixin, CrewMixin, CtfRenderMixin, CtfApplyMixin, CtfRunnerMixin, CtfCommandMixin, InfoCommandMixin, RetryCommandMixin, McpModeMixin, RuntimeProbeMixin, NotificationMixin, WakeUpMixin, App):
     """Main FlagHunter TUI Application"""
 
     # ═══════════════════════════════════════════════════════════
@@ -1863,71 +1864,6 @@ class FlagHunterTUI(ToolResultFormatMixin, ScanCommandMixin, ConversationMixin, 
             self._set_status("error")
         finally:
             await self._save_current_conversation()
-            self._is_running = False
-
-    def _on_agent_wake_up_callback(self) -> None:
-        """Triggered by notifier.agent_wake_up() — may come from any async context."""
-        try:
-            try:
-                asyncio.get_running_loop()
-                # Already on the app's event loop — post_message directly.
-                self.post_message(ChildAgentWakeUpMessage())
-                return
-            except RuntimeError:
-                pass
-            # Called from a worker thread — use call_from_thread.
-            if hasattr(self, "call_from_thread"):
-                try:
-                    self.call_from_thread(self.post_message, ChildAgentWakeUpMessage())
-                    return
-                except Exception:
-                    pass
-            self.post_message(ChildAgentWakeUpMessage())
-        except Exception as e:
-            logging.getLogger(__name__).exception(
-                "_on_agent_wake_up_callback failed: %s", e
-            )
-
-    def on_child_agent_wake_up_message(self, _event: ChildAgentWakeUpMessage) -> None:
-        """Received on Textual's main loop — safe to start a @work method here."""
-        if not self._is_running and self.agent:
-            self._current_worker = self._run_wake_up_mode()
-
-    @work(thread=False)
-    async def _run_wake_up_mode(self) -> None:
-        """Resume processing a pending child-agent notification in the active mode.
-
-        The notification has already been injected into conversation_history by
-        the watcher.  Dispatches display logic per mode so the behaviour is
-        identical to the regular runner (_run_assist / _run_interact /
-        _run_agent_mode) — avoiding subtle differences in state checks or
-        status updates that would break result display.
-        """
-        if not self.agent:
-            return
-
-        mode = self._mode
-        self._is_running = True
-        self._should_stop = False
-        self._set_status("thinking", mode)
-        tool_messages_mapping: dict[str, ToolMessage] = {}
-
-        try:
-            tool_messages_mapping: dict[str, ToolMessage] = {}
-            await self._display_responses(
-                self.agent.wake_up(mode),
-                tool_messages_mapping,
-                is_agent=(mode == "agent"),
-            )
-            self._set_status("idle", mode)
-
-        except asyncio.CancelledError:
-            self._add_system("[!] Cancelled")
-            self._set_status("idle", mode)
-        except Exception as e:
-            self._add_system(f"[!] Error: {e}")
-            self._set_status("error")
-        finally:
             self._is_running = False
 
     def action_quit_app(self) -> None:
