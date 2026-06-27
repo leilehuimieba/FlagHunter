@@ -29,6 +29,41 @@ class LLMResponse:
     reasoning_content: Optional[str] = None
 
 
+def _coerce_content_to_text(content) -> str:
+    """Flatten a possibly-multimodal ``content`` value into plain text.
+
+    LiteLLM (and the OpenAI wire format it speaks) allows a message ``content``
+    to be either a plain string or a list of content blocks, e.g.::
+
+        [{"type": "text", "text": "..."},
+         {"type": "image_url", "image_url": {"url": "data:image/png;base64,..."}}]
+
+    The string form is returned unchanged (zero behaviour change for the legacy
+    path).  For the list form, text blocks are concatenated and non-text blocks
+    (images, etc.) are reduced to a short placeholder so callers that expect a
+    string never receive a raw image payload and never raise on list content.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: List[str] = []
+        for block in content:
+            if isinstance(block, dict):
+                btype = block.get("type")
+                if btype == "image_url" or "image_url" in block:
+                    parts.append("[image]")
+                else:
+                    text = block.get("text")
+                    if text:
+                        parts.append(str(text))
+            elif isinstance(block, str):
+                parts.append(block)
+        return "".join(parts)
+    if content is None:
+        return ""
+    return str(content)
+
+
 def _extract_content(message) -> str:
     """Extract text content from an LLM message, with reasoning model fallback.
 
@@ -37,22 +72,27 @@ def _extract_content(message) -> str:
     ``provider_specific_fields``).  This helper prefers the standard field
     and falls back to the reasoning field so the agent never receives an
     empty string when the model actually produced output.
+
+    ``content`` is also coerced through :func:`_coerce_content_to_text`, so a
+    multimodal (list-form) message — which the vision channel may produce —
+    yields concatenated text instead of raising or leaking a raw image block.
     """
-    # 1. Standard content
-    if message.content:
-        return message.content
+    # 1. Standard content (may be a multimodal list — flatten to text)
+    content = getattr(message, "content", None)
+    if content:
+        return _coerce_content_to_text(content)
 
     # 2. Direct reasoning_content attribute (litellm >= 1.60)
     reasoning = getattr(message, "reasoning_content", None)
     if reasoning:
-        return reasoning
+        return _coerce_content_to_text(reasoning)
 
     # 3. Nested in provider_specific_fields (older litellm or certain providers)
     psf = getattr(message, "provider_specific_fields", None) or {}
     if isinstance(psf, dict):
         reasoning = psf.get("reasoning_content") or psf.get("reasoning")
         if reasoning:
-            return reasoning
+            return _coerce_content_to_text(reasoning)
 
     return ""
 
