@@ -116,6 +116,10 @@ TOOL_TECHNIQUES: dict[str, list[str]] = {
     "browser": ["T1071.001"],
     "opencli_browser": ["T1071.001"],
     "login_flow": ["T1078"],
+    # External-facing remote service access (turns recovered creds into access).
+    # This is T1133 (use the service), distinct from login_flow=T1078 (web creds)
+    # and from brute force (T1110); supply known/candidate creds, not a wordlist.
+    "remote_service_login": ["T1133"],
     # Vulnerability scanning / exploitation
     "nuclei": ["T1595.002"],
     "afrog": ["T1595.002"],

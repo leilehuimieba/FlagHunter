@@ -147,10 +147,15 @@ def test_coverage_report_aggregates_and_surfaces_gaps():
     assert "strategy:idor_sequential" in report["covered"].get("WSTG-ATHZ-04", [])
     assert "strategy:open_redirect" in report["covered"].get("WSTG-CLNT-04", [])
 
-    # known remaining gap: External Remote Services (T1133) is catalogued but
-    # has no covering tool/strategy → still an honest gap (no SSH/RDP/VPN
-    # capability in the framework; not force-fitted onto login_flow=T1078).
-    assert "T1133" in report["gaps"]
+    # External Remote Services (T1133) is now covered by the remote_service_login
+    # tool (credentialed SSH access) — the previously honest gap. This is a genuine
+    # remote-service-access capability (T1133), not force-fitted onto login_flow
+    # (=T1078, web creds) nor a brute-forcer (T1110).
+    assert "tool:remote_service_login" in report["covered"].get("T1133", [])
+
+    # all catalogued techniques are now covered → no remaining gaps (30/30).
+    assert not report["gaps"]
+    assert report["covered_count"] == report["catalog_count"]
 
     # gaps and covered are disjoint
     assert not (set(report["gaps"]) & set(report["covered"]))
