@@ -6,6 +6,7 @@ import os
 import random as _random
 import re as _re
 import time
+import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
@@ -533,6 +534,51 @@ class ToolExecutor:
         self.execution_history: List[ExecutionResult] = []
         self._result_cache = _ToolResultCache()
         self._batch_semaphore = asyncio.Semaphore(8)  # Limit concurrent tool executions
+        # P3 provenance: a per-executor run id groups all calls that ran
+        # together — the basis for later "used alone vs chained" analysis (P6).
+        self.run_id = uuid.uuid4().hex[:12]
+
+    def _finalize(
+        self,
+        result: ExecutionResult,
+        tool: Optional["Tool"] = None,
+        *,
+        cache_hit: bool = False,
+    ) -> ExecutionResult:
+        """Single收口 for every execution path: record history + provenance.
+
+        Provenance recording is best-effort and fail-safe — a logging error must
+        never affect tool execution (same discipline as the flag scanner).
+        """
+        self.execution_history.append(result)
+        try:
+            from .provenance import record_call_sync
+
+            args = result.arguments or {}
+            target = str(
+                args.get("target") or args.get("url") or args.get("host") or args.get("ip") or ""
+            )
+            found_flag = bool(
+                isinstance(result.result, str)
+                and result.result
+                and _FLAG_PATTERN.search(result.result)
+            )
+            record_call_sync(
+                tool_name=result.tool_name,
+                run_id=self.run_id,
+                category=getattr(tool, "category", "") or "",
+                arguments=args,
+                target=target,
+                status=result.status,
+                error_class=result.error_class,
+                success=result.success,
+                duration_ms=result.duration_ms,
+                found_flag=found_flag,
+                cache_hit=cache_hit,
+            )
+        except Exception:
+            pass
+        return result
 
     async def execute(
         self, tool: "Tool", arguments: dict, timeout: Optional[int] = None
@@ -565,8 +611,7 @@ class ToolExecutor:
             cached_result.start_time = start_time
             cached_result.end_time = datetime.now()
             cached_result.duration_ms = 0.0
-            self.execution_history.append(cached_result)
-            return cached_result
+            return self._finalize(cached_result, tool, cache_hit=True)
 
         # Validate arguments
         is_valid, error_msg = tool.validate_arguments(arguments)
@@ -580,8 +625,7 @@ class ToolExecutor:
                 end_time=datetime.now(),
             )
             result.duration_ms = (result.end_time - start_time).total_seconds() * 1000
-            self.execution_history.append(result)
-            return result
+            return self._finalize(result, tool)
 
         allowed, reason = _m4_scope_check(tool.name, arguments)
         if not allowed:
@@ -595,8 +639,7 @@ class ToolExecutor:
                 end_time=end_time,
                 duration_ms=(end_time - start_time).total_seconds() * 1000,
             )
-            self.execution_history.append(result)
-            return result
+            return self._finalize(result, tool)
 
         # Execute with retries
         last_error = None
@@ -683,7 +726,7 @@ class ToolExecutor:
                     end_time=end_time,
                     duration_ms=(end_time - start_time).total_seconds() * 1000,
                 )
-                self.execution_history.append(result)
+                self._finalize(result, tool)
                 # Cache successful result (P5 optimization)
                 # Skip cache for stateful tools whose results change between calls.
                 if tool.name not in _NON_CACHEABLE_TOOLS:
@@ -778,8 +821,7 @@ class ToolExecutor:
             end_time=end_time,
             duration_ms=(end_time - start_time).total_seconds() * 1000,
         )
-        self.execution_history.append(result)
-        return result
+        return self._finalize(result, tool)
 
     async def execute_batch(
         self, executions: List[tuple["Tool", dict]], parallel: bool = False
