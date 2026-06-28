@@ -34,6 +34,16 @@ from .extraction import (
     list_framings,
     ml_only_framings,
 )
+from .placement import (
+    PlacementTechnique,
+    aligns,
+    decoy_prefix,
+    group_size,
+    list_placements,
+    min_break_length,
+    phase_offset,
+    position_embed,
+)
 from .generator import Payload, generate, payloads_to_jsonl, write_batch
 from .probe import (
     ProbeResult,
@@ -59,6 +69,14 @@ __all__ = [
     "framing_families",
     "list_framings",
     "ml_only_framings",
+    "PlacementTechnique",
+    "aligns",
+    "decoy_prefix",
+    "group_size",
+    "list_placements",
+    "min_break_length",
+    "phase_offset",
+    "position_embed",
     "Payload",
     "generate",
     "payloads_to_jsonl",
