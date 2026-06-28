@@ -27,6 +27,13 @@ from .transforms import (
     transform_names,
 )
 from .seeds import AttackSeed, CANARIES, list_seeds, seed_categories
+from .extraction import (
+    TECHNIQUE_ID,
+    ExtractionFraming,
+    framing_families,
+    list_framings,
+    ml_only_framings,
+)
 from .generator import Payload, generate, payloads_to_jsonl, write_batch
 from .probe import (
     ProbeResult,
@@ -47,6 +54,11 @@ __all__ = [
     "CANARIES",
     "list_seeds",
     "seed_categories",
+    "TECHNIQUE_ID",
+    "ExtractionFraming",
+    "framing_families",
+    "list_framings",
+    "ml_only_framings",
     "Payload",
     "generate",
     "payloads_to_jsonl",

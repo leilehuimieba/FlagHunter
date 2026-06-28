@@ -10,7 +10,13 @@ from __future__ import annotations
 import re
 
 from flaghunter.redteam import generate
+from flaghunter.redteam.extraction import list_framings
 from flaghunter.redteam.seeds import CANARIES, list_seeds
+
+
+def _all_inert_strings():
+    """Every attacker-controlled test string the package can emit."""
+    return [s.text for s in list_seeds()] + [f.text for f in list_framings()]
 
 # Markers that must never appear: real key material headers.
 _FORBIDDEN_SUBSTRINGS = [
@@ -24,16 +30,16 @@ _FORBIDDEN_SUBSTRINGS = [
 
 
 def test_every_url_in_seeds_uses_an_invalid_domain():
-    """No seed may point at a resolvable host — only *.invalid sinks allowed."""
-    for seed in list_seeds():
-        for url in re.findall(r"https?://[^\s'\")]+", seed.text):
-            assert ".invalid" in url, f"seed references non-.invalid URL: {url}"
+    """No seed/framing may point at a resolvable host — only *.invalid sinks."""
+    for text in _all_inert_strings():
+        for url in re.findall(r"https?://[^\s'\")]+", text):
+            assert ".invalid" in url, f"references non-.invalid URL: {url}"
 
 
 def test_no_seed_contains_real_key_material():
-    for seed in list_seeds():
+    for text in _all_inert_strings():
         for marker in _FORBIDDEN_SUBSTRINGS:
-            assert marker not in seed.text, f"forbidden marker {marker!r} in seed"
+            assert marker not in text, f"forbidden marker {marker!r} in test string"
 
 
 def test_pii_values_are_exactly_the_canaries():
@@ -41,8 +47,8 @@ def test_pii_values_are_exactly_the_canaries():
     canary_numbers = {
         CANARIES["pii_id"], CANARIES["pii_card"], CANARIES["pii_phone"]
     }
-    for seed in list_seeds():
-        for run in re.findall(r"\d{11,}", seed.text):
+    for text in _all_inert_strings():
+        for run in re.findall(r"\d{11,}", text):
             assert run in canary_numbers, f"undeclared long digit run: {run}"
 
 
