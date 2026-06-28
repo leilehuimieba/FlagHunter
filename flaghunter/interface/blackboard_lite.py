@@ -5,6 +5,7 @@ from typing import Any
 
 from flaghunter.agents.pa_agent.ctf_state import CTFState
 from flaghunter.interface.control_contract import strongest_hypothesis_contract
+from flaghunter.knowledge.blackboard_schema import BoardFact
 
 
 def _normalize_mapping(value: object) -> dict[str, Any]:
@@ -192,32 +193,32 @@ def _fact_from_observation(kind: str, value: str, *, source: str = "", metadata:
     fact_kind, default_confidence = mapped
     meta = dict(metadata or {})
     confidence = str(meta.get("confidence") or default_confidence).strip() or default_confidence
-    fact = {
-        "kind": fact_kind,
-        "value": normalized_value,
-        "source": str(source or "").strip(),
-        "confidence": confidence,
-    }
+    # The Web layer keeps the semantic-kind mapping (above) and exploit-type
+    # detection (below); BoardFact defines the fact *shape*.
     artifact_url = str(
         meta.get("artifact_url") or meta.get("path") or meta.get("file_name") or ""
     ).strip()
-    if artifact_url:
-        fact["artifactUrl"] = artifact_url
+    exploit_type = ""
     exploit_info = meta.get("exploit_info") or {}
     if isinstance(exploit_info, dict):
         exploit_type = str(exploit_info.get("type") or "").strip()
-        if exploit_type:
-            fact["exploitType"] = exploit_type
-    if fact_kind == "local_challenge_source_hint" and "exploitType" not in fact:
+    if fact_kind == "local_challenge_source_hint" and not exploit_type:
         lowered = normalized_value.lower()
         if (
             "serialize($profile)" in lowered
             and "file_get_contents($profile['photo'])" in lowered
         ):
-            fact["exploitType"] = "profile_photo_poisoning"
+            exploit_type = "profile_photo_poisoning"
         elif "unserialize" in lowered and re.search(r"__destruct", normalized_value, re.IGNORECASE):
-            fact["exploitType"] = "php_unserialize"
-    return fact
+            exploit_type = "php_unserialize"
+    return BoardFact.web_fact(
+        fact_kind,
+        normalized_value,
+        source=str(source or "").strip(),
+        confidence=confidence,
+        artifact_url=artifact_url or None,
+        exploit_type=exploit_type or None,
+    ).to_web_dict()
 
 
 def _active_decision_from_control_decision(control_decision: dict[str, Any] | None) -> dict[str, Any]:
@@ -659,20 +660,20 @@ def _build_blackboard_snapshot(
 
     decision = _normalize_mapping(control_decision)
     if decision.get("decisionKind"):
-        facts.append({"kind": "control_decision", "value": str(decision.get("decisionKind"))})
+        facts.append(BoardFact.web_fact("control_decision", str(decision.get("decisionKind"))).to_web_dict())
     if decision.get("nextAction"):
-        facts.append({"kind": "next_action", "value": str(decision.get("nextAction"))})
+        facts.append(BoardFact.web_fact("next_action", str(decision.get("nextAction"))).to_web_dict())
 
     handoff = _normalize_mapping(ingress_handoff)
     challenge_context = _normalize_mapping(handoff.get("challengeContext"))
     if challenge_context.get("challengePath"):
-        facts.append({"kind": "challenge_path", "value": str(challenge_context.get("challengePath"))})
+        facts.append(BoardFact.web_fact("challenge_path", str(challenge_context.get("challengePath"))).to_web_dict())
 
     resume_bootstrap = _normalize_mapping(handoff.get("resumeBootstrap"))
     if resume_bootstrap.get("runId"):
-        facts.append({"kind": "resume_run_id", "value": str(resume_bootstrap.get("runId"))})
+        facts.append(BoardFact.web_fact("resume_run_id", str(resume_bootstrap.get("runId"))).to_web_dict())
     if resume_bootstrap.get("checkpointId"):
-        facts.append({"kind": "resume_checkpoint_id", "value": str(resume_bootstrap.get("checkpointId"))})
+        facts.append(BoardFact.web_fact("resume_checkpoint_id", str(resume_bootstrap.get("checkpointId"))).to_web_dict())
 
     for record in list(decision_records or []):
         if isinstance(record, dict):
@@ -706,28 +707,30 @@ def _build_blackboard_snapshot(
 
         for record in list(state.verified_flags):
             if record.value:
-                facts.append({
-                    "kind": "verified_flag",
-                    "value": record.value,
-                    "source": record.evidence_source,
-                    "confidence": "high",
-                })
+                facts.append(
+                    BoardFact.web_fact(
+                        "verified_flag",
+                        record.value,
+                        source=record.evidence_source,
+                        confidence="high",
+                    ).to_web_dict()
+                )
 
         for record in list(state.runtime_flags):
             if record.value:
                 pending_verifications.append(
-                    {
-                        "kind": "runtime_flag",
-                        "value": record.value,
-                        "source": record.evidence_source,
-                        "rationale": record.rationale,
-                    }
+                    BoardFact.web_fact(
+                        "runtime_flag",
+                        record.value,
+                        source=record.evidence_source,
+                        rationale=record.rationale,
+                    ).to_web_dict()
                 )
 
         for artifact in list(state.artifacts):
             location = str(artifact.location or "").strip()
             if location:
-                facts.append({"kind": "artifact", "value": location})
+                facts.append(BoardFact.web_fact("artifact", location).to_web_dict())
 
     candidates = _build_blackboard_candidates(
         facts=facts,

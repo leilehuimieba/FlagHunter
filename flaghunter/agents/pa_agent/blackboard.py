@@ -22,51 +22,56 @@ from __future__ import annotations
 
 from typing import Any
 
+from ...knowledge.blackboard_schema import (
+    BoardFact,
+    BoardIntent,
+    BoardView,
+    intent_sort_key,
+)
 from .ctf_state import CTFState, FlagRecord
 
 _REFUTED_HYPOTHESIS_STATUSES = {"rejected", "exhausted"}
 
 
-def _flag_fact(record: FlagRecord, kind: str) -> dict[str, Any]:
-    return {
-        "kind": kind,
-        "value": record.value,
-        "source": str(getattr(record, "evidence_source", "") or ""),
-        "confidence": float(getattr(record, "confidence", 0.0) or 0.0),
-    }
+def _flag_fact(record: FlagRecord, kind: str) -> BoardFact:
+    return BoardFact.flag(
+        kind=kind,
+        value=record.value,
+        source=str(getattr(record, "evidence_source", "") or ""),
+        confidence=float(getattr(record, "confidence", 0.0) or 0.0),
+    )
 
 
-def project_blackboard(
+def project_board(
     state: CTFState,
     *,
     hints: list[str] | None = None,
     observation_limit: int = 12,
     intent_limit: int = 12,
-) -> dict[str, Any]:
-    """Project ``state`` into a compact ``{facts, intents, hints}`` view.
+) -> BoardView:
+    """Project ``state`` into the typed canonical :class:`BoardView`.
 
     ``observation_limit`` keeps the most recent observations; ``intent_limit``
     caps the intent list after sorting (active + highest value first, refuted
-    last). Both default to small values to stay low-noise.
+    last). Both default to small values to stay low-noise. Typed entry point;
+    :func:`project_blackboard` is the dict-returning back-compat wrapper.
     """
-    facts: list[dict[str, Any]] = []
+    facts: list[BoardFact] = []
     for obs in list(state.observations)[-max(0, observation_limit):]:
         facts.append(
-            {
-                "kind": "observation",
-                "subkind": str(getattr(obs, "kind", "") or ""),
-                "value": str(getattr(obs, "value", "") or ""),
-                "source": str(getattr(obs, "source", "") or ""),
-            }
+            BoardFact.observation(
+                subkind=str(getattr(obs, "kind", "") or ""),
+                value=str(getattr(obs, "value", "") or ""),
+                source=str(getattr(obs, "source", "") or ""),
+            )
         )
     for art in state.artifacts:
         facts.append(
-            {
-                "kind": "artifact",
-                "value": str(getattr(art, "name", "") or ""),
-                "location": getattr(art, "location", None),
-                "source": str(getattr(art, "source", "") or ""),
-            }
+            BoardFact.artifact(
+                value=str(getattr(art, "name", "") or ""),
+                location=getattr(art, "location", None),
+                source=str(getattr(art, "source", "") or ""),
+            )
         )
     for record in state.verified_flags:
         facts.append(_flag_fact(record, "verified_flag"))
@@ -77,69 +82,67 @@ def project_blackboard(
         # does not re-propose it.
         facts.append(_flag_fact(record, "refuted_flag"))
 
-    intents: list[dict[str, Any]] = []
+    intents: list[BoardIntent] = []
     for hyp in state.hypotheses:
         status = str(getattr(hyp, "status", "active") or "active")
         next_experiments = list(getattr(hyp, "next_experiments", []) or [])
         supporting = list(getattr(hyp, "supporting_observations", []) or [])
         intents.append(
-            {
-                "id": str(getattr(hyp, "id", "") or ""),
-                "kind": str(getattr(hyp, "kind", "") or ""),
-                "description": str(getattr(hyp, "description", "") or ""),
-                "confidence": float(getattr(hyp, "confidence", 0.0) or 0.0),
-                "value_score": float(getattr(hyp, "value_score", 0.0) or 0.0),
-                "status": status,
-                "refuted": status in _REFUTED_HYPOTHESIS_STATUSES,
-                "next_experiments": next_experiments,
-                # Directness (走最短链): accumulated evidence minus remaining steps.
-                # Higher = closer to the flag / shorter remaining path.
-                "directness": len(supporting) - len(next_experiments),
-                "origin": "hypothesis",
-            }
+            BoardIntent(
+                id=str(getattr(hyp, "id", "") or ""),
+                kind=str(getattr(hyp, "kind", "") or ""),
+                description=str(getattr(hyp, "description", "") or ""),
+                confidence=float(getattr(hyp, "confidence", 0.0) or 0.0),
+                value_score=float(getattr(hyp, "value_score", 0.0) or 0.0),
+                status=status,
+                refuted=status in _REFUTED_HYPOTHESIS_STATUSES,
+                next_experiments=next_experiments,
+                # Directness (走最短链): accumulated evidence minus remaining
+                # steps. Higher = closer to the flag / shorter remaining path.
+                directness=len(supporting) - len(next_experiments),
+                origin="hypothesis",
+            )
         )
     for item in state.exploration_agenda:
         if getattr(item, "explored", False):
             continue
         intents.append(
-            {
-                "id": str(getattr(item, "id", "") or ""),
-                "kind": "exploration",
-                "description": str(getattr(item, "url_or_path", "") or ""),
-                "confidence": float(getattr(item, "hint_strength", 0) or 0) / 10.0,
-                "value_score": float(getattr(item, "hint_strength", 0) or 0) / 10.0,
-                "status": "active",
-                "refuted": False,
-                "next_experiments": [],
-                "directness": 0,
-                "origin": "exploration_agenda",
-            }
+            BoardIntent(
+                id=str(getattr(item, "id", "") or ""),
+                kind="exploration",
+                description=str(getattr(item, "url_or_path", "") or ""),
+                confidence=float(getattr(item, "hint_strength", 0) or 0) / 10.0,
+                value_score=float(getattr(item, "hint_strength", 0) or 0) / 10.0,
+                status="active",
+                refuted=False,
+                next_experiments=[],
+                directness=0,
+                origin="exploration_agenda",
+            )
         )
     for record in state.candidate_flags:
         intents.append(
-            {
-                "id": "",
-                "kind": "candidate_flag",
-                "description": str(getattr(record, "value", "") or ""),
-                "confidence": float(getattr(record, "confidence", 0.0) or 0.0),
-                "value_score": float(getattr(record, "confidence", 0.0) or 0.0),
-                "status": "active",
-                "refuted": False,
-                "next_experiments": [],
+            BoardIntent(
+                id="",
+                kind="candidate_flag",
+                description=str(getattr(record, "value", "") or ""),
+                confidence=float(getattr(record, "confidence", 0.0) or 0.0),
+                value_score=float(getattr(record, "confidence", 0.0) or 0.0),
+                status="active",
+                refuted=False,
+                next_experiments=[],
                 # A candidate flag is the most direct intent — one verify step away.
-                "directness": 2,
-                "origin": "candidate_flag",
-            }
+                directness=2,
+                origin="candidate_flag",
+            )
         )
 
     # Active first; among active, highest value, then most direct (shortest
     # remaining path — 走最短链), then highest confidence. Refuted/exhausted
     # intents stay last but visible (so the model sees what was already tried).
-    intents.sort(
-        key=lambda i: (i["refuted"], -i["value_score"], -i.get("directness", 0), -i["confidence"])
-    )
+    intents.sort(key=intent_sort_key)
     if intent_limit >= 0:
-        intents = intents[: intent_limit]
+        intents = intents[:intent_limit]
 
     hint_list: list[str] = [str(h).strip() for h in (hints or []) if str(h or "").strip()]
     last_progress = str(getattr(state, "last_progress_marker", "") or "").strip()
@@ -149,4 +152,24 @@ def project_blackboard(
     if stop_reason:
         hint_list.append(f"stop_reason={stop_reason}")
 
-    return {"facts": facts, "intents": intents, "hints": hint_list}
+    return BoardView(facts=facts, intents=intents, hints=hint_list)
+
+
+def project_blackboard(
+    state: CTFState,
+    *,
+    hints: list[str] | None = None,
+    observation_limit: int = 12,
+    intent_limit: int = 12,
+) -> dict[str, Any]:
+    """Dict-returning back-compat wrapper over :func:`project_board`.
+
+    Byte-identical to the previous ad-hoc projection — existing consumers and
+    tests are unchanged.
+    """
+    return project_board(
+        state,
+        hints=hints,
+        observation_limit=observation_limit,
+        intent_limit=intent_limit,
+    ).to_dict()
