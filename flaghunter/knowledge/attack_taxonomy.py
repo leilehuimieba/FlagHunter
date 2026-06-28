@@ -108,6 +108,9 @@ TOOL_TECHNIQUES: dict[str, list[str]] = {
     "recon_bundle": ["T1595", "T1590"],
     "waf": ["T1595.002"],
     "web_search": ["T1593"],
+    "param_discovery": ["T1595.003", "T1592"],
+    "api_spec_discovery": ["T1595", "T1593"],
+    "vhost_discovery": ["T1595.003", "T1590"],
     # HTTP / browser interaction primitives
     "http_request": ["T1071.001"],
     "browser": ["T1071.001"],
