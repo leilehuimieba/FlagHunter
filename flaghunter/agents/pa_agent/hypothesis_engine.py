@@ -76,6 +76,10 @@ _CHAIN_BY_KIND = {
     # Reflected XSS runs as a web-chain strategy too (client-side injection
     # primitive), not a standalone chain — see chains/web.py WEB_STRATEGY_ORDER.
     "reflected_xss": "web",
+    # IDOR / open redirect run as web-chain strategies as well (authorization /
+    # client-side redirect primitives) — see chains/web.py WEB_STRATEGY_ORDER.
+    "idor_sequential": "web",
+    "open_redirect": "web",
 }
 
 

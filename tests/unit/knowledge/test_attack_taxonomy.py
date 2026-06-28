@@ -142,8 +142,14 @@ def test_coverage_report_aggregates_and_surfaces_gaps():
     inpv01 = report["covered"].get("WSTG-INPV-01", [])
     assert "strategy:reflected_xss" in inpv01
 
+    # IDOR (WSTG-ATHZ-04) and open redirect (WSTG-CLNT-04) are now covered by the
+    # idor_sequential / open_redirect strategies (previously uncatalogued gaps).
+    assert "strategy:idor_sequential" in report["covered"].get("WSTG-ATHZ-04", [])
+    assert "strategy:open_redirect" in report["covered"].get("WSTG-CLNT-04", [])
+
     # known remaining gap: External Remote Services (T1133) is catalogued but
-    # has no covering tool/strategy → still a gap.
+    # has no covering tool/strategy → still an honest gap (no SSH/RDP/VPN
+    # capability in the framework; not force-fitted onto login_flow=T1078).
     assert "T1133" in report["gaps"]
 
     # gaps and covered are disjoint

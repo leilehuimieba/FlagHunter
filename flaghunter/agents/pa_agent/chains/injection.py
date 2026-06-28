@@ -1165,3 +1165,395 @@ class GenericInjectionChainMixin:
             progress=progress,
             reason="; ".join(dict.fromkeys(reasons[:5])) or "reflected_xss exhausted",
         )
+
+    # ------------------------------------------------------------------
+    # Insecure Direct Object Reference — IDOR (WSTG-ATHZ-04)
+    # ------------------------------------------------------------------
+    # IDOR is an *authorization* flaw: an endpoint selects an object straight
+    # from a client-supplied identifier (``?id=42`` / ``/user/42``) without
+    # checking that the caller owns it, so adjacent identifiers expose other
+    # principals' records. The confirmation signal is *enumerability*: two or
+    # more sequential ids each return a distinct, content-bearing, successful
+    # object. A properly-authorising app returns an identical denial/redirect
+    # for ids the caller does not own (one normalized body → no confirm). To
+    # avoid false-positives on apps that merely echo the requested id back in an
+    # error template (``User #41 not found`` / ``User #42 not found``), bodies
+    # are normalized by masking the requested id before comparison, so only a
+    # genuine difference in *object data* counts as distinct. We position this
+    # honestly as confirming the IDOR access-control primitive (+ opportunistic
+    # flag extraction). Reachability bridging is via chains/web.py's
+    # ``WEB_STRATEGY_ORDER`` (pinned by the I5 invariant).
+
+    _IDOR_ID_PARAM_NAMES = (
+        "id", "uid", "user", "user_id", "userid", "account", "account_id",
+        "order", "order_id", "doc", "document", "file", "file_id", "pid",
+        "num", "no", "item", "item_id", "record", "profile", "profile_id",
+        "invoice", "ticket", "report", "report_id", "message", "msg_id",
+    )
+    _IDOR_DENIAL_MARKERS = (
+        "access denied", "forbidden", "unauthorized", "not authorized",
+        "permission denied", "login required", "please log in", "404 not found",
+    )
+
+    @classmethod
+    def _idor_numeric_id_in_url(cls, url: str) -> bool:
+        """True if ``url`` carries an enumerable numeric object id."""
+        parsed = urlparse(url)
+        for key, values in parse_qs(parsed.query, keep_blank_values=True).items():
+            if key.lower() in cls._IDOR_ID_PARAM_NAMES and values and values[0].isdigit():
+                return True
+        return any(seg.isdigit() for seg in parsed.path.split("/") if seg)
+
+    @classmethod
+    def _enumerate_idor_ids(cls, url: str) -> list[tuple[str, str]]:
+        """Return ``(id_value, mutated_url)`` variants enumerating the object id.
+
+        Mutates the first id-like numeric query parameter, or failing that the
+        last all-digit path segment. Probes the original id plus neighbours and
+        a few low integers (other principals' likely records).
+        """
+        parsed = urlparse(url)
+        params = parse_qs(parsed.query, keep_blank_values=True)
+        for key in list(params):
+            if key.lower() in cls._IDOR_ID_PARAM_NAMES and params[key] and params[key][0].isdigit():
+                base_id = int(params[key][0])
+                out: list[tuple[str, str]] = []
+                for candidate in cls._idor_id_series(base_id):
+                    mutated = dict(params)
+                    mutated[key] = [str(candidate)]
+                    out.append(
+                        (str(candidate), parsed._replace(query=urlencode(mutated, doseq=True)).geturl())
+                    )
+                return out
+        segments = parsed.path.split("/")
+        for index in range(len(segments) - 1, -1, -1):
+            if segments[index].isdigit():
+                base_id = int(segments[index])
+                out = []
+                for candidate in cls._idor_id_series(base_id):
+                    mutated_segments = list(segments)
+                    mutated_segments[index] = str(candidate)
+                    out.append(
+                        (str(candidate), parsed._replace(path="/".join(mutated_segments)).geturl())
+                    )
+                return out
+        return []
+
+    @staticmethod
+    def _idor_id_series(base_id: int) -> list[int]:
+        """Ordered, de-duplicated id probes around ``base_id`` (positive only)."""
+        series = [base_id, base_id - 1, base_id + 1, base_id + 2, 1, 2, 3]
+        seen: set[int] = set()
+        return [n for n in series if n > 0 and not (n in seen or seen.add(n))]
+
+    @classmethod
+    def _idor_object_like(cls, status: Any, body: str) -> bool:
+        """True if a response looks like a real object, not an error/denial."""
+        if status is not None and int(status) != 200:
+            return False
+        if len(body.strip()) < 40:
+            return False
+        low = body.lower()
+        return not any(marker in low for marker in cls._IDOR_DENIAL_MARKERS)
+
+    @staticmethod
+    def _normalize_idor_body(body: str, id_value: str) -> str:
+        """Mask the requested id and collapse whitespace for distinctness compare.
+
+        Removing the echoed id is what stops ``User #41 not found`` /
+        ``User #42 not found`` from reading as two *distinct* objects.
+        """
+        masked = body.replace(id_value, "#")
+        return " ".join(masked.split()).lower()
+
+    def _collect_idor_targets(
+        self,
+        target: str,
+        page_features: dict[str, Any],
+    ) -> list[str]:
+        """Discover URLs that carry an enumerable numeric object identifier."""
+        base = _base_target(target)
+        urls: list[str] = []
+        seen: set[str] = set()
+
+        def _add(candidate: str) -> None:
+            normalized = _normalize_exploration_url(candidate) or candidate
+            if normalized and normalized not in seen and self._idor_numeric_id_in_url(normalized):
+                seen.add(normalized)
+                urls.append(normalized)
+
+        seeds = list(page_features.get("raw_links") or [])
+        if self.state is not None:
+            for observation in self.state.observations:
+                if isinstance(observation.metadata, dict):
+                    for key in ("url", "final_url"):
+                        value = str(observation.metadata.get(key) or "").strip()
+                        if value:
+                            seeds.append(value)
+        for raw in seeds:
+            text = str(raw or "").strip()
+            if text:
+                _add(urljoin(base + "/", text))
+
+        for form in page_features.get("forms") or []:
+            if not isinstance(form, dict):
+                continue
+            if str(form.get("method") or "GET").strip().upper() != "GET":
+                continue
+            action = urljoin(target if target.endswith("/") else target + "/", str(form.get("action") or "").strip())
+            fields: dict[str, str] = {}
+            for item in form.get("inputs") or []:
+                if not isinstance(item, dict):
+                    continue
+                name = str(item.get("name") or "").strip()
+                if name.lower() in self._IDOR_ID_PARAM_NAMES:
+                    fields[name] = "1"
+            if fields:
+                _add(_with_query(action, fields))
+
+        return urls[:4]
+
+    async def _run_idor_strategy(
+        self,
+        target: str,
+        page_features: dict[str, Any],
+    ) -> _ChainOutcome:
+        """IDOR probe: enumerate sequential object ids, confirm distinct records."""
+        self.tool_guard.require(["http_request"])
+        candidates = self._collect_idor_targets(target, page_features)
+        if not candidates:
+            return _ChainOutcome(progress=False, reason="idor_sequential: no numeric object-id surface")
+
+        host = urlparse(target).netloc or target
+        progress = False
+        reasons: list[str] = []
+        for candidate in candidates:
+            distinct: dict[str, tuple[str, str]] = {}
+            for id_value, probe_url in self._enumerate_idor_ids(candidate):
+                response = await self._runtime_proxy_action(
+                    "request",
+                    method="GET",
+                    url=probe_url,
+                    timeout=15,
+                    audit_target=probe_url,
+                    audit_metadata={"phase": "idor"},
+                )
+                if not isinstance(response, dict):
+                    continue
+                body = str(response.get("body") or "")
+                if not body:
+                    continue
+                await self._scan_and_store(body, probe_url, evidence_source="http-response")
+                if extracted_flag := self._extract_flag(body):
+                    verification = await self._observe_flag(
+                        extracted_flag,
+                        target,
+                        evidence_source="http-response",
+                        rationale="idor object enumeration",
+                        evidence_url=probe_url,
+                        evidence_snippet=body[:240],
+                        strategy_kind="idor_sequential",
+                    )
+                    if verification.decision in {"verified", "runtime"}:
+                        return _ChainOutcome(
+                            progress=True,
+                            flag=verification.flag,
+                            reason=f"idor flag at {probe_url}",
+                        )
+                    progress = True
+                    reasons.append(f"idor produced {verification.decision} flag")
+                if self._idor_object_like(response.get("status_code"), body):
+                    distinct.setdefault(
+                        self._normalize_idor_body(body, id_value), (id_value, probe_url)
+                    )
+            if len(distinct) >= 2:
+                progress = True
+                ids = [value[0] for value in distinct.values()][:4]
+                reasons.append(f"IDOR confirmed: enumerable object ids {ids} return distinct records at {candidate}")
+                await self._store_note(
+                    key="ctf_idor_confirmed",
+                    value=f"{candidate} enumerable ids={ids}",
+                    category="vulnerability",
+                    target=host,
+                    url=candidate,
+                )
+
+        return _ChainOutcome(
+            progress=progress,
+            reason="; ".join(dict.fromkeys(reasons[:5])) or "idor_sequential exhausted",
+        )
+
+    # ------------------------------------------------------------------
+    # Open Redirect — client-side URL redirect (WSTG-CLNT-04)
+    # ------------------------------------------------------------------
+    # An open redirect lets an attacker-controlled URL drive where the app sends
+    # the victim — a phishing / OAuth-token-leak pivot. We inject a unique,
+    # *benign* off-site canary (``https://oob-<marker>.example.invalid/``) into
+    # redirect-style parameters and confirm it lands in a redirect sink: a
+    # ``Location`` response header / redirect hop, or a client-side sink in the
+    # body (``<meta http-equiv=refresh>`` / ``window.location`` /
+    # ``location.href``) — the exact scope of WSTG-CLNT-04. A safe app that
+    # validates or strips the parameter never reflects the off-site canary, so it
+    # does not match. We position this honestly as confirming the open-redirect
+    # primitive, not a flag read. Note: because the HTTP runtime *follows*
+    # redirects, a pure server 3xx to the unresolvable ``.invalid`` canary errors
+    # before the Location is observable — detection therefore centres on the
+    # client-side sink (body) and any redirect hop the runtime surfaces.
+
+    _OPEN_REDIRECT_MARKER = "fhor7dr3ct"
+    _OPEN_REDIRECT_PARAM_NAMES = (
+        "redirect", "redirect_uri", "redirect_url", "redir", "url", "next",
+        "returnurl", "return_url", "return", "return_to", "dest", "destination",
+        "to", "goto", "continue", "callback", "target", "link", "out", "u", "r",
+    )
+
+    @classmethod
+    def _open_redirect_canary(cls) -> str:
+        """The benign off-site canary URL (never resolvable: ``.invalid``)."""
+        return f"https://oob-{cls._OPEN_REDIRECT_MARKER}.example.invalid/"
+
+    @classmethod
+    def _open_redirect_param_in_url(cls, url: str) -> bool:
+        query = parse_qs(urlparse(url).query, keep_blank_values=True)
+        return any(key.lower() in cls._OPEN_REDIRECT_PARAM_NAMES for key in query)
+
+    @classmethod
+    def _inject_open_redirect(cls, url: str) -> str:
+        """Set every redirect-style parameter value to the off-site canary."""
+        parsed = urlparse(url)
+        params = parse_qs(parsed.query, keep_blank_values=True)
+        canary = cls._open_redirect_canary()
+        hit = False
+        for key in list(params):
+            if key.lower() in cls._OPEN_REDIRECT_PARAM_NAMES:
+                params[key] = [canary]
+                hit = True
+        if not hit:
+            params["redirect"] = [canary]
+        return parsed._replace(query=urlencode(params, doseq=True)).geturl()
+
+    @classmethod
+    def _open_redirect_confirmed(
+        cls,
+        body: str,
+        headers: dict[str, Any] | None,
+        redirect_history: list[Any] | None,
+    ) -> str:
+        """Return a non-empty label if the off-site canary reached a redirect sink."""
+        canary_host = f"oob-{cls._OPEN_REDIRECT_MARKER}.example.invalid"
+        for key, value in (headers or {}).items():
+            if str(key).lower() == "location" and canary_host in str(value):
+                return "location-header"
+        for hop in redirect_history or []:
+            location = hop.get("location") if isinstance(hop, dict) else ""
+            if canary_host in str(location or ""):
+                return "redirect-chain"
+        if canary_host in body:
+            low = body.lower()
+            sinks = (
+                'http-equiv="refresh"', "http-equiv='refresh'", "window.location",
+                "location.href", "location.replace", "location.assign", "; url=", ";url=",
+            )
+            if any(sink in low for sink in sinks):
+                return "client-side-sink"
+        return ""
+
+    def _collect_open_redirect_targets(
+        self,
+        target: str,
+        page_features: dict[str, Any],
+    ) -> list[str]:
+        """Discover redirect-parameter surfaces; fall back to conventional names."""
+        base = _base_target(target)
+        urls: list[str] = []
+        seen: set[str] = set()
+
+        def _add(candidate: str) -> None:
+            normalized = _normalize_exploration_url(candidate) or candidate
+            if normalized and normalized not in seen:
+                seen.add(normalized)
+                urls.append(normalized)
+
+        seeds = list(page_features.get("raw_links") or [])
+        if self.state is not None:
+            for observation in self.state.observations:
+                if isinstance(observation.metadata, dict):
+                    for key in ("url", "final_url"):
+                        value = str(observation.metadata.get(key) or "").strip()
+                        if value:
+                            seeds.append(value)
+        for raw in seeds:
+            text = str(raw or "").strip()
+            if text:
+                absolute = urljoin(base + "/", text)
+                if self._open_redirect_param_in_url(absolute):
+                    _add(absolute)
+
+        for form in page_features.get("forms") or []:
+            if not isinstance(form, dict):
+                continue
+            action = urljoin(target if target.endswith("/") else target + "/", str(form.get("action") or "").strip())
+            for item in form.get("inputs") or []:
+                if isinstance(item, dict) and str(item.get("name") or "").strip().lower() in self._OPEN_REDIRECT_PARAM_NAMES:
+                    _add(_with_query(action, {str(item.get("name")): "/"}))
+                    break
+
+        if not urls:
+            for param in ("redirect", "url", "next", "returnurl", "dest"):
+                _add(_with_query(base + "/", {param: "/"}))
+
+        return urls[:5]
+
+    async def _run_open_redirect_strategy(
+        self,
+        target: str,
+        page_features: dict[str, Any],
+    ) -> _ChainOutcome:
+        """Open-redirect probe: inject an off-site canary, confirm it reaches a sink."""
+        self.tool_guard.require(["http_request"])
+        candidates = self._collect_open_redirect_targets(target, page_features)
+        if not candidates:
+            return _ChainOutcome(progress=False, reason="open_redirect: no redirect-parameter surface")
+
+        host = urlparse(target).netloc or target
+        progress = False
+        reasons: list[str] = []
+        for candidate in candidates:
+            probe_url = self._inject_open_redirect(candidate)
+            try:
+                response = await self._runtime_proxy_action(
+                    "request",
+                    method="GET",
+                    url=probe_url,
+                    timeout=15,
+                    audit_target=probe_url,
+                    audit_metadata={"phase": "open_redirect"},
+                )
+            except Exception:
+                # The runtime follows redirects; a server 3xx to the unresolvable
+                # .invalid canary raises a connect error before the Location is
+                # observable. That is not a confirmation — skip this surface.
+                continue
+            if not isinstance(response, dict):
+                continue
+            body = str(response.get("body") or "")
+            label = self._open_redirect_confirmed(
+                body,
+                response.get("headers") if isinstance(response.get("headers"), dict) else None,
+                response.get("redirect_history") if isinstance(response.get("redirect_history"), list) else None,
+            )
+            if label:
+                progress = True
+                reasons.append(f"open redirect confirmed ({label}) at {probe_url}")
+                await self._store_note(
+                    key="ctf_open_redirect_confirmed",
+                    value=f"{probe_url} -> {self._open_redirect_canary()} ({label})",
+                    category="vulnerability",
+                    target=host,
+                    url=probe_url,
+                )
+
+        return _ChainOutcome(
+            progress=progress,
+            reason="; ".join(dict.fromkeys(reasons[:5])) or "open_redirect exhausted",
+        )

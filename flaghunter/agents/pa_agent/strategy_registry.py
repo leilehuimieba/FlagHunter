@@ -703,6 +703,110 @@ def _reflected_xss_precondition(context: StrategyContext) -> bool:
     )
 
 
+def _idor_precondition(context: StrategyContext) -> bool:
+    """疑似 IDOR 面：URL/观测/表单暴露可枚举的数字对象 id，或账户/订单类内容语义。
+
+    主信号：raw_links/观测 URL 带 id 类数字 query 参数（?id=42）或纯数字路径段
+    (/user/42)；GET 表单含 id 类命名输入。弱信号：内容出现 account/order/profile/
+    invoice/ticket/user id 语义,使带数字 id 的对象面经 fallback 也能获得一次真实探测。
+    """
+    from urllib.parse import parse_qs, urlparse
+
+    id_names = {
+        "id", "uid", "user", "user_id", "userid", "account", "account_id",
+        "order", "order_id", "doc", "document", "file", "file_id", "pid",
+        "num", "no", "item", "item_id", "record", "profile", "profile_id",
+        "invoice", "ticket", "report", "report_id", "message", "msg_id",
+    }
+    seeds = [str(u or "") for u in (context.page_features.get("raw_links") or [])]
+    seeds += [str(e or "") for e in (context.page_features.get("endpoints") or [])]
+    for raw in seeds:
+        parsed = urlparse(raw)
+        for key, values in parse_qs(parsed.query, keep_blank_values=True).items():
+            if key.lower() in id_names and values and values[0].isdigit():
+                return True
+        if any(seg.isdigit() for seg in parsed.path.split("/") if seg):
+            return True
+    for form in context.page_features.get("forms") or []:
+        if not isinstance(form, dict):
+            continue
+        for item in form.get("inputs") or []:
+            if isinstance(item, dict) and str(item.get("name") or "").strip().lower() in id_names:
+                return True
+    combined = (
+        str(context.page_features.get("content") or "")
+        + " "
+        + str(context.page_features.get("html") or "")
+    ).lower()
+    return any(
+        token in combined
+        for token in ("account", "order", "profile", "invoice", "ticket", "user id", "my orders")
+    )
+
+
+async def _execute_idor_probe(context: StrategyContext):
+    """执行 IDOR 探测（枚举顺序对象 id，确认返回不同记录）。"""
+    # ``_run_idor_strategy``:Protocol 外 optional duck-typed 面(见 _execute_jwt_probe)。
+    dispatcher = context.services
+    target = context.target
+    if hasattr(dispatcher, "_run_idor_strategy"):
+        return await dispatcher._run_idor_strategy(target, context.page_features)
+    if hasattr(dispatcher, "_run_llm_driven_exploration"):
+        return await dispatcher._run_llm_driven_exploration(context)
+    return {"progress": False, "reason": "No IDOR handler available"}
+
+
+def _open_redirect_precondition(context: StrategyContext) -> bool:
+    """疑似开放重定向面：URL/表单暴露 redirect 类参数，或内容含重定向 sink 语义。
+
+    主信号：raw_links/观测 URL 带 redirect/url/next/return/dest 类 query 参数，或
+    GET 表单含此类命名输入。弱信号：内容/HTML 出现 redirect=/?next=/?url=/returnurl/
+    window.location/location.href/http-equiv refresh 等 sink 语义。
+    """
+    from urllib.parse import parse_qs, urlparse
+
+    redirect_names = {
+        "redirect", "redirect_uri", "redirect_url", "redir", "url", "next",
+        "returnurl", "return_url", "return", "return_to", "dest", "destination",
+        "to", "goto", "continue", "callback", "target", "link", "out", "u", "r",
+    }
+    seeds = [str(u or "") for u in (context.page_features.get("raw_links") or [])]
+    seeds += [str(e or "") for e in (context.page_features.get("endpoints") or [])]
+    for raw in seeds:
+        if any(key.lower() in redirect_names for key in parse_qs(urlparse(raw).query, keep_blank_values=True)):
+            return True
+    for form in context.page_features.get("forms") or []:
+        if not isinstance(form, dict):
+            continue
+        for item in form.get("inputs") or []:
+            if isinstance(item, dict) and str(item.get("name") or "").strip().lower() in redirect_names:
+                return True
+    combined = (
+        str(context.page_features.get("content") or "")
+        + " "
+        + str(context.page_features.get("html") or "")
+    ).lower()
+    return any(
+        token in combined
+        for token in (
+            "redirect=", "?next=", "&next=", "?url=", "&url=", "returnurl",
+            "window.location", "location.href", "http-equiv=\"refresh\"",
+        )
+    )
+
+
+async def _execute_open_redirect_probe(context: StrategyContext):
+    """执行开放重定向探测（注入良性站外 canary，确认到达重定向 sink）。"""
+    # ``_run_open_redirect_strategy``:Protocol 外 optional duck-typed 面(见 _execute_jwt_probe)。
+    dispatcher = context.services
+    target = context.target
+    if hasattr(dispatcher, "_run_open_redirect_strategy"):
+        return await dispatcher._run_open_redirect_strategy(target, context.page_features)
+    if hasattr(dispatcher, "_run_llm_driven_exploration"):
+        return await dispatcher._run_llm_driven_exploration(context)
+    return {"progress": False, "reason": "No open redirect handler available"}
+
+
 async def _execute_reflected_xss_probe(context: StrategyContext):
     """执行反射型 XSS 探测（注入 canary，确认未转义回显）。"""
     # ``_run_reflected_xss_strategy``:Protocol 外 optional duck-typed 面(见 _execute_jwt_probe)。
@@ -1170,6 +1274,36 @@ def _register_api_injection_strategies(registry: "StrategyRegistry") -> None:
             escalation_condition="确认反射但需取 flag 时，转 admin-bot / SID 窃取（xss_admin_bot_sid）或 OOB 外带。",
             precondition=lambda ctx: _reflected_xss_precondition(ctx),
             execute=lambda ctx: _execute_reflected_xss_probe(ctx),
+        )
+    )
+
+    # IDOR 策略（授权缺陷：顺序对象 id 枚举出他人记录）
+    registry.register(
+        StrategyDefinition(
+            kind="idor_sequential",
+            chain_name="web",
+            precondition_description="存在可枚举的数字对象 id 面（?id=42 类 query 参数、/user/42 类数字路径段，或 id 类命名 GET 表单输入）。",
+            minimal_experiment="对每个对象面枚举相邻/低位 id（N±1、1/2/3），观察是否多个 id 返回不同的、内容丰富的成功对象（屏蔽回显 id 后比对去重）。",
+            success_signal="两个及以上顺序 id 返回彼此不同的对象记录（证明对象引用可枚举且无授权校验），或顺带回显 verified/runtime flag。",
+            failure_signal="所有 id 返回相同的拒绝/重定向页（屏蔽 id 后归一为单一 body）或无对象内容。",
+            escalation_condition="确认枚举后，遍历 id 区间收集他人对象/凭据，或定位含 flag 的记录 id。",
+            precondition=lambda ctx: _idor_precondition(ctx),
+            execute=lambda ctx: _execute_idor_probe(ctx),
+        )
+    )
+
+    # 开放重定向策略（客户端 URL 重定向：redirect 参数控制跳转目标）
+    registry.register(
+        StrategyDefinition(
+            kind="open_redirect",
+            chain_name="web",
+            precondition_description="存在 redirect 类参数面（redirect/url/next/return/dest 等 query 参数或命名 GET 表单输入），或内容含重定向 sink 语义。",
+            minimal_experiment="向每个 redirect 参数注入良性站外 canary（https://oob-<marker>.example.invalid/），观察 canary 是否落入重定向 sink：Location 头/重定向跳转，或 body 客户端 sink（meta refresh / window.location / location.href）。",
+            success_signal="站外 canary 出现在 Location 头/重定向链，或 body 的客户端重定向 sink 中（证明开放重定向原语）。",
+            failure_signal="所有 redirect 参数均被校验/剥离，站外 canary 不出现在任何重定向 sink。",
+            escalation_condition="确认开放重定向后，构造钓鱼/OAuth token 泄露 pivot（站外接收）。",
+            precondition=lambda ctx: _open_redirect_precondition(ctx),
+            execute=lambda ctx: _execute_open_redirect_probe(ctx),
         )
     )
 

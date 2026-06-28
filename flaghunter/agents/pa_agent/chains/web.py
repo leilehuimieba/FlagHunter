@@ -37,6 +37,8 @@ WEB_STRATEGY_ORDER = [
     "nosql_injection",
     "xxe_injection",
     "reflected_xss",
+    "idor_sequential",
+    "open_redirect",
 ]
 
 

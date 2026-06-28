@@ -82,6 +82,8 @@ TECHNIQUE_CATALOG: dict[str, dict[str, str]] = {
     # OWASP WSTG v4.2 — Configuration, Authorization, Session, Business Logic, API
     "WSTG-CONF-04": {"framework": "WSTG", "category": "Configuration", "name": "Review Old Backup and Unreferenced Files"},
     "WSTG-ATHZ-01": {"framework": "WSTG", "category": "Authorization", "name": "Directory Traversal / File Include"},
+    "WSTG-ATHZ-04": {"framework": "WSTG", "category": "Authorization", "name": "Insecure Direct Object References"},
+    "WSTG-CLNT-04": {"framework": "WSTG", "category": "Client-side", "name": "Client-side URL Redirect"},
     "WSTG-SESS-10": {"framework": "WSTG", "category": "Session Management", "name": "Testing JSON Web Tokens"},
     "WSTG-BUSL-01": {"framework": "WSTG", "category": "Business Logic", "name": "Business Logic Data Validation"},
     "WSTG-BUSL-07": {"framework": "WSTG", "category": "Business Logic", "name": "Defenses Against Application Misuse"},
@@ -167,6 +169,8 @@ STRATEGY_TECHNIQUES: dict[str, list[str]] = {
     "graphql_introspection": ["WSTG-APIT-01"],
     "nosql_injection": ["WSTG-INPV-05", "T1190"],
     "xxe_injection": ["WSTG-INPV-07", "T1190"],
+    "idor_sequential": ["WSTG-ATHZ-04", "T1190"],
+    "open_redirect": ["WSTG-CLNT-04"],
 }
 
 # Strategy kinds intentionally without a technique tag (meta / navigation /
