@@ -175,6 +175,21 @@ registry + 防 rot 治理（对标 tools/strategies 的 taxonomy 标注 + reacha
 
 ### 既存结构债（与本愿景强相关的）
 
+**P16 — 入口渠道注册表 + 热插拔（入口轴 / 模块化）**
+现状：入口分发是 ``interface/main.py`` 里一条**写死的 if/elif 链**（按 argparse 动词跳）。
+真正的"输入渠道"（监听/服务面）有 4~5 个：TUI、Web 控制台（127.0.0.1:8080）、MCP-SSE
+（**0.0.0.0:8080** ⚠️ 默认全网卡）、MCP-stdio、MCP 控制 socket（~/.flaghunter/mcp.sock）。
+**渠道层没有注册表、没有配置驱动的 enable/disable、没有运行时开关**——唯一的 enable/disable 是
+``mcp enable/disable``（开关**上游外部** MCP server，非自己的渠道）和工具的 ``enabled`` 标志。
+为什么重要：用户要"方便关闭某个输入渠道 / 开启新渠道"；且默认 0.0.0.0 是真实暴露面（红队工具
+不该默认把控制面绑全网卡）。
+模块化落点：**把工具层范式搬到渠道层**——定义 ``Channel`` 抽象（name/serve/enabled）+ 自注册 +
+loader 发现；``main()`` 的 if/elif 换成"查注册表→起启用渠道"；配置门控（关一个=改一行配置，
+加新渠道=新增自注册模块不碰分发）；顺手把监听类默认收回 127.0.0.1，要 0.0.0.0 显式开。
+两条边界：①只纳入"监听/服务类渠道"，CLI 工具动词（coverage/workspace…）不动；②先做"配置门控
+（重启生效）"=90% 价值，运行时真·热切换（agent 跑着起/停监听器）留后续，别一上来追。
+**自包含、不依赖黑板地基，可独立于地基波随时插入。**
+
 **P15 — 策略逻辑本体（run-fn）god-module**
 现状：策略的"逻辑本体"塞在大 mixin 文件里（earlier ③）。L4b 已证：链执行体未完全对象化，
 `_execute_chain` 有 ctx-blind seam；**并行收益 = "无并行单元可开"（已被 L4b 证伪，别拿提速当目标）**。
