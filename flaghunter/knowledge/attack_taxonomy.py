@@ -147,6 +147,7 @@ TOOL_EXEMPT: frozenset[str] = frozenset(
         "finish",          # workflow control
         "llm_payload_gen", # red-team payload factory for guardrail eval (generator, not a network action)
         "guardrail_probe", # red-team runner that probes a guardrail endpoint (eval harness, not a network action)
+        "source_audit",    # white-box source review — OWASP Code Review domain, outside black-box ATT&CK/WSTG
     }
 )
 
