@@ -193,6 +193,14 @@ class LLM:
         """
         if self.config.openai_api_base and self._is_openai_compatible_model():
             kwargs["api_base"] = self.config.openai_api_base
+            # Some OpenAI-compatible proxies block the openai-python SDK's default
+            # ``User-Agent: OpenAI/Python`` header. Allow overriding it via
+            # FLAGHUNTER_LLM_USER_AGENT so such gateways accept the request.
+            ua = os.getenv("FLAGHUNTER_LLM_USER_AGENT", "").strip()
+            if ua:
+                headers = dict(kwargs.get("extra_headers") or {})
+                headers.setdefault("User-Agent", ua)
+                kwargs["extra_headers"] = headers
         return kwargs
 
     def _sanitize_messages_for_anthropic(self, messages: list) -> list:

@@ -76,6 +76,30 @@ class TestApplyApiBase:
         llm._apply_api_base(kwargs)
         assert "api_base" not in kwargs
 
+    def test_injects_user_agent_when_env_set(self):
+        # Some OpenAI-compatible proxies block the default OpenAI/Python UA;
+        # FLAGHUNTER_LLM_USER_AGENT overrides it on the custom-base path.
+        llm = self._make_llm("openai/my-model", "https://relay.example/v1")
+        kwargs = {"model": "openai/my-model"}
+        with patch.dict(os.environ, {"FLAGHUNTER_LLM_USER_AGENT": "FlagHunter/0.4"}, clear=False):
+            llm._apply_api_base(kwargs)
+        assert kwargs["extra_headers"]["User-Agent"] == "FlagHunter/0.4"
+
+    def test_no_user_agent_header_when_env_unset(self):
+        llm = self._make_llm("openai/my-model", "https://relay.example/v1")
+        kwargs = {"model": "openai/my-model"}
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("FLAGHUNTER_LLM_USER_AGENT", None)
+            llm._apply_api_base(kwargs)
+        assert "extra_headers" not in kwargs
+
+    def test_user_agent_not_injected_for_anthropic(self):
+        llm = self._make_llm("claude-sonnet-4-20250514", "https://relay.example/v1")
+        kwargs = {"model": "claude-sonnet-4-20250514"}
+        with patch.dict(os.environ, {"FLAGHUNTER_LLM_USER_AGENT": "FlagHunter/0.4"}, clear=False):
+            llm._apply_api_base(kwargs)
+        assert "extra_headers" not in kwargs
+
 
 class TestGeneratePassesApiBase:
     @pytest.mark.asyncio
