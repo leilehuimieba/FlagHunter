@@ -34,6 +34,11 @@ class ReplayFixture:
     browser: dict[str, Any]
     proxy_rules: list[dict[str, Any]]
     default_proxy: dict[str, Any]
+    # Optional project-type profile (ctf / pentest / code_audit). None → the
+    # dispatcher default (CTF, byte-identical to every existing fixture). Lets a
+    # fixture be re-driven under a different profile (e.g. conservative pentest)
+    # to prove the profile覆盖 does not break a recorded solve.
+    profile: str | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ReplayFixture":
@@ -47,6 +52,7 @@ class ReplayFixture:
             browser=data.get("browser", {}),
             proxy_rules=data.get("proxy_rules", []),
             default_proxy=data.get("default_proxy", {"status_code": 404, "body": "not found"}),
+            profile=data.get("profile"),
         )
 
 
@@ -131,11 +137,18 @@ class ReplayResult:
     reproduced: bool
 
 
-async def run_replay(fixture: ReplayFixture) -> ReplayResult:
+async def run_replay(
+    fixture: ReplayFixture, *, profile: str | None = None
+) -> ReplayResult:
     """Re-drive a fixture deterministically and report flag reproduction.
 
     Neutralizes tool gating and isolates the notes store for the duration so the
     replay is side-effect-free. Restores both in a finally block.
+
+    ``profile`` overrides ``fixture.profile`` (which itself defaults to None →
+    the dispatcher's byte-identical CTF default). Pass e.g. ``"pentest"`` to
+    re-drive a recorded solve under the conservative profile and prove the
+    profile覆盖 does not break it.
     """
     # Local imports avoid an import cycle at package load time.
     from ..agents.pa_agent import ctf_dispatcher as _disp_mod
@@ -152,10 +165,12 @@ async def run_replay(fixture: ReplayFixture) -> ReplayResult:
             notes_module.set_notes_file(Path(tmp) / "notes.json")
             notes_module._notes.clear()
             runtime = ReplayRuntime(fixture)
+            effective_profile = profile if profile is not None else fixture.profile
             dispatcher = CTFTaskDispatcher(
                 runtime=runtime,
                 progress_callback=None,
                 verification_callback=lambda flag: "yes",
+                profile=effective_profile,
             )
             result = await dispatcher.run(
                 target=fixture.target,
