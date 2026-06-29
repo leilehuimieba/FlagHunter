@@ -17,9 +17,23 @@ CTF profile(aggressive/url)的逐 fixture 复现门在 ``test_replay_harness.py`
 
 from __future__ import annotations
 
+from pathlib import Path
+from types import SimpleNamespace
+
 import pytest
 
+from flaghunter.agents.pa_agent.coordinator import CTFCoordinator
+from flaghunter.agents.pa_agent.ctf_state import CTFState
 from flaghunter.eval.replay import list_fixtures, load_fixture, run_replay
+from flaghunter.knowledge.attack_surface import SurfaceKind, collect_attack_surfaces
+from flaghunter.knowledge.profile import get_profile
+
+_SOURCE_SAMPLE = (
+    Path(__file__).resolve().parent.parent
+    / "fixtures"
+    / "samples"
+    / "source_audit_app"
+)
 
 
 # ── 攻防演练 profile(pentest:conservative / blackbox)─────────────────────
@@ -38,3 +52,61 @@ async def test_pentest_profile_does_not_break_recorded_solves(name):
         f"{name}: pentest 下期望 {result.expected_flag!r},实得 {result.actual_flag!r} —— "
         "conservative 覆盖打断了这条已解链"
     )
+
+
+# ── 代码审计 profile(code_audit:conservative / source)─────────────────────
+
+def _code_audit_dispatcher(sample_path: Path) -> SimpleNamespace:
+    state = CTFState(target="local://audit", goal="audit")
+    # profile覆盖:code_audit 的 entry_kind="source" 投到 state(P5 apply_profile)。
+    state.apply_profile(get_profile("code_audit"))
+    return SimpleNamespace(
+        state=state,
+        _challenge_context={"challengePath": str(sample_path)},
+        _source_audit_findings=[],
+    )
+
+
+def test_code_audit_profile_entry_kind_is_source():
+    # P5:code_audit profile 把 entry_kind 覆盖为 source(白盒进场)。
+    disp = _code_audit_dispatcher(_SOURCE_SAMPLE)
+    assert disp.state.entry_kind == "source"
+
+
+def test_code_audit_scans_real_source_and_surfaces_suspicious_points():
+    """白盒最小闭环端到端:profile→source 进场→scan→可疑点→P12 攻击面面板。
+
+    串起 P5(profile 覆盖进场)+ P10/P11(source_audit 真扫真实漏洞样例)+
+    P12(可疑点登记为攻击面)。纯 Python,无 LLM/靶机。
+    """
+    assert _SOURCE_SAMPLE.is_dir(), "缺少代码审计真样例源码"
+    disp = _code_audit_dispatcher(_SOURCE_SAMPLE)
+
+    CTFCoordinator()._apply_source_audit_contract(disp)
+
+    findings = "\n".join(disp._source_audit_findings)
+    assert disp._source_audit_findings, "code_audit 应在真实样例上扫出可疑点"
+    assert "CWE-502" in findings  # pickle / yaml 反序列化
+    assert "CWE-78" in findings   # subprocess shell 执行
+    assert "CWE-89" in findings   # SQL 字符串拼接
+    # source_audit observation 记入 state
+    assert any(o.kind == "source_audit" for o in disp.state.observations)
+
+    # P12:可疑点登记进攻击面面板(source kind)。
+    report = collect_attack_surfaces(disp.state)
+    source_surfaces = [s for s in report["surfaces"] if s["kind"] == SurfaceKind.SOURCE]
+    assert source_surfaces, "P12 攻击面面板应登记 source 可疑点"
+
+
+def test_ctf_profile_does_not_scan_source_byte_identical():
+    # 对照:url 进场(CTF)不触发源码扫描 → 与 CTF 字节级一致。
+    state = CTFState(target="http://t", goal="solve")
+    state.apply_profile(get_profile("ctf"))
+    disp = SimpleNamespace(
+        state=state,
+        _challenge_context={"challengePath": str(_SOURCE_SAMPLE)},
+        _source_audit_findings=[],
+    )
+    CTFCoordinator()._apply_source_audit_contract(disp)
+    assert disp._source_audit_findings == []
+    assert not any(o.kind == "source_audit" for o in disp.state.observations)
