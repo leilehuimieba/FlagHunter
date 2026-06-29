@@ -19,7 +19,7 @@ from .models import (
     ProviderStatus,
     RequestLog,
 )
-from .model_router import route
+from .model_router import resolve_tier, route
 
 
 # ============================================================
@@ -244,6 +244,18 @@ class ProviderManager:
 
             # 2) 按 priority 升序排列
             available.sort(key=lambda c: c.priority)
+
+            # 2.5) 成本分层路由:仅"低思考"任务(light 档,如 tool_parse/summary/
+            # formatting)优先走便宜模型(tags 含 cheap/light);default/medium/heavy
+            # 保持原优先级顺序(主力模型)。无 cheap-tagged provider 时回落到下方原
+            # 逻辑 → 对未打 tag 的池字节级一致(老配置行为不变)。
+            if resolve_tier(task_hint) == "light":
+                cheap = [
+                    config for config in available
+                    if {"cheap", "light"} & {str(t).strip().lower() for t in (config.tags or [])}
+                ]
+                if cheap:
+                    return cheap[0]
 
             # 3) 如指定 task_hint，优先按任务类型路由模型
             routed_model = route(

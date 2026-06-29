@@ -103,6 +103,14 @@ def _resolve_tier(task_hint: str) -> str:
     return ROUTING_RULES["default"]
 
 
+def resolve_tier(task_hint: str) -> str:
+    """公开:把 task_hint 解析为成本档位 light/medium/heavy。
+
+    供 provider 调度按档位 + provider TAGS 做成本路由(低思考任务走便宜模型)。
+    """
+    return _resolve_tier(task_hint)
+
+
 def _candidate_supported(candidate_model: str, available_items: Iterable[str]) -> bool:
     candidate_lower = _normalize_text(candidate_model)
     available = [_normalize_text(item) for item in available_items]
