@@ -314,6 +314,9 @@ class CTFTaskDispatcher(
         # P8 回灌: cross-run tool-chain hints {"reuse":[...], "avoid":[...]} mined
         # from provenance + P7-scored, surfaced to the next-action planner.
         self._emergent_chain_hints: dict[str, list[str]] = {}
+        # P10/P11 白盒: source-audit suspicious points (file:line) surfaced to the
+        # planner on source entry (code_audit profile). Empty for url entry (CTF).
+        self._source_audit_findings: list[str] = []
         self._pending_wrong_flag_feedback: list[dict[str, str]] = []
         self._active_hypothesis_context = None
         self._active_strategy_context = None

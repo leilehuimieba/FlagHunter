@@ -50,6 +50,7 @@ class CoordinatorDispatcherServices(Protocol):
     _memory_match_ids: list[Any]
     _known_failed_payloads: list[str]
     _emergent_chain_hints: dict[str, list[str]]
+    _source_audit_findings: list[str]
     _pending_wrong_flag_feedback: list[dict[str, Any]]
     _exhausted_visit_url_targets: set[str]
     _restored_resume_checkpoint_id: Any
@@ -725,6 +726,7 @@ class CTFCoordinator:
         dispatcher._memory_match_ids = []
         dispatcher._known_failed_payloads = []
         dispatcher._emergent_chain_hints = {}
+        dispatcher._source_audit_findings = []
         dispatcher._pending_wrong_flag_feedback = []
         dispatcher._exhausted_visit_url_targets = set()
         dispatcher._restored_resume_checkpoint_id = None
@@ -1373,6 +1375,56 @@ class CTFCoordinator:
         if hints.get("reuse") or hints.get("avoid"):
             dispatcher._emergent_chain_hints = hints
 
+    def _apply_source_audit_contract(
+        self,
+        dispatcher: CoordinatorDispatcherServices,
+    ) -> None:
+        """P10/P11 白盒: when entering on source (code_audit profile), scan the
+        ingested source tree for vulnerability sink patterns and surface the
+        suspicious points to the planner (advisory — verify against the live
+        target; these are pattern matches, not proven vulns).
+
+        Gated on ``entry_kind == "source"`` so url-entry (CTF) is a no-op →
+        byte-identical. Best-effort and fail-safe — an audit error never disrupts
+        the solve. The shortest honest white-box loop: scan source → suspicious
+        points → planner verifies live (doc 线 34). Reorder/advice only.
+        """
+        state = getattr(dispatcher, "state", None)
+        if state is None:
+            return
+        if str(getattr(state, "entry_kind", "") or "").strip() != "source":
+            return
+        ctx = getattr(dispatcher, "_challenge_context", None)
+        challenge_path = (
+            str(ctx.get("challengePath") or "").strip() if isinstance(ctx, dict) else ""
+        )
+        if not challenge_path:
+            return
+        try:
+            from ...tools.source_audit import scan_source
+
+            report = scan_source(challenge_path)
+        except Exception:
+            return
+        findings = report.get("findings") or []
+        if not findings:
+            return
+        hints = [
+            f"{f['file']}:{f['line']} [{f['cwe']} {f['severity']}] {f['rule']}: {f['snippet']}"
+            for f in findings[:12]
+        ]
+        dispatcher._source_audit_findings = hints
+        try:
+            state.add_observation(
+                "source_audit",
+                f"{report.get('total_findings', len(findings))} suspicious source "
+                f"points flagged (top {len(hints)} surfaced to planner)",
+                source="source_audit",
+                metadata={"by_severity": report.get("by_severity", {})},
+            )
+        except Exception:
+            pass
+
     def _apply_hypothesis_contract(
         self,
         dispatcher: CoordinatorDispatcherServices,
@@ -1919,6 +1971,8 @@ class CTFCoordinator:
         )
         # P8 回灌: mine provenance + P7 score once → store cross-run chain hints.
         self._apply_emergent_chain_contract(ctx)
+        # P10/P11 白盒: on source entry, scan ingested source → suspicious points.
+        self._apply_source_audit_contract(ctx)
         if ctx.state is not None:
             ctx.state.enter_phase(Phase.HYPOTHESIS)
         chain_order = self._apply_hypothesis_contract(ctx)

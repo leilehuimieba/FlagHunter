@@ -307,6 +307,23 @@ class LLMExecutor:
                 + "\n".join(f"- {chain}" for chain in avoid_chains)
                 + "\n"
             )
+        # P10/P11 白盒 (code_audit profile): suspicious points flagged by the
+        # white-box source audit. Same advisory protocol — surfaces source sinks to
+        # verify against the live target; these are pattern matches, not proven
+        # vulns. No-op (byte-identical) for url entry (CTF), where the dispatcher
+        # leaves _source_audit_findings empty.
+        source_audit_findings = list(
+            getattr(context.services, "_source_audit_findings", None) or []
+        )[:12]
+        if source_audit_findings:
+            prompt += (
+                "White-box source audit flagged these suspicious points (verify "
+                "each against the live target before trusting it — confirm "
+                "reachability/exploitability; they are pattern matches, not proven "
+                "vulnerabilities):\n"
+                + "\n".join(f"- {point}" for point in source_audit_findings)
+                + "\n"
+            )
         # Surface the structured ExplorationAgenda (recon-discovered + framework
         # conventional entry routes) as an explicit prioritized queue. Without
         # this the planner only saw raw_links buried in the prompt and fell back
