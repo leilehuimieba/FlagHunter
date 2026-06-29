@@ -47,7 +47,7 @@ class Profile:
     description: str = ""
 
 
-# ── 注册表(先做 CTF + 代码审计两类坐实抽象;攻防演练随后)──────────────────
+# ── 注册表(CTF + 代码审计 + 攻防演练三类)────────────────────────────────
 
 CTF = Profile(
     name="ctf",
@@ -69,7 +69,21 @@ CODE_AUDIT = Profile(
     ),
 )
 
-PROFILES: dict[str, Profile] = {p.name: p for p in (CTF, CODE_AUDIT)}
+PENTEST = Profile(
+    name="pentest",
+    exploitation_mode="conservative",
+    entry_kind="blackbox",
+    # 演练取舍:保守先确认、留痕可复盘 → 比 CTF 收敛更早,但比代码审计宽
+    # (黑盒要给探测/确认更多回合)。
+    phase_round_budgets={Phase.EXPLOIT: 18},
+    description=(
+        "授权攻防演练:黑盒目标 + 规则,保守先确认(先探针定 vuln-class 再放具体 "
+        "payload)、留痕可复盘。entry_kind=blackbox 当前无专属 SETUP 消费者 → 走"
+        "常规 recon;真覆盖在 conservative 激进度 gate(同 code_audit)。"
+    ),
+)
+
+PROFILES: dict[str, Profile] = {p.name: p for p in (CTF, CODE_AUDIT, PENTEST)}
 
 DEFAULT_PROFILE: str = CTF.name
 
@@ -88,6 +102,7 @@ __all__ = [
     "Profile",
     "CTF",
     "CODE_AUDIT",
+    "PENTEST",
     "PROFILES",
     "DEFAULT_PROFILE",
     "get_profile",

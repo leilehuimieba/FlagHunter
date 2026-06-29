@@ -7,6 +7,7 @@ from flaghunter.knowledge.profile import (
     CODE_AUDIT,
     CTF,
     DEFAULT_PROFILE,
+    PENTEST,
     PROFILES,
     Profile,
     get_profile,
@@ -29,6 +30,18 @@ def test_code_audit_profile_is_a_conservative_source_scaffold():
     assert CODE_AUDIT.phase_round_budgets == {Phase.EXPLOIT: 12}
 
 
+def test_pentest_profile_is_a_conservative_blackbox_overlay():
+    assert PENTEST.name == "pentest"
+    assert PENTEST.exploitation_mode == "conservative"
+    assert PENTEST.entry_kind == "blackbox"
+    # Looser than code_audit (blackbox needs probing rounds), tighter than CTF.
+    assert PENTEST.phase_round_budgets == {Phase.EXPLOIT: 18}
+
+
+def test_three_profiles_registered():
+    assert set(PROFILES) == {"ctf", "code_audit", "pentest"}
+
+
 def test_default_profile_is_ctf():
     assert DEFAULT_PROFILE == "ctf"
     assert get_profile(None) is CTF
@@ -39,6 +52,7 @@ def test_get_profile_resolves_known_names_case_insensitively():
     assert get_profile("ctf") is CTF
     assert get_profile("code_audit") is CODE_AUDIT
     assert get_profile("  CODE_AUDIT  ") is CODE_AUDIT
+    assert get_profile("pentest") is PENTEST
 
 
 def test_unknown_profile_falls_back_to_default_not_error():

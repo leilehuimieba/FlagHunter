@@ -177,7 +177,8 @@ Examples:
         default="ctf",
         help="Project-type profile (unified skeleton + covering knobs): "
         "ctf (default; aggressive, shortest chain) | code_audit (conservative, "
-        "source entry, tighter stopping budget). Unknown names fall back to ctf.",
+        "source entry, tighter stopping budget) | pentest (conservative, blackbox "
+        "entry, probe-first). Unknown names fall back to ctf.",
     )
     run_parser.add_argument(
         "--challenge-path",
