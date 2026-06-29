@@ -72,10 +72,14 @@ class _FakeDispatcher:
 
     instances: list["_FakeDispatcher"] = []
 
-    def __init__(self, *, runtime=None, progress_callback=None, llm=None):
+    def __init__(self, *, runtime=None, progress_callback=None, llm=None, profile="ctf"):
+        from flaghunter.knowledge.profile import Profile, get_profile
+
         self.runtime = runtime
         self.progress_callback = progress_callback
         self.llm = llm
+        # Mirror the real dispatcher: resolve a profile name to a Profile object.
+        self.profile = profile if isinstance(profile, Profile) else get_profile(profile)
         self.state = None
         self.verifier = SimpleNamespace(name="verifier")
         self.capability_registry = _CapRegistry()
