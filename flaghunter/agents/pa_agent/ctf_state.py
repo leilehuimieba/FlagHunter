@@ -15,6 +15,8 @@ from dataclasses import asdict, dataclass, field, fields
 import time
 from typing import Any, Literal
 
+from ...knowledge.kill_chain import Phase
+
 
 FlagLevel = Literal["candidate", "runtime", "verified", "rejected"]
 
@@ -137,7 +139,7 @@ class LLMStepLog:
 
 @dataclass
 class CTFState:
-    schema_version: str = "1.3"
+    schema_version: str = "1.4"
     target: str = ""
     goal: str = ""
     detected_type: str | None = None
@@ -174,9 +176,31 @@ class CTFState:
     llm_exploration_steps: int = 0
     llm_exploration_log: list[LLMStepLog] = field(default_factory=list)
     weak_decision_log: list[str] = field(default_factory=list)
+    # Kill-chain工序 first-class tracking (P1). ``current_phase`` is the stage the
+    # solve is in; ``phase_history`` is the ordered list of stages entered (one
+    # entry per real transition). Additive observability only — no control-flow
+    # gating. Plain str/list[str] so asdict/from_snapshot round-trip them for
+    # free; old (pre-1.4) snapshots lacking these keys fall back to the defaults.
+    current_phase: str = Phase.INIT
+    phase_history: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         self._write_lock = asyncio.Lock()
+
+    def enter_phase(self, phase: str) -> str:
+        """Stamp entry into a kill-chain phase (P1 装配线工序 tracking).
+
+        Records the transition for observability (P4 stopping rule, blackboard,
+        provenance) without gating control flow. Idempotent on same-phase
+        re-entry — appends to ``phase_history`` only on a real change — so the
+        history reflects stage transitions, not call frequency. Returns the
+        resulting ``current_phase``.
+        """
+        normalized = str(phase or "").strip() or Phase.INIT
+        if normalized != self.current_phase:
+            self.current_phase = normalized
+            self.phase_history.append(normalized)
+        return self.current_phase
 
     async def acquire_write_lock(self) -> None:
         await self._write_lock.acquire()

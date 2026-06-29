@@ -10,7 +10,7 @@ from flaghunter.agents.pa_agent.ctf_state import CTFState, FlagProof, LLMStepLog
 def test_ctf_state_exploration_agenda_defaults_to_empty():
     state = CTFState(target="http://ctf.local", goal="拿到flag")
 
-    assert state.schema_version == "1.3"
+    assert state.schema_version == "1.4"
     assert state.exploration_agenda == []
 
 
@@ -35,6 +35,55 @@ def test_ctf_state_add_exploration_item_deduplicates_by_url_or_path():
     assert state.exploration_agenda[0].url_or_path == "/hints.txt"
     assert state.exploration_agenda[0].hint_strength == 1
     assert state.exploration_agenda[0].added_at == 10.0
+
+
+def test_ctf_state_enter_phase_defaults_and_transitions():
+    from flaghunter.agents.pa_agent.ctf_state import Phase
+
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    assert state.current_phase == Phase.INIT
+    assert state.phase_history == []
+
+    state.enter_phase(Phase.SETUP)
+    state.enter_phase(Phase.RECON)
+    # same-phase re-entry is idempotent (no duplicate history entry)
+    state.enter_phase(Phase.RECON)
+    state.enter_phase(Phase.EXPLOIT)
+
+    assert state.current_phase == Phase.EXPLOIT
+    assert state.phase_history == [Phase.SETUP, Phase.RECON, Phase.EXPLOIT]
+
+
+def test_ctf_state_enter_phase_blank_falls_back_to_init():
+    from flaghunter.agents.pa_agent.ctf_state import Phase
+
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    state.enter_phase(Phase.RECON)
+    assert state.enter_phase("   ") == Phase.INIT
+    assert state.current_phase == Phase.INIT
+
+
+def test_ctf_state_phase_survives_snapshot_round_trip():
+    from flaghunter.agents.pa_agent.ctf_state import Phase
+
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    state.enter_phase(Phase.SETUP)
+    state.enter_phase(Phase.RECON)
+
+    restored = CTFState.from_snapshot(state.to_snapshot())
+    assert restored.current_phase == Phase.RECON
+    assert restored.phase_history == [Phase.SETUP, Phase.RECON]
+
+
+def test_ctf_state_from_old_snapshot_without_phase_keys_uses_defaults():
+    from flaghunter.agents.pa_agent.ctf_state import Phase
+
+    # A pre-1.4 snapshot has no current_phase / phase_history keys.
+    restored = CTFState.from_snapshot(
+        {"target": "http://ctf.local", "goal": "g", "schema_version": "1.3"}
+    )
+    assert restored.current_phase == Phase.INIT
+    assert restored.phase_history == []
 
 
 def test_ctf_state_gets_unexplored_priority_items_only():
