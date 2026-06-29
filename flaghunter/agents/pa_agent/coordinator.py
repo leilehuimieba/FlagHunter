@@ -49,6 +49,7 @@ class CoordinatorDispatcherServices(Protocol):
     _current_fingerprint: Any
     _memory_match_ids: list[Any]
     _known_failed_payloads: list[str]
+    _emergent_chain_hints: dict[str, list[str]]
     _pending_wrong_flag_feedback: list[dict[str, Any]]
     _exhausted_visit_url_targets: set[str]
     _restored_resume_checkpoint_id: Any
@@ -723,6 +724,7 @@ class CTFCoordinator:
         dispatcher._current_fingerprint = None
         dispatcher._memory_match_ids = []
         dispatcher._known_failed_payloads = []
+        dispatcher._emergent_chain_hints = {}
         dispatcher._pending_wrong_flag_feedback = []
         dispatcher._exhausted_visit_url_targets = set()
         dispatcher._restored_resume_checkpoint_id = None
@@ -1342,6 +1344,35 @@ class CTFCoordinator:
                 }
             )
 
+    def _apply_emergent_chain_contract(
+        self,
+        dispatcher: CoordinatorDispatcherServices,
+    ) -> None:
+        """P8 (闭环波回灌): mine the provenance log + P7-score it once at bootstrap,
+        storing cross-run tool-chain hints on the dispatcher for the next-action
+        planner to surface (advisory; see ``llm_executor.call_llm_for_action``).
+
+        Best-effort and fail-safe — a mining error must never disrupt the solve.
+        Mined once here (not per iteration) so the cost is bounded; ``min_support``
+        means the current run's own calls cannot self-surface (no self-pollution).
+        Empty (cold log / no recurring chains) → ``{}`` → byte-identical planner
+        prompt. Reorder/advice only — it never removes a tool (C1 覆盖底线).
+        """
+        try:
+            from ...knowledge.chain_scoring import (
+                chain_hint_strings,
+                score_emergent_chains,
+            )
+            from ...knowledge.emergent_chains import mine_emergent_chains
+            from ...tools.provenance import get_all_calls
+
+            scored = score_emergent_chains(mine_emergent_chains(get_all_calls()))
+            hints = chain_hint_strings(scored)
+        except Exception:
+            return
+        if hints.get("reuse") or hints.get("avoid"):
+            dispatcher._emergent_chain_hints = hints
+
     def _apply_hypothesis_contract(
         self,
         dispatcher: CoordinatorDispatcherServices,
@@ -1886,6 +1917,8 @@ class CTFCoordinator:
             target=normalized_target,
             page_features=page_features,
         )
+        # P8 回灌: mine provenance + P7 score once → store cross-run chain hints.
+        self._apply_emergent_chain_contract(ctx)
         if ctx.state is not None:
             ctx.state.enter_phase(Phase.HYPOTHESIS)
         chain_order = self._apply_hypothesis_contract(ctx)

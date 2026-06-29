@@ -7,6 +7,7 @@ Pure-function tests over mined-report dicts (the shape emitted by
 from __future__ import annotations
 
 from flaghunter.knowledge.chain_scoring import (
+    chain_hint_strings,
     format_scored_chains,
     score_chain,
     score_emergent_chains,
@@ -119,3 +120,30 @@ def test_format_scored_chains_renders_verdicts_and_avoid_section():
 def test_format_scored_chains_handles_empty():
     text = format_scored_chains(score_emergent_chains({"chains": []}))
     assert "No scorable chains yet" in text
+
+
+def test_chain_hint_strings_splits_reuse_and_avoid_as_arrows():
+    report = {
+        "chains": [
+            _chain(("a", "b"), runs=2, flag_runs=2, error_rate=0.0),
+            _chain(("x", "y"), runs=2, flag_runs=0, error_rate=0.9),
+        ]
+    }
+    hints = chain_hint_strings(score_emergent_chains(report))
+    assert hints["reuse"] == ["a → b"]
+    assert hints["avoid"] == ["x → y"]
+
+
+def test_chain_hint_strings_empty_in_empty_out():
+    hints = chain_hint_strings(score_emergent_chains({"chains": []}))
+    assert hints == {"reuse": [], "avoid": []}
+
+
+def test_chain_hint_strings_respects_limit():
+    report = {
+        "chains": [
+            _chain((f"r{i}",), runs=2, flag_runs=2, error_rate=0.0) for i in range(8)
+        ]
+    }
+    hints = chain_hint_strings(score_emergent_chains(report), limit=3)
+    assert len(hints["reuse"]) == 3

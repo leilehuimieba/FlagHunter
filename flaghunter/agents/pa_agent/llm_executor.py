@@ -283,6 +283,30 @@ class LLMExecutor:
                 + "\n".join(f"- {payload}" for payload in known_failed_payloads)
                 + "\n"
             )
+        # P8 回灌 (闭环波): cross-run emergent tool-chains, mined from provenance and
+        # P7-scored once at bootstrap. Same advisory protocol-augmentation as the
+        # failed-payload / agenda blocks — it surfaces what worked / spun on past
+        # runs but does not force a choice (never removes a tool; C1 覆盖底线). No-op
+        # (byte-identical prompt) when the provenance log is cold / has no recurring
+        # chains, since the dispatcher leaves ``_emergent_chain_hints`` empty.
+        chain_hints = getattr(context.services, "_emergent_chain_hints", None) or {}
+        reuse_chains = list(chain_hints.get("reuse") or [])[:5]
+        avoid_chains = list(chain_hints.get("avoid") or [])[:5]
+        if reuse_chains:
+            prompt += (
+                "Tool sequences that LED TO A FLAG on prior runs (prefer extending "
+                "or continuing these proven chains when the situation matches):\n"
+                + "\n".join(f"- {chain}" for chain in reuse_chains)
+                + "\n"
+            )
+        if avoid_chains:
+            prompt += (
+                "Tool sequences that historically just ERRORED or spun without "
+                "progress (avoid blindly repeating these; prefer a materially "
+                "different approach):\n"
+                + "\n".join(f"- {chain}" for chain in avoid_chains)
+                + "\n"
+            )
         # Surface the structured ExplorationAgenda (recon-discovered + framework
         # conventional entry routes) as an explicit prioritized queue. Without
         # this the planner only saw raw_links buried in the prompt and fell back

@@ -311,6 +311,9 @@ class CTFTaskDispatcher(
         # failed on similar past challenges, surfaced to the planner so it avoids
         # re-proposing them. Empty until the strategy-memory contract populates it.
         self._known_failed_payloads: list[str] = []
+        # P8 回灌: cross-run tool-chain hints {"reuse":[...], "avoid":[...]} mined
+        # from provenance + P7-scored, surfaced to the next-action planner.
+        self._emergent_chain_hints: dict[str, list[str]] = {}
         self._pending_wrong_flag_feedback: list[dict[str, str]] = []
         self._active_hypothesis_context = None
         self._active_strategy_context = None

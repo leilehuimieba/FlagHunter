@@ -156,4 +156,30 @@ def format_scored_chains(scored_report: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-__all__ = ["score_chain", "score_emergent_chains", "format_scored_chains"]
+def chain_hint_strings(
+    scored_report: Dict[str, Any], *, limit: int = 5
+) -> Dict[str, List[str]]:
+    """Compact ``{"reuse": [...], "avoid": [...]}`` arrow-strings for reinjection.
+
+    The P8 read surface (next-action planner) consumes these as advisory hints:
+    ``reuse`` = chains that historically led to a flag (prefer extending),
+    ``avoid`` = negative-feedback chains (errored / spun). Each list is capped at
+    ``limit`` and rendered as ``"a → b → c"``. Empty-in → empty lists, so a cold
+    provenance log yields no hints (byte-identical planner prompt).
+    """
+
+    def _fmt(items: List[Dict[str, Any]]) -> List[str]:
+        return [" → ".join(c.get("chain", [])) for c in items[: max(limit, 0)]]
+
+    return {
+        "reuse": _fmt(scored_report.get("reuse", [])),
+        "avoid": _fmt(scored_report.get("avoid", [])),
+    }
+
+
+__all__ = [
+    "score_chain",
+    "score_emergent_chains",
+    "format_scored_chains",
+    "chain_hint_strings",
+]
