@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from ...knowledge.kill_chain import Phase, phase_round_budget
 from .ctf_state import CTFState, ExplorationItem, Hypothesis
 
 
@@ -109,6 +110,33 @@ class RecoveryController:
             current_chain=current_chain,
             used_chains=used_chains,
         )
+
+        # P4 stopping rule — phase-budget backstop. The per-chain heuristics below
+        # reset ``no_progress_count`` on any micro-progress, so a solve that keeps
+        # making tiny progress (switch_chain → explore_agenda → switch_chain …)
+        # while never producing a runtime flag can churn indefinitely. Cap total
+        # EXPLOIT-phase churn by reading the first-class phase round count. Only a
+        # backstop: it yields to any pending runtime/verified flag (handled by the
+        # guards just below) so it never preempts a real flag handoff.
+        exploit_budget = phase_round_budget(Phase.EXPLOIT)
+        if (
+            exploit_budget is not None
+            and state.rounds_in_phase(Phase.EXPLOIT) >= exploit_budget
+            and not state.verified_flags
+            and not state.runtime_flags
+        ):
+            return RecoveryDecision(
+                action="stop_phase_budget",
+                should_stop=True,
+                reason=(
+                    f"EXPLOIT 阶段已耗尽 {exploit_budget} 轮预算仍无运行时 flag；"
+                    "按阶段停止准则收敛，不再无限换链。"
+                ),
+                suggested_actions=[
+                    "emit retrospective",
+                    "record phase-budget exhaustion as a coverage gap",
+                ],
+            )
 
         if state.runtime_flags and not state.verified_flags:
             latest = state.runtime_flags[-1]

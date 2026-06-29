@@ -452,6 +452,10 @@ class CTFTaskDispatcher(
         chain_index = 0
         while chain_index < len(chain_order):
             chain_name = chain_order[chain_index]
+            # P4: tally one EXPLOIT round per loop iteration so the recovery
+            # controller's phase-budget backstop can cap runaway churn.
+            if self.state is not None:
+                self.state.record_phase_round(Phase.EXPLOIT)
             result.chain_used.append(chain_name)
             self._restore_context()
             before_state = self._snapshot_flag_counts()
