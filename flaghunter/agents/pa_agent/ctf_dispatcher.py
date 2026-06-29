@@ -44,6 +44,7 @@ from ...harness.audit_events import (
 from ...harness.checkpoint_store import CheckpointStore
 from ...harness.session_ledger import SessionLedger
 from ...knowledge.kill_chain import Phase
+from ...knowledge.profile import Profile, get_profile
 from .chains.base import _ChainOutcome
 from .chains.file_read import LFIChainMixin
 from .chains.injection import GenericInjectionChainMixin
@@ -263,17 +264,25 @@ class CTFTaskDispatcher(
         collector_port: int = 7777,
         verification_callback: Callable[[str], Any] | None = None,
         llm: Any | None = None,
-        exploitation_mode: str = "aggressive",
+        exploitation_mode: str | None = None,
+        profile: Profile | str | None = None,
     ):
         self.runtime = runtime
         self.progress_callback = progress_callback
         self.collector_port = collector_port
         self.llm = llm
+        # P5: the active project-type Profile (CTF / code_audit / …). Always a
+        # resolved Profile — ``None`` / unknown names resolve to CTF, so callers
+        # that pass nothing keep the byte-identical CTF default.
+        self.profile = profile if isinstance(profile, Profile) else get_profile(profile)
         # "aggressive" (CTF default): take the shortest chain to the flag — fire
-        # specific exploit payloads directly. "conservative" (pentest): gate
+        # specific exploit payloads directly. "conservative" (pentest/audit): gate
         # specific exploitation on prior vuln-class confirmation (info-gathering
-        # first). See _ssti_exploitation_gated_by_mode.
-        self.exploitation_mode = str(exploitation_mode or "aggressive").strip().lower() or "aggressive"
+        # first). See _ssti_exploitation_gated_by_mode. Precedence: an explicit
+        # ``exploitation_mode=`` wins (keeps direct-mode callers/tests stable);
+        # otherwise it is derived from the active Profile.
+        _mode = exploitation_mode if exploitation_mode is not None else self.profile.exploitation_mode
+        self.exploitation_mode = str(_mode or "aggressive").strip().lower() or "aggressive"
         self.tool_guard = ToolGuard(runtime=runtime)
         self._notes_log: list[str] = []
         self.state: CTFState | None = None
@@ -441,8 +450,11 @@ class CTFTaskDispatcher(
         if result is None:
             result = SolveResult(success=False)
         # P1: entering the chain/exploit solve loop — stamp the EXPLOIT phase.
+        # P5: project the active Profile's stopping-budget overrides onto the
+        # (possibly resume-rebound) state so the recovery backstop reads them.
         if self.state is not None:
             self.state.enter_phase(Phase.EXPLOIT)
+            self.state.phase_round_budget_overrides = dict(self.profile.phase_round_budgets)
         chain_order = list(dict.fromkeys(chain_order))
         # The seam object the coordinator contracts run against: the carried
         # ``RunContext`` when supplied, else the raw dispatcher (== old behaviour).

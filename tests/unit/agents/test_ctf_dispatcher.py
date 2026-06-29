@@ -75,6 +75,28 @@ def test_dispatcher_strategy_context_populates_explicit_chain_context_fields():
     assert isinstance(dispatcher, StrategyServices)
 
 
+def test_dispatcher_derives_exploitation_mode_from_profile():
+    # P5: an active Profile drives exploitation_mode; explicit param still wins.
+    runtime = _DispatcherRuntime()
+
+    # default (no profile, no mode) → CTF profile + aggressive (byte-identical).
+    default_d = CTFTaskDispatcher(runtime=runtime)
+    assert default_d.profile.name == "ctf"
+    assert default_d.exploitation_mode == "aggressive"
+
+    # code_audit profile derives conservative.
+    audit_d = CTFTaskDispatcher(runtime=runtime, profile="code_audit")
+    assert audit_d.profile.name == "code_audit"
+    assert audit_d.exploitation_mode == "conservative"
+
+    # explicit exploitation_mode overrides the profile's derived mode.
+    override_d = CTFTaskDispatcher(
+        runtime=runtime, profile="code_audit", exploitation_mode="aggressive"
+    )
+    assert override_d.profile.name == "code_audit"
+    assert override_d.exploitation_mode == "aggressive"
+
+
 def test_dispatcher_conforms_to_coordinator_dispatcher_services_protocol():
     # L2c: 对称 L1 上面的 StrategyServices 断言——为 L2a/L2b 收窄出的
     # CoordinatorDispatcherServices Protocol 补【生产侧 conformance】门禁。

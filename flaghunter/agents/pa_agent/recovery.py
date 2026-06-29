@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from ...knowledge.kill_chain import Phase, phase_round_budget
+from ...knowledge.kill_chain import Phase
 from .ctf_state import CTFState, ExplorationItem, Hypothesis
 
 
@@ -117,8 +117,10 @@ class RecoveryController:
         # while never producing a runtime flag can churn indefinitely. Cap total
         # EXPLOIT-phase churn by reading the first-class phase round count. Only a
         # backstop: it yields to any pending runtime/verified flag (handled by the
-        # guards just below) so it never preempts a real flag handoff.
-        exploit_budget = phase_round_budget(Phase.EXPLOIT)
+        # guards just below) so it never preempts a real flag handoff. The budget
+        # is profile-overridable (P5) — read it off the state, which falls back to
+        # the kill_chain module default when no profile override is present.
+        exploit_budget = state.effective_phase_budget(Phase.EXPLOIT)
         if (
             exploit_budget is not None
             and state.rounds_in_phase(Phase.EXPLOIT) >= exploit_budget

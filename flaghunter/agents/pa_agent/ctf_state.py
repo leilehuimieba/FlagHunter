@@ -15,7 +15,7 @@ from dataclasses import asdict, dataclass, field, fields
 import time
 from typing import Any, Literal
 
-from ...knowledge.kill_chain import Phase
+from ...knowledge.kill_chain import Phase, phase_round_budget
 
 
 FlagLevel = Literal["candidate", "runtime", "verified", "rejected"]
@@ -139,7 +139,7 @@ class LLMStepLog:
 
 @dataclass
 class CTFState:
-    schema_version: str = "1.5"
+    schema_version: str = "1.6"
     target: str = ""
     goal: str = ""
     detected_type: str | None = None
@@ -188,6 +188,10 @@ class CTFState:
     # ``rounds_in_phase(EXPLOIT)`` and apply a phase-budget backstop. Plain
     # dict[str,int] → round-trips for free; pre-1.5 snapshots fall back to {}.
     phase_round_counts: dict[str, int] = field(default_factory=dict)
+    # P5 profile覆盖 — per-phase round-budget overrides injected from the active
+    # Profile (e.g. code_audit tightens EXPLOIT to 12). Empty → ``effective_phase_budget``
+    # falls back to the kill_chain module default, so CTF is byte-identical to P4.
+    phase_round_budget_overrides: dict[str, int] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self._write_lock = asyncio.Lock()
@@ -222,6 +226,18 @@ class CTFState:
         """How many rounds have been tallied under ``phase`` (0 if none)."""
         normalized = str(phase or "").strip()
         return int(self.phase_round_counts.get(normalized, 0))
+
+    def effective_phase_budget(self, phase: str) -> int | None:
+        """Round budget for ``phase``: profile override if set, else module default.
+
+        P5×P4 seam — the active Profile's ``phase_round_budgets`` are copied onto
+        ``phase_round_budget_overrides``; this resolves them with the kill_chain
+        module default as the fallback. ``None`` means the phase is unbudgeted.
+        """
+        normalized = str(phase or "").strip()
+        if normalized in self.phase_round_budget_overrides:
+            return int(self.phase_round_budget_overrides[normalized])
+        return phase_round_budget(normalized)
 
     async def acquire_write_lock(self) -> None:
         await self._write_lock.acquire()

@@ -10,7 +10,7 @@ from flaghunter.agents.pa_agent.ctf_state import CTFState, FlagProof, LLMStepLog
 def test_ctf_state_exploration_agenda_defaults_to_empty():
     state = CTFState(target="http://ctf.local", goal="拿到flag")
 
-    assert state.schema_version == "1.5"
+    assert state.schema_version == "1.6"
     assert state.exploration_agenda == []
 
 
@@ -123,6 +123,35 @@ def test_ctf_state_phase_round_counts_survive_snapshot_round_trip():
 
     restored = CTFState.from_snapshot(state.to_snapshot())
     assert restored.rounds_in_phase(Phase.EXPLOIT) == 2
+
+
+def test_ctf_state_effective_phase_budget_falls_back_to_module_default():
+    from flaghunter.agents.pa_agent.ctf_state import Phase
+    from flaghunter.knowledge.kill_chain import phase_round_budget
+
+    state = CTFState(target="http://ctf.local", goal="g")
+    # No profile override → kill_chain module default (P4); CTF is byte-identical.
+    assert state.effective_phase_budget(Phase.EXPLOIT) == phase_round_budget(Phase.EXPLOIT)
+    # Unbudgeted phase stays None.
+    assert state.effective_phase_budget(Phase.RECON) is None
+
+
+def test_ctf_state_effective_phase_budget_honours_profile_override():
+    from flaghunter.agents.pa_agent.ctf_state import Phase
+
+    state = CTFState(target="http://ctf.local", goal="g")
+    state.phase_round_budget_overrides = {Phase.EXPLOIT: 12}  # code_audit-style override
+    assert state.effective_phase_budget(Phase.EXPLOIT) == 12
+
+
+def test_ctf_state_budget_overrides_survive_snapshot_round_trip():
+    from flaghunter.agents.pa_agent.ctf_state import Phase
+
+    state = CTFState(target="http://ctf.local", goal="g")
+    state.phase_round_budget_overrides = {Phase.EXPLOIT: 12}
+
+    restored = CTFState.from_snapshot(state.to_snapshot())
+    assert restored.effective_phase_budget(Phase.EXPLOIT) == 12
 
 
 def test_ctf_state_gets_unexplored_priority_items_only():

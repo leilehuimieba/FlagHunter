@@ -66,6 +66,35 @@ def test_after_chain_does_not_stop_below_exploit_budget():
     assert decision.action != "stop_phase_budget"
 
 
+def test_profile_override_tightens_the_budget():
+    # P5×P4 — a code_audit-style override (EXPLOIT=12) makes the backstop fire at
+    # 12 rounds, well before the CTF default of 24.
+    state = _state_at_exploit_rounds(12)
+    state.phase_round_budget_overrides = {Phase.EXPLOIT: 12}
+
+    decision = _controller().after_chain(
+        state,
+        current_chain="web",
+        active_hypothesis=None,
+        outcome_progress=True,
+        no_progress_count=0,
+        used_chains=["web"],
+    )
+
+    assert decision.action == "stop_phase_budget"
+    # Without the override the same state (12 < 24) would NOT stop on budget.
+    state.phase_round_budget_overrides = {}
+    decision2 = _controller().after_chain(
+        state,
+        current_chain="web",
+        active_hypothesis=None,
+        outcome_progress=True,
+        no_progress_count=0,
+        used_chains=["web"],
+    )
+    assert decision2.action != "stop_phase_budget"
+
+
 def test_phase_budget_backstop_yields_to_pending_runtime_flag():
     # A runtime flag awaiting verification must win over the budget backstop —
     # we never throw away a real flag handoff just because churn was high.
