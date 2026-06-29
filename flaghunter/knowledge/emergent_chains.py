@@ -81,7 +81,8 @@ def mine_emergent_chains(
 
         {
           "summary": {total_calls, total_runs, flag_runs, distinct_tools},
-          "chains":  [{chain, length, runs, occurrences, flag_runs, flag_rate}],
+          "chains":  [{chain, length, runs, occurrences, flag_runs, flag_rate,
+                       error_rate}],
           "tools":   [{tool, count, success, failed, flag_count}],
         }
 
@@ -99,6 +100,7 @@ def mine_emergent_chains(
     chain_runs: Dict[Chain, set] = {}          # chain -> set of run_ids it appeared in
     chain_occurrences: Dict[Chain, int] = {}   # chain -> total adjacent occurrences
     chain_flag_runs: Dict[Chain, set] = {}     # chain -> set of flag-bearing run_ids
+    chain_clean: Dict[Chain, int] = {}         # chain -> occurrences where every call succeeded
 
     # Per-tool aggregates (independent of run grouping; mirrors get_tool_stats).
     tool_count: Dict[str, int] = {}
@@ -121,14 +123,18 @@ def mine_emergent_chains(
     for run_id, run_records in runs.items():
         ordered = sorted(run_records, key=lambda r: r.get("seq", 0))
         tools = [str(r.get("tool") or "?") for r in ordered]
+        succ = [bool(r.get("success")) for r in ordered]
         run_has_flag = any(r.get("found_flag") for r in ordered)
         if run_has_flag:
             summary["flag_runs"] += 1
 
         seen_in_run: set = set()  # so a chain counts once toward *support* per run
         for n in range(max(min_n, 1), max_n + 1):
-            for gram in _consecutive_ngrams(tools, n):
+            for i in range(len(tools) - n + 1):
+                gram = tuple(tools[i : i + n])
                 chain_occurrences[gram] = chain_occurrences.get(gram, 0) + 1
+                if all(succ[i : i + n]):  # an occurrence with no erroring call
+                    chain_clean[gram] = chain_clean.get(gram, 0) + 1
                 if gram not in seen_in_run:
                     seen_in_run.add(gram)
                     chain_runs.setdefault(gram, set()).add(run_id)
@@ -143,14 +149,19 @@ def mine_emergent_chains(
         if support < min_support:
             continue
         flag_runs = len(chain_flag_runs.get(gram, set()))
+        occ = chain_occurrences.get(gram, 0)
+        clean = chain_clean.get(gram, 0)
         chains.append(
             {
                 "chain": list(gram),
                 "length": len(gram),
                 "runs": support,
-                "occurrences": chain_occurrences.get(gram, 0),
+                "occurrences": occ,
                 "flag_runs": flag_runs,
                 "flag_rate": round(flag_runs / support, 3) if support else 0.0,
+                # reliability: fraction of occurrences whose calls all succeeded.
+                # error_rate = 1 - clean_rate feeds the P7 negative-feedback lens.
+                "error_rate": round(1 - clean / occ, 3) if occ else 0.0,
             }
         )
 

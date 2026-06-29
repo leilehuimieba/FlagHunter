@@ -150,3 +150,24 @@ def test_format_emergent_chains_renders_summary_and_chains():
 def test_format_emergent_chains_handles_empty_report():
     text = format_emergent_chains(mine_emergent_chains([]))
     assert "No recurring chains yet" in text
+
+
+def test_chain_error_rate_reflects_failed_constituent_calls():
+    # a→b: in r1 both succeed (clean), in r2 the b call errors → 1/2 occ clean.
+    records = [
+        _rec("r1", 1, "a"), _rec("r1", 2, "b"),
+        _rec("r2", 1, "a"), _rec("r2", 2, "b", success=False),
+    ]
+    report = mine_emergent_chains(records)
+    ab = next(c for c in report["chains"] if tuple(c["chain"]) == ("a", "b"))
+    assert ab["error_rate"] == 0.5  # one of two occurrences had an erroring call
+
+
+def test_chain_error_rate_zero_when_all_calls_succeed():
+    records = [
+        _rec("r1", 1, "a"), _rec("r1", 2, "b"),
+        _rec("r2", 1, "a"), _rec("r2", 2, "b"),
+    ]
+    report = mine_emergent_chains(records)
+    ab = next(c for c in report["chains"] if tuple(c["chain"]) == ("a", "b"))
+    assert ab["error_rate"] == 0.0
