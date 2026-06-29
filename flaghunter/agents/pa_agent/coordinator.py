@@ -10,6 +10,7 @@ from ...harness.audit_events import (
     build_dispatcher_started_event,
     build_verification_decision_event,
 )
+from ...knowledge.kill_chain import Phase
 from .ctf_state import CTFState
 
 
@@ -1799,6 +1800,12 @@ class CTFCoordinator:
             requested_type=requested_type,
             hint=normalized_hint,
         )
+        # P1: stamp the kill-chain工序 as this sequencer crosses each boundary.
+        # Additive observability only — no control-flow change. SETUP covers
+        # bootstrap/resume/asset-ingestion; the early-exit shortcut contracts
+        # below may return before RECON, leaving the solve stamped at SETUP.
+        if ctx.state is not None:
+            ctx.state.enter_phase(Phase.SETUP)
         self._apply_resume_checkpoint_contract(
             ctx,
             hint=normalized_hint,
@@ -1830,6 +1837,8 @@ class CTFCoordinator:
             ctx,
             target=normalized_target,
         )
+        if ctx.state is not None:
+            ctx.state.enter_phase(Phase.RECON)
         page_features, early_result = await self._apply_recon_contract(
             ctx,
             target=normalized_target,
@@ -1837,6 +1846,8 @@ class CTFCoordinator:
         )
         if early_result is not None:
             return early_result
+        if ctx.state is not None:
+            ctx.state.enter_phase(Phase.DIAGNOSE)
         detected_type, early_result = await self._apply_post_recon_contract(
             ctx,
             target=normalized_target,
@@ -1850,6 +1861,8 @@ class CTFCoordinator:
             target=normalized_target,
             page_features=page_features,
         )
+        if ctx.state is not None:
+            ctx.state.enter_phase(Phase.HYPOTHESIS)
         chain_order = self._apply_hypothesis_contract(ctx)
 
         # Slice 1b: the coordinator has run every setup contract above, so it

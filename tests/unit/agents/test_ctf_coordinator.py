@@ -305,6 +305,68 @@ async def test_coordinator_execute_calls_dispatcher_run_without_redelegation():
 
 
 @pytest.mark.asyncio
+async def test_coordinator_execute_stamps_kill_chain_phases():
+    """P1: the setup sequencer stamps the kill-chain工序 as it crosses boundaries."""
+    from flaghunter.agents.pa_agent.ctf_state import Phase
+
+    coordinator = CTFCoordinator()
+    sentinel = SolveResult(success=False, reason="phase-stamp")
+    dispatcher = _BootstrapCapableDispatcher(sentinel)
+
+    await coordinator.execute(
+        dispatcher,
+        target="127.0.0.1:3000",
+        goal="goal",
+        type="auto",
+        hint="",
+        submit_profile=None,
+        challenge_context={"artifactPaths": []},
+        run_id="run-phase",
+        ledger_root=None,
+        checkpoint_root=None,
+    )
+
+    # _run_solve_loop is stubbed here, so EXPLOIT (stamped inside it) is absent;
+    # the four setup-pipeline phases all fire (no early-exit flag for this fixture).
+    assert dispatcher.state.phase_history == [
+        Phase.SETUP,
+        Phase.RECON,
+        Phase.DIAGNOSE,
+        Phase.HYPOTHESIS,
+    ]
+    assert dispatcher.state.current_phase == Phase.HYPOTHESIS
+
+
+@pytest.mark.asyncio
+async def test_run_solve_loop_stamps_exploit_phase():
+    """P1: entering the solve loop stamps EXPLOIT (real dispatcher, final recovery stubbed)."""
+    from flaghunter.agents.pa_agent.ctf_state import Phase
+
+    dispatcher = CTFTaskDispatcher(runtime=_Runtime())
+    dispatcher.state = CTFState(target="http://ctf.local", goal="g")
+    dispatcher.state.enter_phase(Phase.HYPOTHESIS)
+
+    final = SolveResult(success=False, reason="exhausted")
+
+    async def _fake_final_recovery(ctx, **kwargs):
+        return final
+
+    dispatcher.coordinator._apply_final_recovery_contract = _fake_final_recovery
+
+    result = await dispatcher._run_solve_loop(
+        target="http://ctf.local",
+        hint="",
+        page_features={},
+        detected_type="web",
+        chain_order=[],  # empty → loop body skipped, straight to final recovery
+    )
+
+    assert result is final
+    assert dispatcher.state.current_phase == Phase.EXPLOIT
+    assert Phase.EXPLOIT in dispatcher.state.phase_history
+
+
+@pytest.mark.asyncio
 async def test_coordinator_normalizes_public_run_inputs_before_dispatch():
     coordinator = CTFCoordinator()
     sentinel = SolveResult(success=False, reason="normalized")

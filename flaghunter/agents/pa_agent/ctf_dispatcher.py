@@ -43,6 +43,7 @@ from ...harness.audit_events import (
 )
 from ...harness.checkpoint_store import CheckpointStore
 from ...harness.session_ledger import SessionLedger
+from ...knowledge.kill_chain import Phase
 from .chains.base import _ChainOutcome
 from .chains.file_read import LFIChainMixin
 from .chains.injection import GenericInjectionChainMixin
@@ -439,6 +440,9 @@ class CTFTaskDispatcher(
         """
         if result is None:
             result = SolveResult(success=False)
+        # P1: entering the chain/exploit solve loop — stamp the EXPLOIT phase.
+        if self.state is not None:
+            self.state.enter_phase(Phase.EXPLOIT)
         chain_order = list(dict.fromkeys(chain_order))
         # The seam object the coordinator contracts run against: the carried
         # ``RunContext`` when supplied, else the raw dispatcher (== old behaviour).
