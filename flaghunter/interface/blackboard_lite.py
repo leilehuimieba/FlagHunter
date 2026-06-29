@@ -5,6 +5,7 @@ from typing import Any
 
 from flaghunter.agents.pa_agent.ctf_state import CTFState
 from flaghunter.interface.control_contract import strongest_hypothesis_contract
+from flaghunter.knowledge.attack_surface import collect_attack_surfaces
 from flaghunter.knowledge.blackboard_schema import BoardFact
 
 
@@ -26,6 +27,9 @@ def normalize_blackboard_snapshot(snapshot: dict[str, Any] | None) -> dict[str, 
     active_decision = data.get("activeDecision")
     if not isinstance(active_decision, dict):
         active_decision = data.get("active_decision")
+    attack_surfaces = data.get("attackSurfaces")
+    if not isinstance(attack_surfaces, list):
+        attack_surfaces = data.get("attack_surfaces")
     return {
         "facts": list(data.get("facts") or []) if isinstance(data.get("facts"), list) else [],
         "hypotheses": list(data.get("hypotheses") or []) if isinstance(data.get("hypotheses"), list) else [],
@@ -35,6 +39,7 @@ def normalize_blackboard_snapshot(snapshot: dict[str, Any] | None) -> dict[str, 
         "actionResults": list(action_results or []) if isinstance(action_results, list) else [],
         "recommendedAction": dict(recommended_action or {}) if isinstance(recommended_action, dict) else {},
         "activeDecision": dict(active_decision or {}) if isinstance(active_decision, dict) else {},
+        "attackSurfaces": list(attack_surfaces or []) if isinstance(attack_surfaces, list) else [],
     }
 
 
@@ -67,6 +72,11 @@ def format_blackboard_snapshot_lines(snapshot: dict[str, Any] | None) -> list[st
     action_results = [
         item
         for item in list(normalized.get("actionResults") or [])
+        if isinstance(item, dict)
+    ]
+    attack_surfaces = [
+        item
+        for item in list(normalized.get("attackSurfaces") or [])
         if isinstance(item, dict)
     ]
     if facts:
@@ -156,6 +166,19 @@ def format_blackboard_snapshot_lines(snapshot: dict[str, Any] | None) -> list[st
                 value = str(item.get(key) or "").strip()
                 if value:
                     lines.append(f"{key}={value}")
+    if attack_surfaces:
+        lines.append("[blackboard_attack_surfaces]")
+        for item in attack_surfaces:
+            kind = str(item.get("kind") or "").strip()
+            value = str(item.get("value") or "").strip()
+            status = str(item.get("status") or "").strip()
+            if not kind or not value:
+                continue
+            reachability = item.get("reachability")
+            suffix = ""
+            if status or reachability is not None:
+                suffix = f" [{status}/{reachability}]"
+            lines.append(f"{kind}={value}{suffix}")
     return lines
 
 
@@ -679,8 +702,13 @@ def _build_blackboard_snapshot(
         if isinstance(record, dict):
             decisions.append(dict(record))
 
+    attack_surfaces: list[dict[str, Any]] = []
     state = _snapshot_from_state_payload(state_snapshot)
     if state is not None:
+        # P12 — unified attack-surface registry + reachability panel. Read-only:
+        # this is a display projection (the Web/TUI snapshot), it never feeds the
+        # planner or reorders anything, so the solve path stays byte-identical.
+        attack_surfaces = collect_attack_surfaces(state, top_n=12).get("surfaces") or []
         for observation in list(state.observations):
             fact = _fact_from_observation(
                 observation.kind,
@@ -775,6 +803,7 @@ def _build_blackboard_snapshot(
         "active_decision": active_decision,
         "action_results": action_results,
         "recommended_action": recommended_action,
+        "attack_surfaces": attack_surfaces,
     }
 
 

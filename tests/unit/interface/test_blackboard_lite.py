@@ -396,6 +396,7 @@ def test_build_task_blackboard_snapshot_tolerates_missing_state_snapshot() -> No
             "driver": "",
             "reason": "target required",
         },
+        "attack_surfaces": [],
     }
 
 
@@ -655,6 +656,7 @@ def test_normalize_blackboard_snapshot_accepts_snake_and_camel_shape() -> None:
         "actionResults": [{"action": "collect_initial_facts", "result": "ok"}],
         "recommendedAction": {"action": "probe_discovered_endpoint"},
         "activeDecision": {"nextAction": "collect_initial_facts"},
+        "attackSurfaces": [],
     }
 
 
@@ -681,6 +683,7 @@ def test_serialize_blackboard_snapshot_projects_public_contract() -> None:
         "actionResults": [{"action": "verify_runtime_signal", "result": "failed"}],
         "recommendedAction": {"action": "verify_or_submit_flag"},
         "activeDecision": {"nextAction": "verify_runtime_signal"},
+        "attackSurfaces": [],
     }
 
 
@@ -935,3 +938,46 @@ def test_build_task_blackboard_snapshot_projects_suppressed_recommendation_into_
         "reason": "selected action failed; switch to next best candidate",
         "suppressedBy": "blackboard.verified_flag",
     }
+
+
+# --- P12 attack-surface panel (read-only display wiring) -------------------
+
+def test_snapshot_surfaces_attack_surfaces_from_state() -> None:
+    state = CTFState(target="http://challenge.test", goal="拿到flag")
+    state.add_observation("ssti_engine_identified", "jinja2", source="ssti")
+    state.add_exploration_item(
+        "http://challenge.test/login",
+        discovery_source="recon",
+        hint_strength=1,
+    )
+
+    snapshot = build_task_blackboard_snapshot({"ctfStateSnapshot": state.to_snapshot()})
+
+    surfaces = snapshot["attack_surfaces"]
+    assert surfaces, "expected attack surfaces projected into the snapshot"
+    kinds = {s["kind"] for s in surfaces}
+    assert "engine" in kinds and "endpoint" in kinds
+    # confirmed engine ranks above the unexplored endpoint (reachability sort)
+    assert surfaces[0]["status"] == "confirmed"
+
+
+def test_snapshot_attack_surfaces_empty_without_state() -> None:
+    snapshot = build_task_blackboard_snapshot({})
+    assert snapshot["attack_surfaces"] == []
+
+
+def test_format_lines_renders_attack_surface_section() -> None:
+    lines = format_blackboard_snapshot_lines(
+        {
+            "attackSurfaces": [
+                {
+                    "kind": "endpoint",
+                    "value": "http://t/admin",
+                    "status": "suspected",
+                    "reachability": 0.5,
+                }
+            ],
+        }
+    )
+    assert "[blackboard_attack_surfaces]" in lines
+    assert any("endpoint=http://t/admin" in line for line in lines)
