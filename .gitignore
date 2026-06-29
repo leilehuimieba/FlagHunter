@@ -110,6 +110,10 @@ flaghunter/mcp/mcp_servers.json
 /knowledge/retrospective_notes.md
 /flaghunter/knowledge/retrospective.json
 /flaghunter/knowledge/sessions/
+# Auto-written solve drafts (ctf_experience.save_ctf_experience). Local RAG cache
+# only; promote the good ones into knowledge/sources/ by hand — see
+# docs/dev/数据治理与知识回填_policy_2026-06-29_V1.md.
+/flaghunter/knowledge/ctf_sessions/
 # Vendored third-party tool binaries/data (nmap/nuclei/ffuf/gobuster/sqlmap/...).
 # These must be fetched via a setup script, NOT committed (~163MB).
 # Already-tracked copies are removed from the index via `git rm -r --cached tools/`
