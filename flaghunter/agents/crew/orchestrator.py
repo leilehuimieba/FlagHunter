@@ -7,6 +7,7 @@ from ...config.constants import ORCHESTRATOR_MAX_ITERATIONS
 from ...knowledge.graph import ShadowGraph
 from ..prompts import pa_crew
 from .models import CrewState, WorkerCallback
+from .swarm_bridge import recall_swarm_board_context
 from .tools import create_crew_tools
 from .worker_pool import WorkerPool
 
@@ -41,6 +42,10 @@ class CrewOrchestrator:
         self.pool: Optional[WorkerPool] = None
         self.graph = ShadowGraph()
         self._messages: List[Dict[str, Any]] = []
+        # Peer-agent context read from the M5 shared blackboard each iteration
+        # (empty unless CPA_M5_SWARM_LINK is on). Refreshed in run() before each
+        # LLM turn so worker findings posted this round inform the next dispatch.
+        self._swarm_context: str = ""
 
     def _get_system_prompt(self) -> str:
         """Build the system prompt with target info and context."""
@@ -133,13 +138,19 @@ class CrewOrchestrator:
                 f"- {i}" for i in graph_insights
             )
 
+        # Peer-agent shared-blackboard context (M5). Empty string unless
+        # CPA_M5_SWARM_LINK is on, so the prompt is unchanged for solo/default runs.
+        swarm_text = ""
+        if self._swarm_context:
+            swarm_text = "\n\n## Swarm Blackboard (peer agents)\n" + self._swarm_context
+
         # Get runtime environment with detected tools
         env = self.runtime.environment
 
         return pa_crew.render(
             target=self.target or "Not specified",
             prior_context=self.prior_context or "None - starting fresh",
-            notes_context=notes_context + insights_text,
+            notes_context=notes_context + insights_text + swarm_text,
             worker_tools=worker_tools_formatted,
             environment=env,
         )
@@ -170,6 +181,11 @@ class CrewOrchestrator:
         try:
             while iteration < ORCHESTRATOR_MAX_ITERATIONS:
                 iteration += 1
+
+                # Refresh peer-agent blackboard context before each turn so
+                # findings posted by workers this round bias the next dispatch
+                # (no-op string when M5 swarm link is disabled).
+                self._swarm_context = await recall_swarm_board_context(self.target)
 
                 response = await self.llm.generate(
                     system_prompt=self._get_system_prompt(),

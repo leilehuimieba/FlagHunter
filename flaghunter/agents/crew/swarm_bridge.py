@@ -1,7 +1,13 @@
 """M5 swarm bridge for crew worker completion events and Phase 7 CTF adapters."""
 
+import json
 import os
 from typing import Any, Awaitable, Callable
+
+# Severity ranking for ordering peer-agent findings in the orchestrator prompt:
+# the most actionable (critical/high) surface first so the next dispatch round
+# re-prioritises around them. Unknown severities sort last.
+_SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 
 
 def _extract_flag_values(state: Any, attr_name: str) -> list[str]:
@@ -207,6 +213,94 @@ async def recall_swarm_chain_pheromone() -> dict[str, float]:
         return pheromone
     except Exception:
         return {}
+
+
+def _severity_rank(msg: Any) -> int:
+    sev = str((getattr(msg, "metadata", {}) or {}).get("severity", "") or "").lower()
+    return _SEVERITY_ORDER.get(sev, 5)
+
+
+def _finding_summary(msg: Any) -> str:
+    """One-line summary of a blackboard ``finding`` message.
+
+    ``report_finding`` stores the payload as a JSON string carrying the canonical
+    ``kind=value`` fact text (see ``publish_solve_outcome_to_swarm``); fall back to
+    the raw content when it is not JSON.
+    """
+    raw = str(getattr(msg, "content", "") or "")
+    try:
+        data = json.loads(raw)
+        text = str(data.get("finding") or raw)
+    except Exception:
+        text = raw
+    text = text.strip().replace("\n", " ")
+    return text[:160] + ("…" if len(text) > 160 else "")
+
+
+async def recall_swarm_board_context(
+    target: str, *, max_findings: int = 8, max_targets: int = 5
+) -> str:
+    """Read peer-agent findings + pheromone hot targets from the shared board (M5).
+
+    The *read* half of the orchestrator ⇄ swarm loop. Workers publish facts and
+    chain pheromone via :func:`publish_solve_outcome_to_swarm` /
+    ``report_finding``; the orchestrator folds this back into its system prompt
+    each iteration so the next round of worker dispatch is informed by what peers
+    already found ("退而求其次获取信息，下次进攻可以更好"). Findings are ordered
+    high-severity first so the model re-prioritises around the hottest signals.
+
+    Gated on ``CPA_M5_SWARM_LINK`` **and** an initialised M5 (the getters raise
+    until ``init_m5`` runs); best-effort, never raises. Returns a markdown block,
+    or ``""`` when disabled/unavailable/empty — so with the gate off the
+    orchestrator prompt is byte-identical to before. M5 itself is unchanged.
+    """
+    if os.getenv("CPA_M5_SWARM_LINK", "false").lower() != "true":
+        return ""
+    try:
+        from flaghunter.cpa_modules.m5_swarm_link import (
+            get_blackboard,
+            get_pheromone_router,
+            is_m5_enabled,
+        )
+
+        if not is_m5_enabled():
+            return ""
+
+        board = get_blackboard()
+        # Over-fetch then re-rank by severity (query returns newest-first).
+        findings = await board.get_by_type("finding", limit=max_findings * 3)
+        ranked = sorted(
+            findings,
+            key=lambda m: (_severity_rank(m), -getattr(m, "timestamp").timestamp()),
+        )
+        finding_lines: list[str] = []
+        for msg in ranked[:max_findings]:
+            sev = str((getattr(msg, "metadata", {}) or {}).get("severity", "") or "")
+            tag = f"[{sev}] " if sev else ""
+            scope = f" — {msg.target}" if getattr(msg, "target", "") else ""
+            who = f" ({msg.sender})" if getattr(msg, "sender", "") else ""
+            finding_lines.append(f"- {tag}{_finding_summary(msg)}{scope}{who}")
+
+        router = get_pheromone_router()
+        top = await router.get_top_targets(n=max_targets)
+        # Drop the ``chain:``-namespaced trails (those bias chain order, not target
+        # selection); surface only real attack targets as hot.
+        hot_lines = [
+            f"- {tgt} (强度 {strength:.2f})"
+            for tgt, strength in top
+            if not str(tgt).startswith("chain:")
+        ]
+
+        sections: list[str] = []
+        if finding_lines:
+            sections.append(
+                "### Peer-agent findings (shared blackboard)\n" + "\n".join(finding_lines)
+            )
+        if hot_lines:
+            sections.append("### Hot targets (pheromone)\n" + "\n".join(hot_lines))
+        return "\n\n".join(sections)
+    except Exception:
+        return ""
 
 
 async def on_worker_complete(

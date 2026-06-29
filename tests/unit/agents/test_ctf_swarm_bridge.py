@@ -173,3 +173,102 @@ async def test_recall_swarm_chain_pheromone_reads_chain_namespaced_trails(monkey
     monkeypatch.setenv("CPA_M5_SWARM_LINK", "true")
 
     assert await recall_swarm_chain_pheromone() == {"web": 0.9, "sqli": 0.4}
+
+
+# ── read-side: orchestrator ⇄ swarm board context (Phase 2B) ──────────────────
+
+import json  # noqa: E402
+from datetime import datetime, timedelta  # noqa: E402
+
+from flaghunter.agents.crew.swarm_bridge import recall_swarm_board_context  # noqa: E402
+
+# A fixed recent base so ``.timestamp()`` is valid on Windows (near-epoch times
+# raise OSError there); ``ts`` is a small second offset to order the fixtures.
+_TS_BASE = datetime(2026, 6, 29, 12, 0, 0)
+
+
+def _finding_msg(*, finding, severity, target="t", sender="peer", ts=0):
+    return SimpleNamespace(
+        msg_type="finding",
+        content=json.dumps({"finding": finding, "severity": severity}),
+        metadata={"severity": severity},
+        target=target,
+        sender=sender,
+        timestamp=_TS_BASE + timedelta(seconds=ts),
+    )
+
+
+class _FakeBoard:
+    def __init__(self, msgs):
+        self._msgs = msgs
+
+    async def get_by_type(self, msg_type, limit=50):
+        return [m for m in self._msgs if m.msg_type == msg_type][:limit]
+
+
+class _FakeTopRouter:
+    def __init__(self, top):
+        self._top = top
+
+    async def get_top_targets(self, n=5):
+        return self._top[:n]
+
+
+def _patch_m5_read(monkeypatch, *, board, router, enabled=True):
+    import flaghunter.cpa_modules.m5_swarm_link as m5
+
+    monkeypatch.setattr(m5, "is_m5_enabled", lambda: enabled)
+    monkeypatch.setattr(m5, "get_blackboard", lambda: board)
+    monkeypatch.setattr(m5, "get_pheromone_router", lambda: router)
+    monkeypatch.setenv("CPA_M5_SWARM_LINK", "true")
+
+
+@pytest.mark.asyncio
+async def test_recall_board_context_disabled_when_env_off(monkeypatch):
+    monkeypatch.delenv("CPA_M5_SWARM_LINK", raising=False)
+    assert await recall_swarm_board_context("http://t") == ""
+
+
+@pytest.mark.asyncio
+async def test_recall_board_context_empty_when_m5_not_initialised(monkeypatch):
+    _patch_m5_read(monkeypatch, board=_FakeBoard([]), router=_FakeTopRouter([]), enabled=False)
+    assert await recall_swarm_board_context("http://t") == ""
+
+
+@pytest.mark.asyncio
+async def test_recall_board_context_orders_findings_high_severity_first(monkeypatch):
+    board = _FakeBoard(
+        [
+            _finding_msg(finding="info note", severity="info", ts=3.0),
+            _finding_msg(finding="rce here", severity="critical", ts=1.0),
+            _finding_msg(finding="weak header", severity="low", ts=2.0),
+        ]
+    )
+    _patch_m5_read(monkeypatch, board=board, router=_FakeTopRouter([]))
+
+    out = await recall_swarm_board_context("http://t")
+    # critical must appear before low and info despite being the oldest.
+    assert out.index("rce here") < out.index("weak header") < out.index("info note")
+    assert "[critical]" in out and "Peer-agent findings" in out
+
+
+@pytest.mark.asyncio
+async def test_recall_board_context_hot_targets_drop_chain_namespace(monkeypatch):
+    router = _FakeTopRouter([("http://host", 4.2), ("chain:web", 9.9), ("10.0.0.5", 1.1)])
+    _patch_m5_read(monkeypatch, board=_FakeBoard([]), router=router)
+
+    out = await recall_swarm_board_context("http://t")
+    assert "Hot targets" in out
+    assert "http://host (强度 4.20)" in out
+    assert "10.0.0.5" in out
+    assert "chain:web" not in out  # chain pheromone is not a target
+
+
+@pytest.mark.asyncio
+async def test_recall_board_context_best_effort_on_error(monkeypatch):
+    class _Boom:
+        async def get_by_type(self, *a, **k):
+            raise RuntimeError("db gone")
+
+    _patch_m5_read(monkeypatch, board=_Boom(), router=_FakeTopRouter([]))
+    assert await recall_swarm_board_context("http://t") == ""
