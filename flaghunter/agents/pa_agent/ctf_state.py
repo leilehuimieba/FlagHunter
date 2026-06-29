@@ -139,7 +139,7 @@ class LLMStepLog:
 
 @dataclass
 class CTFState:
-    schema_version: str = "1.4"
+    schema_version: str = "1.5"
     target: str = ""
     goal: str = ""
     detected_type: str | None = None
@@ -183,6 +183,11 @@ class CTFState:
     # free; old (pre-1.4) snapshots lacking these keys fall back to the defaults.
     current_phase: str = Phase.INIT
     phase_history: list[str] = field(default_factory=list)
+    # P4 stopping rule — round dwell per phase. Incremented once per solve-loop
+    # iteration under the active phase so the RecoveryController can read
+    # ``rounds_in_phase(EXPLOIT)`` and apply a phase-budget backstop. Plain
+    # dict[str,int] → round-trips for free; pre-1.5 snapshots fall back to {}.
+    phase_round_counts: dict[str, int] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self._write_lock = asyncio.Lock()
@@ -201,6 +206,22 @@ class CTFState:
             self.current_phase = normalized
             self.phase_history.append(normalized)
         return self.current_phase
+
+    def record_phase_round(self, phase: str | None = None) -> int:
+        """Tally one round under ``phase`` (defaults to ``current_phase``).
+
+        Drives the P4 phase-budget stopping rule. Idempotent vocabulary —
+        increments a plain counter and returns the new round count.
+        """
+        normalized = str(phase or self.current_phase or "").strip() or Phase.INIT
+        count = self.phase_round_counts.get(normalized, 0) + 1
+        self.phase_round_counts[normalized] = count
+        return count
+
+    def rounds_in_phase(self, phase: str) -> int:
+        """How many rounds have been tallied under ``phase`` (0 if none)."""
+        normalized = str(phase or "").strip()
+        return int(self.phase_round_counts.get(normalized, 0))
 
     async def acquire_write_lock(self) -> None:
         await self._write_lock.acquire()

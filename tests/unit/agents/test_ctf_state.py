@@ -10,7 +10,7 @@ from flaghunter.agents.pa_agent.ctf_state import CTFState, FlagProof, LLMStepLog
 def test_ctf_state_exploration_agenda_defaults_to_empty():
     state = CTFState(target="http://ctf.local", goal="拿到flag")
 
-    assert state.schema_version == "1.4"
+    assert state.schema_version == "1.5"
     assert state.exploration_agenda == []
 
 
@@ -84,6 +84,45 @@ def test_ctf_state_from_old_snapshot_without_phase_keys_uses_defaults():
     )
     assert restored.current_phase == Phase.INIT
     assert restored.phase_history == []
+    assert restored.phase_round_counts == {}
+
+
+def test_ctf_state_record_phase_round_tallies_per_phase():
+    from flaghunter.agents.pa_agent.ctf_state import Phase
+
+    state = CTFState(target="http://ctf.local", goal="g")
+    assert state.rounds_in_phase(Phase.EXPLOIT) == 0
+
+    # explicit phase argument
+    assert state.record_phase_round(Phase.EXPLOIT) == 1
+    assert state.record_phase_round(Phase.EXPLOIT) == 2
+    assert state.rounds_in_phase(Phase.EXPLOIT) == 2
+
+    # a different phase tallies independently
+    assert state.record_phase_round(Phase.RECON) == 1
+    assert state.rounds_in_phase(Phase.RECON) == 1
+    assert state.rounds_in_phase(Phase.EXPLOIT) == 2
+
+
+def test_ctf_state_record_phase_round_defaults_to_current_phase():
+    from flaghunter.agents.pa_agent.ctf_state import Phase
+
+    state = CTFState(target="http://ctf.local", goal="g")
+    state.enter_phase(Phase.EXPLOIT)
+    assert state.record_phase_round() == 1
+    assert state.rounds_in_phase(Phase.EXPLOIT) == 1
+
+
+def test_ctf_state_phase_round_counts_survive_snapshot_round_trip():
+    from flaghunter.agents.pa_agent.ctf_state import Phase
+
+    state = CTFState(target="http://ctf.local", goal="g")
+    state.enter_phase(Phase.EXPLOIT)
+    state.record_phase_round()
+    state.record_phase_round()
+
+    restored = CTFState.from_snapshot(state.to_snapshot())
+    assert restored.rounds_in_phase(Phase.EXPLOIT) == 2
 
 
 def test_ctf_state_gets_unexplored_priority_items_only():

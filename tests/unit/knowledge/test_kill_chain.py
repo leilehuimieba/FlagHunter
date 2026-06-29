@@ -9,6 +9,7 @@ from flaghunter.knowledge.kill_chain import (
     Phase,
     is_phase,
     phase_index,
+    phase_round_budget,
 )
 
 
@@ -40,3 +41,11 @@ def test_is_phase():
 def test_recon_source_tag_is_the_historical_literal():
     # Downstream code matches observations on this exact string; it must not drift.
     assert RECON_SOURCE_TAG == "phase_recon"
+
+
+def test_only_exploit_phase_has_a_round_budget():
+    # EXPLOIT is the only looping phase, so it's the only one with a backstop.
+    assert phase_round_budget(Phase.EXPLOIT) == 24
+    assert phase_round_budget(Phase.RECON) is None
+    assert phase_round_budget(Phase.SETUP) is None
+    assert phase_round_budget("nonsense") is None

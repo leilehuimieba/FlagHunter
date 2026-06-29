@@ -56,6 +56,26 @@ PHASE_ORDER: tuple[str, ...] = (
 
 ALL_PHASES: frozenset[str] = frozenset(PHASE_ORDER)
 
+# P4 stopping rule — per-phase round budgets (a *backstop* ceiling, not the
+# primary convergence engine). The dispatcher already has a rich per-chain
+# stopping criterion (RecoveryController.after_chain/finalize: missing tools,
+# blocked surface, exhausted hypothesis, ``no_progress_count`` ≥ threshold). But
+# that counter is solve-loop-local and resets on any micro-progress, so a solve
+# that keeps making tiny progress while never producing a runtime flag can churn
+# (switch_chain → explore_agenda → switch_chain …) indefinitely. A phase-level
+# round budget caps total churn in a phase regardless of intermittent
+# micro-progress. Only EXPLOIT has a budget today (the only phase that loops);
+# the others are single-pass in the coordinator sequencer. Generous on purpose:
+# genuine solves converge or exhaust their chain_order long before this fires.
+PHASE_ROUND_BUDGETS: dict[str, int] = {
+    Phase.EXPLOIT: 24,
+}
+
+
+def phase_round_budget(phase: str) -> int | None:
+    """Round-count backstop for ``phase``, or ``None`` when the phase is unbudgeted."""
+    return PHASE_ROUND_BUDGETS.get(phase)
+
 # The recon phase tags its observations with this source so downstream code can
 # tell recon-derived facts apart (framework_detected, recon_url, …). Single home
 # for the literal that was historically scattered as the bare "phase_recon"
