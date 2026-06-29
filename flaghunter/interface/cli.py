@@ -225,6 +225,8 @@ async def run_cli(
     total_tokens = 0  # Track total token usage
     messages = []  # Store agent messages
     tool_log = []  # Log of tools executed (ts, name, command, result, exit_code)
+    ctf_chain: list[str] = []  # CTF dispatcher chain_used (report trace when tool_log empty)
+    ctf_notes: list[str] = []  # CTF dispatcher notes log (report trace)
     last_content = ""
     last_msg_intermediate = False  # Track if previous message was intermediate (to avoid double counting tokens)
     stopped_reason = None
@@ -422,6 +424,21 @@ async def run_cli(
                 else:
                     lines.append(result)
                 lines.append("```")
+                lines.append("")
+
+        # CTF solve chain — the dispatcher fast path emits chain_used/notes rather than
+        # tool_log entries, so without this the report shows "Commands Executed: 0" and
+        # no trace. Render the chain + note trace when present.
+        if ctf_chain or ctf_notes:
+            lines.extend(["---", "", "## CTF Solve Chain", ""])
+            if ctf_chain:
+                lines.append("**Chain used:** " + " → ".join(ctf_chain))
+                lines.append("")
+            if ctf_notes:
+                lines.append("**Trace:**")
+                lines.append("")
+                for n in ctf_notes:
+                    lines.append(f"- {n}")
                 lines.append("")
 
         # Findings section
@@ -641,6 +658,30 @@ async def run_cli(
                 print_status(f"Flag verified: {getattr(solve_result, 'flag')}", "green")
             elif getattr(solve_result, "reason", None):
                 print_status(f"CTF stop reason: {getattr(solve_result, 'reason')}", "yellow")
+            # 修复快路径报告偏薄:dispatcher 解题走 chain/notes 而非 tool_log,
+            # 把链路喂进报告(generate_report 渲染为 "CTF Solve Chain" 段)。
+            try:
+                ctf_chain[:] = [str(c) for c in (getattr(solve_result, "chain_used", []) or [])]
+                ctf_notes[:] = [str(n) for n in (getattr(solve_result, "notes", []) or [])]
+            except Exception:
+                pass
+            # 数据治理第②层自动回填:成功解题写入 knowledge/ctf_sessions/。dispatcher 快
+            # 路径(0 loop)不经 agent-loop 的 finish 工具,原来漏挂回填 → 知识库无本题草稿。
+            # 放在真实 CLI 入口而非 dispatcher 内,避免单元测试驱动 dispatcher 时污染 RAG。
+            if getattr(solve_result, "success", False) and str(getattr(solve_result, "flag", "") or "").strip():
+                try:
+                    from ..knowledge.ctf_experience import save_ctf_experience
+
+                    await save_ctf_experience(
+                        url=str(target or ""),
+                        chtype=resolved_subtype or "web",
+                        hint=str(dispatcher_hint or ""),
+                        flag=str(getattr(solve_result, "flag", "") or ""),
+                        successful_steps=(ctf_chain or ctf_notes),
+                        failed_steps=[],
+                    )
+                except Exception:
+                    pass
 
         elif legacy_execution_mode == "crew":
             llm = session.llm
