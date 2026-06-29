@@ -253,6 +253,38 @@ async def test_recall_board_context_orders_findings_high_severity_first(monkeypa
 
 
 @pytest.mark.asyncio
+async def test_recall_board_context_emits_reprioritize_directive_for_critical(monkeypatch):
+    board = _FakeBoard(
+        [_finding_msg(finding="rce on /api", severity="critical", target="http://h", ts=1.0)]
+    )
+    _patch_m5_read(monkeypatch, board=board, router=_FakeTopRouter([]))
+
+    out = await recall_swarm_board_context("http://t")
+    assert "🚨 Reprioritize" in out
+    assert "[critical]" in out
+    assert "rce on /api" in out
+    assert "http://h" in out
+    # The directive comes before the regular findings list.
+    assert out.index("Reprioritize") < out.index("Peer-agent findings")
+
+
+@pytest.mark.asyncio
+async def test_recall_board_context_no_directive_when_only_medium_or_lower(monkeypatch):
+    # A medium top finding must NOT escalate — byte-identical to the 2B prompt.
+    board = _FakeBoard(
+        [
+            _finding_msg(finding="info note", severity="info", ts=2.0),
+            _finding_msg(finding="some medium", severity="medium", ts=1.0),
+        ]
+    )
+    _patch_m5_read(monkeypatch, board=board, router=_FakeTopRouter([]))
+
+    out = await recall_swarm_board_context("http://t")
+    assert "Reprioritize" not in out
+    assert "Peer-agent findings" in out
+
+
+@pytest.mark.asyncio
 async def test_recall_board_context_hot_targets_drop_chain_namespace(monkeypatch):
     router = _FakeTopRouter([("http://host", 4.2), ("chain:web", 9.9), ("10.0.0.5", 1.1)])
     _patch_m5_read(monkeypatch, board=_FakeBoard([]), router=router)

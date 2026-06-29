@@ -292,6 +292,22 @@ async def recall_swarm_board_context(
         ]
 
         sections: list[str] = []
+        # 编排波收尾: escalate the hottest critical/high finding from flat data to
+        # an imperative REPRIORITIZE directive, so the orchestrator pivots its NEXT
+        # worker dispatch toward it (the soonest feasible point — we honestly can't
+        # interrupt an in-flight LLM turn; poll-at-turn-boundary stands). No-op when
+        # the top finding is only medium/low/info → byte-identical to the 2B prompt.
+        if ranked and _severity_rank(ranked[0]) <= _SEVERITY_ORDER["high"]:
+            top = ranked[0]
+            top_sev = str((getattr(top, "metadata", {}) or {}).get("severity", "") or "").lower()
+            top_scope = f" on {top.target}" if getattr(top, "target", "") else ""
+            sections.append(
+                "## 🚨 Reprioritize — high-severity peer finding\n"
+                f"A peer agent reported a [{top_sev}] finding{top_scope}: "
+                f"{_finding_summary(top)}\n"
+                "Reprioritize your NEXT worker dispatch toward this surface before "
+                "continuing your prior plan."
+            )
         if finding_lines:
             sections.append(
                 "### Peer-agent findings (shared blackboard)\n" + "\n".join(finding_lines)
