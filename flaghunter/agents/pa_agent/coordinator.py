@@ -960,13 +960,35 @@ class CTFCoordinator:
         decision = _resolve_control_decision_from_structured_handoff(dispatcher, hint)
         followup_provenance = _resolve_followup_provenance_from_decision(decision)
         strongest_hypothesis = _resolve_strongest_hypothesis_from_decision(decision)
-        if str(decision.get("nextAction") or "").strip() != "bootstrap_local_assets":
+        hint_triggered = str(decision.get("nextAction") or "").strip() == "bootstrap_local_assets"
+        # P5 余量: a source-first profile (e.g. code_audit, entry_kind="source")
+        # eagerly ingests local source artifacts whenever they are present —
+        # source IS the entry — without waiting for the hint-driven control
+        # decision. CTF (entry_kind="url") keeps the hint-only gate → byte-identical.
+        ctx_assets = (
+            dispatcher._challenge_context
+            if isinstance(getattr(dispatcher, "_challenge_context", None), dict)
+            else {}
+        )
+        entry_kind = (
+            str(getattr(dispatcher.state, "entry_kind", "") or "").strip()
+            if dispatcher.state is not None
+            else ""
+        )
+        profile_triggered = entry_kind == "source" and bool(
+            ctx_assets.get("challengePath") or ctx_assets.get("artifactPaths")
+        )
+        if not hint_triggered and not profile_triggered:
             return
+        # Honest provenance: mark profile-driven ingestion when the hint did not ask.
+        driver = str(decision.get("driver") or "").strip() or (
+            "profile_source_entry" if profile_triggered else ""
+        )
         self._record_control_action_started(
             dispatcher,
             action="bootstrap_local_assets",
             decision_kind=str(decision.get("decisionKind") or "").strip(),
-            driver=str(decision.get("driver") or "").strip(),
+            driver=driver,
             target=target,
             expected_action=str(decision.get("nextAction") or "").strip(),
             switched_from=str(followup_provenance.get("switched_from") or "").strip(),
@@ -986,7 +1008,7 @@ class CTFCoordinator:
             action="bootstrap_local_assets",
             result="ok",
             decision_kind=str(decision.get("decisionKind") or "").strip(),
-            driver=str(decision.get("driver") or "").strip(),
+            driver=driver,
             target=target,
             switched_from=str(followup_provenance.get("switched_from") or "").strip(),
             trigger_reason=str(followup_provenance.get("trigger_reason") or "").strip(),
