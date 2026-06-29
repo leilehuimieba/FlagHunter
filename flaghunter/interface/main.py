@@ -467,16 +467,20 @@ def handle_chains_command(args: argparse.Namespace):
     Read-only P6 surface — reads the provenance log (CAPABILITY) and feeds it to
     the emergent-chain miner (CAPABILITY); nothing here feeds back into solving.
     """
+    from ..knowledge.chain_scoring import format_scored_chains, score_emergent_chains
     from ..knowledge.emergent_chains import format_emergent_chains, mine_emergent_chains
     from ..tools.provenance import get_all_calls
 
     report = mine_emergent_chains(get_all_calls(), top_n=getattr(args, "top", 10))
+    scored = score_emergent_chains(report)  # P7 reuse/negative-feedback lens (read-only)
     if getattr(args, "json", False):
         import json
 
-        print(json.dumps(report, indent=2, ensure_ascii=False))
+        print(json.dumps({**report, "scored": scored}, indent=2, ensure_ascii=False))
     else:
         print(format_emergent_chains(report))
+        print()
+        print(format_scored_chains(scored))
 
 
 def handle_tools_command(args: argparse.Namespace):

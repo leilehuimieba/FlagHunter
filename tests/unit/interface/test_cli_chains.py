@@ -47,6 +47,9 @@ def test_handle_chains_command_text_output(tmp_path, capsys):
         out = capsys.readouterr().out
         assert "Emergent tool-chain report" in out
         assert "a → b" in out
+        # P7 scored section is appended
+        assert "Chain scoring (P7" in out
+        assert "[reuse" in out  # a→b led to a flag → reuse verdict
     finally:
         provenance.clear()
 
@@ -61,6 +64,10 @@ def test_handle_chains_command_json_output(tmp_path, capsys):
         assert report["summary"]["flag_runs"] == 1
         chains = {tuple(c["chain"]) for c in report["chains"]}
         assert ("a", "b") in chains
+        # P7 scored block present in JSON
+        assert "scored" in report
+        reuse = {tuple(c["chain"]) for c in report["scored"]["reuse"]}
+        assert ("a", "b") in reuse
     finally:
         provenance.clear()
 
