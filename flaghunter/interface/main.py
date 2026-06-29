@@ -254,6 +254,21 @@ Examples:
         help="Emit the coverage matrix as JSON instead of a text report",
     )
 
+    providers_parser = subparsers.add_parser(
+        "providers",
+        help="List LLM provider pool (M1 hub); --refresh probes liveness",
+    )
+    providers_parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="Send a minimal probe to each provider and report LIVE/DOWN + reason",
+    )
+    providers_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit the provider report as JSON instead of a text table",
+    )
+
     chains_parser = subparsers.add_parser(
         "chains",
         help="Mine emergent tool chains from the provenance log (P6)",
@@ -460,6 +475,34 @@ def handle_coverage_command(args: argparse.Namespace):
         print(json.dumps(report, indent=2, ensure_ascii=False))
     else:
         print(format_coverage_report(report))
+
+
+def handle_providers_command(args: argparse.Namespace):
+    """Handle the providers subcommand: list the LLM provider pool, optionally probe.
+
+    provider 管理需求 #5/#6:反馈哪个 API 可用/不可用 + 手动刷新存活。只读——读取
+    .env 的 CPA_PROVIDER_* 池;--refresh 时对每个 enabled provider 发一次最小探针。
+    """
+    from ..cpa_modules.m1_api_hub.provider_probe import (
+        format_providers_report,
+        list_providers,
+        probe_providers,
+    )
+
+    refresh = getattr(args, "refresh", False)
+    if refresh:
+        import asyncio
+
+        rows = asyncio.run(probe_providers())
+    else:
+        rows = list_providers()
+
+    if getattr(args, "json", False):
+        import json
+
+        print(json.dumps(rows, indent=2, ensure_ascii=False))
+    else:
+        print(format_providers_report(rows, refreshed=refresh))
 
 
 def handle_chains_command(args: argparse.Namespace):
@@ -1694,7 +1737,7 @@ def main():
     # `coverage`/`chains` are read-only introspection commands whose --json output
     # must be pure machine-parseable JSON on stdout; the startup-context log goes
     # to stdout, so skip it here (debug context adds little for these queries).
-    if args.command not in ("coverage", "chains"):
+    if args.command not in ("coverage", "chains", "providers"):
         _log_startup_context(args)
 
     # Handle subcommands
@@ -1704,6 +1747,10 @@ def main():
 
     if args.command == "coverage":
         handle_coverage_command(args)
+        return
+
+    if args.command == "providers":
+        handle_providers_command(args)
         return
 
     if args.command == "chains":
