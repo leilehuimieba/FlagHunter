@@ -100,6 +100,7 @@ async def run_ctf_crew_solve(
         llm=llm,
     )
     planning_dispatcher.state = CTFState(target=target, goal=goal)
+    planning_dispatcher.state.apply_profile(planning_dispatcher.profile)  # P5
     submit = dict(submit_profile or {})
     if submit:
         planning_dispatcher._apply_submit_profile(submit)

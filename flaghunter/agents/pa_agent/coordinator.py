@@ -713,6 +713,9 @@ class CTFCoordinator:
             registry_root=registry_root,
         )
         dispatcher.state = CTFState(target=target, goal=goal)
+        # P5: project the active project-type Profile (entry_kind + stopping-budget
+        # overrides) onto the freshly created state at the bootstrap choke point.
+        dispatcher.state.apply_profile(getattr(dispatcher, "profile", None))
         dispatcher._setup_checkpoint_store(
             run_id=dispatcher._ledger_run_id,
             checkpoint_root=checkpoint_root,

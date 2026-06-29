@@ -450,11 +450,11 @@ class CTFTaskDispatcher(
         if result is None:
             result = SolveResult(success=False)
         # P1: entering the chain/exploit solve loop — stamp the EXPLOIT phase.
-        # P5: project the active Profile's stopping-budget overrides onto the
-        # (possibly resume-rebound) state so the recovery backstop reads them.
+        # P5: re-project the active Profile onto the (possibly resume-rebound)
+        # state so entry_kind + the recovery backstop's budget overrides follow it.
         if self.state is not None:
             self.state.enter_phase(Phase.EXPLOIT)
-            self.state.phase_round_budget_overrides = dict(self.profile.phase_round_budgets)
+            self.state.apply_profile(self.profile)
         chain_order = list(dict.fromkeys(chain_order))
         # The seam object the coordinator contracts run against: the carried
         # ``RunContext`` when supplied, else the raw dispatcher (== old behaviour).

@@ -139,7 +139,7 @@ class LLMStepLog:
 
 @dataclass
 class CTFState:
-    schema_version: str = "1.6"
+    schema_version: str = "1.7"
     target: str = ""
     goal: str = ""
     detected_type: str | None = None
@@ -192,6 +192,9 @@ class CTFState:
     # Profile (e.g. code_audit tightens EXPLOIT to 12). Empty → ``effective_phase_budget``
     # falls back to the kill_chain module default, so CTF is byte-identical to P4.
     phase_round_budget_overrides: dict[str, int] = field(default_factory=dict)
+    # P5 余量 — 进场信息形态投到 state(url=CTF / source=代码审计 / blackbox=演练)。
+    # SETUP 阶段消费它(源码优先 profile 主动摄取在场 artifact);默认 url 故 CTF 字节级一致。
+    entry_kind: str = "url"
 
     def __post_init__(self) -> None:
         self._write_lock = asyncio.Lock()
@@ -238,6 +241,24 @@ class CTFState:
         if normalized in self.phase_round_budget_overrides:
             return int(self.phase_round_budget_overrides[normalized])
         return phase_round_budget(normalized)
+
+    def apply_profile(self, profile: Any) -> None:
+        """Project a Profile's covering knobs onto this state (P5).
+
+        Duck-typed (no Profile import — knowledge layer stays below agents): reads
+        ``entry_kind`` and ``phase_round_budgets`` off whatever is passed. Called
+        at every state-creation choke point (bootstrap / crew planning / solve-loop
+        re-entry) so the active profile follows a freshly built or resume-rebound
+        state. ``None`` is a no-op, leaving the byte-identical CTF defaults.
+        """
+        if profile is None:
+            return
+        entry_kind = str(getattr(profile, "entry_kind", "") or "").strip()
+        if entry_kind:
+            self.entry_kind = entry_kind
+        budgets = getattr(profile, "phase_round_budgets", None)
+        if isinstance(budgets, dict):
+            self.phase_round_budget_overrides = dict(budgets)
 
     async def acquire_write_lock(self) -> None:
         await self._write_lock.acquire()

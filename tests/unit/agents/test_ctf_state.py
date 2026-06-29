@@ -10,8 +10,9 @@ from flaghunter.agents.pa_agent.ctf_state import CTFState, FlagProof, LLMStepLog
 def test_ctf_state_exploration_agenda_defaults_to_empty():
     state = CTFState(target="http://ctf.local", goal="拿到flag")
 
-    assert state.schema_version == "1.6"
+    assert state.schema_version == "1.7"
     assert state.exploration_agenda == []
+    assert state.entry_kind == "url"  # CTF default
 
 
 def test_ctf_state_add_exploration_item_deduplicates_by_url_or_path():
@@ -152,6 +153,28 @@ def test_ctf_state_budget_overrides_survive_snapshot_round_trip():
 
     restored = CTFState.from_snapshot(state.to_snapshot())
     assert restored.effective_phase_budget(Phase.EXPLOIT) == 12
+
+
+def test_ctf_state_apply_profile_projects_entry_kind_and_budgets():
+    from flaghunter.agents.pa_agent.ctf_state import Phase
+    from flaghunter.knowledge.profile import CODE_AUDIT, CTF
+
+    state = CTFState(target="http://ctf.local", goal="g")
+    state.apply_profile(CODE_AUDIT)
+    assert state.entry_kind == "source"
+    assert state.effective_phase_budget(Phase.EXPLOIT) == 12
+
+    # Re-applying the CTF profile resets to url + the module default budget.
+    state.apply_profile(CTF)
+    assert state.entry_kind == "url"
+    assert state.phase_round_budget_overrides == {}
+
+
+def test_ctf_state_apply_profile_none_is_a_noop():
+    state = CTFState(target="http://ctf.local", goal="g")
+    state.apply_profile(None)
+    assert state.entry_kind == "url"
+    assert state.phase_round_budget_overrides == {}
 
 
 def test_ctf_state_gets_unexplored_priority_items_only():
