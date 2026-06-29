@@ -19,10 +19,21 @@ def test_run_cli_accepts_profile_defaulting_to_ctf():
     assert params["profile"].default == "ctf"
 
 
-def test_run_cli_forwards_profile_to_dispatcher():
-    # The single-agent CTF path threads the selected profile into the dispatcher.
+def test_run_cli_forwards_profile_to_dispatcher_and_crew():
+    # Both the single-agent dispatcher and the crew runner get the profile.
     src = inspect.getsource(cli.run_cli)
-    assert "profile=profile" in src
+    assert src.count("profile=profile") >= 2
+
+
+def test_run_ctf_crew_solve_accepts_and_forwards_profile():
+    from flaghunter.agents.pa_agent import ctf_crew_runner
+
+    params = inspect.signature(ctf_crew_runner.run_ctf_crew_solve).parameters
+    assert "profile" in params
+    assert params["profile"].default == "ctf"
+    # Forwarded to BOTH the planning and worker dispatcher constructions.
+    src = inspect.getsource(ctf_crew_runner.run_ctf_crew_solve)
+    assert src.count("profile=profile") >= 2
 
 
 def test_run_command_parser_registers_profile(monkeypatch):

@@ -612,6 +612,7 @@ async def run_cli(
                     worker_event=lambda wid, evt, data: print_status(
                         f"[crew:{wid}] {evt}" + (f" ({data})" if data else ""), PA_DIM
                     ),
+                    profile=profile,
                 )
                 derived_target = _sync_runtime_challenge_context(cli_challenge_context, crew_dispatcher)
             else:

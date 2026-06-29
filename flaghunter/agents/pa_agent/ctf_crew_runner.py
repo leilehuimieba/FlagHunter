@@ -77,6 +77,7 @@ async def run_ctf_crew_solve(
     challenge_context: dict[str, Any] | None = None,
     progress_callback: Callable[[str], None] | None = None,
     worker_event: WorkerEvent | None = None,
+    profile: str = "ctf",
 ) -> tuple[Any, Any]:
     """Run ONE CTF challenge through ``CTFCrewCoordinator``; return (SolveResult, dispatcher).
 
@@ -98,6 +99,7 @@ async def run_ctf_crew_solve(
         runtime=runtime,
         progress_callback=emit,
         llm=llm,
+        profile=profile,
     )
     planning_dispatcher.state = CTFState(target=target, goal=goal)
     planning_dispatcher.state.apply_profile(planning_dispatcher.profile)  # P5
@@ -183,6 +185,7 @@ async def run_ctf_crew_solve(
             runtime=runtime,
             progress_callback=lambda message, wid=worker_id: emit(f"[CTF crew:{wid}] {message}"),
             llm=llm,
+            profile=profile,
         )
         try:
             result = await run_ctf_dispatcher_worker(
