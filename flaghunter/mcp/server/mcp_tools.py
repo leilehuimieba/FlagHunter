@@ -1901,16 +1901,37 @@ async def get_metrics(args: dict[str, object]) -> str:
     errors = sum(1 for e in _tasks.values() if e.status == "error")
     canc = sum(1 for e in _tasks.values() if e.status == "cancelled")
     active = sum(1 for e in _tasks.values() if e.status in ("pending", "running"))
-    return "\n".join(
-        [
-            f"total_tasks:      {total}",
-            f"active:           {active}",
-            f"completed:        {done}",
-            f"errors:           {errors}",
-            f"cancelled:        {canc}",
-            f"success_rate:     {f'{done / total * 100:.1f}%' if total else 'n/a'}",
-            f"total_tool_calls: {sum(len(e.tool_calls) for e in _tasks.values())}",
-            f"memory_keys:      {len(_memory)}",
-            f"log_entries:      {len(_logs)}",
-        ]
-    )
+    lines = [
+        f"total_tasks:      {total}",
+        f"active:           {active}",
+        f"completed:        {done}",
+        f"errors:           {errors}",
+        f"cancelled:        {canc}",
+        f"success_rate:     {f'{done / total * 100:.1f}%' if total else 'n/a'}",
+        f"total_tool_calls: {sum(len(e.tool_calls) for e in _tasks.values())}",
+        f"memory_keys:      {len(_memory)}",
+        f"log_entries:      {len(_logs)}",
+    ]
+
+    # P6: surface emergent tool chains mined from the provenance log. Read-only —
+    # this just observes recorded calls; it never feeds back into solving. Wrapped
+    # fail-safe so an empty/corrupt log can never break the metrics call.
+    try:
+        from ...knowledge.emergent_chains import mine_emergent_chains
+        from ...tools.provenance import get_all_calls
+
+        report = mine_emergent_chains(get_all_calls(), top_n=3)
+        psum = report["summary"]
+        lines.append(f"provenance_calls: {psum['total_calls']}")
+        lines.append(f"provenance_runs:  {psum['total_runs']}")
+        lines.append(f"flag_runs:        {psum['flag_runs']}")
+        for c in report["chains"]:
+            arrow = " -> ".join(c["chain"])
+            lines.append(
+                f"chain:            {arrow} "
+                f"[runs={c['runs']} flag_runs={c['flag_runs']}]"
+            )
+    except Exception:
+        pass
+
+    return "\n".join(lines)

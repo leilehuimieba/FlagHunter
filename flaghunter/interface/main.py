@@ -253,6 +253,22 @@ Examples:
         help="Emit the coverage matrix as JSON instead of a text report",
     )
 
+    chains_parser = subparsers.add_parser(
+        "chains",
+        help="Mine emergent tool chains from the provenance log (P6)",
+    )
+    chains_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit the mined chain report as JSON instead of a text report",
+    )
+    chains_parser.add_argument(
+        "--top",
+        type=int,
+        default=10,
+        help="Max number of chains to surface (default 10)",
+    )
+
     mcp_server_parser = subparsers.add_parser("mcp_server", help="Act as MCP server")
     mcp_server_parser.add_argument(
         "--type",
@@ -443,6 +459,24 @@ def handle_coverage_command(args: argparse.Namespace):
         print(json.dumps(report, indent=2, ensure_ascii=False))
     else:
         print(format_coverage_report(report))
+
+
+def handle_chains_command(args: argparse.Namespace):
+    """Handle the chains subcommand: mine emergent tool chains from provenance.
+
+    Read-only P6 surface — reads the provenance log (CAPABILITY) and feeds it to
+    the emergent-chain miner (CAPABILITY); nothing here feeds back into solving.
+    """
+    from ..knowledge.emergent_chains import format_emergent_chains, mine_emergent_chains
+    from ..tools.provenance import get_all_calls
+
+    report = mine_emergent_chains(get_all_calls(), top_n=getattr(args, "top", 10))
+    if getattr(args, "json", False):
+        import json
+
+        print(json.dumps(report, indent=2, ensure_ascii=False))
+    else:
+        print(format_emergent_chains(report))
 
 
 def handle_tools_command(args: argparse.Namespace):
@@ -1652,10 +1686,10 @@ def handle_ctf_command(args: argparse.Namespace):
 def main():
     """Main entry point."""
     parser, args = parse_arguments()
-    # `coverage` is a read-only introspection command whose --json output must be
-    # pure machine-parseable JSON on stdout; the startup-context log goes to
-    # stdout, so skip it here (debug context adds little for this trivial query).
-    if args.command != "coverage":
+    # `coverage`/`chains` are read-only introspection commands whose --json output
+    # must be pure machine-parseable JSON on stdout; the startup-context log goes
+    # to stdout, so skip it here (debug context adds little for these queries).
+    if args.command not in ("coverage", "chains"):
         _log_startup_context(args)
 
     # Handle subcommands
@@ -1665,6 +1699,10 @@ def main():
 
     if args.command == "coverage":
         handle_coverage_command(args)
+        return
+
+    if args.command == "chains":
+        handle_chains_command(args)
         return
 
     if args.command == "mcp":
