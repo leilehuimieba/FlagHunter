@@ -172,6 +172,14 @@ Examples:
         "through CTFCrewCoordinator (parallel recon/exploit workers, shared state).",
     )
     run_parser.add_argument(
+        "--profile",
+        dest="profile",
+        default="ctf",
+        help="Project-type profile (unified skeleton + covering knobs): "
+        "ctf (default; aggressive, shortest chain) | code_audit (conservative, "
+        "source entry, tighter stopping budget). Unknown names fall back to ctf.",
+    )
+    run_parser.add_argument(
         "--challenge-path",
         dest="challenge_path",
         help="Optional local challenge directory or extracted challenge path",
@@ -1746,6 +1754,7 @@ def main():
                     challenge_path=args.challenge_path,
                     artifact_paths=args.artifact_path,
                     crew=bool(getattr(args, "crew", False)),
+                    profile=getattr(args, "profile", "ctf"),
                 )
             )
         except KeyboardInterrupt:

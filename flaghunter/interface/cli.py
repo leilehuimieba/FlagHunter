@@ -112,6 +112,7 @@ async def run_cli(
     challenge_path: str | None = None,
     artifact_paths: list[str] | None = None,
     crew: bool = False,
+    profile: str = "ctf",
 ):
     """
     Run FlagHunter in non-interactive mode.
@@ -618,6 +619,7 @@ async def run_cli(
                     runtime=runtime,
                     progress_callback=lambda message: print_status(str(message), PA_DIM),
                     llm=llm,
+                    profile=profile,
                 )
                 solve_result = await dispatcher.run(
                     target=target,
