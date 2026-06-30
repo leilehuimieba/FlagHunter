@@ -703,6 +703,29 @@ class CTFTaskDispatcher(
                     confidence=0.9,
                 )
 
+        # 5b cut-2 (observability): the loop is otherwise a black box live — surface the
+        # brain's per-step decision trail (kind/tool/rationale + tool-result preview) both
+        # to the progress stream (real-time) and into the notes log (so it persists into
+        # ``result.notes`` / session events after the in-memory CTFState is gone). Without
+        # this a failed solve is undiagnosable; it is the prerequisite to validating the
+        # remaining 5b contract migrations against the new loop.
+        def _on_step(step: int, action, result) -> None:
+            kind = str(getattr(action, "kind", "") or "?")
+            rationale = str(getattr(action, "rationale", "") or "").strip()
+            if kind == "call_tool":
+                tool = str(getattr(action, "tool", "") or "?")
+                preview = str(result or "").replace("\n", " ").strip()[:160]
+                detail = f"call_tool {tool} → {preview}"
+            elif kind in ("write_fact", "declare_intent"):
+                detail = f"{kind} — {str(getattr(action, 'content', '') or '').strip()[:160]}"
+            else:
+                detail = kind
+            line = f"[CTF dispatcher] [blackboard] step {step}: {detail}"
+            if rationale:
+                line = f"{line}  ({rationale[:80]})"
+            self._notes_log.append(line)
+            self._emit(line)
+
         # Cost boundary, not a scripted step count: reuse the EXPLOIT phase round
         # budget (profile override, else the module default) — §3.2 不把大模型关进笼子.
         budget_steps = self.state.effective_phase_budget(Phase.EXPLOIT) or 24
@@ -711,7 +734,12 @@ class CTFTaskDispatcher(
             hands=ChainHands(self, context=context, on_outcome=_promote_chain_flag),
             tools=chain_tools(self, context=context),
             budget=Budget(max_steps=int(budget_steps)),
+            on_step=_on_step,
             **bind_seams(self.state),
+        )
+        self._emit(
+            f"[CTF dispatcher] [blackboard] done: stopped={outcome.stopped} "
+            f"steps={outcome.steps} solved={outcome.solved}"
         )
         result.success = bool(outcome.solved)
         result.flag = outcome.flag

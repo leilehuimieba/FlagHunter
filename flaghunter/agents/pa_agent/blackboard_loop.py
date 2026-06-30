@@ -90,9 +90,17 @@ ViewFn = Callable[[], BoardView]
 GoalFn = Callable[[], Optional[str]]  # goal met? -> flag, else None
 RecordToolResultFn = Callable[[Action, str], None]
 RecordContentFn = Callable[[str], None]
+# Observability seam — fired once per step *after* the action is routed, so a live
+# driver can surface the brain's decision trail (kind/tool/rationale + tool result).
+# Pure no-op by default; the loop stays strategy-free and testable with fakes.
+OnStepFn = Callable[[int, Action, Optional[str]], None]
 
 
 def _noop(_content: str) -> None:  # default for optional ledger writers
+    return None
+
+
+def _noop_step(_step: int, _action: "Action", _result: Optional[str]) -> None:
     return None
 
 
@@ -107,6 +115,7 @@ async def run_blackboard_solve(
     budget: Budget,
     record_fact: RecordContentFn = _noop,
     declare_intent: RecordContentFn = _noop,
+    on_step: OnStepFn = _noop_step,
 ) -> SolveOutcome:
     """Drive the board toward ``goal`` by asking ``brain`` for one action at a time.
 
@@ -125,15 +134,21 @@ async def run_blackboard_solve(
         budget.charge()
 
         if action.kind == "stop":
+            on_step(budget.spent, action, None)
             won = goal()
             return SolveOutcome(won is not None, won, budget.spent, "brain_stop")
         if action.kind == "call_tool":
             result = await hands.execute(str(action.tool or ""), dict(action.input))
             record_tool_result(action, result)
+            on_step(budget.spent, action, result)
         elif action.kind == "write_fact":
             record_fact(action.content)
+            on_step(budget.spent, action, None)
         elif action.kind == "declare_intent":
             declare_intent(action.content)
+            on_step(budget.spent, action, None)
+        else:
+            on_step(budget.spent, action, None)
 
     won = goal()
     return SolveOutcome(won is not None, won, budget.spent, "budget_exhausted")
@@ -146,5 +161,6 @@ __all__ = [
     "ToolSpec",
     "Budget",
     "SolveOutcome",
+    "OnStepFn",
     "run_blackboard_solve",
 ]

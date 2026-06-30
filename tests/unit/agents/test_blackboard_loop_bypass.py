@@ -121,3 +121,47 @@ async def test_blackboard_loop_maps_unsolved_stop(monkeypatch):
     assert result.success is False
     assert result.flag is None
     assert result.reason == "blackboard_loop:brain_stop"
+
+
+@pytest.mark.asyncio
+async def test_blackboard_loop_emits_step_breadcrumbs(monkeypatch):
+    """5b cut-2: the loop must not be a black box live — each brain decision is
+    surfaced to the progress stream AND persisted into the notes log (so the trail
+    survives the in-memory CTFState after the process exits)."""
+    llm = _FakeLLM(
+        [
+            '{"kind":"call_tool","tool":"web","input":{},"rationale":"probe root","expected_signal":"FLAG{"}',
+            '{"kind":"stop","rationale":"nothing left"}',
+        ]
+    )
+    disp = _dispatcher(llm)
+    emitted: list[str] = []
+    disp.progress_callback = emitted.append
+
+    async def _identity(result):
+        return result
+
+    monkeypatch.setattr(disp, "_finalize_solve_result", _identity)
+    monkeypatch.setattr(
+        disp, "_chain_handler_map", lambda *, target, page_features, hint: {"web": (lambda: None)}
+    )
+
+    async def _fake_execute_chain(*, chain_name, target, page_features, hint):
+        return _ChainOutcome(progress=True, reason="saw login form")
+
+    monkeypatch.setattr(disp, "_execute_chain", _fake_execute_chain)
+
+    result = await disp._run_blackboard_loop(
+        target="ex.com", hint="", page_features={}, result=SolveResult(success=False)
+    )
+
+    blackboard_lines = [m for m in emitted if "[blackboard]" in m]
+    # step 1 = the tool call (with result preview + rationale), step 2 = stop, + done summary.
+    assert any("step 1: call_tool web" in m for m in blackboard_lines)
+    assert any("saw login form" in m for m in blackboard_lines)
+    assert any("probe root" in m for m in blackboard_lines)
+    assert any("step 2: stop" in m for m in blackboard_lines)
+    assert any("done: stopped=brain_stop" in m for m in blackboard_lines)
+    # The same trail persists into the notes log (which _finalize copies into
+    # result.notes / session events — surviving the in-memory state after exit).
+    assert any("step 1: call_tool web" in n for n in disp._notes_log)

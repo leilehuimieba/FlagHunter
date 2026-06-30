@@ -138,3 +138,56 @@ async def test_write_fact_and_declare_intent_route_to_ledger():
     assert intents == ["probe /admin"]
     assert outcome.stopped == "brain_stop"
     assert outcome.steps == 3
+
+
+@pytest.mark.asyncio
+async def test_on_step_observes_every_decision_with_tool_result():
+    """5b cut-2: the observability seam fires once per step with (step, action, result).
+
+    ``result`` is the tool output only for ``call_tool`` (so a live driver can preview
+    it), and ``None`` for fact/intent/stop. This is the trail that turns a failed solve
+    from a black box into something diagnosable.
+    """
+    brain = _ScriptedBrain(
+        [
+            Action(kind="call_tool", tool="sqli", input={}),
+            Action(kind="declare_intent", content="try /admin next"),
+            Action(kind="stop", rationale="exhausted ideas"),
+        ]
+    )
+    steps: list[tuple[int, str, str | None]] = []
+
+    outcome = await run_blackboard_solve(
+        brain=brain,
+        hands=_FakeHands({"sqli": "progress=true reason=dumped users"}),
+        tools=[ToolSpec("sqli", "sqli chain")],
+        view=_view,
+        goal=lambda: None,
+        record_tool_result=lambda a, r: None,
+        budget=Budget(max_steps=10),
+        on_step=lambda step, action, result: steps.append((step, action.kind, result)),
+    )
+
+    assert outcome.stopped == "brain_stop"
+    # One breadcrumb per decision, numbered by the charged budget step.
+    assert steps == [
+        (1, "call_tool", "progress=true reason=dumped users"),
+        (2, "declare_intent", None),
+        (3, "stop", None),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_on_step_defaults_to_noop():
+    # Omitting on_step must not change behaviour (pure default seam).
+    brain = _ScriptedBrain([Action(kind="stop")])
+    outcome = await run_blackboard_solve(
+        brain=brain,
+        hands=_FakeHands({}),
+        tools=[],
+        view=_view,
+        goal=lambda: None,
+        record_tool_result=lambda a, r: None,
+        budget=Budget(max_steps=5),
+    )
+    assert outcome.stopped == "brain_stop"
