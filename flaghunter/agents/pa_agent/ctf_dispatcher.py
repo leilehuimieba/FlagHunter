@@ -217,6 +217,15 @@ _SERVER_SIDE_PATH_SUFFIXES = (
 _CHAIN_NAME_FOR_HYPOTHESIS = _CHAIN_BY_KIND
 
 
+def _blackboard_loop_enabled() -> bool:
+    """Slice 5a opt-in flag for the model-driven solve loop (default OFF).
+
+    Same ``FLAGHUNTER_*`` truthy convention as the other dispatcher env flags
+    (e.g. ``FLAGHUNTER_AUTO_INSTALL``). Off → the chain-order harness runs unchanged.
+    """
+    return os.getenv("FLAGHUNTER_BLACKBOARD_LOOP", "false").strip().lower() == "true"
+
+
 @dataclass
 class SolveResult:
     success: bool
@@ -493,6 +502,22 @@ class CTFTaskDispatcher(
         if self.state is not None:
             self.state.enter_phase(Phase.EXPLOIT)
             self.state.apply_profile(self.profile)
+        # Slice 5a (strangler cutover, default OFF): when FLAGHUNTER_BLACKBOARD_LOOP
+        # is enabled, hand the solve to the model-driven Shape-A loop instead of the
+        # chain-order harness below. Strictly additive and reversible — when the flag
+        # is off (or the run lacks state/llm) this is a no-op and the old path is
+        # byte-unchanged. The recovery/terminal/experiment contracts below are NOT yet
+        # replicated by the new loop (migrated incrementally in 5b); this bypass exists
+        # to validate the driver on live runs, not to retire them. The new loop is the
+        # eventual sole driver (then choose_chain_order is deleted) only once it covers
+        # them. See [[project_flaghunter_blackboard_pivot]].
+        if self.state is not None and self.llm is not None and _blackboard_loop_enabled():
+            return await self._run_blackboard_loop(
+                target=target,
+                hint=hint,
+                page_features=page_features,
+                result=result,
+            )
         chain_order = list(dict.fromkeys(chain_order))
         # The seam object the coordinator contracts run against: the carried
         # ``RunContext`` when supplied, else the raw dispatcher (== old behaviour).
@@ -628,6 +653,59 @@ class CTFTaskDispatcher(
             detected_type=detected_type,
             no_progress_rounds=no_progress_rounds,
         )
+
+    async def _run_blackboard_loop(
+        self,
+        *,
+        target: str,
+        hint: str,
+        page_features: dict[str, Any],
+        result: SolveResult,
+    ) -> SolveResult:
+        """Slice 5a: drive the solve with the model-driven Shape-A blackboard loop.
+
+        Binds the loop's seams to this dispatcher — chains-as-tools (``ChainHands`` /
+        ``chain_tools`` over ``_chain_handler_map`` + ``_execute_chain``), the
+        deterministic ``CTFState`` seams, and an LLM brain over ``self.llm`` — then maps
+        the loop's ``SolveOutcome`` onto a ``SolveResult`` and finalizes it the same way
+        the chain-order path does. Reached only behind ``FLAGHUNTER_BLACKBOARD_LOOP``.
+
+        Known capability gaps vs the chain-order harness (terminal-success
+        verification, recovery/rerank, experiment feedback, missing-tool handling) are
+        NOT yet covered here; they migrate onto the loop's record/verify seams in 5b.
+        Until then this path is an opt-in driver for live validation, not a replacement.
+        """
+        from .blackboard_adapter import bind_seams
+        from .blackboard_brain import LLMBrain
+        from .blackboard_hands import ChainContext, ChainHands, chain_tools
+        from .blackboard_loop import Budget, run_blackboard_solve
+
+        context = ChainContext(
+            target=target,
+            page_features=dict(page_features or {}),
+            hint=str(hint or ""),
+        )
+        # Cost boundary, not a scripted step count: reuse the EXPLOIT phase round
+        # budget (profile override, else the module default) — §3.2 不把大模型关进笼子.
+        budget_steps = self.state.effective_phase_budget(Phase.EXPLOIT) or 24
+        outcome = await run_blackboard_solve(
+            brain=LLMBrain.from_llm(self.llm),
+            hands=ChainHands(self, context=context),
+            tools=chain_tools(self, context=context),
+            budget=Budget(max_steps=int(budget_steps)),
+            **bind_seams(self.state),
+        )
+        result.success = bool(outcome.solved)
+        result.flag = outcome.flag
+        result.reason = f"blackboard_loop:{outcome.stopped}"
+        used = [
+            obs.source
+            for obs in self.state.observations
+            if obs.kind == "tool_result" and obs.source
+        ]
+        if used:
+            result.chain_used = list(dict.fromkeys(used))
+        return await self._finalize_solve_result(result)
 
     async def _finalize_solve_result(self, result: SolveResult) -> SolveResult:
         result.notes = list(self._notes_log)
