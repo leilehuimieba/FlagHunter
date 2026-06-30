@@ -75,6 +75,62 @@ def test_shadow_coverage_recall_superset_of_fired_kinds():
         assert missing == set(), f"{detected}: recall missed fired kinds {sorted(missing)}"
 
 
+def _state_with(observation_value, *, detected_type="web", metadata=None):
+    from flaghunter.agents.pa_agent.ctf_state import CTFState
+
+    state = CTFState(target="http://ctf.local", goal="flag", detected_type=detected_type)
+    state.add_observation(
+        "recon_url", observation_value, source="phase_recon", metadata=metadata or {}
+    )
+    return state
+
+
+def test_shadow_coverage_structural_probe_paths():
+    # Gating-readiness for the STRUCTURAL-probe path (jwt/tornado/render/file/hash/
+    # unicode/hint/backup/unserialize). For a state that fires each structural probe,
+    # build the fingerprint from the SAME probe-visible blob the gating flip would use
+    # (engine._state_blob) and assert retrieval recall ⊇ the kinds the engine fires.
+    # Any miss here is an alias gap to close BEFORE the gating flip — recall must be a
+    # superset or gating would drop a hypothesis (regression).
+    from flaghunter.agents.pa_agent.hypothesis_engine import HypothesisEngine
+
+    idx = PatternIndex.from_dir()
+    engine = HypothesisEngine()
+
+    cases = [
+        # (label, observation value, metadata)
+        ("jwt", "HTTP Authorization: Bearer eyJhbGciOiJIUzI1NiJ9 leaked jwt_secret", {}),
+        ("tornado", "Server: TornadoServer/6.0 tornado.web framework", {}),
+        ("render", "GET /page?msg=hello world template render", {}),
+        ("file_endpoint", "GET /download?name=readme and /file?filename=notes", {}),
+        ("hash_guard", "GET /file?filename=secret&filehash=ab12 guarded read", {}),
+        ("hint", "discovered hint files /hints.txt /welcome.txt /flag.txt", {}),
+        ("backup", "exposed www.zip backup .bak source disclosure", {}),
+        ("unserialize", "source has unserialize() and __destruct magic method", {}),
+        (
+            "unicode_price",
+            "Unicorn shop: purchase item, price is only one char",
+            {"forms_detail": [{"action": "/charge", "inputs": [{"name": "id"}, {"name": "price"}]}]},
+        ),
+    ]
+
+    failures = []
+    for label, value, metadata in cases:
+        state = _state_with(value, metadata=metadata)
+        fired = {h.kind for h in engine._rule_based_hypotheses(state)}
+        fired.discard("generic_web_recon")
+        if not fired:
+            failures.append(f"{label}: no kind fired (bad test fixture)")
+            continue
+        fingerprint = engine._state_blob(state)
+        recalled = {r.kind for r in idx.retrieve(fingerprint, top_k=12)}
+        missing = fired - recalled
+        if missing:
+            failures.append(f"{label}: fired={sorted(fired)} recall MISSED {sorted(missing)}")
+
+    assert not failures, "gating-safety gaps:\n" + "\n".join(failures)
+
+
 def test_golden_eval_all_hit_and_mrr_floor():
     # Byte-level regression guard: every known fingerprint recalls its kind within
     # max_rank, and MRR stays above a floor. Tighten the floor as 曲库 grows.
