@@ -97,6 +97,44 @@ def test_dispatcher_derives_exploitation_mode_from_profile():
     assert override_d.exploitation_mode == "aggressive"
 
 
+def test_activity_metrics_zero_without_state():
+    # Phase 0: before a run there is no state — metrics must be all-zero, not crash.
+    dispatcher = CTFTaskDispatcher(runtime=_DispatcherRuntime())
+    assert dispatcher.activity_metrics() == {
+        "loops": 0,
+        "llm_exploration_steps": 0,
+        "tool_calls": 0,
+        "experiments": 0,
+    }
+
+
+def test_activity_metrics_reflects_real_dispatcher_activity():
+    # Phase 0: the CTF fast path used to report Loops 0 / Commands 0 for an
+    # active run. activity_metrics must surface the real EXPLOIT rounds, LLM
+    # exploration steps and audited tool calls instead.
+    from flaghunter.knowledge.kill_chain import Phase
+
+    dispatcher = CTFTaskDispatcher(runtime=_DispatcherRuntime())
+    dispatcher.state = CTFState(target="http://ctf.local", goal="flag", detected_type="web")
+    dispatcher.state.enter_phase(Phase.EXPLOIT)
+    dispatcher.state.record_phase_round(Phase.EXPLOIT)
+    dispatcher.state.record_phase_round(Phase.EXPLOIT)  # 2 EXPLOIT rounds
+    dispatcher.state.llm_exploration_steps = 3          # 3 LLM exploration turns
+
+    # Three audited runtime actions funnel a tool_called event each; a
+    # tool_finished / other event must NOT inflate the count.
+    dispatcher._record_session_event("tool_called", {})
+    dispatcher._record_session_event("tool_finished", {})
+    dispatcher._record_session_event("tool_called", {})
+    dispatcher._record_session_event("tool_called", {})
+
+    metrics = dispatcher.activity_metrics()
+    assert metrics["loops"] == 5            # 2 EXPLOIT rounds + 3 LLM steps
+    assert metrics["llm_exploration_steps"] == 3
+    assert metrics["tool_calls"] == 3
+    assert dispatcher._tool_call_count == 3
+
+
 def test_dispatcher_conforms_to_coordinator_dispatcher_services_protocol():
     # L2c: 对称 L1 上面的 StrategyServices 断言——为 L2a/L2b 收窄出的
     # CoordinatorDispatcherServices Protocol 补【生产侧 conformance】门禁。

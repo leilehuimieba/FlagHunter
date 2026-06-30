@@ -650,6 +650,18 @@ async def run_cli(
             if derived_target and not str(target or "").strip():
                 target = derived_target
                 print_status(f"Derived target resolved: {derived_target}", PA_DIM)
+            # Phase 0: 把 dispatcher 的真实活动回填到对外 Loops/Tools 计数。CTF 快路径不走
+            # agent base-loop,iteration/tool_count 原本恒为 0 → 报告失真(18 次 LLM + ~10 次
+            # HTTP 显示为 Loops 0 / Commands 0)。读 dispatcher.activity_metrics() 还原真相。
+            active_dispatcher = crew_dispatcher if crew else dispatcher
+            _metrics_fn = getattr(active_dispatcher, "activity_metrics", None)
+            if callable(_metrics_fn):
+                try:
+                    _ctf_metrics = _metrics_fn()
+                    iteration = int(_ctf_metrics.get("loops", 0) or 0)
+                    tool_count = int(_ctf_metrics.get("tool_calls", 0) or 0)
+                except Exception:
+                    pass
             result_text = str(getattr(solve_result, "flag", "") or getattr(solve_result, "reason", "") or "")
             if result_text:
                 messages.append(result_text)

@@ -486,6 +486,13 @@ class AuditInfraMixin:
         event_type: str,
         payload: dict[str, Any] | None = None,
     ) -> None:
+        # Phase 0: count real runtime actions for honest loop/tool reporting.
+        # Every audited browser/proxy/execute_command passthrough funnels its
+        # ``tool_called`` event through here, so this is the single faithful tally
+        # of HTTP/shell/browser invocations — independent of whether a session
+        # ledger is configured (the CLI fast path often has none).
+        if str(event_type) == "tool_called":
+            self._tool_call_count = int(getattr(self, "_tool_call_count", 0) or 0) + 1
         self._audit_store.record_session_event(
             self._session_ledger,
             self._ledger_run_id,

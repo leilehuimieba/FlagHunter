@@ -285,6 +285,10 @@ class CTFTaskDispatcher(
         self.exploitation_mode = str(_mode or "aggressive").strip().lower() or "aggressive"
         self.tool_guard = ToolGuard(runtime=runtime)
         self._notes_log: list[str] = []
+        # Phase 0 指标真相: 每次审计 runtime 动作(HTTP/shell/browser)经 _record_session_event
+        # 发 tool_called 时递增。CTF 快路径不走 agent base-loop,对外 Loops/Tools 计数原本恒 0,
+        # 报告失真。activity_metrics() 把它和 EXPLOIT 轮/LLM 探索步一并暴露给 CLI 回填。
+        self._tool_call_count = 0
         self.state: CTFState | None = None
         self._progress = ProgressTracker()
         self._flag_observer = FlagObserver()
@@ -379,6 +383,34 @@ class CTFTaskDispatcher(
             if "ingress_handoff" not in str(exc):
                 raise
             return await self.coordinator.execute(self, **kwargs)
+
+    def activity_metrics(self) -> dict[str, int]:
+        """Real solve-activity counters for honest run reporting (Phase 0).
+
+        The CTF dispatcher never drives the agent base-loop, so a caller's
+        loop/tool counters (e.g. the CLI summary) used to read 0 even after
+        dozens of LLM turns and HTTP probes — the report claimed "Loops 0 /
+        Commands 0" for an 18-LLM-call, ~10-HTTP run. Surface the true counts:
+
+        - ``loops``: EXPLOIT solve-loop rounds + LLM-exploration sub-steps —
+          the dispatcher's analogue of agent base-loop iterations.
+        - ``llm_exploration_steps``: LLM-driven exploration turns (subset of loops).
+        - ``tool_calls``: audited runtime actions (HTTP / shell / browser).
+        - ``experiments``: hypothesis experiments recorded.
+
+        Pure read of already-tracked state — additive observability, no
+        control-flow effect.
+        """
+        state = self.state
+        exploit_rounds = state.rounds_in_phase(Phase.EXPLOIT) if state is not None else 0
+        llm_steps = int(getattr(state, "llm_exploration_steps", 0) or 0) if state is not None else 0
+        experiments = len(state.experiments) if state is not None else 0
+        return {
+            "loops": int(exploit_rounds) + llm_steps,
+            "llm_exploration_steps": llm_steps,
+            "tool_calls": int(getattr(self, "_tool_call_count", 0) or 0),
+            "experiments": experiments,
+        }
 
     def _structured_followup_next_action(self) -> str:
         handoff = self._ingress_handoff if isinstance(self._ingress_handoff, dict) else {}
