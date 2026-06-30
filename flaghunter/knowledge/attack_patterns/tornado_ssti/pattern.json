@@ -1,0 +1,28 @@
+{
+  "aliases": [
+    "tornado",
+    "tornado.web",
+    "ssti",
+    "template injection",
+    "{{ }}",
+    "handler.settings",
+    "cookie_secret",
+    "render"
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "web",
+  "gate_probe": "_has_tornado_feature",
+  "id": "ap-tornado_ssti",
+  "kind": "tornado_ssti",
+  "signals": [
+    "tornado runtime clue"
+  ],
+  "status": "active",
+  "technique_ids": [
+    "WSTG-INPV-18",
+    "T1190"
+  ],
+  "title": "Tornado SSTI (handler.settings)",
+  "topic": "injection",
+  "trigger": "structural: tornado runtime"
+}

@@ -1,0 +1,31 @@
+{
+  "aliases": [
+    "sql",
+    "sqli",
+    "id parameter",
+    "quote",
+    "union select",
+    "sql syntax error",
+    "mysql_fetch",
+    "ORDER BY",
+    "stacked query"
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "sqli",
+  "gate_probe": "_has_generic_get_sqli_surface",
+  "id": "ap-generic_param_sqli",
+  "kind": "generic_param_sqli",
+  "signals": [
+    "detected_type:sqli",
+    "surface:get_form_param",
+    "error:sql_error"
+  ],
+  "status": "active",
+  "technique_ids": [
+    "WSTG-INPV-05",
+    "T1190"
+  ],
+  "title": "SQL injection via GET parameter",
+  "topic": "injection",
+  "trigger": "detected_type:sqli"
+}

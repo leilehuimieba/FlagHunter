@@ -1,0 +1,28 @@
+{
+  "aliases": [
+    "deserialization",
+    "unserialize",
+    "pickle",
+    "readObject",
+    "serialized object",
+    "gadget chain",
+    "ysoserial"
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "web",
+  "gate_probe": "web_strategy",
+  "id": "ap-insecure_deserialization",
+  "kind": "insecure_deserialization",
+  "signals": [
+    "serialized object surface",
+    "gadget chain"
+  ],
+  "status": "active",
+  "technique_ids": [
+    "WSTG-INPV-11",
+    "T1190"
+  ],
+  "title": "Insecure deserialization (generic)",
+  "topic": "injection",
+  "trigger": "web-strategy"
+}

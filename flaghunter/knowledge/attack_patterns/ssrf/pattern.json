@@ -1,0 +1,29 @@
+{
+  "aliases": [
+    "ssrf",
+    "server side request forgery",
+    "url parameter",
+    "localhost",
+    "127.0.0.1",
+    "file://",
+    "gopher://",
+    "internal"
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "ssrf",
+  "gate_probe": "detected_type:ssrf",
+  "id": "ap-ssrf",
+  "kind": "ssrf",
+  "signals": [
+    "detected_type:ssrf",
+    "fetch/url parameter"
+  ],
+  "status": "active",
+  "technique_ids": [
+    "WSTG-INPV-19",
+    "T1190"
+  ],
+  "title": "Server-side request forgery",
+  "topic": "injection",
+  "trigger": "detected_type:ssrf"
+}

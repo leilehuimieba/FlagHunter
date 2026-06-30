@@ -1,0 +1,28 @@
+{
+  "aliases": [
+    "misc",
+    "forensics",
+    "pcap",
+    "zip",
+    "steganography",
+    "metadata",
+    "binwalk",
+    "exif",
+    "attachment",
+    "file analysis"
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "misc",
+  "gate_probe": "_has_attachment_artifact",
+  "id": "ap-artifact_forensics",
+  "kind": "artifact_forensics",
+  "signals": [
+    "detected_type:misc",
+    "attachment artifact discovered"
+  ],
+  "status": "active",
+  "technique_ids": [],
+  "title": "Offline artifact forensics (CTF misc)",
+  "topic": "other",
+  "trigger": "detected_type:misc | attachment"
+}

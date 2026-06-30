@@ -1,0 +1,32 @@
+{
+  "aliases": [
+    "xss",
+    "cross site scripting",
+    "admin bot",
+    "/visit",
+    "/admin",
+    "cookie",
+    "sid",
+    "session id",
+    "<script>",
+    "report url"
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "xss",
+  "gate_probe": "endpoints:/visit+/admin",
+  "id": "ap-xss_admin_bot_sid",
+  "kind": "xss_admin_bot_sid",
+  "signals": [
+    "endpoints:/visit+/admin",
+    "login-like flow",
+    "browser-rendered evidence"
+  ],
+  "status": "active",
+  "technique_ids": [
+    "WSTG-INPV-02",
+    "T1190"
+  ],
+  "title": "Stored XSS to admin-bot session theft",
+  "topic": "injection",
+  "trigger": "detected_type:xss | endpoints:/visit+/admin"
+}

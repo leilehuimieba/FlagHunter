@@ -1,0 +1,27 @@
+{
+  "aliases": [
+    "file read",
+    "download",
+    "readfile",
+    "file endpoint",
+    "filename parameter",
+    "fetch local file",
+    "source disclosure"
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "web",
+  "gate_probe": "_has_file_endpoint",
+  "id": "ap-file_read_endpoint",
+  "kind": "file_read_endpoint",
+  "signals": [
+    "file/download endpoint discovered"
+  ],
+  "status": "active",
+  "technique_ids": [
+    "WSTG-ATHZ-01",
+    "T1190"
+  ],
+  "title": "Arbitrary file read via download endpoint",
+  "topic": "authorization",
+  "trigger": "structural: file endpoint"
+}

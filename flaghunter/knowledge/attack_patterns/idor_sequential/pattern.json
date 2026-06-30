@@ -1,0 +1,28 @@
+{
+  "aliases": [
+    "idor",
+    "insecure direct object reference",
+    "id parameter",
+    "user_id",
+    "sequential id",
+    "authorization",
+    "/api/user/"
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "web",
+  "gate_probe": "web_strategy",
+  "id": "ap-idor_sequential",
+  "kind": "idor_sequential",
+  "signals": [
+    "sequential object id",
+    "missing authorization check"
+  ],
+  "status": "active",
+  "technique_ids": [
+    "WSTG-ATHZ-04",
+    "T1190"
+  ],
+  "title": "IDOR via sequential identifiers",
+  "topic": "authorization",
+  "trigger": "web-strategy"
+}

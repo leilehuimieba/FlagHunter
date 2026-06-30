@@ -1,0 +1,29 @@
+{
+  "aliases": [
+    "nosql",
+    "mongodb",
+    "$ne",
+    "$gt",
+    "$where",
+    "json injection",
+    "[$ne]",
+    "mongo"
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "web",
+  "gate_probe": "web_strategy",
+  "id": "ap-nosql_injection",
+  "kind": "nosql_injection",
+  "signals": [
+    "nosql operator surface",
+    "json body injection"
+  ],
+  "status": "active",
+  "technique_ids": [
+    "WSTG-INPV-05",
+    "T1190"
+  ],
+  "title": "NoSQL injection",
+  "topic": "injection",
+  "trigger": "web-strategy"
+}

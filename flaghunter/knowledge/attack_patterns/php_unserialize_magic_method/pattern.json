@@ -1,0 +1,28 @@
+{
+  "aliases": [
+    "unserialize",
+    "deserialization",
+    "__destruct",
+    "__wakeup",
+    "php object injection",
+    "pop chain",
+    "O:8:",
+    "magic method"
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "web",
+  "gate_probe": "obs:unserialize+__destruct",
+  "id": "ap-php_unserialize_magic_method",
+  "kind": "php_unserialize_magic_method",
+  "signals": [
+    "source contains unserialize + magic method"
+  ],
+  "status": "active",
+  "technique_ids": [
+    "WSTG-INPV-11",
+    "T1190"
+  ],
+  "title": "PHP object injection via unserialize magic methods",
+  "topic": "injection",
+  "trigger": "source: unserialize + __destruct"
+}

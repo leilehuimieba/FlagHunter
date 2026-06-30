@@ -1,0 +1,31 @@
+{
+  "aliases": [
+    "backup",
+    "source code",
+    ".zip",
+    ".bak",
+    ".phps",
+    ".git",
+    "www.zip",
+    "源码",
+    "压缩包",
+    "swp",
+    "index.php.bak"
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "web",
+  "gate_probe": "_has_backup_artifact",
+  "id": "ap-backup_source_leak",
+  "kind": "backup_source_leak",
+  "signals": [
+    "backup/source clue",
+    "artifact/source leak"
+  ],
+  "status": "active",
+  "technique_ids": [
+    "WSTG-CONF-04"
+  ],
+  "title": "Backup / source-code leak disclosure",
+  "topic": "configuration",
+  "trigger": "backup artifact/clue"
+}

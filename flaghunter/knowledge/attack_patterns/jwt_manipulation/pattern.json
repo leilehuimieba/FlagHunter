@@ -1,0 +1,30 @@
+{
+  "aliases": [
+    "jwt",
+    "json web token",
+    "bearer",
+    "authorization header",
+    "alg none",
+    "HS256",
+    "RS256",
+    "eyJ",
+    "secret key",
+    "admin claim"
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "jwt",
+  "gate_probe": "_has_jwt_surface",
+  "id": "ap-jwt_manipulation",
+  "kind": "jwt_manipulation",
+  "signals": [
+    "authorization bearer surface",
+    "jwt secret or admin-token clue"
+  ],
+  "status": "active",
+  "technique_ids": [
+    "WSTG-SESS-10"
+  ],
+  "title": "JWT manipulation (bearer token forgery)",
+  "topic": "session-management",
+  "trigger": "structural: jwt surface"
+}

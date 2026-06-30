@@ -1,0 +1,29 @@
+{
+  "aliases": [
+    "lfi",
+    "local file inclusion",
+    "include",
+    "php://filter",
+    "../",
+    "etc/passwd",
+    "file parameter",
+    "page="
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "lfi",
+  "gate_probe": "detected_type:lfi",
+  "id": "ap-lfi",
+  "kind": "lfi",
+  "signals": [
+    "detected_type:lfi",
+    "file parameter"
+  ],
+  "status": "active",
+  "technique_ids": [
+    "WSTG-ATHZ-01",
+    "T1190"
+  ],
+  "title": "Local file inclusion",
+  "topic": "authorization",
+  "trigger": "detected_type:lfi"
+}

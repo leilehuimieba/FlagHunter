@@ -1,0 +1,25 @@
+{
+  "aliases": [
+    "ssti",
+    "template injection",
+    "{{7*7}}",
+    "${7*7}",
+    "arithmetic probe",
+    "polyglot payload"
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "web",
+  "gate_probe": "web_strategy",
+  "id": "ap-ssti_probe",
+  "kind": "ssti_probe",
+  "signals": [
+    "arithmetic template probe"
+  ],
+  "status": "active",
+  "technique_ids": [
+    "WSTG-INPV-18"
+  ],
+  "title": "SSTI stage 1 — detection probe",
+  "topic": "injection",
+  "trigger": "web-strategy"
+}

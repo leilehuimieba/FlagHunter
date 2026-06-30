@@ -1,0 +1,29 @@
+{
+  "aliases": [
+    "unicode",
+    "numeric",
+    "price",
+    "buy",
+    "shop",
+    "fullwidth",
+    "vulgar fraction",
+    "single char price",
+    "business logic"
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "web",
+  "gate_probe": "_has_unicode_numeric_form_surface",
+  "id": "ap-unicode_numeric_form_bypass",
+  "kind": "unicode_numeric_form_bypass",
+  "signals": [
+    "single-char price form",
+    "unicode numeric business flow"
+  ],
+  "status": "active",
+  "technique_ids": [
+    "WSTG-BUSL-01"
+  ],
+  "title": "Unicode numeric business-logic bypass",
+  "topic": "business-logic",
+  "trigger": "structural: single-char price form"
+}

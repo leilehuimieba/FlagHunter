@@ -1,0 +1,32 @@
+{
+  "aliases": [
+    "sql",
+    "sqli",
+    "login",
+    "username",
+    "password",
+    "auth bypass",
+    "or 1=1",
+    "mysql",
+    "mariadb",
+    "sql syntax"
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "sqli",
+  "gate_probe": "_has_login_form",
+  "id": "ap-auth_form_sqli",
+  "kind": "auth_form_sqli",
+  "signals": [
+    "detected_type:sqli",
+    "login form",
+    "username+password fields"
+  ],
+  "status": "active",
+  "technique_ids": [
+    "WSTG-INPV-05",
+    "T1190"
+  ],
+  "title": "SQL injection via authentication form",
+  "topic": "injection",
+  "trigger": "detected_type:sqli"
+}

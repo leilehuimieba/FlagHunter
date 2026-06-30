@@ -1,0 +1,29 @@
+{
+  "aliases": [
+    "command injection",
+    "cmdi",
+    "; id",
+    "|",
+    "$(",
+    "shell",
+    "rce",
+    "parameter"
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "web",
+  "gate_probe": "web_strategy",
+  "id": "ap-generic_param_cmdi",
+  "kind": "generic_param_cmdi",
+  "signals": [
+    "generic parameter",
+    "shell metacharacter echo"
+  ],
+  "status": "active",
+  "technique_ids": [
+    "WSTG-INPV-12",
+    "T1190"
+  ],
+  "title": "Command injection via generic parameter",
+  "topic": "injection",
+  "trigger": "web-strategy"
+}

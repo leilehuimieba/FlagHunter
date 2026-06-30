@@ -1,0 +1,27 @@
+{
+  "aliases": [
+    "contact",
+    "report",
+    "captcha",
+    "rpo",
+    "relative path overwrite",
+    "feedback form",
+    "admin review"
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "web",
+  "gate_probe": "web_strategy",
+  "id": "ap-contact_report_chain",
+  "kind": "contact_report_chain",
+  "signals": [
+    "contact/report form",
+    "admin-review flow"
+  ],
+  "status": "active",
+  "technique_ids": [
+    "WSTG-BUSL-07"
+  ],
+  "title": "Contact/report business-logic chain (RPO/captcha)",
+  "topic": "business-logic",
+  "trigger": "web-strategy"
+}

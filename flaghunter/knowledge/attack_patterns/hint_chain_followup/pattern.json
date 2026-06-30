@@ -1,0 +1,25 @@
+{
+  "aliases": [
+    "hint",
+    "readme",
+    "todo",
+    "note",
+    "tips.txt",
+    "hint.txt",
+    "flag hint",
+    "next step"
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "web",
+  "gate_probe": "_has_hint_files",
+  "id": "ap-hint_chain_followup",
+  "kind": "hint_chain_followup",
+  "signals": [
+    "hint files discovered"
+  ],
+  "status": "active",
+  "technique_ids": [],
+  "title": "Hint-file navigation follow-up",
+  "topic": "other",
+  "trigger": "structural: hint files"
+}

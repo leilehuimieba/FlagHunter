@@ -1,0 +1,20 @@
+{"query": "Tornado web server, error page renders {{handler.settings}} and leaks cookie_secret", "expected_kind": "tornado_ssti", "max_rank": 8}
+{"query": "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig with alg HS256 admin claim", "expected_kind": "jwt_manipulation", "max_rank": 5}
+{"query": "GET /index.php?id=1 returns mysql sql syntax error near a quote", "expected_kind": "generic_param_sqli", "max_rank": 6}
+{"query": "login form with username and password fields on an admin panel", "expected_kind": "auth_form_sqli", "max_rank": 5}
+{"query": "discovered www.zip backup, source code disclosure, .git directory exposed", "expected_kind": "backup_source_leak", "max_rank": 5}
+{"query": "POST /graphql with {__schema} introspection enabled, apollo server", "expected_kind": "graphql_introspection", "max_rank": 5}
+{"query": "file=../../etc/passwd against a download endpoint, path traversal", "expected_kind": "path_traversal", "max_rank": 8}
+{"query": "SoapClient SSRF, source has unserialize and __destruct, session deserialization", "expected_kind": "php_unserialize_magic_method", "max_rank": 8}
+{"query": "render parameter reflects {{7*7}} as 49, jinja2 flask template injection", "expected_kind": "ssti_via_render_parameter", "max_rank": 6}
+{"query": "shop page buy item with single-character unicode numeric price field", "expected_kind": "unicode_numeric_form_bypass", "max_rank": 6}
+{"query": "url has filename and filehash parameters guarding a file read", "expected_kind": "hash_guarded_file_read", "max_rank": 8}
+{"query": "multipart file upload with extension filter, phtml webshell, content-type image/png", "expected_kind": "upload", "max_rank": 5}
+{"query": "url parameter fetches localhost 127.0.0.1 file:// internal, server side request forgery", "expected_kind": "ssrf", "max_rank": 6}
+{"query": "MongoDB nosql injection with $ne $gt operators in json body", "expected_kind": "nosql_injection", "max_rank": 5}
+{"query": "XML body with <!DOCTYPE <!ENTITY SYSTEM external entity, content-type application/xml", "expected_kind": "xxe_injection", "max_rank": 5}
+{"query": "redirect parameter url= next= sends Location header to //evil.com open redirect", "expected_kind": "open_redirect", "max_rank": 5}
+{"query": "command injection via parameter; id with shell metacharacters pipe", "expected_kind": "cmdi", "max_rank": 8}
+{"query": "reflected user input echoed into html <script>alert(1)</script> cross site scripting", "expected_kind": "reflected_xss", "max_rank": 8}
+{"query": "/visit endpoint reports url to /admin bot, cookie sid session theft xss", "expected_kind": "xss_admin_bot_sid", "max_rank": 6}
+{"query": "sequential id parameter /api/user/1 idor missing authorization check", "expected_kind": "idor_sequential", "max_rank": 5}

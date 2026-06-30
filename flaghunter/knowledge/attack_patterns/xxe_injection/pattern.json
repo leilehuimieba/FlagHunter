@@ -1,0 +1,29 @@
+{
+  "aliases": [
+    "xxe",
+    "xml",
+    "external entity",
+    "<!DOCTYPE",
+    "<!ENTITY",
+    "SYSTEM",
+    "content-type: application/xml",
+    "soap"
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "web",
+  "gate_probe": "web_strategy",
+  "id": "ap-xxe_injection",
+  "kind": "xxe_injection",
+  "signals": [
+    "xml body surface",
+    "entity declaration"
+  ],
+  "status": "active",
+  "technique_ids": [
+    "WSTG-INPV-07",
+    "T1190"
+  ],
+  "title": "XML external entity injection",
+  "topic": "injection",
+  "trigger": "web-strategy"
+}

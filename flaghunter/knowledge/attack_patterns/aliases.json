@@ -1,0 +1,21 @@
+{
+  "_comment": "Cross-cutting fingerprint synonym groups (design §2③). Hitting any member of a group at query time injects the group's other tokenized terms for RECALL only — deterministic, never random. A new fingerprint synonym is a table edit here, never a code change to the _has_* probes. Tokens are matched after lowercase alphanumeric tokenization, so symbolic members (e.g. '{{ }}') contribute their word tokens.",
+  "groups": [
+    ["tornado", "tornado.web", "render_string", "cookie_secret", "ssti"],
+    ["jinja2", "flask", "werkzeug", "ssti", "template"],
+    ["twig", "symfony", "ssti", "template"],
+    ["freemarker", "velocity", "ssti", "template"],
+    ["jwt", "json web token", "bearer", "eyJ", "HS256", "RS256"],
+    ["soapclient", "soap", "ssrf", "deserialization", "crlf"],
+    ["unserialize", "deserialization", "__destruct", "__wakeup", "pop chain"],
+    ["pickle", "deserialization", "python"],
+    ["graphql", "introspection", "apollo", "graphiql"],
+    ["mongodb", "nosql", "mongo"],
+    ["xxe", "xml", "doctype", "entity", "soap"],
+    ["www.zip", "backup", "source code", "bak", "git", "swp"],
+    ["sql syntax", "sqli", "sql", "mysql", "mariadb"],
+    ["path traversal", "directory traversal", "lfi", "etc passwd"],
+    ["open redirect", "redirect", "location"],
+    ["phpinfo", "php", "x-powered-by"]
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "aliases": [
+    "graphql",
+    "introspection",
+    "__schema",
+    "query",
+    "/graphql",
+    "apollo",
+    "mutation",
+    "graphiql"
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "web",
+  "gate_probe": "web_strategy",
+  "id": "ap-graphql_introspection",
+  "kind": "graphql_introspection",
+  "signals": [
+    "graphql endpoint",
+    "introspection enabled"
+  ],
+  "status": "active",
+  "technique_ids": [
+    "WSTG-APIT-01"
+  ],
+  "title": "GraphQL introspection / abuse",
+  "topic": "api",
+  "trigger": "web-strategy"
+}

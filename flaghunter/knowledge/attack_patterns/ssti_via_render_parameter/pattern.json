@@ -1,0 +1,29 @@
+{
+  "aliases": [
+    "ssti",
+    "template injection",
+    "render",
+    "template",
+    "jinja2",
+    "twig",
+    "{{7*7}}",
+    "freemarker",
+    "velocity"
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "web",
+  "gate_probe": "_has_render_param",
+  "id": "ap-ssti_via_render_parameter",
+  "kind": "ssti_via_render_parameter",
+  "signals": [
+    "render/template parameter surface"
+  ],
+  "status": "active",
+  "technique_ids": [
+    "WSTG-INPV-18",
+    "T1190"
+  ],
+  "title": "SSTI via render/template parameter",
+  "topic": "injection",
+  "trigger": "structural: render param"
+}

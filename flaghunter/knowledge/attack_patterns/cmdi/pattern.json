@@ -1,0 +1,31 @@
+{
+  "aliases": [
+    "command injection",
+    "cmdi",
+    "rce",
+    "shell",
+    "; ls",
+    "|",
+    "ping",
+    "system(",
+    "exec",
+    "backtick"
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "cmdi",
+  "gate_probe": "detected_type:cmdi",
+  "id": "ap-cmdi",
+  "kind": "cmdi",
+  "signals": [
+    "detected_type:cmdi",
+    "shell metacharacters"
+  ],
+  "status": "active",
+  "technique_ids": [
+    "WSTG-INPV-12",
+    "T1190"
+  ],
+  "title": "OS command injection",
+  "topic": "injection",
+  "trigger": "detected_type:cmdi"
+}

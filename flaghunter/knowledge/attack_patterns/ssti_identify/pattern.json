@@ -1,0 +1,27 @@
+{
+  "aliases": [
+    "ssti",
+    "template engine",
+    "jinja2",
+    "twig",
+    "freemarker",
+    "velocity",
+    "mako",
+    "engine fingerprint"
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "web",
+  "gate_probe": "web_strategy",
+  "id": "ap-ssti_identify",
+  "kind": "ssti_identify",
+  "signals": [
+    "template engine fingerprint"
+  ],
+  "status": "active",
+  "technique_ids": [
+    "WSTG-INPV-18"
+  ],
+  "title": "SSTI stage 2 — engine identification",
+  "topic": "injection",
+  "trigger": "web-strategy"
+}

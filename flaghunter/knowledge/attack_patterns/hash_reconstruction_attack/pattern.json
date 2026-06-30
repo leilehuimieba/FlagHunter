@@ -1,0 +1,27 @@
+{
+  "aliases": [
+    "filehash",
+    "filename",
+    "hash algorithm",
+    "md5",
+    "reconstruct",
+    "hinted file",
+    "file=",
+    "hash="
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "web",
+  "gate_probe": "_has_file_and_hash_param",
+  "id": "ap-hash_reconstruction_attack",
+  "kind": "hash_reconstruction_attack",
+  "signals": [
+    "url params: filename+filehash"
+  ],
+  "status": "active",
+  "technique_ids": [
+    "WSTG-ATHZ-01"
+  ],
+  "title": "Hash reconstruction to fetch hinted files",
+  "topic": "authorization",
+  "trigger": "structural: filename+filehash params"
+}

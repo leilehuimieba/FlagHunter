@@ -1,0 +1,27 @@
+{
+  "aliases": [
+    "open redirect",
+    "redirect",
+    "url=",
+    "next=",
+    "returnUrl",
+    "location header",
+    "//evil.com"
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "web",
+  "gate_probe": "web_strategy",
+  "id": "ap-open_redirect",
+  "kind": "open_redirect",
+  "signals": [
+    "redirect parameter",
+    "unvalidated location"
+  ],
+  "status": "active",
+  "technique_ids": [
+    "WSTG-CLNT-04"
+  ],
+  "title": "Open redirect",
+  "topic": "client-side",
+  "trigger": "web-strategy"
+}

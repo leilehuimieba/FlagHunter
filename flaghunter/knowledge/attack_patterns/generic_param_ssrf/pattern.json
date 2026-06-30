@@ -1,0 +1,28 @@
+{
+  "aliases": [
+    "ssrf",
+    "url parameter",
+    "fetch",
+    "localhost",
+    "169.254.169.254",
+    "internal",
+    "redirect to internal"
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "web",
+  "gate_probe": "web_strategy",
+  "id": "ap-generic_param_ssrf",
+  "kind": "generic_param_ssrf",
+  "signals": [
+    "generic url parameter",
+    "internal fetch"
+  ],
+  "status": "active",
+  "technique_ids": [
+    "WSTG-INPV-19",
+    "T1190"
+  ],
+  "title": "SSRF via generic parameter",
+  "topic": "injection",
+  "trigger": "web-strategy"
+}

@@ -1,0 +1,28 @@
+{
+  "aliases": [
+    "xss",
+    "reflected",
+    "cross site scripting",
+    "<script>",
+    "alert",
+    "echo parameter",
+    "html injection"
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "web",
+  "gate_probe": "web_strategy",
+  "id": "ap-reflected_xss",
+  "kind": "reflected_xss",
+  "signals": [
+    "reflected user input",
+    "html context"
+  ],
+  "status": "active",
+  "technique_ids": [
+    "WSTG-INPV-01",
+    "T1059"
+  ],
+  "title": "Reflected XSS (client-side injection)",
+  "topic": "injection",
+  "trigger": "web-strategy"
+}

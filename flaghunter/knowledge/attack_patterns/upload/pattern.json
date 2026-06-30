@@ -1,0 +1,30 @@
+{
+  "aliases": [
+    "upload",
+    "file upload",
+    "multipart",
+    "phtml",
+    "webshell",
+    "extension filter",
+    "content-type",
+    "image/png",
+    "move_uploaded_file"
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "upload",
+  "gate_probe": "detected_type:upload",
+  "id": "ap-upload",
+  "kind": "upload",
+  "signals": [
+    "detected_type:upload",
+    "upload extension filtering"
+  ],
+  "status": "active",
+  "technique_ids": [
+    "WSTG-BUSL-09",
+    "T1190"
+  ],
+  "title": "Unrestricted file upload",
+  "topic": "business-logic",
+  "trigger": "detected_type:upload"
+}

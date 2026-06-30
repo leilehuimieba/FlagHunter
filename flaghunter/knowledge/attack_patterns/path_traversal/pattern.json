@@ -1,0 +1,28 @@
+{
+  "aliases": [
+    "path traversal",
+    "directory traversal",
+    "../",
+    "..%2f",
+    "download",
+    "file endpoint",
+    "etc/passwd",
+    "filename"
+  ],
+  "evidence_paths": [],
+  "exploit_chain_ref": "web",
+  "gate_probe": "_has_file_endpoint",
+  "id": "ap-path_traversal",
+  "kind": "path_traversal",
+  "signals": [
+    "file/download endpoint discovered"
+  ],
+  "status": "active",
+  "technique_ids": [
+    "WSTG-ATHZ-01",
+    "T1190"
+  ],
+  "title": "Path traversal via file endpoint",
+  "topic": "authorization",
+  "trigger": "structural: file endpoint"
+}
