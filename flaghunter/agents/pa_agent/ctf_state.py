@@ -195,6 +195,11 @@ class CTFState:
     # P5 余量 — 进场信息形态投到 state(url=CTF / source=代码审计 / blackbox=演练)。
     # SETUP 阶段消费它(源码优先 profile 主动摄取在场 artifact);默认 url 故 CTF 字节级一致。
     entry_kind: str = "url"
+    # Phase 1 曲库 miss 一等信号 —— 当 HypothesisEngine 的规则层没有任何结构化探测器命中
+    # (只能落到 generic_web_recon 兜底)时置 True。每次 generate() 重算,是活信号:recon
+    # 后若某 _has_* 命中则回落 False。纯加性观测,**不**门控控制流——曲库外自主探索升级
+    # (Phase 2)会消费它作为触发门。默认 False 故曲库命中的题字节级一致。
+    repertoire_miss: bool = False
 
     def __post_init__(self) -> None:
         self._write_lock = asyncio.Lock()

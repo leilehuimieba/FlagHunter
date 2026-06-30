@@ -33,6 +33,64 @@ def test_hypothesis_engine_generates_rule_based_hypotheses_from_state():
     assert state.hypotheses == hypotheses
 
 
+def test_repertoire_miss_set_when_no_structural_rule_fires():
+    # Phase 1: a bare PHP web target (no jwt/tornado/backup/unserialize/file-hash
+    # surface — the bestphp shape) fires no structural detector → only the
+    # generic_web_recon fallback → repertoire_miss flips True.
+    state = CTFState(target="http://ctf.local", goal="flag", detected_type="web")
+    state.add_observation(
+        "recon_url",
+        "http://ctf.local",
+        source="phase_recon",
+        metadata={"endpoints": ["/index.php"]},
+    )
+
+    engine = HypothesisEngine()
+    engine.generate(state)
+
+    assert state.repertoire_miss is True
+
+
+def test_repertoire_miss_false_when_a_detector_fires():
+    # A backup/source clue makes backup_source_leak fire → repertoire hit.
+    state = CTFState(target="http://ctf.local", goal="flag", detected_type="web")
+    state.add_artifact(
+        "ctf_runtime_fingerprint",
+        location="http://ctf.local",
+        source="notes",
+        metadata={"content": "backup source code www.zip"},
+    )
+
+    engine = HypothesisEngine()
+    engine.generate(state)
+
+    assert state.repertoire_miss is False
+
+
+def test_repertoire_miss_is_live_signal_recon_flips_it_back():
+    # Empty state misses; once recon ingests a backup clue, re-generate flips it
+    # back to a hit — the signal tracks the latest evidence, not first contact.
+    state = CTFState(target="http://ctf.local", goal="flag", detected_type="web")
+    engine = HypothesisEngine()
+
+    engine.generate(state)
+    assert state.repertoire_miss is True
+
+    state.add_artifact(
+        "ctf_runtime_fingerprint",
+        location="http://ctf.local",
+        source="notes",
+        metadata={"content": "backup www.zip"},
+    )
+    engine.generate(state)
+    assert state.repertoire_miss is False
+
+
+def test_repertoire_miss_defaults_false_before_generation():
+    state = CTFState(target="http://ctf.local", goal="flag", detected_type="web")
+    assert state.repertoire_miss is False
+
+
 def test_hypothesis_engine_choose_chain_order_uses_ranked_hypotheses():
     state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="web")
     state.add_observation(

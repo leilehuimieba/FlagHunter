@@ -618,6 +618,13 @@ class HypothesisEngine:
 
         self._apply_uniform_failure_counterevidence(state, hypotheses)
 
+        # Phase 1: 曲库 miss 一等信号。``hypotheses`` 此刻为空 ⟺ 三层封闭集(detected_type
+        # 规则 + 结构 _has_* 探测器)全未命中,只能落到下面的 generic_web_recon 兜底——即
+        # 当前证据形态在曲库外(bestphp 的 SoapClient SSRF+session 反序列化即属此类)。
+        # 在加兜底之前读 emptiness,因为兜底本身不代表命中。每次 generate() 重算 ⇒ 活信号:
+        # recon 摄入新证据后某探测器命中即回落 False。**纯加性观测,不改链集合/控制流**。
+        state.repertoire_miss = not hypotheses
+
         if not hypotheses:
             self._upsert_hypothesis(
                 hypotheses,
