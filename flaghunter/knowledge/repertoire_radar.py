@@ -139,6 +139,7 @@ def record_repertoire_miss(
     hypothesis_kinds: Iterable[Any] | None = None,
     observation_kinds: Iterable[Any] | None = None,
     evidence_paths: Iterable[Any] | None = None,
+    nearest_patterns: Iterable[Any] | None = None,
     reason: str = "",
     root: str | Path | None = None,
     now: str | None = None,
@@ -193,6 +194,9 @@ def record_repertoire_miss(
         "hypothesis_kinds": kinds,
         "observation_kinds": obs_kinds,
         "evidence_paths": _norm_list(evidence_paths),
+        # 设计 §2②③ —— 该 miss 最近的曲库模式 kind(确定性检索召回),供人工 triage
+        # 判断"扩现有模式 vs 蒸馏新模式"。不参与 dedup id(id 只认 host+type+signals)。
+        "nearest_patterns": _norm_list(nearest_patterns),
         "reason": str(reason or "").strip() or "repertoire_miss",
         "hit_count": 1,
         "first_seen": stamp,

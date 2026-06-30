@@ -54,6 +54,27 @@ def test_result_carries_chain_ref():
     assert auth.chain == "sqli"
 
 
+def test_shadow_coverage_recall_superset_of_fired_kinds():
+    # Gating-readiness (design §2②): before retrieval can REPLACE running all probes,
+    # its top-k recall must be a SUPERSET of the kinds the engine actually fires for a
+    # given state — else gating would drop a hypothesis (regression). This shadow proof
+    # covers the detected_type-driven path; the structural-probe path is future work
+    # before the hot-path gating flip.
+    from flaghunter.agents.pa_agent.ctf_state import CTFState
+    from flaghunter.agents.pa_agent.hypothesis_engine import HypothesisEngine
+
+    idx = PatternIndex.from_dir()
+    engine = HypothesisEngine()
+    for detected in ("lfi", "cmdi", "ssrf", "upload", "sqli"):
+        state = CTFState(target="http://ctf.local", goal="flag", detected_type=detected)
+        fired = {h.kind for h in engine._rule_based_hypotheses(state)}
+        fired.discard("generic_web_recon")  # meta fallback, not a real pattern
+        fingerprint = f"detected_type:{detected} " + detected
+        recalled = {r.kind for r in idx.retrieve(fingerprint, top_k=8)}
+        missing = fired - recalled
+        assert missing == set(), f"{detected}: recall missed fired kinds {sorted(missing)}"
+
+
 def test_golden_eval_all_hit_and_mrr_floor():
     # Byte-level regression guard: every known fingerprint recalls its kind within
     # max_rank, and MRR stays above a floor. Tighten the floor as 曲库 grows.

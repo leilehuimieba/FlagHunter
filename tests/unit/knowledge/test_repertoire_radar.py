@@ -39,6 +39,32 @@ def test_record_creates_inbox_candidate(tmp_path):
     assert on_disk[0]["id"] == record["id"]
 
 
+def test_record_carries_nearest_patterns(tmp_path):
+    # 设计 §2②③: a captured miss records its nearest 曲库 patterns (deterministic
+    # retrieval) for human triage — but they must NOT affect the dedup identity.
+    rec = record_repertoire_miss(
+        target="http://novel.ctf.local/",
+        detected_type="web",
+        triggered_probes=["web"],
+        nearest_patterns=["jwt_manipulation", "tornado_ssti"],
+        root=tmp_path,
+        now="t1",
+    )
+    assert rec["nearest_patterns"] == ["jwt_manipulation", "tornado_ssti"]
+
+    # Same shape but different nearest_patterns → same id (dedup ignores them).
+    again = record_repertoire_miss(
+        target="http://novel.ctf.local/",
+        detected_type="web",
+        triggered_probes=["web"],
+        nearest_patterns=["lfi"],
+        root=tmp_path,
+        now="t2",
+    )
+    assert again["id"] == rec["id"]
+    assert again["hit_count"] == 2
+
+
 def test_candidate_id_is_order_independent_on_signals(tmp_path):
     # Probe ordering must not change identity — sorted signals.
     a = record_repertoire_miss(

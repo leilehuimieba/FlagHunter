@@ -703,11 +703,31 @@ async def run_cli(
                     if _miss_state is not None and getattr(_miss_state, "repertoire_miss", False):
                         from ..knowledge.repertoire_radar import record_repertoire_miss
 
+                        _detected = str(
+                            getattr(_miss_state, "detected_type", "") or resolved_subtype or ""
+                        )
+                        # 设计 §2②③ —— 用题目指纹(detected_type + recon 观测文本)做确定性检索,
+                        # 召回最近的曲库模式 kind 附在候选上,辅助人工蒸馏决策。纯只读,失败静默。
+                        _nearest: list[str] = []
+                        try:
+                            from ..knowledge.pattern_retrieval import PatternIndex
+
+                            _fp = " ".join(
+                                [_detected]
+                                + [
+                                    str(getattr(o, "value", "") or "")
+                                    for o in (getattr(_miss_state, "observations", []) or [])
+                                ]
+                            )[:4000]
+                            _nearest = [
+                                r.kind for r in PatternIndex.from_dir().retrieve(_fp, top_k=5)
+                            ]
+                        except Exception:
+                            _nearest = []
+
                         record_repertoire_miss(
                             target=str(target or ""),
-                            detected_type=str(
-                                getattr(_miss_state, "detected_type", "") or resolved_subtype or ""
-                            ),
+                            detected_type=_detected,
                             triggered_probes=ctf_chain or [],
                             hypothesis_kinds=[
                                 getattr(h, "kind", "")
@@ -717,6 +737,7 @@ async def run_cli(
                                 getattr(o, "kind", "")
                                 for o in (getattr(_miss_state, "observations", []) or [])
                             ],
+                            nearest_patterns=_nearest,
                             reason=str(getattr(solve_result, "reason", "") or "repertoire_miss"),
                         )
                 except Exception:
