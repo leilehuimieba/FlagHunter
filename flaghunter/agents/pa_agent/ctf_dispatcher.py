@@ -685,12 +685,30 @@ class CTFTaskDispatcher(
             page_features=dict(page_features or {}),
             hint=str(hint or ""),
         )
+
+        # 5b cut-1 (terminal-success migration): the old chain-order harness detected a
+        # win from the chain's asserted ``outcome.flag`` (via the terminal-success
+        # contract), not from a regex over arbitrary output. Mirror that faithfully —
+        # promote only the chain's asserted flag into a runtime flag so ``goal()`` sees
+        # it and the loop reports solved. Trusting the chain's assertion (not scanning
+        # all tool text) avoids the false-positive flags a blind regex would mint.
+        def _promote_chain_flag(chain_name: str, outcome) -> None:
+            flag = str(getattr(outcome, "flag", "") or "").strip()
+            if flag and self.state is not None:
+                self.state.add_flag(
+                    flag,
+                    level="runtime",
+                    evidence_source=chain_name or "blackboard_loop",
+                    rationale=str(getattr(outcome, "reason", "") or "") or "blackboard chain win",
+                    confidence=0.9,
+                )
+
         # Cost boundary, not a scripted step count: reuse the EXPLOIT phase round
         # budget (profile override, else the module default) — §3.2 不把大模型关进笼子.
         budget_steps = self.state.effective_phase_budget(Phase.EXPLOIT) or 24
         outcome = await run_blackboard_solve(
             brain=LLMBrain.from_llm(self.llm),
-            hands=ChainHands(self, context=context),
+            hands=ChainHands(self, context=context, on_outcome=_promote_chain_flag),
             tools=chain_tools(self, context=context),
             budget=Budget(max_steps=int(budget_steps)),
             **bind_seams(self.state),

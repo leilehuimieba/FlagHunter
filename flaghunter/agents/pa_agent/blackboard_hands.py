@@ -120,10 +120,17 @@ class ChainHands:
     ``input`` may carry ``hint`` / ``target`` to refine the bound context for one call
     (the brain narrowing the focus); page features always come from the context (they
     are a detect-phase artifact, not something the brain synthesises).
+
+    ``on_outcome`` is an optional post-chain hook fired with the raw
+    ``(name, _ChainOutcome)`` before the string summary is returned. It is the seam
+    where the dispatcher's per-chain contracts (terminal-success flag promotion,
+    progress evaluation, experiment feedback — slice 5b) re-attach to the new loop,
+    because they all key off the structured outcome that the string summary discards.
     """
 
     dispatcher: SupportsChains
     context: ContextProvider
+    on_outcome: Optional[Callable[[str, _ChainOutcome], None]] = None
 
     async def execute(self, name: str, input: dict[str, Any]) -> str:
         ctx = _resolve_context(self.context)
@@ -136,6 +143,8 @@ class ChainHands:
             page_features=ctx.page_features,
             hint=hint,
         )
+        if self.on_outcome is not None:
+            self.on_outcome(str(name or ""), outcome)
         return summarize_outcome(outcome)
 
 

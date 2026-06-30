@@ -103,6 +103,16 @@ async def test_execute_routes_with_bound_context_and_summarises():
 
 
 @pytest.mark.asyncio
+async def test_execute_fires_on_outcome_hook_with_raw_outcome():
+    disp = _FakeDispatcher(outcomes={"web": _ChainOutcome(flag="FLAG{x}", reason="found")})
+    seen = []
+    hands = ChainHands(disp, context=ChainContext(), on_outcome=lambda name, oc: seen.append((name, oc)))
+    await hands.execute("web", {})
+    assert seen[0][0] == "web"
+    assert seen[0][1].flag == "FLAG{x}"
+
+
+@pytest.mark.asyncio
 async def test_execute_input_overrides_hint_and_target():
     disp = _FakeDispatcher()
     hands = ChainHands(disp, context=ChainContext(target="base", hint="base-hint"))

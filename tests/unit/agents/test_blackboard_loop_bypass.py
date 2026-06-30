@@ -79,9 +79,11 @@ async def test_blackboard_loop_maps_winning_outcome(monkeypatch):
         lambda *, target, page_features, hint: {"web": (lambda: None), "sqli": (lambda: None)},
     )
 
+    # The chain only *asserts* the flag via outcome.flag; it does NOT touch state.
+    # The bypass's terminal-success promotion (on_outcome) must turn that into a
+    # runtime flag so goal() reports solved — that is the 5b cut-1 wiring under test.
     async def _fake_execute_chain(*, chain_name, target, page_features, hint):
         if chain_name == "web":
-            disp.state.add_flag("FLAG{won}", level="runtime", evidence_source="web", confidence=0.9)
             return _ChainOutcome(progress=True, flag="FLAG{won}", reason="found in body")
         return _ChainOutcome(progress=False, reason="no-op")
 
@@ -95,6 +97,8 @@ async def test_blackboard_loop_maps_winning_outcome(monkeypatch):
     assert result.flag == "FLAG{won}"
     assert result.reason == "blackboard_loop:goal_met"
     assert "web" in result.chain_used
+    # The asserted flag was promoted into state (so goal() could see it).
+    assert any(f.value == "FLAG{won}" for f in disp.state.runtime_flags)
 
 
 @pytest.mark.asyncio
