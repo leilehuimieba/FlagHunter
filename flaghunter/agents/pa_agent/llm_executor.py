@@ -95,12 +95,20 @@ class LLMExecutor:
 
         progress = False
         reason_fragments: list[str] = []
+        # §3.5 检测/修正分离: a deterministic explanation of why the *previous* probe's
+        # expected signal was not met, threaded into the next proposal. Detection +
+        # explanation is the code's job (validator); the correction is the LLM's — it
+        # is good at fixing a specific, precisely-stated error but bad at noticing its
+        # own. We state the failure, never script the fix (don't cage the model).
+        correction_hint = ""
         # §3.2: 用放宽的累计探索预算天花板(is_llm_exploration_allowed 默认值·env
         # FLAGHUNTER_LLM_EXPLORATION_CEILING 可调)取代旧硬编码 8——它把曲库外探索饿死。
         # 天花板只是成本/安全**边界**;"做完/做不下去就停"交给大模型自己的 stop 动作(下方
         # action_type=="stop")+ switch_chain,而非死板步数门(见 [[feedback_less_is_more_dont_cage_llm]])。
         while ctx.state.is_llm_exploration_allowed():
-            action_spec = await self.call_llm_for_action(context, ctx)
+            action_spec = await self.call_llm_for_action(
+                context, ctx, degradation_hint=correction_hint
+            )
             if not action_spec:
                 return _ChainOutcome(progress=progress, reason="llm_exploration_invalid_action")
 
@@ -206,6 +214,11 @@ class LLMExecutor:
             )
             if response_text or expected_signal_met:
                 progress = True
+            # §3.5 检测/修正分离: detect+explain a missed expected signal and carry the
+            # precise reason into the next proposal (correction is the model's job).
+            correction_hint = self.explain_signal_miss(
+                action_spec, response_text, execution, expected_signal_met=expected_signal_met
+            )
             if verification is not None and getattr(verification, "decision", "") == "verified":
                 return _ChainOutcome(
                     progress=True,
@@ -1010,6 +1023,38 @@ class LLMExecutor:
             marker = signal.split("keyword:", 1)[1].strip()
             return bool(marker) and marker in response_lower
         return signal in response_lower
+
+    def explain_signal_miss(
+        self,
+        action_spec: dict[str, Any],
+        response_text: str,
+        execution: dict[str, Any],
+        *,
+        expected_signal_met: bool,
+    ) -> str:
+        """§3.5: a deterministic explanation of why a probe's expected signal failed.
+
+        Detection/correction separation (CRITIC pattern): the validator's job is to
+        *detect and state precisely* what the probe expected versus what it actually
+        observed. The fix is left to the model — we never script the correction, only
+        give it a sharp, factual failure signal to react to (don't cage the model).
+
+        Returns ``""`` when the signal was met or no expected signal was declared.
+        """
+        expected = str(action_spec.get("expected_signal") or "").strip()
+        if expected_signal_met or not expected:
+            return ""
+        action_type = str(action_spec.get("action_type") or "action").strip()
+        payload = self.summarize_payload(action_spec)
+        status = str(execution.get("status_code") or execution.get("status") or "").strip()
+        observed = self.summarize_response(response_text, execution)
+        status_part = f" (status {status})" if status else ""
+        return (
+            f"Your previous {action_type} expected the signal \"{expected}\" but it "
+            f"was NOT observed{status_part}; the response was: {observed[:200]}. "
+            "That probe's hypothesis appears wrong — do not repeat the same payload "
+            f"({payload[:80]}); change the injection point, encoding, or hypothesis."
+        )
 
 
 class LLMExecutorMixin:

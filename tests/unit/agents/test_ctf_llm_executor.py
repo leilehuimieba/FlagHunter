@@ -71,3 +71,41 @@ def test_llm_executor_looks_like_loopback_or_file_target_pure():
     assert executor.looks_like_loopback_or_file_target("https://localhost/y")
     assert not executor.looks_like_loopback_or_file_target("http://example.com")
     assert not executor.looks_like_loopback_or_file_target("")
+
+
+# --- §3.5 detection/correction separation: explain_signal_miss ---------------
+
+def test_explain_signal_miss_empty_when_signal_met():
+    e = LLMExecutor()
+    out = e.explain_signal_miss(
+        {"expected_signal": "flag", "action_type": "http_request"},
+        "flag{x}",
+        {"status_code": "200"},
+        expected_signal_met=True,
+    )
+    assert out == ""
+
+
+def test_explain_signal_miss_empty_when_no_expected_signal():
+    e = LLMExecutor()
+    out = e.explain_signal_miss(
+        {"action_type": "http_request"}, "hi", {}, expected_signal_met=False
+    )
+    assert out == ""
+
+
+def test_explain_signal_miss_states_expected_vs_observed_without_scripting_fix():
+    e = LLMExecutor()
+    out = e.explain_signal_miss(
+        {"expected_signal": "body contains 49", "action_type": "http_request", "payload": {"url": "/calc?num=7*7"}},
+        "no math here",
+        {"status_code": "200"},
+        expected_signal_met=False,
+    )
+    # Detection: names the expected signal and that it was not observed (factual).
+    assert "body contains 49" in out
+    assert "not observed" in out.lower()
+    # Correction is left to the model — we steer ("change the ...") but don't script
+    # a specific replacement payload.
+    assert "do not repeat" in out.lower()
+    assert "change the injection point" in out.lower()
