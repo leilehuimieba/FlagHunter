@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,6 +17,19 @@ try:
     from rank_bm25 import BM25Okapi
 except ImportError:  # pragma: no cover - exercised by base installs without [rag]
     BM25Okapi = None
+
+
+def _local_dense_build_enabled() -> bool:
+    """Whether to encode the whole corpus with the local model inline at index time.
+
+    Default OFF: a cold local-embedding build is a multi-minute CPU job that blocks
+    startup — on a heavy model (e.g. bge-m3) it has hung for >25min and burned a live
+    target window. The offline-build discipline (build the dense index once, ahead of
+    time, then load it at runtime) is the right shape; until that lands, leave cold
+    inline dense builds opt-in so the session never blocks. A prebuilt/persisted index
+    still loads regardless of this flag.
+    """
+    return os.getenv("FLAGHUNTER_RAG_LOCAL_DENSE", "").strip().lower() == "true"
 
 
 @dataclass
@@ -173,15 +187,29 @@ class RAGEngine:
             texts = [doc.content for doc in chunks]
 
             if self.use_local_embeddings:
-                from .embeddings import get_embeddings_local
+                # Encoding the whole corpus with a local model blocks startup for
+                # minutes (and has hung for >25min on bge-m3). Only do it inline when
+                # opted in; otherwise leave dense off — the BM25 index is still built
+                # above and a prebuilt/persisted index still loads earlier, so the
+                # session never blocks on a cold local build.
+                if _local_dense_build_enabled():
+                    from .embeddings import get_embeddings_local
 
-                self.embeddings = get_embeddings_local(texts)
+                    self.embeddings = get_embeddings_local(texts)
+                else:
+                    logging.getLogger(__name__).info(
+                        "[RAG] cold local dense build skipped (set "
+                        "FLAGHUNTER_RAG_LOCAL_DENSE=true to encode inline); "
+                        "no dense retrieval this session."
+                    )
+                    self.embeddings = None
             else:
                 self.embeddings = get_embeddings(texts, model=self.embedding_model)
 
             # Store embeddings in documents
-            for i, doc in enumerate(self.documents):
-                doc.embedding = self.embeddings[i]
+            if self.embeddings is not None:
+                for i, doc in enumerate(self.documents):
+                    doc.embedding = self.embeddings[i]
 
         self._indexed = True
         # If using a workspace, persist the built index for faster future loads

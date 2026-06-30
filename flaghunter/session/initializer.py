@@ -244,7 +244,12 @@ async def build_agent_components(
                     knowledge_path=knowledge_path,
                     use_local_embeddings=use_local,
                 )
-                await asyncio.to_thread(rag_engine.index, force=True)
+                # Load a persisted index if present rather than force-rebuilding the
+                # whole corpus on every startup (a multi-minute CPU job that has hung
+                # for >25min on a heavy local model and blocked the run). Cold builds
+                # skip the inline local-dense encode (see rag._local_dense_build_enabled)
+                # so startup never blocks; BM25 / a prebuilt dense index still serve.
+                await asyncio.to_thread(rag_engine.index, force=False)
                 rag_doc_count = rag_engine.get_document_count()
                 _log(f"RAG engine ready — {rag_doc_count} documents indexed.")
             except Exception as exc:
