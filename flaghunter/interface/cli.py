@@ -694,6 +694,33 @@ async def run_cli(
                     )
                 except Exception:
                     pass
+            # 设计 §2④ —— 曲库外 miss(repertoire_miss 且未解)落 candidate radar inbox,让
+            # miss 变可累积资产(对标参考库 candidate radar)。镜像上面的成功回填:同样放 CLI
+            # 入口而非 dispatcher 内避免污染测试,全程 try/except 不影响解题结果。
+            elif not getattr(solve_result, "success", False):
+                try:
+                    _miss_state = getattr(active_dispatcher, "state", None)
+                    if _miss_state is not None and getattr(_miss_state, "repertoire_miss", False):
+                        from ..knowledge.repertoire_radar import record_repertoire_miss
+
+                        record_repertoire_miss(
+                            target=str(target or ""),
+                            detected_type=str(
+                                getattr(_miss_state, "detected_type", "") or resolved_subtype or ""
+                            ),
+                            triggered_probes=ctf_chain or [],
+                            hypothesis_kinds=[
+                                getattr(h, "kind", "")
+                                for h in (getattr(_miss_state, "hypotheses", []) or [])
+                            ],
+                            observation_kinds=[
+                                getattr(o, "kind", "")
+                                for o in (getattr(_miss_state, "observations", []) or [])
+                            ],
+                            reason=str(getattr(solve_result, "reason", "") or "repertoire_miss"),
+                        )
+                except Exception:
+                    pass
 
         elif legacy_execution_mode == "crew":
             llm = session.llm
