@@ -6350,11 +6350,17 @@ async def test_ctf_dispatcher_llm4_degrades_sqlmap_to_manual_payload(tmp_path):
 
 @pytest.mark.asyncio
 async def test_ctf_dispatcher_llm5_respects_step_budget(monkeypatch):
+    # §3.2: the budget is a relaxed, env-overridable ceiling (not the old hardcoded
+    # 8 that starved out-of-repertoire exploration). At the ceiling, exploration is
+    # still gated off — the budget IS respected, just at the wider boundary.
+    from flaghunter.agents.pa_agent.ctf_state import _llm_exploration_ceiling
+
+    ceiling = _llm_exploration_ceiling()
     runtime = _LLMExplorationRuntime()
     llm = _FakeLLM([])
     dispatcher = CTFTaskDispatcher(runtime=runtime, llm=llm)
     dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag")
-    dispatcher.state.llm_exploration_steps = 8
+    dispatcher.state.llm_exploration_steps = ceiling
 
     async def _no_progress(*args, **kwargs):
         return SimpleNamespace(progress=False, flag=None, reason="no progress")
@@ -6369,7 +6375,7 @@ async def test_ctf_dispatcher_llm5_respects_step_budget(monkeypatch):
     )
 
     assert outcome.progress is False
-    assert dispatcher.state.llm_exploration_steps == 8
+    assert dispatcher.state.llm_exploration_steps == ceiling
     assert llm.calls == []
 
 

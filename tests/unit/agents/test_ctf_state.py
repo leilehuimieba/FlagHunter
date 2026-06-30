@@ -353,6 +353,25 @@ def test_ctf_state_llm_exploration_budget_guard():
     assert state.is_llm_exploration_allowed(max_steps=2) is False
 
 
+def test_ctf_state_llm_exploration_ceiling_relaxed_and_env_overridable(monkeypatch):
+    # §3.2: the DEFAULT budget (no explicit max_steps) is a relaxed ceiling — well
+    # above the old hardcoded 8 that starved out-of-repertoire exploration — and is
+    # an env-overridable boundary, not a behavioural cage.
+    from flaghunter.agents.pa_agent.ctf_state import _llm_exploration_ceiling
+
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    assert _llm_exploration_ceiling() >= 24
+    state.llm_exploration_steps = 8
+    assert state.is_llm_exploration_allowed() is True  # 8 no longer exhausts it
+
+    monkeypatch.setenv("FLAGHUNTER_LLM_EXPLORATION_CEILING", "40")
+    assert _llm_exploration_ceiling() == 40
+    state.llm_exploration_steps = 39
+    assert state.is_llm_exploration_allowed() is True
+    state.llm_exploration_steps = 40
+    assert state.is_llm_exploration_allowed() is False
+
+
 def test_ctf_state_records_llm_step_and_weak_decision():
     state = CTFState(target="http://ctf.local", goal="拿到flag")
 

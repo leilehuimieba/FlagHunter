@@ -95,8 +95,11 @@ class LLMExecutor:
 
         progress = False
         reason_fragments: list[str] = []
-        max_steps = 8
-        while ctx.state.is_llm_exploration_allowed(max_steps=max_steps):
+        # §3.2: 用放宽的累计探索预算天花板(is_llm_exploration_allowed 默认值·env
+        # FLAGHUNTER_LLM_EXPLORATION_CEILING 可调)取代旧硬编码 8——它把曲库外探索饿死。
+        # 天花板只是成本/安全**边界**;"做完/做不下去就停"交给大模型自己的 stop 动作(下方
+        # action_type=="stop")+ switch_chain,而非死板步数门(见 [[feedback_less_is_more_dont_cage_llm]])。
+        while ctx.state.is_llm_exploration_allowed():
             action_spec = await self.call_llm_for_action(context, ctx)
             if not action_spec:
                 return _ChainOutcome(progress=progress, reason="llm_exploration_invalid_action")

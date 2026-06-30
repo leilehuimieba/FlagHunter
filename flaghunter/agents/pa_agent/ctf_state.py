@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass, field, fields
+import os
 import time
 from typing import Any, Literal
 
@@ -19,6 +20,20 @@ from ...knowledge.kill_chain import Phase, phase_round_budget
 
 
 FlagLevel = Literal["candidate", "runtime", "verified", "rejected"]
+
+
+def _llm_exploration_ceiling() -> int:
+    """Generous, env-overridable ceiling on cumulative LLM-exploration steps.
+
+    A cost/safety **boundary**, not a behavioural cage — the old hardcoded 8
+    starved out-of-repertoire exploration. Set ``FLAGHUNTER_LLM_EXPLORATION_CEILING``
+    to tune. The adaptive "stop when genuinely stuck" decision lives at the call
+    site, not here.
+    """
+    try:
+        return max(8, int(os.environ.get("FLAGHUNTER_LLM_EXPLORATION_CEILING", "24") or 24))
+    except (TypeError, ValueError):
+        return 24
 
 
 @dataclass(slots=True)
@@ -501,8 +516,12 @@ class CTFState:
             key=lambda item: (item.hint_strength, item.added_at, item.url_or_path),
         )
 
-    def is_llm_exploration_allowed(self, max_steps: int = 8) -> bool:
-        return self.llm_exploration_steps < max(1, int(max_steps))
+    def is_llm_exploration_allowed(self, max_steps: int | None = None) -> bool:
+        # 探索预算天花板 = 约束**边界**,不是死板步数(见 [[feedback_less_is_more_dont_cage_llm]])。
+        # 默认放宽到 24(旧硬编码 8 把曲库外探索饿死),env FLAGHUNTER_LLM_EXPLORATION_CEILING 可调。
+        # 这只是成本/安全上限;真正的"做不下去就停"由调用方的进度门(卡死才停)自适应决定。
+        ceiling = max_steps if max_steps is not None else _llm_exploration_ceiling()
+        return self.llm_exploration_steps < max(1, int(ceiling))
 
     def record_llm_step(self, log: LLMStepLog) -> None:
         self.llm_exploration_steps += 1
