@@ -266,6 +266,18 @@ class LLMExecutor:
             "Allowed tools: http_request, terminal, manual_sqli_payload, manual_path_enumeration, knowledge_search, web_search.\n"
             "For attachment/misc/forensics challenges, you may use shell with python snippets to inspect downloaded artifacts, sqlite databases, WAL files, archives, or to decode/transform extracted fragments.\n"
         )
+        # 设计 §3.3 Detect→Identify→Exploit: frame the proposal by the current
+        # investigation stage so the loop runs a *staged* investigation (probe →
+        # fingerprint → targeted exploit) instead of flailing single-step. The stage
+        # is a deterministic pure function of accumulated evidence (exploration_stages),
+        # and this only shapes the miss-path exploration prompt — never the
+        # byte-identical 曲库-hit path (which does not call the LLM planner).
+        try:
+            from .exploration_stages import stage_guidance
+
+            prompt += stage_guidance(ctx.state) + "\n"
+        except Exception:
+            pass
         # Cross-challenge negative feedback (consume half of record_failure):
         # payloads recorded as failures on similar past challenges. Same protocol
         # augmentation as the within-session "Rejected flags" / REFUTED-intent
