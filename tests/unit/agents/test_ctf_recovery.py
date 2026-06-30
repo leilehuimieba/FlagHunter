@@ -87,6 +87,50 @@ def test_recovery_stops_on_source_only_candidate_without_alternative():
     assert decision.should_stop is True
     assert decision.action == "stop_candidate_only"
     assert "source-only candidate flag" in decision.reason
+    # candidate flag found → NOT a clean repertoire miss (we got something).
+    assert state.repertoire_miss is False
+
+
+def test_finalize_sets_repertoire_miss_on_generic_giveup():
+    # give-up 点法: a run that converges to the generic stop without any flag means
+    # the closed repertoire was exhausted unsuccessfully → mark the gap so the ④
+    # radar (CLI entry) can capture it as an accumulable candidate.
+    state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="web")
+    assert state.repertoire_miss is False
+    controller = RecoveryController(HypothesisEngine())
+
+    decision = controller.finalize(state, used_chains=["web"], no_progress_count=0)
+
+    assert decision.should_stop is True
+    assert decision.action == "stop_generic"
+    assert state.repertoire_miss is True
+
+
+def test_finalize_sets_repertoire_miss_on_no_progress_giveup():
+    state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="web")
+    controller = RecoveryController(HypothesisEngine())
+
+    decision = controller.finalize(state, used_chains=["web"], no_progress_count=3)
+
+    assert decision.action == "stop_no_progress"
+    assert state.repertoire_miss is True
+
+
+def test_finalize_does_not_mark_miss_when_runtime_flag_found():
+    # A runtime flag pending verification is a (near-)solve, never a repertoire miss.
+    state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="sqli")
+    state.add_flag(
+        "flag{runtime_only}",
+        level="runtime",
+        evidence_source="http-response",
+        rationale="echoed by target",
+    )
+    controller = RecoveryController(HypothesisEngine())
+
+    decision = controller.finalize(state, used_chains=["sqli"], no_progress_count=0)
+
+    assert decision.action == "wait_for_verification"
+    assert state.repertoire_miss is False
 
 
 def test_recovery_switches_after_exhausted_hypothesis():

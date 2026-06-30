@@ -327,6 +327,12 @@ class RecoveryController:
                 suggested_actions=["seek stronger runtime primitive next run"],
             )
 
+        # give-up 点法(④ radar trigger):越过上面两个"已发现 runtime/candidate flag"的
+        # 早返,即代表本局未拿到可用 flag、即将按收敛规则停 ⟺ 封闭集(链全试尽)未果 →
+        # 标记曲库 miss。CLI 入口据此把这道"解不出的题"落成可累积候选(repertoire_radar)。
+        # 取代旧的 hypothesis_engine ``not hypotheses`` 定义(那个在真实 web 路径恒 False)。
+        state.repertoire_miss = True
+
         blocked_surface = self._latest_uniform_failure_surface(state)
         if blocked_surface is not None:
             strategy_kind = str(blocked_surface.get("strategy_kind") or blocked_surface.get("source") or "current surface")

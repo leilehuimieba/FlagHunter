@@ -33,10 +33,13 @@ def test_hypothesis_engine_generates_rule_based_hypotheses_from_state():
     assert state.hypotheses == hypotheses
 
 
-def test_repertoire_miss_set_when_no_structural_rule_fires():
-    # Phase 1: a bare PHP web target (no jwt/tornado/backup/unserialize/file-hash
-    # surface — the bestphp shape) fires no structural detector → only the
-    # generic_web_recon fallback → repertoire_miss flips True.
+def test_generate_does_not_own_repertoire_miss_signal():
+    # The signal is NOT computed here anymore. The old ``not hypotheses`` definition
+    # was dead on the real web path: recon probes /www.zip、/.git and records them in
+    # the endpoint blob, so backup_source_leak's loose gate (_has_backup_artifact) is
+    # ~always true ⇒ web always yields ≥1 baseline hypothesis ⇒ never empty. The
+    # signal now lives at the give-up point (recovery.finalize), so generate() must
+    # leave repertoire_miss untouched (still the default False here).
     state = CTFState(target="http://ctf.local", goal="flag", detected_type="web")
     state.add_observation(
         "recon_url",
@@ -48,41 +51,6 @@ def test_repertoire_miss_set_when_no_structural_rule_fires():
     engine = HypothesisEngine()
     engine.generate(state)
 
-    assert state.repertoire_miss is True
-
-
-def test_repertoire_miss_false_when_a_detector_fires():
-    # A backup/source clue makes backup_source_leak fire → repertoire hit.
-    state = CTFState(target="http://ctf.local", goal="flag", detected_type="web")
-    state.add_artifact(
-        "ctf_runtime_fingerprint",
-        location="http://ctf.local",
-        source="notes",
-        metadata={"content": "backup source code www.zip"},
-    )
-
-    engine = HypothesisEngine()
-    engine.generate(state)
-
-    assert state.repertoire_miss is False
-
-
-def test_repertoire_miss_is_live_signal_recon_flips_it_back():
-    # Empty state misses; once recon ingests a backup clue, re-generate flips it
-    # back to a hit — the signal tracks the latest evidence, not first contact.
-    state = CTFState(target="http://ctf.local", goal="flag", detected_type="web")
-    engine = HypothesisEngine()
-
-    engine.generate(state)
-    assert state.repertoire_miss is True
-
-    state.add_artifact(
-        "ctf_runtime_fingerprint",
-        location="http://ctf.local",
-        source="notes",
-        metadata={"content": "backup www.zip"},
-    )
-    engine.generate(state)
     assert state.repertoire_miss is False
 
 

@@ -1,9 +1,10 @@
 """Repertoire-miss candidate radar — turn曲库外 misses into accumulable assets.
 
-When a CTF challenge falls outside FlagHunter's closed exploit repertoire (the
-``CTFState.repertoire_miss`` signal — see ``hypothesis_engine``), the run gives up
-and, historically, the miss evaporated: nothing recorded it, so the same kind of
-gap got rediscovered run after run.
+When a CTF challenge falls outside FlagHunter's closed exploit repertoire, the run
+gives up without a flag and sets the ``CTFState.repertoire_miss`` signal at the
+terminal convergence-stop (give-up 点法 — see ``recovery.RecoveryController.finalize``).
+Historically the miss evaporated: nothing recorded it, so the same kind of gap got
+rediscovered run after run.
 
 This module is the mirror of ``ctf_experience.save_ctf_experience`` (which backfills
 *successful* solves into the ``ctf_sessions`` draft box): it backfills *unsolved
