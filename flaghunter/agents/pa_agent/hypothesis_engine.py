@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Iterable
+from typing import Iterable
 from urllib.parse import parse_qs, urlparse
 
 from .ctf_state import CTFState, Experiment, FlagProof, Hypothesis
@@ -98,22 +98,9 @@ class HypothesisEngine:
         return ranked
 
     def rank(self, state: CTFState, hypotheses: Iterable[Hypothesis] | None = None) -> list[Hypothesis]:
-        return self.ranked_with_scores(state, hypotheses)[0]
-
-    def ranked_with_scores(
-        self, state: CTFState, hypotheses: Iterable[Hypothesis] | None = None
-    ) -> tuple[list[Hypothesis], dict[str, float]]:
-        """Ranked hypotheses **plus** their final scores (the LATS node *value*).
-
-        ``rank`` is exactly ``ranked_with_scores(...)[0]`` — same single pass, same
-        side effects. The scores dict (``confidence + memory adjustment`` per the
-        engine's own weighting) is the value signal §3.1's search tree initialises
-        nodes with; exposing it here keeps a *single* source of truth so the tree
-        never re-ranks (which would double-apply the memory write-back side effects).
-        """
         items = list(hypotheses if hypotheses is not None else state.hypotheses)
         if not items:
-            return [], {}
+            return []
 
         max_obs = max(1, len(state.observations) + len(state.artifacts))
         seen_experiments = {exp.hypothesis_id for exp in state.experiments}
@@ -157,7 +144,7 @@ class HypothesisEngine:
                 if final_scores[hypothesis.id] > floor_score:
                     capped_ids.add(hypothesis.id)
 
-        ranked = sorted(
+        return sorted(
             items,
             key=lambda hypothesis: (
                 hypothesis.kind == "llm_driven_exploration",
@@ -166,21 +153,9 @@ class HypothesisEngine:
                 hypothesis.kind,
             ),
         )
-        return ranked, final_scores
 
     def choose_chain_order(self, state: CTFState) -> list[str]:
         ranked = self.generate(state) if not state.hypotheses else self.rank(state)
-        return self._chains_from_ranked(state, ranked)
-
-    def _chains_from_ranked(self, state: CTFState, ranked: Iterable[Any]) -> list[str]:
-        """Derive the chain execution order from a ranked hypothesis sequence.
-
-        Pure helper extracted from ``choose_chain_order`` (behaviour identical) so
-        §3.1's search tree can derive its order through the *same* code path — the
-        tree's order is then byte-identical to ``choose_chain_order`` by construction.
-        Only ``.kind`` is read from each ranked item, so :class:`HypothesisNode`
-        (which carries ``kind``) can be passed here just like a :class:`Hypothesis`.
-        """
         chain_order: list[str] = []
         detected = str(state.detected_type or "").strip().lower()
         normalized_detected = "cmdi" if detected == "cmd" else detected
