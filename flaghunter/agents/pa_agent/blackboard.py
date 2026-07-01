@@ -23,6 +23,7 @@ from __future__ import annotations
 from typing import Any
 
 from ...knowledge.blackboard_schema import (
+    BoardAttempt,
     BoardFact,
     BoardIntent,
     BoardView,
@@ -31,6 +32,39 @@ from ...knowledge.blackboard_schema import (
 from .ctf_state import CTFState, FlagRecord
 
 _REFUTED_HYPOTHESIS_STATUSES = {"rejected", "exhausted"}
+
+
+def _project_attempts(state: CTFState) -> list[BoardAttempt]:
+    """Tally already-run tool actions from the ledger — the negative-feedback trail.
+
+    Scans the **full** observation history (not the truncated FACTS window) so a tool
+    run many times keeps a complete tally even after its individual results scroll off
+    the recent-facts view — that persistence is the whole point: the smoke test showed
+    the brain re-running one chain a dozen times because each result aged out and it
+    never saw the pile-up. Aggregated per tool: total calls, how many moved the needle,
+    and the last outcome summary. A ``tool_result`` value is productive when it carries
+    a flag or ``progress=true`` (the summary shape from ``hands.summarize_outcome``).
+    """
+    by_tool: dict[str, list] = {}
+    for obs in state.observations:
+        if str(getattr(obs, "kind", "") or "") != "tool_result":
+            continue
+        meta = getattr(obs, "metadata", {}) or {}
+        tool = str(meta.get("tool") or getattr(obs, "source", "") or "").strip() or "?"
+        value = str(getattr(obs, "value", "") or "")
+        entry = by_tool.setdefault(tool, [0, 0, ""])
+        entry[0] += 1
+        if value.startswith("flag=") or "progress=true" in value:
+            entry[1] += 1
+        entry[2] = value
+    attempts = [
+        BoardAttempt(tool=tool, count=c, progress_count=p, last_result=v[:120])
+        for tool, (c, p, v) in by_tool.items()
+    ]
+    # Most-repeated first; among equal counts, dead ends (no progress) first so the
+    # brain reads the strongest "switch away" signal at the top.
+    attempts.sort(key=lambda a: (-a.count, a.progress_count))
+    return attempts
 
 
 def _flag_fact(record: FlagRecord, kind: str) -> BoardFact:
@@ -152,7 +186,12 @@ def project_board(
     if stop_reason:
         hint_list.append(f"stop_reason={stop_reason}")
 
-    return BoardView(facts=facts, intents=intents, hints=hint_list)
+    return BoardView(
+        facts=facts,
+        intents=intents,
+        hints=hint_list,
+        attempts=_project_attempts(state),
+    )
 
 
 def project_blackboard(

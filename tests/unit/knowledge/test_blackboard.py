@@ -185,3 +185,62 @@ def test_candidate_flag_is_most_direct():
     board = project_blackboard(state)
     cand = next(i for i in board["intents"] if i["origin"] == "candidate_flag")
     assert cand["directness"] == 2
+
+
+# --- attempts (negative-feedback trail) ------------------------------------
+
+
+def _tool_result(tool: str, value: str) -> Observation:
+    return Observation(kind="tool_result", value=value, source=tool, metadata={"tool": tool})
+
+
+def test_attempts_tally_per_tool_with_progress_detection():
+    from flaghunter.agents.pa_agent.blackboard import project_board
+
+    state = CTFState(target="t", goal="g")
+    state.observations.append(_tool_result("web", "progress=false reason=exhausted"))
+    state.observations.append(_tool_result("web", "progress=false reason=nothing"))
+    state.observations.append(_tool_result("sqli", "progress=true"))
+    state.observations.append(_tool_result("lfi", "flag=flag{x}"))
+
+    attempts = {a.tool: a for a in project_board(state).attempts}
+    assert attempts["web"].count == 2 and attempts["web"].progress_count == 0
+    assert attempts["web"].stalled is True
+    assert attempts["sqli"].progress_count == 1 and attempts["sqli"].stalled is False
+    assert attempts["lfi"].progress_count == 1  # flag= counts as progress
+
+
+def test_attempts_scan_full_history_beyond_observation_limit():
+    # The whole point: results age out of the FACTS window, but the tally must not.
+    from flaghunter.agents.pa_agent.blackboard import project_board
+
+    state = CTFState(target="t", goal="g")
+    for _ in range(30):
+        state.observations.append(_tool_result("web", "progress=false"))
+
+    board = project_board(state, observation_limit=5)
+    # FACTS truncated to the recent window, but the attempt tally sees all 30.
+    assert len(board.facts) == 5
+    web = next(a for a in board.attempts if a.tool == "web")
+    assert web.count == 30 and web.stalled is True
+
+
+def test_attempts_most_repeated_first_dead_ends_prioritised():
+    from flaghunter.agents.pa_agent.blackboard import project_board
+
+    state = CTFState(target="t", goal="g")
+    for _ in range(5):
+        state.observations.append(_tool_result("web", "progress=false"))
+    for _ in range(2):
+        state.observations.append(_tool_result("misc", "progress=false"))
+    attempts = project_board(state).attempts
+    assert [a.tool for a in attempts] == ["web", "misc"]
+
+
+def test_attempts_not_serialised_into_to_dict():
+    # Byte-identity guard: the dict read-model stays the historical three-key shape.
+    state = CTFState(target="t", goal="g")
+    state.observations.append(_tool_result("web", "progress=false"))
+    board = project_blackboard(state)
+    assert set(board) == {"facts", "intents", "hints"}
+    assert "attempts" not in board

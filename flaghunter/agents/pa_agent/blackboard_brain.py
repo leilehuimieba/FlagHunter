@@ -42,7 +42,10 @@ _SYSTEM_PROMPT = (
     "Each turn you see the board (confirmed FACTS, ranked INTENTS with already-refuted "
     "ones marked, and HINTS) and the TOOLS you may call. Choose exactly ONE next action "
     "that makes the most direct progress toward the flag — prefer the shortest remaining "
-    "path (high value, high directness) and never re-try a REFUTED intent.\n\n"
+    "path (high value, high directness) and never re-try a REFUTED intent.\n"
+    "Read ATTEMPTS as negative feedback: a tool already run several times with NO progress "
+    "is a dead end — switch to a DIFFERENT tool or tactic (especially one the task points at "
+    "but you have not tried yet) instead of repeating it.\n\n"
     "Reply with ONLY a single JSON object, no prose, of this shape:\n"
     '{"kind": "call_tool|write_fact|declare_intent|stop", "tool": "<tool name if '
     'call_tool>", "input": {<tool args>}, "expected_signal": "<string proving success '
@@ -79,16 +82,38 @@ def _fmt_intent(intent: Any) -> str:
     return f"- [{tag}] {d.get('kind')}: {description}"
 
 
+def _fmt_attempt(attempt: Any) -> str:
+    tool = str(getattr(attempt, "tool", "") or "?")
+    count = int(getattr(attempt, "count", 0) or 0)
+    progress = int(getattr(attempt, "progress_count", 0) or 0)
+    if progress == 0:
+        status = f"{count}x, NO progress -> dead end"
+    else:
+        status = f"{count}x ({progress} made progress)"
+    last = str(getattr(attempt, "last_result", "") or "").strip()
+    tail = f" (last: {last})" if last else ""
+    return f"- {tool}: {status}{tail}"
+
+
 def render_user_prompt(view: BoardView, tools: list[ToolSpec]) -> str:
     """Render the board + tools into the brain's user prompt (pure)."""
     facts = list(getattr(view, "facts", []) or [])
     intents = list(getattr(view, "intents", []) or [])
     hints = [str(h) for h in (getattr(view, "hints", []) or [])]
+    attempts = list(getattr(view, "attempts", []) or [])
 
     sections: list[str] = []
     sections.append(
         "FACTS (confirmed):\n" + ("\n".join(_fmt_fact(f) for f in facts) if facts else "- (none)")
     )
+    # Surfaced between FACTS and INTENTS so the "already tried, no progress" trail is
+    # salient (the fixation the smoke test exposed). Omitted entirely when nothing has
+    # run yet, to keep the cold-start prompt low-noise.
+    if attempts:
+        sections.append(
+            "ATTEMPTS SO FAR (tools already run; a repeated NO-progress tool is a dead "
+            "end — switch, don't repeat):\n" + "\n".join(_fmt_attempt(a) for a in attempts)
+        )
     sections.append(
         "INTENTS (ranked; do not re-try REFUTED):\n"
         + ("\n".join(_fmt_intent(i) for i in intents) if intents else "- (none)")

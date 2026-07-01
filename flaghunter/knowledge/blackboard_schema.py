@@ -185,12 +185,41 @@ def intent_sort_key(intent: BoardIntent) -> tuple[Any, ...]:
 
 
 @dataclass
+class BoardAttempt:
+    """A distilled tally of tool actions already taken — stigmergy negative feedback.
+
+    Derived (not truth): aggregated from the ledger's ``tool_result`` observations so
+    the brain SEES what it already ran and how it went, and can break fixation itself.
+    A tool run many times with zero progress is a dead end the model should read as
+    "switch approach", not a rule the code enforces (see
+    [[feedback_less_is_more_dont_cage_llm]]). Never serialised into ``to_dict`` — the
+    append-only ledger stays the sole source of truth; this is a disposable projection.
+    """
+
+    tool: str
+    count: int
+    progress_count: int
+    last_result: str = ""
+
+    @property
+    def stalled(self) -> bool:
+        """Repeated with no progress — the salient dead-end signal."""
+        return self.count >= 2 and self.progress_count == 0
+
+
+@dataclass
 class BoardView:
-    """The canonical ``{facts, intents, hints}`` read-model board."""
+    """The canonical ``{facts, intents, hints}`` read-model board.
+
+    ``attempts`` is a fourth, derived segment (the negative-feedback trail). It is
+    NOT part of ``to_dict`` — that stays byte-identical to the historical three-key
+    shape — but the brain's prompt renderer reads it directly to surface repetition.
+    """
 
     facts: list[BoardFact] = field(default_factory=list)
     intents: list[BoardIntent] = field(default_factory=list)
     hints: list[str] = field(default_factory=list)
+    attempts: list[BoardAttempt] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {

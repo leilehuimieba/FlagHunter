@@ -23,7 +23,12 @@ from flaghunter.agents.pa_agent.blackboard_loop import (
     run_blackboard_solve,
 )
 from flaghunter.agents.pa_agent.ctf_state import CTFState
-from flaghunter.knowledge.blackboard_schema import BoardFact, BoardIntent, BoardView
+from flaghunter.knowledge.blackboard_schema import (
+    BoardAttempt,
+    BoardFact,
+    BoardIntent,
+    BoardView,
+)
 
 
 def _view() -> BoardView:
@@ -67,6 +72,33 @@ def test_render_marks_refuted_intent():
 def test_render_handles_empty_board():
     prompt = render_user_prompt(BoardView(), [])
     assert "- (none)" in prompt
+
+
+def test_render_surfaces_stalled_attempts_as_negative_feedback():
+    # The fixation病: one tool run many times with no progress. The brain must SEE it.
+    view = _view()
+    view.attempts = [
+        BoardAttempt(tool="web", count=12, progress_count=0, last_result="progress=false reason=exhausted"),
+        BoardAttempt(tool="lfi", count=9, progress_count=0),
+    ]
+    prompt = render_user_prompt(view, [])
+    assert "ATTEMPTS SO FAR" in prompt
+    assert "web: 12x, NO progress" in prompt
+    assert "lfi: 9x, NO progress" in prompt
+    assert "reason=exhausted" in prompt
+
+
+def test_render_omits_attempts_section_when_none():
+    # Cold start: nothing run yet → no noisy empty section.
+    assert "ATTEMPTS SO FAR" not in render_user_prompt(BoardView(), [])
+
+
+def test_render_shows_progress_attempts_without_dead_end_label():
+    view = BoardView(attempts=[BoardAttempt(tool="sqli", count=3, progress_count=1)])
+    prompt = render_user_prompt(view, [])
+    assert "sqli: 3x (1 made progress)" in prompt
+    # the per-attempt dead-end label is only for zero-progress tools
+    assert "NO progress" not in prompt
 
 
 # --- parse_action ----------------------------------------------------------
