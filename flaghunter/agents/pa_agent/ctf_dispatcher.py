@@ -795,6 +795,36 @@ class CTFTaskDispatcher(
                 text = str(chain or "").strip()
                 if text:
                     hints.append(f"AVOID — this tool-chain spun with no progress on prior runs: {text}")
+            # 5b cut-7 (② 曲库正面注入): the POSITIVE half of cross-run recall. The
+            # chain-order path reorders its chains by ant-colony pheromone — chains that
+            # solved fingerprint-SIMILAR past challenges via short, re-confirmed paths
+            # (coordinator._apply_chain_order_contract → recall_chain_pheromone, line
+            # ~1454). The brain flew blind to that positive曲库 signal: cut-5 gave it only
+            # the negatives (failed payloads / spun chains). Surface the top-weighted
+            # winning chains as an advisory PREFER hint — the brain still chooses its own
+            # tool, we do NOT reorder its list ([[feedback_less_is_more_dont_cage_llm]]).
+            # Fail-safe + byte-identical empty when memory is cold or no fingerprint was
+            # built (guards mirror the chain-order path's own guard).
+            fingerprint = getattr(self, "_current_fingerprint", None)
+            if fingerprint is not None:
+                try:
+                    pheromone = self.strategy_memory.recall_chain_pheromone(fingerprint)
+                except Exception:
+                    pheromone = {}
+                top = sorted(
+                    (
+                        (str(chain).strip(), float(strength))
+                        for chain, strength in (pheromone or {}).items()
+                        if str(chain).strip() and float(strength) > 0.0
+                    ),
+                    key=lambda item: item[1],
+                    reverse=True,
+                )[:5]
+                for chain, strength in top:
+                    hints.append(
+                        f"PREFER — this chain solved SIMILAR past challenges "
+                        f"(pheromone {strength:.2f}, higher = more/shorter prior wins): {chain}"
+                    )
             return hints
 
         # Cost boundary, not a scripted step count: reuse the EXPLOIT phase round

@@ -365,8 +365,40 @@ async def test_blackboard_loop_surfaces_cross_run_negative_feedback_to_brain(mon
 
 
 @pytest.mark.asyncio
+async def test_blackboard_loop_surfaces_positive_repertoire_pheromone_to_brain(monkeypatch):
+    # 5b cut-7 (②): the POSITIVE half — chains that solved fingerprint-SIMILAR past
+    # challenges (ant-colony pheromone) must reach the brain as a PREFER hint, the
+    # dual of cut-5's negatives. Otherwise the brain never learns what already won.
+    llm = _CapturingLLM()
+    disp = _dispatcher(llm)
+    disp._current_fingerprint = object()  # non-None → pheromone recall runs
+    monkeypatch.setattr(
+        disp.strategy_memory,
+        "recall_chain_pheromone",
+        lambda fingerprint, **kw: {"sqli_dump_win": 0.91, "weak_noise": 0.02},
+    )
+
+    async def _identity(result):
+        return result
+
+    monkeypatch.setattr(disp, "_finalize_solve_result", _identity)
+    monkeypatch.setattr(
+        disp, "_chain_handler_map", lambda *, target, page_features, hint: {"web": (lambda: None)}
+    )
+
+    await disp._run_blackboard_loop(
+        target="ex.com", hint="", page_features={}, result=SolveResult(success=False)
+    )
+
+    assert "PREFER — this chain solved SIMILAR past challenges" in llm.seen_user
+    assert "sqli_dump_win" in llm.seen_user
+
+
+@pytest.mark.asyncio
 async def test_blackboard_loop_cold_memory_adds_no_cross_run_hints(monkeypatch):
-    # Byte-identical empty: cold memory → no cross-run hint lines injected.
+    # Byte-identical empty: cold memory → no cross-run hint lines injected. No fingerprint
+    # was built (_current_fingerprint stays None), so the positive pheromone recall is
+    # skipped entirely — the guard mirrors the chain-order path's own None-check.
     llm = _CapturingLLM()
     disp = _dispatcher(llm)  # _known_failed_payloads / _emergent_chain_hints default empty
 
@@ -384,6 +416,7 @@ async def test_blackboard_loop_cold_memory_adds_no_cross_run_hints(monkeypatch):
 
     assert "AVOID — payload FAILED" not in llm.seen_user
     assert "PREFER — this tool-chain" not in llm.seen_user
+    assert "PREFER — this chain solved SIMILAR" not in llm.seen_user
 
 
 # --- 5b cut-6: wrong-flag feedback — prune recoverable before finalize -------
