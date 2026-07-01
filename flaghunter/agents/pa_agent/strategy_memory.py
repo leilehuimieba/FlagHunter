@@ -133,6 +133,22 @@ class StrategyMemoryStore:
         for entry in self._load_entries_with_decay():
             if not entry.solved or not self._is_queryable(entry):
                 continue
+            # H1 (P0 hardening): wrong-flag gating. ``entry.solved`` records the
+            # session's INITIAL claim of a win, but ``apply_rejected_feedback`` (called
+            # when a downstream verifier rejects the flag) only bumps
+            # ``failed_applications`` — it does not flip ``solved`` back to False,
+            # and manual_status → "muted" gate requires applied_count >= 5. That
+            # left a first-rejection ``solved=True`` entry actively depositing
+            # pheromone, poisoning fingerprint-similar runs with a "PREFER — solved
+            # SIMILAR" hint (cut-7). Guard here: any entry with more failures than
+            # confirmations is dropped from pheromone deposition, no matter its
+            # ``solved`` bit. Complements cut-6 (wrong-flag prune inside dispatcher).
+            if (
+                entry.metadata.failed_applications > 0
+                and entry.metadata.failed_applications
+                >= entry.metadata.successful_applications
+            ):
+                continue
             sequence = [
                 str(item).strip()
                 for item in (entry.winning_primitive_sequence or [])
