@@ -323,6 +323,69 @@ async def test_blackboard_loop_reports_missing_tool_without_crashing(monkeypatch
     assert result.success is False
 
 
+# --- 5b cut-5: cross-run negative-feedback recall → brain --------------------
+
+
+class _CapturingLLM:
+    """Records the user prompt the brain renders, then stops."""
+
+    def __init__(self):
+        self.seen_user = ""
+
+    async def generate(self, system_prompt, messages, *, tools=None, max_tokens=None, task_hint="default"):
+        self.seen_user = " ".join(str(m.get("content", "")) for m in (messages or []))
+        return type("R", (), {"content": '{"kind":"stop","rationale":"seen the board"}'})()
+
+
+@pytest.mark.asyncio
+async def test_blackboard_loop_surfaces_cross_run_negative_feedback_to_brain(monkeypatch):
+    # D1 read side: the brain must SEE cross-run failures/wins the planner already gets
+    # (failed payloads + emergent chains), or it flies blind and repeats past mistakes.
+    llm = _CapturingLLM()
+    disp = _dispatcher(llm)
+    disp._known_failed_payloads = ["' OR 1=1-- prior_fail_marker"]
+    disp._emergent_chain_hints = {"reuse": ["recon->sqli_win"], "avoid": ["upload_spin"]}
+
+    async def _identity(result):
+        return result
+
+    monkeypatch.setattr(disp, "_finalize_solve_result", _identity)
+    monkeypatch.setattr(
+        disp, "_chain_handler_map", lambda *, target, page_features, hint: {"web": (lambda: None)}
+    )
+
+    await disp._run_blackboard_loop(
+        target="ex.com", hint="", page_features={}, result=SolveResult(success=False)
+    )
+
+    # All three cross-run signals reached the brain's rendered board (HINTS section).
+    assert "prior_fail_marker" in llm.seen_user
+    assert "recon->sqli_win" in llm.seen_user
+    assert "upload_spin" in llm.seen_user
+
+
+@pytest.mark.asyncio
+async def test_blackboard_loop_cold_memory_adds_no_cross_run_hints(monkeypatch):
+    # Byte-identical empty: cold memory → no cross-run hint lines injected.
+    llm = _CapturingLLM()
+    disp = _dispatcher(llm)  # _known_failed_payloads / _emergent_chain_hints default empty
+
+    async def _identity(result):
+        return result
+
+    monkeypatch.setattr(disp, "_finalize_solve_result", _identity)
+    monkeypatch.setattr(
+        disp, "_chain_handler_map", lambda *, target, page_features, hint: {"web": (lambda: None)}
+    )
+
+    await disp._run_blackboard_loop(
+        target="ex.com", hint="", page_features={}, result=SolveResult(success=False)
+    )
+
+    assert "AVOID — payload FAILED" not in llm.seen_user
+    assert "PREFER — this tool-chain" not in llm.seen_user
+
+
 @pytest.mark.asyncio
 async def test_blackboard_loop_emits_step_breadcrumbs(monkeypatch):
     """5b cut-2: the loop must not be a black box live — each brain decision is

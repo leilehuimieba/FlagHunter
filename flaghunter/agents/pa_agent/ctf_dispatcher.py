@@ -767,6 +767,36 @@ class CTFTaskDispatcher(
             self._notes_log.append(line)
             self._emit(line)
 
+        # 5b cut-5 (cross-run negative-feedback READ side → brain): the D1 loop's WRITE
+        # side (strategy_memory record_failure / record_outcome / session entry) already
+        # flows on this path via the shared _finalize + chain-internal writes; but the
+        # brain flew BLIND to the recall — the board carried NO hints. Surface the
+        # cross-run signals the chain-order planner already gets (llm_executor): payloads
+        # that FAILED on similar past challenges (don't re-propose) + emergent tool-chains
+        # that won / spun before. Advisory only (Hints, never removes a tool) — the brain
+        # decides. Complements ATTEMPTS (this-run dead ends) with prior-run failures.
+        # Byte-identical empty when memory is cold (both lists empty). A thunk so it
+        # re-reads per projection (and sets the pattern for 曲库 hint injection later).
+        def _cross_run_hints() -> list[str]:
+            hints: list[str] = []
+            for payload in list(self._known_failed_payloads or [])[:8]:
+                text = str(payload or "").strip()
+                if text:
+                    hints.append(
+                        f"AVOID — payload FAILED on similar past challenges, do not "
+                        f"re-propose (try a materially different approach): {text}"
+                    )
+            chain_hints = self._emergent_chain_hints or {}
+            for chain in list(chain_hints.get("reuse") or [])[:5]:
+                text = str(chain or "").strip()
+                if text:
+                    hints.append(f"PREFER — this tool-chain led to a flag on a prior run: {text}")
+            for chain in list(chain_hints.get("avoid") or [])[:5]:
+                text = str(chain or "").strip()
+                if text:
+                    hints.append(f"AVOID — this tool-chain spun with no progress on prior runs: {text}")
+            return hints
+
         # Cost boundary, not a scripted step count: reuse the EXPLOIT phase round
         # budget (profile override, else the module default) — §3.2 不把大模型关进笼子.
         budget_steps = self.state.effective_phase_budget(Phase.EXPLOIT) or 24
@@ -781,7 +811,7 @@ class CTFTaskDispatcher(
             tools=chain_tools(self, context=context),
             budget=Budget(max_steps=int(budget_steps)),
             on_step=_on_step,
-            **bind_seams(self.state),
+            **bind_seams(self.state, hints=_cross_run_hints),
         )
         self._emit(
             f"[CTF dispatcher] [blackboard] done: stopped={outcome.stopped} "
