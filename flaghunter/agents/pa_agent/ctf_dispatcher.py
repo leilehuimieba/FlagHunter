@@ -865,6 +865,37 @@ class CTFTaskDispatcher(
             result.flag = near.value if near is not None else None
             result.reason = f"blackboard_loop:{outcome.stopped}|{decision.reason}"
             self._emit(f"[CTF dispatcher] [blackboard] terminal: {decision.reason}")
+        # 5b cut-6 (wrong-flag contract): prune RECOVERABLE (source-only) wrong-flag
+        # feedback before finalize. The chain-order path drops these per-iteration in
+        # ``_apply_wrong_flag_early_stop_contract``'s recoverable branch (a source-only
+        # rejected guess is not a real wrong submission); the blackboard loop never runs
+        # that contract, so a lingering recoverable entry would make the shared _finalize
+        # both mislabel the run "wrong flag feedback" AND wrongly penalize the reused
+        # strategy_memory entries (apply_rejected_feedback) for a mere unverified guess.
+        # NON-recoverable (hard-rejected) feedback is kept — its wrong-flag stop + memory
+        # penalty are correct. We do NOT force an early stop: continuation is the brain's
+        # call ([[feedback_less_is_more_dont_cage_llm]]).
+        recoverable = [
+            item
+            for item in self._pending_wrong_flag_feedback
+            if str(item.get("recoverable") or "").strip().lower() == "true"
+        ]
+        if recoverable:
+            self._pending_wrong_flag_feedback = [
+                item
+                for item in self._pending_wrong_flag_feedback
+                if str(item.get("recoverable") or "").strip().lower() != "true"
+            ]
+            for item in recoverable:
+                self.state.meta_reasonings.append(
+                    {
+                        "type": "recoverable_wrong_flag_continued",
+                        "flag": str(item.get("flag") or "").strip(),
+                        "rationale": str(item.get("rationale") or "").strip(),
+                        "evidence_source": str(item.get("evidence_source") or "").strip(),
+                        "chain_name": "blackboard_loop",
+                    }
+                )
         return await self._finalize_solve_result(result)
 
     async def _finalize_solve_result(self, result: SolveResult) -> SolveResult:

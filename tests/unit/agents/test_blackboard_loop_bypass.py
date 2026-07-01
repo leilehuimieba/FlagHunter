@@ -386,6 +386,63 @@ async def test_blackboard_loop_cold_memory_adds_no_cross_run_hints(monkeypatch):
     assert "PREFER — this tool-chain" not in llm.seen_user
 
 
+# --- 5b cut-6: wrong-flag feedback — prune recoverable before finalize -------
+
+
+def _stop_dispatcher(monkeypatch):
+    disp = _dispatcher(_FakeLLM(['{"kind":"stop","rationale":"done"}']))
+
+    async def _identity(result):
+        return result
+
+    monkeypatch.setattr(disp, "_finalize_solve_result", _identity)
+    monkeypatch.setattr(
+        disp, "_chain_handler_map", lambda *, target, page_features, hint: {"web": (lambda: None)}
+    )
+    return disp
+
+
+@pytest.mark.asyncio
+async def test_blackboard_loop_prunes_recoverable_wrong_flag_before_finalize(monkeypatch):
+    # A source-only rejected guess is "recoverable" — the chain-order path drops it so
+    # finalize does not mislabel the run or penalize reused strategy_memory entries. The
+    # blackboard loop must do the same (it never runs the early-stop contract).
+    disp = _stop_dispatcher(monkeypatch)
+    disp._pending_wrong_flag_feedback = [
+        {"flag": "flag{srconly}", "rationale": "source-only", "recoverable": "true",
+         "evidence_source": "source-only"},
+    ]
+
+    await disp._run_blackboard_loop(
+        target="ex.com", hint="", page_features={}, result=SolveResult(success=False)
+    )
+
+    # Recoverable entry pruned → shared _finalize won't wrongly flag it as a wrong submission.
+    assert disp._pending_wrong_flag_feedback == []
+    assert any(
+        m.get("type") == "recoverable_wrong_flag_continued"
+        for m in disp.state.meta_reasonings
+    )
+
+
+@pytest.mark.asyncio
+async def test_blackboard_loop_keeps_non_recoverable_wrong_flag(monkeypatch):
+    # A hard-rejected (non source-only) flag is a real wrong submission — kept so finalize
+    # correctly labels the run and penalizes the matched strategy_memory entries.
+    disp = _stop_dispatcher(monkeypatch)
+    disp._pending_wrong_flag_feedback = [
+        {"flag": "flag{hardreject}", "rationale": "platform rejected", "recoverable": "false",
+         "evidence_source": "runtime"},
+    ]
+
+    await disp._run_blackboard_loop(
+        target="ex.com", hint="", page_features={}, result=SolveResult(success=False)
+    )
+
+    assert len(disp._pending_wrong_flag_feedback) == 1
+    assert disp._pending_wrong_flag_feedback[0]["flag"] == "flag{hardreject}"
+
+
 @pytest.mark.asyncio
 async def test_blackboard_loop_emits_step_breadcrumbs(monkeypatch):
     """5b cut-2: the loop must not be a black box live — each brain decision is
