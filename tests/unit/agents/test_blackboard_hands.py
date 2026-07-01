@@ -121,6 +121,48 @@ async def test_execute_input_overrides_hint_and_target():
     assert disp.calls[0]["hint"] == "focus-here"
 
 
+# --- 5b cut-4: missing-tool contract ---------------------------------------
+
+
+class _MissingToolDispatcher(_FakeDispatcher):
+    """A dispatcher whose chain execution raises ToolMissingError (uninstalled binary)."""
+
+    def __init__(self, *, missing_binaries, **kw):
+        super().__init__(**kw)
+        self._missing = list(missing_binaries)
+
+    async def _execute_chain(self, *, chain_name, target, page_features, hint):
+        from flaghunter.tools.tool_guard import ToolMissingError, ToolStatus
+
+        raise ToolMissingError({b: ToolStatus(available=False) for b in self._missing})
+
+
+@pytest.mark.asyncio
+async def test_execute_catches_missing_tool_reports_and_returns_switch_hint():
+    disp = _MissingToolDispatcher(missing_binaries=["gobuster", "ffuf"])
+    reported: list[list[str]] = []
+    hands = ChainHands(
+        disp, context=ChainContext(), on_missing_tools=lambda names: reported.append(names)
+    )
+
+    # Must NOT raise — the loop would otherwise crash on an uncaught ToolMissingError.
+    result = await hands.execute("dirscan", {})
+
+    assert result.startswith("tool_unavailable:")
+    assert "gobuster" in result and "ffuf" in result
+    assert "pick a DIFFERENT" in result
+    # Reported (sorted) so the dispatcher can surface the capability gap.
+    assert reported == [["ffuf", "gobuster"]]
+
+
+@pytest.mark.asyncio
+async def test_execute_missing_tool_without_hook_still_returns_string():
+    disp = _MissingToolDispatcher(missing_binaries=["nmap"])
+    hands = ChainHands(disp, context=ChainContext())  # no on_missing_tools
+    result = await hands.execute("portscan", {})
+    assert result.startswith("tool_unavailable:") and "nmap" in result
+
+
 # --- end-to-end: slice 1 loop + slice 2 seams + slice 3 hands --------------
 
 

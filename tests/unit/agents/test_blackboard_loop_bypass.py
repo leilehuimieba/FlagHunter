@@ -286,6 +286,44 @@ async def test_blackboard_loop_verified_flag_is_clean_success(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_blackboard_loop_reports_missing_tool_without_crashing(monkeypatch):
+    # 5b cut-4: a chain needing an uninstalled binary raises ToolMissingError. The loop
+    # has no try/guard around hands.execute, so without the ChainHands catch this would
+    # crash the whole solve. Instead the gap must be reported (result.missing_tools) and
+    # the brain simply moves on to another action.
+    from flaghunter.tools.tool_guard import ToolMissingError, ToolStatus
+
+    llm = _FakeLLM(
+        [
+            '{"kind":"call_tool","tool":"web","input":{}}',
+            '{"kind":"stop","rationale":"nothing else works here"}',
+        ]
+    )
+    disp = _dispatcher(llm)
+
+    async def _identity(result):
+        return result
+
+    monkeypatch.setattr(disp, "_finalize_solve_result", _identity)
+    monkeypatch.setattr(
+        disp, "_chain_handler_map", lambda *, target, page_features, hint: {"web": (lambda: None)}
+    )
+
+    async def _raise_missing(*, chain_name, target, page_features, hint):
+        raise ToolMissingError({"gobuster": ToolStatus(available=False)})
+
+    monkeypatch.setattr(disp, "_execute_chain", _raise_missing)
+
+    # No exception escapes the loop.
+    result = await disp._run_blackboard_loop(
+        target="ex.com", hint="", page_features={}, result=SolveResult(success=False)
+    )
+
+    assert "gobuster" in result.missing_tools
+    assert result.success is False
+
+
+@pytest.mark.asyncio
 async def test_blackboard_loop_emits_step_breadcrumbs(monkeypatch):
     """5b cut-2: the loop must not be a black box live — each brain decision is
     surfaced to the progress stream AND persisted into the notes log (so the trail

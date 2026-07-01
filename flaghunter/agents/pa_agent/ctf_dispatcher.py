@@ -728,6 +728,22 @@ class CTFTaskDispatcher(
                 terminal_win["asserted"] = True
                 terminal_win["flag"] = flag
 
+        # 5b cut-4 (missing-tool contract): a chain needing an uninstalled binary raises
+        # ToolMissingError; ChainHands catches it and reports the names here so the
+        # capability gap surfaces on the finished event (``result.missing_tools``), just
+        # like the chain-order path's missing-tools recovery contract. The brain then
+        # picks a different tool on its own — no code-forced reorder.
+        def _record_missing_tools(missing: list[str]) -> None:
+            if not missing:
+                return
+            result.missing_tools = list(
+                dict.fromkeys(list(result.missing_tools) + list(missing))
+            )
+            self._emit(
+                f"[CTF dispatcher] [blackboard] tool unavailable: {', '.join(missing)} "
+                "— reported; brain to pick another"
+            )
+
         # 5b cut-2 (observability): the loop is otherwise a black box live — surface the
         # brain's per-step decision trail (kind/tool/rationale + tool-result preview) both
         # to the progress stream (real-time) and into the notes log (so it persists into
@@ -756,7 +772,12 @@ class CTFTaskDispatcher(
         budget_steps = self.state.effective_phase_budget(Phase.EXPLOIT) or 24
         outcome = await run_blackboard_solve(
             brain=LLMBrain.from_llm(self.llm),
-            hands=ChainHands(self, context=context, on_outcome=_promote_chain_flag),
+            hands=ChainHands(
+                self,
+                context=context,
+                on_outcome=_promote_chain_flag,
+                on_missing_tools=_record_missing_tools,
+            ),
             tools=chain_tools(self, context=context),
             budget=Budget(max_steps=int(budget_steps)),
             on_step=_on_step,

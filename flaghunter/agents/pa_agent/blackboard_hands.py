@@ -27,6 +27,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Optional, Protocol, runtime_checkable
 
+from ...tools.tool_guard import ToolMissingError
 from .blackboard_loop import ToolSpec
 from .chains.base import _ChainOutcome
 
@@ -126,23 +127,44 @@ class ChainHands:
     where the dispatcher's per-chain contracts (terminal-success flag promotion,
     progress evaluation, experiment feedback — slice 5b) re-attach to the new loop,
     because they all key off the structured outcome that the string summary discards.
+
+    ``on_missing_tools`` is the 5b cut-4 seam for the missing-tool contract: a chain
+    that needs an uninstalled binary raises :class:`ToolMissingError`, which on the
+    chain-order path is caught and recorded. The blackboard loop calls ``execute``
+    with no such guard, so an uncaught error would crash the whole solve. Here we catch
+    it, report the missing names through this hook (the dispatcher populates
+    ``result.missing_tools`` so the finished event surfaces the capability gap), and
+    return a plain ``tool_unavailable`` string so the BRAIN — the driver — simply picks
+    a different tool next turn. No code-forced chain reorder/stop: the model switches
+    (see [[feedback_less_is_more_dont_cage_llm]]).
     """
 
     dispatcher: SupportsChains
     context: ContextProvider
     on_outcome: Optional[Callable[[str, _ChainOutcome], None]] = None
+    on_missing_tools: Optional[Callable[[list[str]], None]] = None
 
     async def execute(self, name: str, input: dict[str, Any]) -> str:
         ctx = _resolve_context(self.context)
         params = dict(input or {})
         target = str(params.get("target") or ctx.target or "")
         hint = str(params.get("hint") or ctx.hint or "")
-        outcome = await self.dispatcher._execute_chain(
-            chain_name=str(name or ""),
-            target=target,
-            page_features=ctx.page_features,
-            hint=hint,
-        )
+        try:
+            outcome = await self.dispatcher._execute_chain(
+                chain_name=str(name or ""),
+                target=target,
+                page_features=ctx.page_features,
+                hint=hint,
+            )
+        except ToolMissingError as exc:
+            missing = sorted(exc.missing)
+            if self.on_missing_tools is not None:
+                self.on_missing_tools(missing)
+            names = ", ".join(missing) or "?"
+            return (
+                f"tool_unavailable: {names} — required tool(s) not installed here; "
+                "this chain cannot run, pick a DIFFERENT tool/chain"
+            )
         if self.on_outcome is not None:
             self.on_outcome(str(name or ""), outcome)
         return summarize_outcome(outcome)
