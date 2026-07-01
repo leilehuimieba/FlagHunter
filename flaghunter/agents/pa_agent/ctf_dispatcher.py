@@ -75,7 +75,7 @@ from .platform_orchestrator import PlatformTaskOrchestrator
 from .progress_tracker import ProgressTracker, ProgressTrackerMixin
 from .reasoning import PreActionReasoning, ReasoningLayer
 from .recon_executor import ReconExecutor, ReconExecutorMixin
-from .recovery import RecoveryController
+from .recovery import RecoveryController, is_repertoire_miss
 from .render_surface import RenderSurfaceMixin
 from .source_hint_registry import SourceHintRegistryMixin
 from .sqli_executor import SQLiExecutorMixin
@@ -744,6 +744,14 @@ class CTFTaskDispatcher(
         result.success = bool(outcome.solved)
         result.flag = outcome.flag
         result.reason = f"blackboard_loop:{outcome.stopped}"
+        # 5b (④ give-up 点法 migration): the chain-order harness marks a 曲库 miss at its
+        # terminal give-up via ``recovery.finalize``; the blackboard loop never reaches
+        # finalize, so without this a failed solve on this path leaves ``repertoire_miss``
+        # False and the CLI radar-capture silently drops it — the very evaporation the
+        # radar exists to stop. Mark via the SHARED predicate so both drivers agree on
+        # what counts as a miss (no runtime / candidate flag == closed repertoire exhausted).
+        if not result.success and is_repertoire_miss(self.state):
+            self.state.repertoire_miss = True
         used = [
             obs.source
             for obs in self.state.observations

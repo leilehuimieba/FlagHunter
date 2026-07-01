@@ -124,6 +124,66 @@ async def test_blackboard_loop_maps_unsolved_stop(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_blackboard_loop_marks_repertoire_miss_on_clean_giveup(monkeypatch):
+    # ④ give-up 点法 migration: a failed solve with no runtime/candidate flag means the
+    # closed repertoire was exhausted → the loop must set repertoire_miss so the CLI
+    # radar-capture can sink it (the chain-order path does this via recovery.finalize,
+    # which this loop never reaches). Without the wiring the miss evaporates on this path.
+    llm = _FakeLLM(['{"kind":"stop","rationale":"out of ideas"}'])
+    disp = _dispatcher(llm)
+    assert disp.state.repertoire_miss is False
+
+    async def _identity(result):
+        return result
+
+    monkeypatch.setattr(disp, "_finalize_solve_result", _identity)
+    monkeypatch.setattr(
+        disp, "_chain_handler_map", lambda *, target, page_features, hint: {"web": (lambda: None)}
+    )
+
+    result = await disp._run_blackboard_loop(
+        target="ex.com", hint="", page_features={}, result=SolveResult(success=False)
+    )
+
+    assert result.success is False
+    assert disp.state.repertoire_miss is True
+
+
+@pytest.mark.asyncio
+async def test_blackboard_loop_does_not_mark_miss_on_win(monkeypatch):
+    # A solved run is never a repertoire miss — the give-up marking is gated on failure.
+    llm = _FakeLLM(
+        [
+            '{"kind":"call_tool","tool":"web","input":{},"expected_signal":"FLAG{"}',
+            '{"kind":"stop","rationale":"done"}',
+        ]
+    )
+    disp = _dispatcher(llm)
+
+    async def _identity(result):
+        return result
+
+    monkeypatch.setattr(disp, "_finalize_solve_result", _identity)
+    monkeypatch.setattr(
+        disp,
+        "_chain_handler_map",
+        lambda *, target, page_features, hint: {"web": (lambda: None)},
+    )
+
+    async def _fake_execute_chain(*, chain_name, target, page_features, hint):
+        return _ChainOutcome(progress=True, flag="FLAG{won}", reason="found")
+
+    monkeypatch.setattr(disp, "_execute_chain", _fake_execute_chain)
+
+    result = await disp._run_blackboard_loop(
+        target="ex.com", hint="", page_features={}, result=SolveResult(success=False)
+    )
+
+    assert result.success is True
+    assert disp.state.repertoire_miss is False
+
+
+@pytest.mark.asyncio
 async def test_blackboard_loop_emits_step_breadcrumbs(monkeypatch):
     """5b cut-2: the loop must not be a black box live — each brain decision is
     surfaced to the progress stream AND persisted into the notes log (so the trail

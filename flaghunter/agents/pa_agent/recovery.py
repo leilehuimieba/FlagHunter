@@ -8,6 +8,24 @@ from ...knowledge.kill_chain import Phase
 from .ctf_state import CTFState, ExplorationItem, Hypothesis
 
 
+def is_repertoire_miss(state: CTFState) -> bool:
+    """give-up 点法 predicate (④ radar trigger): terminal stop with no usable flag.
+
+    True ⟺ the run is giving up having found **neither** a runtime flag pending
+    verification **nor** a source-only candidate flag — i.e. the closed exploit
+    repertoire was exhausted without producing anything. This is the single source of
+    truth for "解不出的题" that the CLI radar-capture sinks into an accumulable
+    candidate ([[project_ctf_autonomy_ceiling]]). Both give-up points share it:
+    :meth:`RecoveryController.finalize` (chain-order harness) and the Shape-A
+    blackboard loop path — so the two drivers can never drift on what counts as a miss.
+    """
+    if state.runtime_flags and not state.verified_flags:
+        return False
+    if state.candidate_flags and not state.runtime_flags:
+        return False
+    return True
+
+
 @dataclass(slots=True)
 class RecoveryDecision:
     action: str
@@ -331,7 +349,9 @@ class RecoveryController:
         # 早返,即代表本局未拿到可用 flag、即将按收敛规则停 ⟺ 封闭集(链全试尽)未果 →
         # 标记曲库 miss。CLI 入口据此把这道"解不出的题"落成可累积候选(repertoire_radar)。
         # 取代旧的 hypothesis_engine ``not hypotheses`` 定义(那个在真实 web 路径恒 False)。
-        state.repertoire_miss = True
+        # Route the setter through the shared predicate so the blackboard loop path
+        # (which never reaches finalize) marks misses by the identical rule.
+        state.repertoire_miss = is_repertoire_miss(state)
 
         blocked_surface = self._latest_uniform_failure_surface(state)
         if blocked_surface is not None:
@@ -485,4 +505,4 @@ class RecoveryController:
         return None
 
 
-__all__ = ["RecoveryController", "RecoveryDecision"]
+__all__ = ["RecoveryController", "RecoveryDecision", "is_repertoire_miss"]

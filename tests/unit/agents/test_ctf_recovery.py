@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from flaghunter.agents.pa_agent.ctf_state import CTFState, Hypothesis
 from flaghunter.agents.pa_agent.hypothesis_engine import HypothesisEngine
-from flaghunter.agents.pa_agent.recovery import RecoveryController
+from flaghunter.agents.pa_agent.recovery import RecoveryController, is_repertoire_miss
 
 
 def _state_with_xss_and_web_hypotheses() -> CTFState:
@@ -131,6 +131,41 @@ def test_finalize_does_not_mark_miss_when_runtime_flag_found():
 
     assert decision.action == "wait_for_verification"
     assert state.repertoire_miss is False
+
+
+def _fresh_miss_state(**flags) -> CTFState:
+    state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="web")
+    if flags.get("runtime"):
+        state.add_flag("flag{rt}", level="runtime", evidence_source="resp", rationale="echoed")
+    if flags.get("candidate"):
+        state.add_flag("flag{cand}", level="candidate", evidence_source="src", rationale="grep")
+    return state
+
+
+def test_is_repertoire_miss_agrees_with_finalize_across_shapes():
+    # Pin the shared predicate against finalize's give-up 点法 so the blackboard-loop
+    # path (which uses is_repertoire_miss directly, never reaching finalize) can never
+    # drift on what counts as a miss. Run finalize on a fresh state, compare its mutated
+    # repertoire_miss to the predicate on an identical fresh state.
+    for label, flags in [
+        ("no flags → miss", {}),
+        ("runtime only → not miss", {"runtime": True}),
+        ("candidate only → not miss", {"candidate": True}),
+    ]:
+        controller = RecoveryController(HypothesisEngine())
+        via_finalize = _fresh_miss_state(**flags)
+        controller.finalize(via_finalize, used_chains=["web"], no_progress_count=0)
+        via_predicate = is_repertoire_miss(_fresh_miss_state(**flags))
+        assert via_finalize.repertoire_miss == via_predicate, label
+
+
+def test_is_repertoire_miss_true_on_clean_giveup():
+    assert is_repertoire_miss(_fresh_miss_state()) is True
+
+
+def test_is_repertoire_miss_false_when_any_flag_found():
+    assert is_repertoire_miss(_fresh_miss_state(runtime=True)) is False
+    assert is_repertoire_miss(_fresh_miss_state(candidate=True)) is False
 
 
 def test_recovery_switches_after_exhausted_hypothesis():
