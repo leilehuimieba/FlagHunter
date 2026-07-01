@@ -526,12 +526,30 @@ class CTFTaskDispatcher(
         # eventual sole driver (then choose_chain_order is deleted) only once it covers
         # them. See [[project_flaghunter_blackboard_pivot]].
         if self.state is not None and self.llm is not None and _blackboard_loop_enabled():
-            return await self._run_blackboard_loop(
-                target=target,
-                hint=hint,
-                page_features=page_features,
-                result=result,
-            )
+            # F1 (P0 fatal-bug hardening): the blackboard loop was invoked unguarded.
+            # Any exception (LLM 5xx, brain init, ChainHands crash, strategy_memory
+            # shape-error) would crash the whole solve — falling back to the old chain
+            # -order path is unsafe (副作用重复:budget/state 已消费),so we salvage the
+            # partial ``result`` and route it through the same terminal ``_finalize_solve_result``
+            # the loop's happy path uses. The old harness stays reserved for when the
+            # feature-flag is OFF (byte-identical to pre-5a); the flag being ON now
+            # means "brain drives, brain is the only driver" — a mid-loop crash reports
+            # the failure, it does not silently re-run the whole solve.
+            try:
+                return await self._run_blackboard_loop(
+                    target=target,
+                    hint=hint,
+                    page_features=page_features,
+                    result=result,
+                )
+            except Exception as exc:
+                self._emit(
+                    f"[CTF dispatcher] [blackboard] loop error: {type(exc).__name__}: {exc} "
+                    "— finalizing partial result"
+                )
+                result.success = False
+                result.reason = f"blackboard_loop_error:{type(exc).__name__}:{str(exc)[:120]}"
+                return await self._finalize_solve_result(result)
         chain_order = list(dict.fromkeys(chain_order))
         # The seam object the coordinator contracts run against: the carried
         # ``RunContext`` when supplied, else the raw dispatcher (== old behaviour).
