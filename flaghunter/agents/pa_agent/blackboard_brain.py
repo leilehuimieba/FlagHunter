@@ -86,8 +86,14 @@ def _fmt_attempt(attempt: Any) -> str:
     tool = str(getattr(attempt, "tool", "") or "?")
     count = int(getattr(attempt, "count", 0) or 0)
     progress = int(getattr(attempt, "progress_count", 0) or 0)
+    stalled = bool(getattr(attempt, "stalled", False))
     if progress == 0:
         status = f"{count}x, NO progress -> dead end"
+    elif stalled:
+        # Ran many times but only a few DISTINCT results — replaying the same
+        # productive-looking outcome (spinning), not advancing. Read as a switch
+        # signal, same as a dead end.
+        status = f"{count}x but only {progress} distinct result(s) -> spinning, switch"
     else:
         status = f"{count}x ({progress} made progress)"
     last = str(getattr(attempt, "last_result", "") or "").strip()

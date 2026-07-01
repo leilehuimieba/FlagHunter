@@ -41,9 +41,15 @@ def _project_attempts(state: CTFState) -> list[BoardAttempt]:
     run many times keeps a complete tally even after its individual results scroll off
     the recent-facts view — that persistence is the whole point: the smoke test showed
     the brain re-running one chain a dozen times because each result aged out and it
-    never saw the pile-up. Aggregated per tool: total calls, how many moved the needle,
-    and the last outcome summary. A ``tool_result`` value is productive when it carries
-    a flag or ``progress=true`` (the summary shape from ``hands.summarize_outcome``).
+    never saw the pile-up. Aggregated per tool: total calls, how many made *distinct*
+    progress, and the last outcome summary. A ``tool_result`` value is productive when it
+    carries a flag or ``progress=true`` (the summary shape from ``hands.summarize_outcome``)
+    — but only *distinct* productive results count: ``summarize_outcome`` is deterministic,
+    so a chain that keeps REPLAYING the same ``progress=true reason=…`` line collapses to a
+    single distinct result. That is the "progress=true spinning" the third smoke test exposed
+    (lfi hammered six times, each an identical productive-looking line): total calls climb
+    while distinct progress stays at one, which :attr:`BoardAttempt.stalled` reads as a switch
+    signal instead of mistaking repetition for advancement.
     """
     by_tool: dict[str, list] = {}
     for obs in state.observations:
@@ -52,14 +58,14 @@ def _project_attempts(state: CTFState) -> list[BoardAttempt]:
         meta = getattr(obs, "metadata", {}) or {}
         tool = str(meta.get("tool") or getattr(obs, "source", "") or "").strip() or "?"
         value = str(getattr(obs, "value", "") or "")
-        entry = by_tool.setdefault(tool, [0, 0, ""])
+        entry = by_tool.setdefault(tool, [0, set(), ""])
         entry[0] += 1
         if value.startswith("flag=") or "progress=true" in value:
-            entry[1] += 1
+            entry[1].add(value)
         entry[2] = value
     attempts = [
-        BoardAttempt(tool=tool, count=c, progress_count=p, last_result=v[:120])
-        for tool, (c, p, v) in by_tool.items()
+        BoardAttempt(tool=tool, count=c, progress_count=len(distinct), last_result=v[:120])
+        for tool, (c, distinct, v) in by_tool.items()
     ]
     # Most-repeated first; among equal counts, dead ends (no progress) first so the
     # brain reads the strongest "switch away" signal at the top.

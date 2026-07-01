@@ -101,6 +101,16 @@ def test_render_shows_progress_attempts_without_dead_end_label():
     assert "NO progress" not in prompt
 
 
+def test_render_surfaces_spinning_attempt_as_switch_signal():
+    # progress=true spinning: run many times, few DISTINCT results — the brain must
+    # read it as a switch signal, not "made progress" (the third smoke test's lfi-6x).
+    view = BoardView(attempts=[BoardAttempt(tool="lfi", count=6, progress_count=1)])
+    prompt = render_user_prompt(view, [])
+    assert "lfi: 6x but only 1 distinct result(s) -> spinning, switch" in prompt
+    # it did make *some* progress, so it is not labelled a zero-progress dead end
+    assert "NO progress" not in prompt
+
+
 # --- parse_action ----------------------------------------------------------
 
 

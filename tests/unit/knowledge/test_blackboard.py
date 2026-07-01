@@ -210,6 +210,35 @@ def test_attempts_tally_per_tool_with_progress_detection():
     assert attempts["lfi"].progress_count == 1  # flag= counts as progress
 
 
+def test_attempts_replayed_progress_counts_once_and_reads_as_spinning():
+    # The third smoke test's "progress=true spinning": lfi run six times, each an
+    # IDENTICAL productive line. Distinct progress must stay at 1 (not 6) and the
+    # tool must read as stalled so the brain switches instead of hammering it.
+    from flaghunter.agents.pa_agent.blackboard import project_board
+
+    state = CTFState(target="t", goal="g")
+    for _ in range(6):
+        state.observations.append(_tool_result("lfi", "progress=true reason=commands"))
+    lfi = next(a for a in project_board(state).attempts if a.tool == "lfi")
+    assert lfi.count == 6
+    assert lfi.progress_count == 1  # six identical results collapse to one distinct
+    assert lfi.stalled is True
+
+
+def test_attempts_distinct_progress_not_flagged_spinning():
+    # A tool making genuine, DIFFERENT progress each call is not spinning even when
+    # run several times — distinct results keep pace with the call count.
+    from flaghunter.agents.pa_agent.blackboard import project_board
+
+    state = CTFState(target="t", goal="g")
+    state.observations.append(_tool_result("sqli", "progress=true reason=dbs"))
+    state.observations.append(_tool_result("sqli", "progress=true reason=tables"))
+    state.observations.append(_tool_result("sqli", "progress=true reason=dump"))
+    sqli = next(a for a in project_board(state).attempts if a.tool == "sqli")
+    assert sqli.count == 3 and sqli.progress_count == 3
+    assert sqli.stalled is False
+
+
 def test_attempts_scan_full_history_beyond_observation_limit():
     # The whole point: results age out of the FACTS window, but the tally must not.
     from flaghunter.agents.pa_agent.blackboard import project_board
