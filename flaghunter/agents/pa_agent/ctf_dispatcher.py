@@ -899,10 +899,25 @@ class CTFTaskDispatcher(
             result.reason = "blackboard_loop:verified"
         else:
             result.success = False
+            # H2 (P0 hardening): the old harness fed ``finalize`` the real
+            # ``no_progress_rounds`` counter so it could enter the ``stop_no_progress``
+            # branch (recovery.py: no_progress_count >= 3). The blackboard loop never
+            # maintains that counter (mark_progress writes only fire on the coordinator
+            # path). Passing 0 permanently silenced that branch — every blackboard
+            # give-up mislabeled ``stop_generic``, skewing session telemetry and
+            # cross-run learning. Derive an equivalent count from the ATTEMPTS ledger:
+            # the number of DISTINCT tools that stalled (see BoardAttempt.stalled —
+            # count>=2 && (progress_count==0 OR count-progress_count>=3)) is the
+            # blackboard-native measure of "no progress rounds", based on the same
+            # productive-summary signal the brain reads.
+            from .blackboard import _project_attempts
+            stalled_tools = sum(
+                1 for att in _project_attempts(self.state) if att.stalled
+            )
             decision = self.recovery_controller.finalize(
                 self.state,
                 used_chains=list(result.chain_used),
-                no_progress_count=0,
+                no_progress_count=stalled_tools,
             )
             # Surface the strongest near-solve flag (runtime outranks candidate) so a
             # wait_for_verification / candidate-only stop reports the value instead of
