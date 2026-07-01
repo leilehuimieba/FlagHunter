@@ -61,7 +61,7 @@ from .hash_backup_executor import HashBackupExecutorMixin
 from .artifact_forensics import ArtifactForensicsMixin
 from .audit_infra import AuditInfraMixin, AuditStore, RuntimeAuditedActions
 from .capability_registry import CapabilityRegistry
-from .ctf_state import CTFState, FlagProof, LLMStepLog
+from .ctf_state import CTFState, FlagProof, FlagRecord, LLMStepLog
 from .exploit_replay_memory import ExploitReplayMemoryMixin
 from .flag_observer import FlagObserver, FlagObserverMixin
 from .hypothesis_engine import _CHAIN_BY_KIND, HypothesisEngine
@@ -75,7 +75,7 @@ from .platform_orchestrator import PlatformTaskOrchestrator
 from .progress_tracker import ProgressTracker, ProgressTrackerMixin
 from .reasoning import PreActionReasoning, ReasoningLayer
 from .recon_executor import ReconExecutor, ReconExecutorMixin
-from .recovery import RecoveryController, is_repertoire_miss
+from .recovery import RecoveryController
 from .render_surface import RenderSurfaceMixin
 from .source_hint_registry import SourceHintRegistryMixin
 from .sqli_executor import SQLiExecutorMixin
@@ -215,6 +215,20 @@ _SERVER_SIDE_PATH_SUFFIXES = (
 # than copied so the two can never drift again (the old fork lacked
 # jwt_manipulation → the jwt chain could never select its own hypothesis).
 _CHAIN_NAME_FOR_HYPOTHESIS = _CHAIN_BY_KIND
+
+
+def _best_flag_record(bucket: list[FlagRecord]) -> FlagRecord | None:
+    """Highest-confidence flag in a level bucket (or ``None`` when empty).
+
+    Used by the blackboard terminal mapping to surface the strongest near-solve flag
+    so a wait_for_verification / candidate-only stop reports its value rather than
+    dropping it. Mirrors ``blackboard_adapter._best_flag``'s selection rule.
+    """
+    return max(
+        bucket,
+        key=lambda r: float(getattr(r, "confidence", 0.0) or 0.0),
+        default=None,
+    )
 
 
 def _blackboard_loop_enabled() -> bool:
@@ -692,6 +706,15 @@ class CTFTaskDispatcher(
         # promote only the chain's asserted flag into a runtime flag so ``goal()`` sees
         # it and the loop reports solved. Trusting the chain's assertion (not scanning
         # all tool text) avoids the false-positive flags a blind regex would mint.
+        # Track whether a win came from a chain's TERMINAL assertion (outcome.flag) vs
+        # a flag that merely entered state incidentally (e.g. the verifier promoting a
+        # runtime flag mid-chain). The old chain-order path treats only the terminal
+        # assertion as an unconditional success (``_apply_terminal_success_contract``);
+        # an incidental runtime flag routes through ``recovery.finalize`` →
+        # wait_for_verification (NOT a success). ``goal()`` alone can't distinguish the
+        # two (both are runtime-level), so 5b cut-3 records the provenance here.
+        terminal_win: dict[str, Any] = {"asserted": False, "flag": ""}
+
         def _promote_chain_flag(chain_name: str, outcome) -> None:
             flag = str(getattr(outcome, "flag", "") or "").strip()
             if flag and self.state is not None:
@@ -702,6 +725,8 @@ class CTFTaskDispatcher(
                     rationale=str(getattr(outcome, "reason", "") or "") or "blackboard chain win",
                     confidence=0.9,
                 )
+                terminal_win["asserted"] = True
+                terminal_win["flag"] = flag
 
         # 5b cut-2 (observability): the loop is otherwise a black box live — surface the
         # brain's per-step decision trail (kind/tool/rationale + tool-result preview) both
@@ -741,17 +766,9 @@ class CTFTaskDispatcher(
             f"[CTF dispatcher] [blackboard] done: stopped={outcome.stopped} "
             f"steps={outcome.steps} solved={outcome.solved}"
         )
-        result.success = bool(outcome.solved)
-        result.flag = outcome.flag
-        result.reason = f"blackboard_loop:{outcome.stopped}"
-        # 5b (④ give-up 点法 migration): the chain-order harness marks a 曲库 miss at its
-        # terminal give-up via ``recovery.finalize``; the blackboard loop never reaches
-        # finalize, so without this a failed solve on this path leaves ``repertoire_miss``
-        # False and the CLI radar-capture silently drops it — the very evaporation the
-        # radar exists to stop. Mark via the SHARED predicate so both drivers agree on
-        # what counts as a miss (no runtime / candidate flag == closed repertoire exhausted).
-        if not result.success and is_repertoire_miss(self.state):
-            self.state.repertoire_miss = True
+        # Record the chains the brain actually invoked BEFORE the terminal mapping, so
+        # ``recovery.finalize`` (below) sees the real used-chain list — the same input
+        # the chain-order path feeds it.
         used = [
             obs.source
             for obs in self.state.observations
@@ -759,6 +776,44 @@ class CTFTaskDispatcher(
         ]
         if used:
             result.chain_used = list(dict.fromkeys(used))
+        # 5b cut-3 (terminal flag-contract migration): map the loop's outcome onto the
+        # SAME terminal contracts the chain-order path uses, so the new driver never
+        # over-claims an unverified flag as success nor silently drops a near-solve.
+        #   • terminal-asserted flag → clean success (cut-1, preserved).
+        #   • verifier-confirmed VERIFIED flag → clean success (a real win w/o a chain
+        #     assertion).
+        #   • otherwise delegate the give-up to ``recovery.finalize`` — the identical
+        #     terminal contract the chain-order path runs — so wait_for_verification
+        #     (runtime-but-unverified), stop_candidate_only (source-only), blocked-surface
+        #     and repertoire_miss are all handled the same way. This SUPERSEDES the
+        #     manual ④ miss-marking (finalize sets repertoire_miss via the shared
+        #     predicate) and additionally surfaces the runtime/candidate flag so a
+        #     near-solve is reported, not dropped.
+        best_verified = _best_flag_record(self.state.verified_flags)
+        if outcome.solved and terminal_win["asserted"]:
+            result.success = True
+            result.flag = outcome.flag or terminal_win["flag"]
+            result.reason = f"blackboard_loop:{outcome.stopped}"
+        elif best_verified is not None:
+            result.success = True
+            result.flag = best_verified.value
+            result.reason = "blackboard_loop:verified"
+        else:
+            result.success = False
+            decision = self.recovery_controller.finalize(
+                self.state,
+                used_chains=list(result.chain_used),
+                no_progress_count=0,
+            )
+            # Surface the strongest near-solve flag (runtime outranks candidate) so a
+            # wait_for_verification / candidate-only stop reports the value instead of
+            # dropping it — mirrors the chain-order recovery decision carrying it.
+            near = _best_flag_record(self.state.runtime_flags) or _best_flag_record(
+                self.state.candidate_flags
+            )
+            result.flag = near.value if near is not None else None
+            result.reason = f"blackboard_loop:{outcome.stopped}|{decision.reason}"
+            self._emit(f"[CTF dispatcher] [blackboard] terminal: {decision.reason}")
         return await self._finalize_solve_result(result)
 
     async def _finalize_solve_result(self, result: SolveResult) -> SolveResult:

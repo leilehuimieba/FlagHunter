@@ -120,7 +120,9 @@ async def test_blackboard_loop_maps_unsolved_stop(monkeypatch):
 
     assert result.success is False
     assert result.flag is None
-    assert result.reason == "blackboard_loop:brain_stop"
+    # 5b cut-3: the give-up branch now delegates to recovery.finalize and appends its
+    # terminal reason (here a clean repertoire-miss give-up) to the loop stop reason.
+    assert result.reason.startswith("blackboard_loop:brain_stop|")
 
 
 @pytest.mark.asyncio
@@ -181,6 +183,106 @@ async def test_blackboard_loop_does_not_mark_miss_on_win(monkeypatch):
 
     assert result.success is True
     assert disp.state.repertoire_miss is False
+
+
+# --- 5b cut-3: terminal flag-contract migration -----------------------------
+
+
+def _giveup_dispatcher(monkeypatch, replies, chain_side_effect):
+    """A dispatcher whose brain runs ``replies`` and whose (single) web chain applies
+    ``chain_side_effect(disp)`` when invoked — used to seed flags into state the way a
+    real chain's verifier would, without asserting a terminal ``outcome.flag``."""
+    disp = _dispatcher(_FakeLLM(replies))
+
+    async def _identity(result):
+        return result
+
+    monkeypatch.setattr(disp, "_finalize_solve_result", _identity)
+    monkeypatch.setattr(
+        disp, "_chain_handler_map", lambda *, target, page_features, hint: {"web": (lambda: None)}
+    )
+
+    async def _fake_execute_chain(*, chain_name, target, page_features, hint):
+        chain_side_effect(disp)
+        return _ChainOutcome(progress=True, reason="ran, no terminal flag")
+
+    monkeypatch.setattr(disp, "_execute_chain", _fake_execute_chain)
+    return disp
+
+
+@pytest.mark.asyncio
+async def test_blackboard_loop_runtime_only_flag_is_wait_for_verification(monkeypatch):
+    # An UNVERIFIED runtime flag that entered state incidentally (verifier mid-chain,
+    # not a terminal chain assertion) must NOT be over-claimed as success — the
+    # chain-order path routes it through recovery.finalize → wait_for_verification.
+    def _add_runtime(disp):
+        disp.state.add_flag(
+            "flag{needs_verify}", level="runtime", evidence_source="verifier", rationale="echoed"
+        )
+
+    disp = _giveup_dispatcher(
+        monkeypatch,
+        ['{"kind":"call_tool","tool":"web","input":{}}'],
+        _add_runtime,
+    )
+
+    result = await disp._run_blackboard_loop(
+        target="ex.com", hint="", page_features={}, result=SolveResult(success=False)
+    )
+
+    assert result.success is False  # not a clean success — needs verification
+    assert result.flag == "flag{needs_verify}"  # surfaced, not dropped
+    assert "verified" in result.reason  # wait_for_verification decision carried through
+    assert disp.state.repertoire_miss is False  # a near-solve is not a repertoire miss
+
+
+@pytest.mark.asyncio
+async def test_blackboard_loop_candidate_only_flag_is_surfaced_not_success(monkeypatch):
+    # A source-only candidate flag never satisfies the goal; the give-up must surface it
+    # (stop_candidate_only) rather than silently dropping it, and never claim success.
+    def _add_candidate(disp):
+        disp.state.add_flag(
+            "flag{source_only}", level="candidate", evidence_source="grep", rationale="in source"
+        )
+
+    disp = _giveup_dispatcher(
+        monkeypatch,
+        ['{"kind":"call_tool","tool":"web","input":{}}', '{"kind":"stop","rationale":"done"}'],
+        _add_candidate,
+    )
+
+    result = await disp._run_blackboard_loop(
+        target="ex.com", hint="", page_features={}, result=SolveResult(success=False)
+    )
+
+    assert result.success is False
+    assert result.flag == "flag{source_only}"  # surfaced
+    assert "candidate" in result.reason
+    assert disp.state.repertoire_miss is False  # candidate found → not a clean miss
+
+
+@pytest.mark.asyncio
+async def test_blackboard_loop_verified_flag_is_clean_success(monkeypatch):
+    # A verifier-confirmed VERIFIED flag is a real win even without a chain's terminal
+    # assertion → clean success.
+    def _add_verified(disp):
+        disp.state.add_flag(
+            "flag{confirmed}", level="verified", evidence_source="submit", rationale="accepted"
+        )
+
+    disp = _giveup_dispatcher(
+        monkeypatch,
+        ['{"kind":"call_tool","tool":"web","input":{}}'],
+        _add_verified,
+    )
+
+    result = await disp._run_blackboard_loop(
+        target="ex.com", hint="", page_features={}, result=SolveResult(success=False)
+    )
+
+    assert result.success is True
+    assert result.flag == "flag{confirmed}"
+    assert result.reason == "blackboard_loop:verified"
 
 
 @pytest.mark.asyncio
