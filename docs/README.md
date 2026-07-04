@@ -22,6 +22,7 @@
 7. `docs/dev/并行开发分工_2026-06-18_V1.md` —— 多 agent 同仓并行的分工/契约/worktree/合并(开新会话前必读)
 8. `docs/dev/FlagHunter_Clean_Architecture_Development_Guidelines_v0.1_2026-07-04.md` —— clean architecture、ports/adapters、proof authority、source guard 总规范
 9. `docs/dev/FlagHunter_Domain_Neutral_Naming_Policy_v0.1_2026-07-04.md` —— 新公共契约去安全/CTF领域化命名规则
+10. `docs/dev/FlagHunter_Clean_Architecture_Migration_Playbook_v0.1_2026-07-04.md` —— legacy 到 clean architecture 的分阶段迁移、审批门、提交粒度、验收与测试标准
 
 ---
 
@@ -43,6 +44,8 @@
   —— 当前耦合点、模块化评分、ports skeleton 路线、分阶段解耦计划
 - `docs/dev/FlagHunter_Domain_Neutral_Naming_Policy_v0.1_2026-07-04.md`
   —— 新公共 contract/port/domain 命名使用 challenge/task/claim/evidence/proof 等中性词，历史 CTF/security 名称作为 adapter/legacy 细节逐步迁移
+- `docs/dev/FlagHunter_Clean_Architecture_Migration_Playbook_v0.1_2026-07-04.md`
+  —— 从 legacy implementation 逐步迁移到 neutral clean architecture 的执行手册，包含审批门、每功能点一 commit、回退策略、阶段路线、验收标准和测试标准
 - `docs/dev/FlagHunter_P5_Pre_Eval_Plan_v0.1_2026-07-04.md`
   —— P5 仅 pre-eval 的计划与边界，未经明确授权不实现学习闭环
 
