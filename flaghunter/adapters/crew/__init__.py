@@ -1,0 +1,1 @@
+"""Crew bridge adapter namespace."""
