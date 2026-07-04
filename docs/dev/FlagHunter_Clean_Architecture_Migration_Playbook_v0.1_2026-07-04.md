@@ -744,6 +744,23 @@ Explicit non-goals for Deferred MCP:
 - no proof authority behavior changes
 - no P5 implementation
 
+#### Deferred MCP source guard baseline
+
+Status: source guard added before any MCP readback implementation.
+
+`tests/unit/mcp/test_mcp_ingress_mode_contract.py` now guards
+`flaghunter/mcp/server/mcp_tools.py::_append_blackboard_snapshot_lines` as a
+read-only MCP readback projection helper. The guard leaves current behavior
+unchanged while confirming:
+
+- no task execution or handler routing changes
+- no side-effect sinks
+- no proof upgrade surfaces
+- no MCP production wiring
+
+This baseline must stay in place until Web read-model projection equivalence is
+proven and a separate MCP production wiring approval is granted.
+
 First read-path switch approval plan must include:
 
 - file list

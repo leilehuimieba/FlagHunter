@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import ast
 import sys
 import types
 import flaghunter.config.settings as settings_module
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -19,6 +21,10 @@ from flaghunter.harness.session_ledger import SessionLedger
 from flaghunter.mcp.server import mcp_tools
 
 
+REPO_ROOT = Path(__file__).resolve().parents[3]
+MCP_TOOLS_PATH = REPO_ROOT / "flaghunter" / "mcp" / "server" / "mcp_tools.py"
+
+
 class _PrimaryAgentStub:
     target = None
     scope: list[str] = []
@@ -31,6 +37,57 @@ class _PrimaryAgentStub:
 def _close_created_task(coro):
     coro.close()
     return SimpleNamespace(done=lambda: True)
+
+
+def _parse_source(path: Path) -> ast.Module:
+    return ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
+
+
+def _function_source(path: Path, tree: ast.Module, name: str) -> str:
+    text = path.read_text(encoding="utf-8-sig")
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef) and node.name == name:
+            return ast.get_source_segment(text, node) or ""
+    raise AssertionError(f"{name} was not found in {path}")
+
+
+def test_mcp_blackboard_readback_helper_stays_read_only_projection() -> None:
+    tree = _parse_source(MCP_TOOLS_PATH)
+    helper_source = _function_source(MCP_TOOLS_PATH, tree, "_append_blackboard_snapshot_lines")
+
+    forbidden_tokens = {
+        "run_task(",
+        "run_task_async(",
+        "create_task(",
+        "_make_agent(",
+        "_run_agent",
+        "ToolExecutor",
+        "WorkerPool",
+        "CrewOrchestrator",
+        "CTFTaskDispatcher",
+        "CTFVerifier",
+        "open(",
+        "write_text",
+        "subprocess",
+        "requests",
+        "httpx",
+        "socket",
+        "playwright",
+        "verification_decision",
+        "upgrade_claim_to_verified",
+        "append_verification_record",
+        "append_proof_record",
+        "confirm_claim",
+        "create_claim",
+        "add_flag(",
+        'level="verified"',
+        "level='verified'",
+        "verified_flags",
+        "verifiedFlags",
+    }
+
+    for token in sorted(forbidden_tokens):
+        assert token not in helper_source
 
 
 @pytest.fixture(autouse=True)

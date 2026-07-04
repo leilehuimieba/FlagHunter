@@ -196,3 +196,15 @@ def test_playbook_records_deferred_mcp_readback_approval_plan() -> None:
     assert "no proof authority behavior changes" in text
     assert "rollback point" in text
     assert "old/new output equivalence" in text
+
+
+def test_playbook_records_deferred_mcp_source_guard_baseline() -> None:
+    text = _playbook_text()
+
+    assert "Deferred MCP source guard baseline" in text
+    assert "flaghunter/mcp/server/mcp_tools.py::_append_blackboard_snapshot_lines" in text
+    assert "tests/unit/mcp/test_mcp_ingress_mode_contract.py" in text
+    assert "no task execution or handler routing changes" in text
+    assert "no side-effect sinks" in text
+    assert "no proof upgrade surfaces" in text
+    assert "no MCP production wiring" in text
