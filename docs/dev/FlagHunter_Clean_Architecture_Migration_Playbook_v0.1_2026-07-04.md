@@ -467,6 +467,29 @@ Explicit non-goals for Candidate B:
 - no proof authority behavior changes
 - no P5 implementation
 
+#### Candidate B characterization baseline
+
+Status: test baseline added before any production path switch.
+
+The fixture test
+`tests/unit/web_console/test_trace_timeline_read_model_switch.py` locks the
+existing control-observation timeline output for the two supported observation
+kinds, ignored malformed rows, empty input handling, default resume-bootstrap
+fields, and no task mutation. This baseline exists so a future neutral
+read-model switch can prove output equivalence before changing the presentation
+helper.
+
+Boundary confirmation for this baseline:
+
+- no production path switch
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no proof authority behavior changes
+
 Candidate C: Web task serialization and control-decision snapshot merge.
 
 - Current paths:

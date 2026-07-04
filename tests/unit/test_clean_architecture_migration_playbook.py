@@ -102,3 +102,14 @@ def test_playbook_records_candidate_b_approval_plan() -> None:
     assert "no WorkerPool/CrewOrchestrator changes" in text
     assert "no MCP production wiring" in text
     assert "approval required before implementation" in text
+
+
+def test_playbook_records_candidate_b_characterization_baseline() -> None:
+    text = _playbook_text()
+
+    assert "Candidate B characterization baseline" in text
+    assert "tests/unit/web_console/test_trace_timeline_read_model_switch.py" in text
+    assert "existing control-observation timeline output" in text
+    assert "no production path switch" in text
+    assert "no dispatcher loop changes" in text
+    assert "no proof authority behavior changes" in text
