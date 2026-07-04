@@ -490,6 +490,20 @@ Boundary confirmation for this baseline:
 - no MCP production wiring
 - no proof authority behavior changes
 
+#### Candidate B source guard baseline
+
+Status: source guard added before any production path switch.
+
+`tests/unit/web_console/test_trace_timeline_read_model_switch.py` now guards
+`_build_control_observation_timeline_events` so the localized presentation
+helper remains read-only while Candidate B is prepared. The guard confirms:
+
+- no concrete execution imports
+- no side-effect sinks
+- no proof upgrade surfaces
+
+These constraints must hold before the neutral read-model switch is approved.
+
 Candidate C: Web task serialization and control-decision snapshot merge.
 
 - Current paths:

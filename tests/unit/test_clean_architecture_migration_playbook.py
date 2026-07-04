@@ -113,3 +113,13 @@ def test_playbook_records_candidate_b_characterization_baseline() -> None:
     assert "no production path switch" in text
     assert "no dispatcher loop changes" in text
     assert "no proof authority behavior changes" in text
+
+
+def test_playbook_records_candidate_b_source_guard_baseline() -> None:
+    text = _playbook_text()
+
+    assert "Candidate B source guard baseline" in text
+    assert "_build_control_observation_timeline_events" in text
+    assert "no concrete execution imports" in text
+    assert "no side-effect sinks" in text
+    assert "no proof upgrade surfaces" in text
