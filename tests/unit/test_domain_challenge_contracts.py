@@ -25,6 +25,19 @@ EXPECTED_CONTRACTS = {
             "run_id": "run-1",
         },
     },
+    "flaghunter.domain.challenge.contracts.checkpoints": {
+        "CheckpointRecord": {
+            "checkpoint_id": "checkpoint-1",
+            "run_id": "run-1",
+        },
+        "ResumeContextRef": {
+            "run_id": "run-1",
+            "checkpoint_id": "checkpoint-1",
+        },
+        "CheckpointManifest": {
+            "run_id": "run-1",
+        },
+    },
     "flaghunter.domain.challenge.contracts.control": {
         "ControlReceipt": {
             "producer": "control:finish",
@@ -114,6 +127,7 @@ EXPECTED_CONTRACTS = {
 
 EXPECTED_SCHEMA_VERSIONS = {
     "flaghunter.domain.challenge.contracts.artifacts": "challenge.artifact_manifest.v1",
+    "flaghunter.domain.challenge.contracts.checkpoints": "challenge.checkpoint_manifest.v1",
     "flaghunter.domain.challenge.contracts.progress": "challenge.progress.v1",
     "flaghunter.domain.challenge.contracts.task_execution": "challenge.task_execution.v1",
 }
@@ -124,6 +138,14 @@ EXPECTED_CLASS_SCHEMA_VERSIONS = {
         "flaghunter.domain.challenge.contracts.artifacts",
         "ArtifactRecord",
     ): "challenge.artifact_record.v1",
+    (
+        "flaghunter.domain.challenge.contracts.checkpoints",
+        "CheckpointRecord",
+    ): "challenge.checkpoint_record.v1",
+    (
+        "flaghunter.domain.challenge.contracts.checkpoints",
+        "ResumeContextRef",
+    ): "challenge.resume_context_ref.v1",
     (
         "flaghunter.domain.challenge.contracts.progress",
         "TaskProgressRef",
@@ -411,6 +433,69 @@ def test_artifact_manifest_contract_sanitizes_artifact_metadata() -> None:
         "mediaTypeCounts": {"text/plain": 1},
     }
     assert ArtifactManifest.from_dict(payload).to_dict() == payload
+    _assert_json_friendly(payload)
+
+
+def test_checkpoint_manifest_contract_sanitizes_resume_context() -> None:
+    from flaghunter.domain.challenge.contracts import (
+        CheckpointManifest,
+        CheckpointRecord,
+        ResumeContextRef,
+    )
+
+    manifest = CheckpointManifest(
+        run_id="run-1",
+        checkpoints=[
+            CheckpointRecord(
+                checkpoint_id="checkpoint-a",
+                run_id="run-1",
+                label="after analysis",
+                stop_reason="pause token=reason-token",
+                summary_preview="HTTP/1.1 200 OK\n<html>password=summary-password</html>",
+                artifact_refs=["Authorization: Bearer checkpoint-token"],
+                read_model_refs=["snapshot-a"],
+                metadata={
+                    "authorization": "Bearer metadata-token",
+                    "safe": "visible",
+                    "raw_body": "HTTP/1.1 200 OK\n<html>secret</html>",
+                },
+            )
+        ],
+        resume_contexts=[
+            ResumeContextRef(
+                run_id="run-1",
+                checkpoint_id="checkpoint-a",
+                next_action="resume_from_checkpoint",
+                summary_preview="continue with password=resume-password",
+            )
+        ],
+    )
+
+    payload = manifest.to_dict()
+
+    assert payload["schemaVersion"] == "challenge.checkpoint_manifest.v1"
+    assert payload["checkpoints"][0]["schemaVersion"] == "challenge.checkpoint_record.v1"
+    assert payload["checkpoints"][0]["stopReason"] == "pause token=<redacted>"
+    assert payload["checkpoints"][0]["summaryPreview"] == "<redacted raw body>"
+    assert payload["checkpoints"][0]["artifactRefs"] == ["<redacted>"]
+    assert payload["checkpoints"][0]["metadata"] == {
+        "authorization": "<redacted>",
+        "safe": "visible",
+        "raw_body": "<redacted raw body>",
+    }
+    assert payload["resumeContexts"][0]["schemaVersion"] == (
+        "challenge.resume_context_ref.v1"
+    )
+    assert payload["resumeContexts"][0]["summaryPreview"] == (
+        "continue with password=<redacted>"
+    )
+    assert payload["summary"] == {
+        "checkpointCount": 1,
+        "resumeContextCount": 1,
+        "labelCounts": {"after analysis": 1},
+        "nextActionCounts": {"resume_from_checkpoint": 1},
+    }
+    assert CheckpointManifest.from_dict(payload).to_dict() == payload
     _assert_json_friendly(payload)
 
 

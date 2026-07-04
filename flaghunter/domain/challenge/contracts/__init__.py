@@ -2,6 +2,7 @@
 
 from .artifacts import ArtifactManifest, ArtifactRecord
 from .audit import AuditEvidenceExport, build_audit_evidence_payload
+from .checkpoints import CheckpointManifest, CheckpointRecord, ResumeContextRef
 from .claims import ChallengeClaim
 from .control import ControlReceipt, build_control_receipt_payload, redact_control_text
 from .evidence import EvidenceRecord, redact_text
@@ -57,6 +58,8 @@ __all__ = [
     "ArtifactRecord",
     "AuditEvidenceExport",
     "ChallengeClaim",
+    "CheckpointManifest",
+    "CheckpointRecord",
     "ChallengeProgressReadback",
     "ChallengeRunSnapshot",
     "ControlReceipt",
@@ -65,6 +68,7 @@ __all__ = [
     "LedgerEventReadback",
     "ProofRecord",
     "ReadModelRef",
+    "ResumeContextRef",
     "ReviewState",
     "TASK_DAG_PLAN_SCHEMA_VERSION",
     "TASK_DAG_READY_SELECTION_SCHEMA_VERSION",
