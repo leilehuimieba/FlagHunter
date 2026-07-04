@@ -27,6 +27,8 @@ SHIM_MODULES = {
             "TaskDAGPlan": "TaskDAGPlan",
             "TaskDAGNode": "TaskDAGNode",
             "TaskDAGEdge": "TaskDAGEdge",
+            "_coerce_str_list": "_coerce_str_list",
+            "_preview": "_preview",
             "select_next_ready_task": "select_next_ready_task",
             "build_task_dag_plan_readback": "build_task_dag_plan_readback",
         },
