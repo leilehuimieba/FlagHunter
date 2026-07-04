@@ -79,11 +79,33 @@ EXPECTED_CONTRACTS = {
             "run_id": "run-1",
         },
     },
+    "flaghunter.domain.challenge.contracts.task_execution": {
+        "TaskExecutionNode": {
+            "node_id": "node-1",
+            "run_id": "run-1",
+        },
+        "TaskExecutionEdge": {
+            "source_id": "node-1",
+            "target_id": "node-2",
+        },
+        "TaskBrief": {
+            "brief_id": "brief-1",
+            "node_id": "node-1",
+        },
+        "TaskExecutionReceipt": {
+            "receipt_id": "receipt-1",
+            "node_id": "node-1",
+        },
+        "TaskExecutionReadback": {
+            "run_id": "run-1",
+        },
+    },
 }
 
 
 EXPECTED_SCHEMA_VERSIONS = {
     "flaghunter.domain.challenge.contracts.progress": "challenge.progress.v1",
+    "flaghunter.domain.challenge.contracts.task_execution": "challenge.task_execution.v1",
 }
 
 
@@ -96,6 +118,22 @@ EXPECTED_CLASS_SCHEMA_VERSIONS = {
         "flaghunter.domain.challenge.contracts.progress",
         "WorkerTraceRef",
     ): "challenge.worker_trace.v1",
+    (
+        "flaghunter.domain.challenge.contracts.task_execution",
+        "TaskExecutionNode",
+    ): "challenge.task_execution_node.v1",
+    (
+        "flaghunter.domain.challenge.contracts.task_execution",
+        "TaskExecutionEdge",
+    ): "challenge.task_execution_edge.v1",
+    (
+        "flaghunter.domain.challenge.contracts.task_execution",
+        "TaskBrief",
+    ): "challenge.task_brief.v1",
+    (
+        "flaghunter.domain.challenge.contracts.task_execution",
+        "TaskExecutionReceipt",
+    ): "challenge.task_execution_receipt.v1",
 }
 
 
@@ -358,6 +396,81 @@ def test_progress_readback_contract_composes_task_and_worker_refs() -> None:
         "workerStatusCounts": {"completed": 1},
     }
     assert ChallengeProgressReadback.from_dict(payload).to_dict() == payload
+    _assert_json_friendly(payload)
+
+
+def test_task_execution_contract_composes_neutral_execution_readback() -> None:
+    from flaghunter.domain.challenge.contracts import (
+        TaskBrief,
+        TaskExecutionEdge,
+        TaskExecutionNode,
+        TaskExecutionReadback,
+        TaskExecutionReceipt,
+    )
+
+    readback = TaskExecutionReadback(
+        run_id="run-1",
+        nodes=[
+            TaskExecutionNode(
+                node_id="node-a",
+                run_id="run-1",
+                task_kind="analysis",
+                status="completed",
+                title_preview="HTTP/1.1 200 OK\n<html>password=task-password</html>",
+                claim_ids=["claim-a"],
+                trace_ids=["trace-a"],
+                receipt_ids=["receipt-a"],
+                artifact_refs=["Authorization: Bearer artifact-token"],
+            )
+        ],
+        edges=[
+            TaskExecutionEdge(
+                source_id="node-a",
+                target_id="node-b",
+                relation="reports_to",
+            )
+        ],
+        briefs=[
+            TaskBrief(
+                brief_id="brief-a",
+                node_id="node-a",
+                run_id="run-1",
+                worker_type="default",
+                objective_preview="collect token=brief-token",
+                allowed_tool_names=["browser"],
+            )
+        ],
+        receipts=[
+            TaskExecutionReceipt(
+                receipt_id="receipt-a",
+                node_id="node-a",
+                run_id="run-1",
+                worker_id="worker-a",
+                worker_type="default",
+                status="completed",
+                output_summary_preview="password=receipt-password",
+            )
+        ],
+    )
+
+    payload = readback.to_dict()
+
+    assert payload["schemaVersion"] == "challenge.task_execution.v1"
+    assert payload["nodes"][0]["schemaVersion"] == "challenge.task_execution_node.v1"
+    assert payload["nodes"][0]["titlePreview"] == "<redacted raw body>"
+    assert payload["nodes"][0]["artifactRefs"] == ["<redacted>"]
+    assert payload["briefs"][0]["objectivePreview"] == "collect token=<redacted>"
+    assert payload["receipts"][0]["outputSummaryPreview"] == "password=<redacted>"
+    assert payload["summary"] == {
+        "nodeCount": 1,
+        "edgeCount": 1,
+        "briefCount": 1,
+        "receiptCount": 1,
+        "statusCounts": {"completed": 1},
+        "receiptStatusCounts": {"completed": 1},
+        "relationCounts": {"reports_to": 1},
+    }
+    assert TaskExecutionReadback.from_dict(payload).to_dict() == payload
     _assert_json_friendly(payload)
 
 

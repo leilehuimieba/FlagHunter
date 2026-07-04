@@ -18,6 +18,13 @@ from .sanitization import (
     sanitize_json_value,
     sanitize_metadata,
 )
+from .task_execution import (
+    TaskBrief,
+    TaskExecutionEdge,
+    TaskExecutionNode,
+    TaskExecutionReadback,
+    TaskExecutionReceipt,
+)
 from .task_dag_plan import (
     TASK_DAG_PLAN_SCHEMA_VERSION,
     TASK_DAG_READY_SELECTION_SCHEMA_VERSION,
@@ -58,12 +65,17 @@ __all__ = [
     "ReviewState",
     "TASK_DAG_PLAN_SCHEMA_VERSION",
     "TASK_DAG_READY_SELECTION_SCHEMA_VERSION",
+    "TaskBrief",
     "TaskDAGEdge",
     "TaskDAGGraphError",
     "TaskDAGNode",
     "TaskDAGPlan",
     "TaskDAGStatus",
     "TaskDAGTransitionError",
+    "TaskExecutionEdge",
+    "TaskExecutionNode",
+    "TaskExecutionReadback",
+    "TaskExecutionReceipt",
     "TaskGraphNode",
     "TaskProgressRef",
     "TaskReceipt",
