@@ -285,8 +285,28 @@ def test_evidence_text_redaction_is_deterministic_and_bounded() -> None:
     redacted = redact_text(raw, max_chars=40)
 
     assert "super-secret-token" not in redacted
+    assert redacted.startswith("password=[redacted]")
     assert len(redacted) <= 40
     assert redact_text("", max_chars=40) == ""
+
+
+def test_evidence_contract_uses_shared_sanitization_helpers() -> None:
+    path = CONTRACTS_ROOT / "evidence.py"
+    tree = _parse(path)
+    imported_helpers: set[str] = set()
+    duplicate_prefixes = False
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            if node.module == "sanitization" and node.level == 1:
+                imported_helpers.update(alias.name for alias in node.names)
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == "_SENSITIVE_PREFIXES":
+                    duplicate_prefixes = True
+
+    assert "redact_sensitive_text" in imported_helpers
+    assert duplicate_prefixes is False
 
 
 def test_sanitization_contract_redacts_raw_text_and_metadata() -> None:
@@ -308,9 +328,14 @@ def test_sanitization_contract_redacts_raw_text_and_metadata() -> None:
     }
 
     redacted = redact_sensitive_text("password=secret-token token=api-token")
+    legacy_redacted = redact_sensitive_text(
+        "password=secret-token token=api-token",
+        marker="[redacted]",
+    )
     sanitized = sanitize_metadata(metadata, max_chars=80)
 
     assert redacted == "password=<redacted> token=<redacted>"
+    assert legacy_redacted == "password=[redacted] token=[redacted]"
     assert preview_text(raw_text, max_chars=80) == "<redacted raw body>"
     assert sanitized == {
         "authorization": "<redacted>",

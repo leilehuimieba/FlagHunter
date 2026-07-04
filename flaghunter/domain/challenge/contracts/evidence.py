@@ -4,30 +4,16 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping
 
 from ._serialization import JsonValue, coerce_json_dict, coerce_json_list, coerce_json_value
+from .sanitization import redact_sensitive_text
 
 
 SCHEMA_VERSION = 1
-_SENSITIVE_PREFIXES = ("password=", "token=", "secret=")
 
 
 def redact_text(value: str, *, max_chars: int = 200) -> str:
     if max_chars <= 0:
         return ""
-    text = str(value)
-    for prefix in _SENSITIVE_PREFIXES:
-        search_from = 0
-        while True:
-            index = text.lower().find(prefix, search_from)
-            if index < 0:
-                break
-            end = len(text)
-            for separator in (" ", "\n", "\r", "\t", ";", "&"):
-                next_index = text.find(separator, index + len(prefix))
-                if next_index >= 0:
-                    end = min(end, next_index)
-            replacement = prefix + "[redacted]"
-            text = text[:index] + replacement + text[end:]
-            search_from = index + len(replacement)
+    text = redact_sensitive_text(value, marker="[redacted]")
     if len(text) <= max_chars:
         return text
     if max_chars <= 3:

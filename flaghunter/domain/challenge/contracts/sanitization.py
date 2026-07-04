@@ -29,31 +29,32 @@ RAW_TEXT_KEYS = {
 }
 
 
-def redact_sensitive_text(value: Any) -> str:
+def redact_sensitive_text(value: Any, *, marker: str = "<redacted>") -> str:
     text = str(value or "")
     if not text:
         return ""
+    redaction = str(marker or "<redacted>")
     text = re.sub(r"(?im)^\s*set-cookie\s*:.*$", "<redacted>", text)
     text = re.sub(r"(?im)^\s*cookie\s*:.*$", "<redacted>", text)
     text = re.sub(r"(?im)^\s*authorization\s*:.*$", "<redacted>", text)
     text = re.sub(
         r"(?i)\bauthorization\s*:\s*bearer\s+[^\s,;&]+",
-        "authorization=<redacted>",
+        f"authorization={redaction}",
         text,
     )
     text = re.sub(
         r"(?i)\bauthorization\s*=\s*bearer\s+[^\s,;&]+",
-        "authorization=<redacted>",
+        f"authorization={redaction}",
         text,
     )
     text = re.sub(
         r"(?i)\b(token|api[_-]?key|password|secret|session|cookie|authorization)\b\s*[:=]\s*(\"[^\"]*\"|'[^']*'|[^\s,;&]+)",
-        r"\1=<redacted>",
+        rf"\1={redaction}",
         text,
     )
     text = re.sub(
         r"(?i)([\"'])(token|api[_-]?key|password|secret|session|cookie|authorization)[\"']\s*:\s*([\"'])(.*?)\3",
-        r'\1\2\1: \3<redacted>\3',
+        rf"\1\2\1: \3{redaction}\3",
         text,
     )
     return text
