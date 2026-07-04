@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
-import re
 import time
 import uuid
 from dataclasses import asdict, dataclass, field, fields
 from enum import Enum
 from typing import Any
+
+from .sanitization import (
+    is_sensitive_key,
+    looks_like_raw_body,
+    redact_sensitive_text,
+)
 
 
 TASK_DAG_PLAN_SCHEMA_VERSION = "p4.task_dag_plan.v1"
@@ -791,7 +796,7 @@ def _safe_metadata(
     safe: dict[str, Any] = {}
     for key, value in dict(metadata or {}).items():
         safe_key = _preview(key, limit=preview_limit)
-        if _is_sensitive_key(key):
+        if is_sensitive_key(key):
             safe[safe_key] = "<redacted>"
             continue
         if isinstance(value, (bool, int, float)) or value is None:
@@ -809,62 +814,7 @@ def _safe_metadata(
 
 
 def _preview(value: Any, *, limit: int) -> str:
-    text = _redact_text(value)
-    if _looks_like_raw_body(text):
+    text = redact_sensitive_text(value)
+    if looks_like_raw_body(text):
         return "<redacted raw body>"[: max(0, int(limit))]
     return text[: max(0, int(limit))]
-
-
-def _is_sensitive_key(value: Any) -> bool:
-    return bool(
-        re.search(
-            r"(?i)(token|api[_-]?key|password|secret|session|cookie|authorization)",
-            str(value or ""),
-        )
-    )
-
-
-def _looks_like_raw_body(text: str) -> bool:
-    if not text:
-        return False
-    return any(
-        re.search(pattern, text)
-        for pattern in (
-            r"(?im)^\s*PING\s+",
-            r"(?im)^\s*\d+\s+bytes\s+from\s+",
-            r"(?im)^\s*uid=\d+\(",
-            r"(?im)^\s*gid=\d+\(",
-            r"(?im)^\s*HTTP/\d(?:\.\d)?\s+\d{3}\b",
-            r"(?is)<!doctype\s+html|<html[\s>]",
-        )
-    )
-
-
-def _redact_text(value: Any) -> str:
-    text = str(value or "")
-    if not text:
-        return ""
-    text = re.sub(r"(?im)^\s*set-cookie\s*:.*$", "<redacted>", text)
-    text = re.sub(r"(?im)^\s*cookie\s*:.*$", "<redacted>", text)
-    text = re.sub(r"(?im)^\s*authorization\s*:.*$", "<redacted>", text)
-    text = re.sub(
-        r"(?i)\bauthorization\s*:\s*bearer\s+[^\s,;&]+",
-        "authorization=<redacted>",
-        text,
-    )
-    text = re.sub(
-        r"(?i)\bauthorization\s*=\s*bearer\s+[^\s,;&]+",
-        "authorization=<redacted>",
-        text,
-    )
-    text = re.sub(
-        r"(?i)\b(token|api[_-]?key|password|secret|session|cookie|authorization)\b\s*[:=]\s*(\"[^\"]*\"|'[^']*'|[^\s,;&]+)",
-        r"\1=<redacted>",
-        text,
-    )
-    text = re.sub(
-        r"(?i)([\"'](?:token|api[_-]?key|password|secret|session|cookie|authorization)[\"']\s*:\s*)([\"'][^\"']*[\"']|[^,\n\r}\]]+)",
-        r'\1"<redacted>"',
-        text,
-    )
-    return text

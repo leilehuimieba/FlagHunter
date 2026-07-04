@@ -654,6 +654,32 @@ def test_task_plan_contract_round_trips_and_builds_readbacks() -> None:
     _assert_json_friendly(readback)
 
 
+def test_task_plan_contract_uses_shared_sanitization_helpers() -> None:
+    path = CONTRACTS_ROOT / "task_dag_plan.py"
+    tree = _parse(path)
+    imported_helpers: set[str] = set()
+    duplicate_helpers: set[str] = set()
+    imports_re = False
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imports_re = imports_re or any(alias.name == "re" for alias in node.names)
+        if isinstance(node, ast.ImportFrom):
+            if node.module == "sanitization" and node.level == 1:
+                imported_helpers.update(alias.name for alias in node.names)
+        if isinstance(node, ast.FunctionDef):
+            if node.name in {"_redact_text", "_looks_like_raw_body", "_is_sensitive_key"}:
+                duplicate_helpers.add(node.name)
+
+    assert {
+        "is_sensitive_key",
+        "looks_like_raw_body",
+        "redact_sensitive_text",
+    } <= imported_helpers
+    assert imports_re is False
+    assert duplicate_helpers == set()
+
+
 def test_contract_package_does_not_import_concrete_or_outer_layers() -> None:
     offenders: list[tuple[str, str]] = []
     for path in _contract_sources():
