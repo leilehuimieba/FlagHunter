@@ -377,3 +377,74 @@ Recommended next low-risk alternatives before wiring:
   production wiring.
 - Identify one read-only presentation/query path candidate and prepare an
   approval plan with file list, risk, rollback point, and verification command.
+
+### Read-only presentation/query path candidate audit
+
+This audit names candidate call sites for a future first read-path switch. It
+does not approve implementation. The switch itself must be a separate slice.
+
+Candidate A: Web blackboard snapshot projection.
+
+- Current path:
+  `flaghunter/interface/blackboard_lite.py::build_task_blackboard_snapshot`
+- Current coupling fact: the module imports legacy `CTFState` and reconstructs
+  state from `ctfStateSnapshot` for display-only blackboard facts, hypotheses,
+  pending verification items, candidates, action results, and attack surfaces.
+- Candidate direction: replace the display projection input with a neutral
+  `ChallengeRunSnapshot` or application-service-built read model while
+  preserving the existing serialized blackboard response shape.
+- Risk: medium. This path feeds Web task detail and MCP readback formatting.
+- Required approval: short plan before implementation; no dispatcher loop
+  changes, no proof writes, no production wiring changes.
+
+Candidate B: Web control-observation trace timeline.
+
+- Current path:
+  `flaghunter/interface/web_trace_timeline.py::_build_control_observation_timeline_events`
+- Current coupling fact: this pure presentation helper reads
+  `task["ctfStateSnapshot"]["observations"]` as dictionaries and projects a
+  limited display timeline for bootstrap/resume observations.
+- Candidate direction: consume neutral evidence/read-model references from a
+  task detail DTO, leaving event shape unchanged.
+- Risk: low-to-medium. It is read-only and localized, but timeline fixtures must
+  prove output equivalence.
+- Required approval: short plan before implementation with representative
+  fixture coverage and rollback point.
+
+Candidate C: Web task serialization and control-decision snapshot merge.
+
+- Current paths:
+  `flaghunter/interface/web_serialize_task.py::_serialize_task`
+  and
+  `flaghunter/interface/web_control_decision.py::_task_blackboard_snapshot_for_decision`
+- Current coupling fact: these helpers call `build_task_blackboard_snapshot` and
+  merge the result into task API projection/control-decision inputs.
+- Candidate direction: switch only after Candidate A has an equivalent neutral
+  blackboard projection builder.
+- Risk: medium-to-high. This is a fan-out path for task list/detail, retry,
+  continue, and control decision views.
+- Required approval: separate short plan; one call-site family per commit.
+
+Deferred MCP readback candidate:
+
+- Current path:
+  `flaghunter/mcp/server/mcp_tools.py::_append_blackboard_snapshot_lines`
+- Current coupling fact: MCP imports presentation blackboard builders and uses
+  task state snapshots for readback text.
+- Candidate direction: defer until Web read-model projection equivalence is
+  proven. MCP production wiring remains out of scope for this candidate audit.
+- Required approval: explicit MCP production wiring approval before any handler
+  route is rewired.
+
+First read-path switch approval plan must include:
+
+- file list
+- risk
+- rollback point
+- representative fixture proving old/new output equivalence
+- exact focused and architecture regression commands
+- no proof writes
+- no dispatcher loop changes
+- no tool executor changes
+- no crew runtime changes
+- MCP production wiring remains out of scope unless explicitly approved

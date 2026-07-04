@@ -52,3 +52,33 @@ def test_playbook_records_phase4_verification_baseline() -> None:
     assert "tests/unit/test_import_layers.py" in text
     assert "tests/unit/test_application_worker_task_service.py" in text
     assert "application-service-boundary" in text
+
+
+def test_playbook_records_read_only_presentation_candidate_audit() -> None:
+    text = _playbook_text()
+
+    assert "Read-only presentation/query path candidate audit" in text
+    assert "flaghunter/interface/blackboard_lite.py::build_task_blackboard_snapshot" in text
+    assert (
+        "flaghunter/interface/web_trace_timeline.py::_build_control_observation_timeline_events"
+        in text
+    )
+    assert "flaghunter/interface/web_serialize_task.py::_serialize_task" in text
+    assert "flaghunter/interface/web_control_decision.py::_task_blackboard_snapshot_for_decision" in text
+    assert "flaghunter/mcp/server/mcp_tools.py::_append_blackboard_snapshot_lines" in text
+    assert "Candidate A" in text
+    assert "Candidate B" in text
+    assert "Candidate C" in text
+
+
+def test_playbook_records_read_path_approval_plan_requirements() -> None:
+    text = _playbook_text()
+
+    assert "First read-path switch approval plan must include" in text
+    assert "file list" in text
+    assert "risk" in text
+    assert "rollback point" in text
+    assert "representative fixture" in text
+    assert "no proof writes" in text
+    assert "no dispatcher loop changes" in text
+    assert "MCP production wiring remains out of scope" in text
