@@ -1,0 +1,1 @@
+"""Challenge-domain contracts."""
