@@ -54,3 +54,11 @@ def test_import_linter_contracts_all_kept() -> None:
         "introduced, then either remove it or, if it is accepted debt, add a "
         "`# DEBT:`-tagged ignore_imports entry in .importlinter."
     )
+
+
+def test_domain_layer_has_import_linter_boundary() -> None:
+    """The neutral domain layer must stay below ports and concrete layers."""
+    config_text = open(CONFIG_PATH, encoding="utf-8").read()
+
+    assert "[importlinter:contract:domain-contract-independence]" in config_text
+    assert "flaghunter.domain" in config_text

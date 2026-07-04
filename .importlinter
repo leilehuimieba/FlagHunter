@@ -28,6 +28,25 @@ root_package = flaghunter
 # ===========================================================================
 
 
+# --- CLEAN: DOMAIN contracts import no ports or concrete layers --------------
+[importlinter:contract:domain-contract-independence]
+name = DOMAIN contracts import no ports or concrete layers
+type = forbidden
+source_modules =
+    flaghunter.domain
+forbidden_modules =
+    flaghunter.interface
+    flaghunter.mcp.server
+    flaghunter.session
+    flaghunter.agents
+    flaghunter.ports
+    flaghunter.tools
+    flaghunter.knowledge
+    flaghunter.runtime
+    flaghunter.llm
+    flaghunter.config
+
+
 # --- CLEAN: FOUNDATION imports nothing higher --------------------------------
 [importlinter:contract:foundation-independence]
 name = FOUNDATION (config) imports nothing above it
