@@ -82,3 +82,23 @@ def test_playbook_records_read_path_approval_plan_requirements() -> None:
     assert "no proof writes" in text
     assert "no dispatcher loop changes" in text
     assert "MCP production wiring remains out of scope" in text
+
+
+def test_playbook_records_candidate_b_approval_plan() -> None:
+    text = _playbook_text()
+
+    assert "Candidate B approval plan" in text
+    assert (
+        "flaghunter/interface/web_trace_timeline.py::_build_control_observation_timeline_events"
+        in text
+    )
+    assert "tests/unit/web_console/test_trace_timeline_read_model_switch.py" in text
+    assert "representative fixture" in text
+    assert "old/new output equivalence" in text
+    assert "rollback point" in text
+    assert "no proof writes" in text
+    assert "no dispatcher loop changes" in text
+    assert "no ToolExecutor changes" in text
+    assert "no WorkerPool/CrewOrchestrator changes" in text
+    assert "no MCP production wiring" in text
+    assert "approval required before implementation" in text

@@ -411,6 +411,62 @@ Candidate B: Web control-observation trace timeline.
 - Required approval: short plan before implementation with representative
   fixture coverage and rollback point.
 
+#### Candidate B approval plan
+
+Status: approval required before implementation.
+
+Scope: prepare a future read-only switch for the Web control-observation trace
+timeline. The helper currently reads
+`task["ctfStateSnapshot"]["observations"]`, supports
+`initial_fact_collection_requested` and `resume_bootstrap_hint`, and projects
+display-only timeline events. The future implementation should accept neutral
+evidence/read-model references from the task detail DTO while preserving the
+existing timeline event shape.
+
+File list for the future implementation slice:
+
+- `flaghunter/interface/web_trace_timeline.py::_build_control_observation_timeline_events`
+- `tests/unit/web_console/test_trace_timeline_read_model_switch.py`
+- a representative fixture that contains the two supported observation kinds
+  plus ignored malformed or unsupported rows
+
+Required fixture evidence:
+
+- old/new output equivalence for the existing
+  `ctfStateSnapshot.observations` input shape
+- old/new output equivalence for the neutral read-model input shape once added
+- empty and malformed input behavior remains unchanged
+- no proof writes and no proof authority decisions
+
+Risk: low-to-medium. The code path is localized and read-only, but it feeds a
+user-facing timeline, so the event IDs, timestamps, `kind`, `title`, `summary`,
+`driver`, and `input` fields must remain stable for representative fixture
+coverage.
+
+Rollback point: revert the single Candidate B implementation commit. No schema
+migration or production wiring should be introduced in that commit.
+
+Verification commands for the future implementation slice:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/web_console/test_trace_timeline_read_model_switch.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py -q
+git diff --check
+```
+
+Explicit non-goals for Candidate B:
+
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no composition root changes
+- no concrete adapter implementation
+- no proof authority behavior changes
+- no P5 implementation
+
 Candidate C: Web task serialization and control-decision snapshot merge.
 
 - Current paths:
