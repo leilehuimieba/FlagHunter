@@ -66,6 +66,36 @@ EXPECTED_CONTRACTS = {
             "claim_id": "claim-1",
         },
     },
+    "flaghunter.domain.challenge.contracts.progress": {
+        "TaskProgressRef": {
+            "task_id": "task-1",
+            "status": "completed",
+        },
+        "WorkerTraceRef": {
+            "worker_id": "worker-1",
+            "task_id": "task-1",
+        },
+        "ChallengeProgressReadback": {
+            "run_id": "run-1",
+        },
+    },
+}
+
+
+EXPECTED_SCHEMA_VERSIONS = {
+    "flaghunter.domain.challenge.contracts.progress": "challenge.progress.v1",
+}
+
+
+EXPECTED_CLASS_SCHEMA_VERSIONS = {
+    (
+        "flaghunter.domain.challenge.contracts.progress",
+        "TaskProgressRef",
+    ): "challenge.task_progress.v1",
+    (
+        "flaghunter.domain.challenge.contracts.progress",
+        "WorkerTraceRef",
+    ): "challenge.worker_trace.v1",
 }
 
 
@@ -168,7 +198,10 @@ def test_expected_challenge_contract_modules_are_importable_and_reexported() -> 
 
     for module_name, expected_classes in EXPECTED_CONTRACTS.items():
         module = importlib.import_module(module_name)
-        assert getattr(module, "SCHEMA_VERSION") == 1
+        assert getattr(module, "SCHEMA_VERSION") == EXPECTED_SCHEMA_VERSIONS.get(
+            module_name,
+            1,
+        )
         for class_name in expected_classes:
             assert getattr(module, class_name).__name__ == class_name
             assert getattr(package, class_name).__name__ == class_name
@@ -185,7 +218,10 @@ def test_contracts_are_dataclasses_with_schema_versioned_serialization() -> None
             instance = cls(**kwargs)
             payload = instance.to_dict()
 
-            assert payload["schemaVersion"] == 1
+            assert payload["schemaVersion"] == EXPECTED_CLASS_SCHEMA_VERSIONS.get(
+                (module_name, class_name),
+                EXPECTED_SCHEMA_VERSIONS.get(module_name, 1),
+            )
             _assert_json_friendly(payload)
             assert cls.from_dict(payload).to_dict() == payload
 
@@ -276,6 +312,53 @@ def test_challenge_run_snapshot_composes_contract_payloads() -> None:
     assert payload["readModels"][0]["schemaVersion"] == 1
     assert payload["proofRecords"][0]["schemaVersion"] == 1
     assert ChallengeRunSnapshot.from_dict(payload).to_dict() == payload
+
+
+def test_progress_readback_contract_composes_task_and_worker_refs() -> None:
+    from flaghunter.domain.challenge.contracts import (
+        ChallengeProgressReadback,
+        TaskProgressRef,
+        WorkerTraceRef,
+    )
+
+    progress = ChallengeProgressReadback(
+        run_id="run-1",
+        task_refs=[
+            TaskProgressRef(
+                task_id="task-a",
+                status="completed",
+                title_preview="HTTP/1.1 200 OK\n<html>password=secret</html>",
+                evidence_refs=["evidence-a"],
+                receipt_refs=["receipt-a"],
+            )
+        ],
+        worker_refs=[
+            WorkerTraceRef(
+                worker_id="worker-a",
+                task_id="task-a",
+                worker_type="default",
+                status="completed",
+                summary_preview="token=worker-token",
+            )
+        ],
+    )
+
+    payload = progress.to_dict()
+
+    assert payload["schemaVersion"] == "challenge.progress.v1"
+    assert payload["runId"] == "run-1"
+    assert payload["taskRefs"][0]["schemaVersion"] == "challenge.task_progress.v1"
+    assert payload["taskRefs"][0]["titlePreview"] == "<redacted raw body>"
+    assert payload["workerRefs"][0]["schemaVersion"] == "challenge.worker_trace.v1"
+    assert payload["workerRefs"][0]["summaryPreview"] == "token=<redacted>"
+    assert payload["summary"] == {
+        "taskCount": 1,
+        "workerCount": 1,
+        "statusCounts": {"completed": 1},
+        "workerStatusCounts": {"completed": 1},
+    }
+    assert ChallengeProgressReadback.from_dict(payload).to_dict() == payload
+    _assert_json_friendly(payload)
 
 
 def test_evidence_text_redaction_is_deterministic_and_bounded() -> None:

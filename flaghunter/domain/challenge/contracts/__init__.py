@@ -7,6 +7,7 @@ from .evidence import EvidenceRecord, redact_text
 from .evidence_snapshot import EvidenceSnapshot, build_evidence_snapshot_payload
 from .ledger_events import LedgerEventReadback, build_ledger_event_readback
 from .proof import ProofRecord, ReviewState
+from .progress import ChallengeProgressReadback, TaskProgressRef, WorkerTraceRef
 from .read_models import ChallengeRunSnapshot, ReadModelRef
 from .receipts import TaskReceipt
 from .sanitization import (
@@ -46,6 +47,7 @@ from .task_graph import TaskGraphNode
 __all__ = [
     "AuditEvidenceExport",
     "ChallengeClaim",
+    "ChallengeProgressReadback",
     "ChallengeRunSnapshot",
     "ControlReceipt",
     "EvidenceRecord",
@@ -63,7 +65,9 @@ __all__ = [
     "TaskDAGStatus",
     "TaskDAGTransitionError",
     "TaskGraphNode",
+    "TaskProgressRef",
     "TaskReceipt",
+    "WorkerTraceRef",
     "build_audit_evidence_payload",
     "build_control_receipt_payload",
     "build_evidence_snapshot_payload",
