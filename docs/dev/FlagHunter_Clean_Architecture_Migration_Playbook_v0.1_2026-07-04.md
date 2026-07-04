@@ -654,6 +654,22 @@ Explicit non-goals for Candidate C:
 - no proof authority behavior changes
 - no P5 implementation
 
+#### Candidate C source guard baseline
+
+Status: source guard added before any production path switch.
+
+`tests/unit/interface/test_web_server.py` now guards
+`flaghunter/interface/web_serialize_task.py::_serialize_task` and
+`flaghunter/interface/web_control_decision.py::_task_blackboard_snapshot_for_decision`
+as read-only projection/merge helpers. The guard confirms:
+
+- no execution/runtime imports
+- no side-effect sinks
+- no proof upgrade surfaces
+
+These constraints must hold until Candidate A output equivalence is proven and
+Candidate C implementation is approved.
+
 Deferred MCP readback candidate:
 
 - Current path:

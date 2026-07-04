@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import io
 import json
 import sys
@@ -16,6 +17,11 @@ from flaghunter.interface import web_server
 import flaghunter.config.settings as settings_module
 import flaghunter.knowledge as knowledge_module
 import flaghunter.interface.initializer as initializer_module
+
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+WEB_SERIALIZE_TASK_PATH = REPO_ROOT / "flaghunter" / "interface" / "web_serialize_task.py"
+WEB_CONTROL_DECISION_PATH = REPO_ROOT / "flaghunter" / "interface" / "web_control_decision.py"
 
 
 class _NoopThread:
@@ -55,6 +61,101 @@ def _fake_build_agent_components_for(fake_pa_agent, runtime_cls):
         }
 
     return _bac
+
+
+def _parse_source(path: Path) -> ast.Module:
+    return ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
+
+
+def _function_source(path: Path, tree: ast.Module, name: str) -> str:
+    text = path.read_text(encoding="utf-8-sig")
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef) and node.name == name:
+            return ast.get_source_segment(text, node) or ""
+    raise AssertionError(f"{name} was not found in {path}")
+
+
+def test_candidate_c_read_paths_stay_read_only_projection_helpers():
+    guarded = {
+        WEB_SERIALIZE_TASK_PATH: ("_serialize_task",),
+        WEB_CONTROL_DECISION_PATH: ("_task_blackboard_snapshot_for_decision",),
+    }
+    forbidden_import_prefixes = {
+        "flaghunter.tools",
+        "flaghunter.runtime",
+        "flaghunter.mcp",
+        "flaghunter.session",
+        "flaghunter.agents",
+        "subprocess",
+        "requests",
+        "httpx",
+        "socket",
+        "playwright",
+    }
+    forbidden_import_names = {
+        "ToolExecutor",
+        "WorkerPool",
+        "CrewOrchestrator",
+        "CTFTaskDispatcher",
+        "CTFState",
+        "CTFVerifier",
+        "RecoveryController",
+    }
+    forbidden_helper_tokens = {
+        "open(",
+        "write_text",
+        "subprocess",
+        "requests",
+        "httpx",
+        "socket",
+        "playwright",
+        "verification_decision",
+        "upgrade_claim_to_verified",
+        "append_verification_record",
+        "append_proof_record",
+        "confirm_claim",
+        "create_claim",
+        "add_flag(",
+        'level="verified"',
+        "level='verified'",
+        "verified_flags",
+    }
+    offenders: list[str] = []
+
+    for path, helper_names in guarded.items():
+        tree = _parse_source(path)
+        relative = path.relative_to(REPO_ROOT).as_posix()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if (
+                        alias.name in forbidden_import_names
+                        or any(
+                            alias.name == prefix
+                            or alias.name.startswith(f"{prefix}.")
+                            for prefix in forbidden_import_prefixes
+                        )
+                    ):
+                        offenders.append(f"{relative}: import {alias.name}")
+            if isinstance(node, ast.ImportFrom):
+                module = node.module or ""
+                if any(
+                    module == prefix or module.startswith(f"{prefix}.")
+                    for prefix in forbidden_import_prefixes
+                ):
+                    offenders.append(f"{relative}: from {module}")
+                for alias in node.names:
+                    if alias.name in forbidden_import_names:
+                        offenders.append(f"{relative}: from {module} import {alias.name}")
+        for helper_name in helper_names:
+            helper_source = _function_source(path, tree, helper_name)
+            offenders.extend(
+                f"{relative}:{helper_name}:{token}"
+                for token in forbidden_helper_tokens
+                if token in helper_source
+            )
+
+    assert offenders == []
 
 
 def test_web_event_bus_is_built_on_neutral_core():

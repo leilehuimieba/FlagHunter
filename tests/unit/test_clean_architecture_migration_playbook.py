@@ -168,3 +168,15 @@ def test_playbook_records_candidate_c_approval_plan() -> None:
     assert "no WorkerPool/CrewOrchestrator changes" in text
     assert "no MCP production wiring" in text
     assert "no proof authority behavior changes" in text
+
+
+def test_playbook_records_candidate_c_source_guard_baseline() -> None:
+    text = _playbook_text()
+
+    assert "Candidate C source guard baseline" in text
+    assert "flaghunter/interface/web_serialize_task.py::_serialize_task" in text
+    assert "flaghunter/interface/web_control_decision.py::_task_blackboard_snapshot_for_decision" in text
+    assert "tests/unit/interface/test_web_server.py" in text
+    assert "no execution/runtime imports" in text
+    assert "no side-effect sinks" in text
+    assert "no proof upgrade surfaces" in text
