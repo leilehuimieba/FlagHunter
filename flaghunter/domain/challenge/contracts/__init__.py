@@ -9,6 +9,14 @@ from .ledger_events import LedgerEventReadback, build_ledger_event_readback
 from .proof import ProofRecord, ReviewState
 from .read_models import ChallengeRunSnapshot, ReadModelRef
 from .receipts import TaskReceipt
+from .sanitization import (
+    is_sensitive_key,
+    looks_like_raw_body,
+    preview_text,
+    redact_sensitive_text,
+    sanitize_json_value,
+    sanitize_metadata,
+)
 from .task_dag_plan import (
     TASK_DAG_PLAN_SCHEMA_VERSION,
     TASK_DAG_READY_SELECTION_SCHEMA_VERSION,
@@ -63,11 +71,17 @@ __all__ = [
     "build_task_dag_plan_readback",
     "empty_task_dag_plan_readback",
     "empty_task_dag_ready_selection",
+    "is_sensitive_key",
+    "looks_like_raw_body",
     "mark_task_finished",
     "mark_task_ready",
     "mark_task_running",
+    "preview_text",
     "redact_control_text",
+    "redact_sensitive_text",
     "redact_text",
+    "sanitize_json_value",
+    "sanitize_metadata",
     "sanitize_task_dag_plan",
     "select_next_ready_task",
     "task_dag_edge_from_dict",

@@ -289,6 +289,46 @@ def test_evidence_text_redaction_is_deterministic_and_bounded() -> None:
     assert redact_text("", max_chars=40) == ""
 
 
+def test_sanitization_contract_redacts_raw_text_and_metadata() -> None:
+    from flaghunter.domain.challenge.contracts.sanitization import (
+        preview_text,
+        redact_sensitive_text,
+        sanitize_metadata,
+    )
+
+    raw_text = (
+        "HTTP/1.1 200 OK\n"
+        "<html>password=body-password Authorization: Bearer body-token</html>"
+    )
+    metadata = {
+        "authorization": "Bearer metadata-token",
+        "safe": "ok",
+        "nested": {"password": "nested-password", "note": "visible"},
+        "items": ["token=item-token", 3, True, None],
+    }
+
+    redacted = redact_sensitive_text("password=secret-token token=api-token")
+    sanitized = sanitize_metadata(metadata, max_chars=80)
+
+    assert redacted == "password=<redacted> token=<redacted>"
+    assert preview_text(raw_text, max_chars=80) == "<redacted raw body>"
+    assert sanitized == {
+        "authorization": "<redacted>",
+        "safe": "ok",
+        "nested": {"password": "<redacted>", "note": "visible"},
+        "items": ["token=<redacted>", 3, True, None],
+    }
+    _assert_json_friendly(sanitized)
+    for leaked in (
+        "body-password",
+        "body-token",
+        "metadata-token",
+        "nested-password",
+        "item-token",
+    ):
+        assert leaked not in repr({"redacted": redacted, "sanitized": sanitized})
+
+
 def test_control_receipt_payload_matches_legacy_trace_shape() -> None:
     from flaghunter.domain.challenge.contracts.control import (
         build_control_receipt_payload,
