@@ -357,6 +357,53 @@ def test_control_receipt_contract_round_trips_to_trace_payload() -> None:
     }
 
 
+def test_evidence_snapshot_contract_builds_legacy_payload_shape() -> None:
+    from flaghunter.domain.challenge.contracts.evidence_snapshot import (
+        SCHEMA_VERSION as EVIDENCE_SNAPSHOT_SCHEMA_VERSION,
+        EvidenceSnapshot,
+        build_evidence_snapshot_payload,
+    )
+
+    audit_export = {
+        "summary": {
+            "claimCount": 3,
+            "executionTraceCount": 4,
+            "verificationRecordCount": 1,
+            "verifiedClaimCount": 0,
+            "truncatedClaimCount": 1,
+            "truncatedExecutionTraceCount": 2,
+            "truncatedVerificationRecordCount": 0,
+        }
+    }
+    payload = build_evidence_snapshot_payload(
+        trace_refs=[{"claimId": "claim-1"}],
+        claim_evidence_refs=[{"claimId": "claim-1"}],
+        audit_evidence_export=audit_export,
+        p3_solve_snapshot={"schemaVersion": "p3.solve_readback.v1"},
+        trace_kinds={"control_receipt", "tool_receipt"},
+    )
+
+    assert EVIDENCE_SNAPSHOT_SCHEMA_VERSION == "p2.evidence_snapshot.v1"
+    assert payload["schemaVersion"] == "p2.evidence_snapshot.v1"
+    assert payload["summary"] == {
+        "claimCount": 3,
+        "traceCount": 4,
+        "verificationRecordCount": 1,
+        "hasVerifiedClaim": False,
+        "hasControlReceipt": True,
+        "hasToolReceipt": True,
+        "hasVerificationReceipt": False,
+        "truncated": {
+            "traceRefs": 2,
+            "claimEvidenceRefs": 2,
+            "auditClaims": 1,
+            "auditTraces": 2,
+            "auditVerificationRecords": 0,
+        },
+    }
+    assert EvidenceSnapshot.from_dict(payload).to_dict() == payload
+
+
 def test_contract_package_does_not_import_concrete_or_outer_layers() -> None:
     offenders: list[tuple[str, str]] = []
     for path in _contract_sources():

@@ -7,9 +7,10 @@ from typing import Any
 from .audit_views import build_audit_evidence_export
 from .ctf_state import CTFState
 from .p3_solve_readback import build_p3_solve_readback
-
-
-SCHEMA_VERSION = "p2.evidence_snapshot.v1"
+from flaghunter.domain.challenge.contracts.evidence_snapshot import (
+    SCHEMA_VERSION,
+    build_evidence_snapshot_payload,
+)
 
 
 def build_p2_evidence_snapshot(
@@ -75,39 +76,15 @@ def build_p2_evidence_snapshot(
         node_receipt_limit=normalized_p3_node_receipt_limit,
         preview_limit=normalized_preview_limit,
     )
-    audit_summary = dict(audit_export.get("summary") or {})
-    claim_count = int(audit_summary.get("claimCount", 0) or 0)
-    trace_count = int(audit_summary.get("executionTraceCount", 0) or 0)
-    record_count = int(audit_summary.get("verificationRecordCount", 0) or 0)
     trace_kinds = _trace_kinds(state)
 
-    return {
-        "schemaVersion": SCHEMA_VERSION,
-        "traceRefs": trace_refs,
-        "claimEvidenceRefs": claim_evidence_refs,
-        "auditEvidenceExport": audit_export,
-        "p3SolveSnapshot": p3_solve_snapshot,
-        "summary": {
-            "claimCount": claim_count,
-            "traceCount": trace_count,
-            "verificationRecordCount": record_count,
-            "hasVerifiedClaim": int(audit_summary.get("verifiedClaimCount", 0) or 0) > 0,
-            "hasControlReceipt": "control_receipt" in trace_kinds,
-            "hasToolReceipt": "tool_receipt" in trace_kinds,
-            "hasVerificationReceipt": "verification_receipt" in trace_kinds,
-            "truncated": {
-                "traceRefs": max(0, claim_count - len(trace_refs)),
-                "claimEvidenceRefs": max(0, claim_count - len(claim_evidence_refs)),
-                "auditClaims": int(audit_summary.get("truncatedClaimCount", 0) or 0),
-                "auditTraces": int(
-                    audit_summary.get("truncatedExecutionTraceCount", 0) or 0
-                ),
-                "auditVerificationRecords": int(
-                    audit_summary.get("truncatedVerificationRecordCount", 0) or 0
-                ),
-            },
-        },
-    }
+    return build_evidence_snapshot_payload(
+        trace_refs=trace_refs,
+        claim_evidence_refs=claim_evidence_refs,
+        audit_evidence_export=audit_export,
+        p3_solve_snapshot=p3_solve_snapshot,
+        trace_kinds=trace_kinds,
+    )
 
 
 def _trace_kinds(state: CTFState | None) -> set[str]:
