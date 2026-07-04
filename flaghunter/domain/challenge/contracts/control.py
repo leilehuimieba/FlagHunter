@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
 from ._serialization import JsonValue, coerce_json_dict, coerce_json_list
+from .sanitization import redact_sensitive_text
 
 
 SCHEMA_VERSION = 1
@@ -110,28 +110,7 @@ def build_control_receipt_payload(
 
 
 def redact_control_text(value: Any) -> str:
-    text = str(value or "")
-    if not text:
-        return ""
-    text = re.sub(r"(?im)^\s*set-cookie\s*:.*$", "<redacted>", text)
-    text = re.sub(r"(?im)^\s*cookie\s*:.*$", "<redacted>", text)
-    text = re.sub(r"(?im)^\s*authorization\s*:.*$", "<redacted>", text)
-    text = re.sub(
-        r"(?i)\bauthorization\s*:\s*bearer\s+[^\s,;&]+",
-        "authorization=<redacted>",
-        text,
-    )
-    text = re.sub(
-        r"(?i)\b(token|api[_-]?key|password|secret|session|cookie|authorization)\b\s*[:=]\s*(\"[^\"]*\"|'[^']*'|[^\s,;&]+)",
-        r"\1=<redacted>",
-        text,
-    )
-    text = re.sub(
-        r"(?i)([\"'](?:token|api[_-]?key|password|secret|session|cookie|authorization)[\"']\s*:\s*)([\"'][^\"']*[\"']|[^,\n\r}\]]+)",
-        r'\1"<redacted>"',
-        text,
-    )
-    return text
+    return redact_sensitive_text(value)
 
 
 def _safe_control_metadata(metadata: Mapping[str, Any]) -> dict[str, JsonValue]:

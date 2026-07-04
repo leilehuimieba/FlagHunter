@@ -397,6 +397,23 @@ def test_control_receipt_contract_round_trips_to_trace_payload() -> None:
     }
 
 
+def test_control_contract_uses_shared_sanitization_helpers() -> None:
+    path = CONTRACTS_ROOT / "control.py"
+    tree = _parse(path)
+    imported_helpers: set[str] = set()
+    imports_re = False
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imports_re = imports_re or any(alias.name == "re" for alias in node.names)
+        if isinstance(node, ast.ImportFrom):
+            if node.module == "sanitization" and node.level == 1:
+                imported_helpers.update(alias.name for alias in node.names)
+
+    assert "redact_sensitive_text" in imported_helpers
+    assert imports_re is False
+
+
 def test_evidence_snapshot_contract_builds_legacy_payload_shape() -> None:
     from flaghunter.domain.challenge.contracts.evidence_snapshot import (
         SCHEMA_VERSION as EVIDENCE_SNAPSHOT_SCHEMA_VERSION,
