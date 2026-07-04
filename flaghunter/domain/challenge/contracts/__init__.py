@@ -1,5 +1,6 @@
 """Versioned challenge contract skeletons."""
 
+from .artifacts import ArtifactManifest, ArtifactRecord
 from .audit import AuditEvidenceExport, build_audit_evidence_payload
 from .claims import ChallengeClaim
 from .control import ControlReceipt, build_control_receipt_payload, redact_control_text
@@ -52,6 +53,8 @@ from .task_dag_plan import (
 from .task_graph import TaskGraphNode
 
 __all__ = [
+    "ArtifactManifest",
+    "ArtifactRecord",
     "AuditEvidenceExport",
     "ChallengeClaim",
     "ChallengeProgressReadback",

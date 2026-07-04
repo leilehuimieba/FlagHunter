@@ -16,6 +16,15 @@ CONTRACTS_ROOT = REPO_ROOT / "flaghunter" / "domain" / "challenge" / "contracts"
 
 
 EXPECTED_CONTRACTS = {
+    "flaghunter.domain.challenge.contracts.artifacts": {
+        "ArtifactRecord": {
+            "artifact_id": "artifact-1",
+            "artifact_ref": "artifact://one",
+        },
+        "ArtifactManifest": {
+            "run_id": "run-1",
+        },
+    },
     "flaghunter.domain.challenge.contracts.control": {
         "ControlReceipt": {
             "producer": "control:finish",
@@ -104,12 +113,17 @@ EXPECTED_CONTRACTS = {
 
 
 EXPECTED_SCHEMA_VERSIONS = {
+    "flaghunter.domain.challenge.contracts.artifacts": "challenge.artifact_manifest.v1",
     "flaghunter.domain.challenge.contracts.progress": "challenge.progress.v1",
     "flaghunter.domain.challenge.contracts.task_execution": "challenge.task_execution.v1",
 }
 
 
 EXPECTED_CLASS_SCHEMA_VERSIONS = {
+    (
+        "flaghunter.domain.challenge.contracts.artifacts",
+        "ArtifactRecord",
+    ): "challenge.artifact_record.v1",
     (
         "flaghunter.domain.challenge.contracts.progress",
         "TaskProgressRef",
@@ -350,6 +364,54 @@ def test_challenge_run_snapshot_composes_contract_payloads() -> None:
     assert payload["readModels"][0]["schemaVersion"] == 1
     assert payload["proofRecords"][0]["schemaVersion"] == 1
     assert ChallengeRunSnapshot.from_dict(payload).to_dict() == payload
+
+
+def test_artifact_manifest_contract_sanitizes_artifact_metadata() -> None:
+    from flaghunter.domain.challenge.contracts import ArtifactManifest, ArtifactRecord
+
+    manifest = ArtifactManifest(
+        run_id="run-1",
+        artifacts=[
+            ArtifactRecord(
+                artifact_id="artifact-a",
+                artifact_ref="Authorization: Bearer artifact-token",
+                artifact_kind="tool_output",
+                media_type="text/plain",
+                label="HTTP/1.1 200 OK\n<html>password=label-password</html>",
+                content_preview="password=artifact-password token=artifact-token",
+                claim_ids=["claim-a"],
+                evidence_ids=["evidence-a"],
+                task_ids=["task-a"],
+                metadata={
+                    "authorization": "Bearer metadata-token",
+                    "safe": "visible",
+                    "raw_output": "HTTP/1.1 200 OK\n<html>secret</html>",
+                },
+            )
+        ],
+    )
+
+    payload = manifest.to_dict()
+
+    assert payload["schemaVersion"] == "challenge.artifact_manifest.v1"
+    assert payload["artifacts"][0]["schemaVersion"] == "challenge.artifact_record.v1"
+    assert payload["artifacts"][0]["artifactRef"] == "<redacted>"
+    assert payload["artifacts"][0]["labelPreview"] == "<redacted raw body>"
+    assert payload["artifacts"][0]["contentPreview"] == (
+        "password=<redacted> token=<redacted>"
+    )
+    assert payload["artifacts"][0]["metadata"] == {
+        "authorization": "<redacted>",
+        "safe": "visible",
+        "raw_output": "<redacted raw body>",
+    }
+    assert payload["summary"] == {
+        "artifactCount": 1,
+        "kindCounts": {"tool_output": 1},
+        "mediaTypeCounts": {"text/plain": 1},
+    }
+    assert ArtifactManifest.from_dict(payload).to_dict() == payload
+    _assert_json_friendly(payload)
 
 
 def test_progress_readback_contract_composes_task_and_worker_refs() -> None:
