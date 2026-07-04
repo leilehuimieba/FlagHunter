@@ -434,7 +434,7 @@ def test_p3_solve_node_schema_graph_and_contracts_do_not_write_proof() -> None:
 
 
 def test_p4_task_dag_plan_schema_and_readback_do_not_write_proof() -> None:
-    path = "flaghunter/agents/pa_agent/task_dag_plan.py"
+    path = "flaghunter/domain/challenge/contracts/task_dag_plan.py"
     forbidden_tokens = {
         "create_claim",
         "append_verification_record",
@@ -509,7 +509,7 @@ def test_p4b_ready_selector_and_transition_scopes_do_not_write_proof() -> None:
         'level="verified"',
         "level='verified'",
     }
-    path = "flaghunter/agents/pa_agent/task_dag_plan.py"
+    path = "flaghunter/domain/challenge/contracts/task_dag_plan.py"
     guarded_scopes = [
         "select_next_ready_task",
         "mark_task_ready",

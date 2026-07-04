@@ -530,6 +530,90 @@ def test_audit_evidence_contract_builds_legacy_export_shape() -> None:
     assert AuditEvidenceExport.from_dict(payload).to_dict() == payload
 
 
+def test_task_plan_contract_relocates_legacy_task_dag_plan_objects() -> None:
+    import flaghunter.agents.pa_agent.task_dag_plan as legacy_task_plan
+    import flaghunter.domain.challenge.contracts.task_dag_plan as domain_task_plan
+
+    exported_names = [
+        "TASK_DAG_PLAN_SCHEMA_VERSION",
+        "TASK_DAG_READY_SELECTION_SCHEMA_VERSION",
+        "TaskDAGStatus",
+        "TaskDAGNode",
+        "TaskDAGEdge",
+        "TaskDAGPlan",
+        "TaskDAGGraphError",
+        "TaskDAGTransitionError",
+        "task_dag_node_to_dict",
+        "task_dag_node_from_dict",
+        "task_dag_edge_to_dict",
+        "task_dag_edge_from_dict",
+        "task_dag_plan_to_dict",
+        "task_dag_plan_from_dict",
+        "sanitize_task_dag_plan",
+        "empty_task_dag_plan_readback",
+        "empty_task_dag_ready_selection",
+        "select_next_ready_task",
+        "mark_task_ready",
+        "mark_task_running",
+        "mark_task_finished",
+        "build_task_dag_plan_readback",
+    ]
+
+    for name in exported_names:
+        assert getattr(legacy_task_plan, name) is getattr(domain_task_plan, name)
+
+
+def test_task_plan_contract_round_trips_and_builds_readbacks() -> None:
+    from flaghunter.domain.challenge.contracts.task_dag_plan import (
+        TASK_DAG_PLAN_SCHEMA_VERSION,
+        TaskDAGNode,
+        TaskDAGPlan,
+        TaskDAGStatus,
+        build_task_dag_plan_readback,
+        mark_task_finished,
+        mark_task_ready,
+        mark_task_running,
+        select_next_ready_task,
+        task_dag_plan_from_dict,
+        task_dag_plan_to_dict,
+    )
+
+    plan = TaskDAGPlan(id="plan-domain", metadata={"token": "plan-token"})
+    plan.add_node(TaskDAGNode(id="task-a", status="succeeded"))
+    plan.add_node(
+        TaskDAGNode(
+            id="task-b",
+            status="proposed",
+            depends_on=["task-a"],
+            title="HTTP/1.1 200 OK\n<html>secret</html>",
+            goal="collect password=goal-password",
+        )
+    )
+
+    ready = mark_task_ready(plan, "task-b", reason="dependency done")
+    running = mark_task_running(ready, "task-b", started_at=123.0)
+    finished = mark_task_finished(
+        running,
+        "task-b",
+        status=TaskDAGStatus.SUCCEEDED,
+        receipt_id="receipt-b",
+        claim_ids=["claim-b"],
+    )
+
+    payload = task_dag_plan_to_dict(finished)
+    restored = task_dag_plan_from_dict(payload)
+    readback = build_task_dag_plan_readback(restored)
+
+    assert payload["schemaVersion"] == TASK_DAG_PLAN_SCHEMA_VERSION
+    assert restored.get_node("task-b").depends_on == ["task-a"]
+    assert select_next_ready_task(restored)["reason"] == "no_ready_tasks"
+    assert readback["summary"]["statusCounts"] == {"succeeded": 2}
+    assert readback["nodes"][1]["titlePreview"] == "<redacted raw body>"
+    assert "goal-password" not in repr(readback)
+    _assert_json_friendly(payload)
+    _assert_json_friendly(readback)
+
+
 def test_contract_package_does_not_import_concrete_or_outer_layers() -> None:
     offenders: list[tuple[str, str]] = []
     for path in _contract_sources():
