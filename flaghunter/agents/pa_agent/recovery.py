@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from ...knowledge.kill_chain import Phase
+from .claim_views import flag_found_claim_view
 from .ctf_state import CTFState, ExplorationItem, Hypothesis
 
 
@@ -19,6 +20,9 @@ def is_repertoire_miss(state: CTFState) -> bool:
     :meth:`RecoveryController.finalize` (chain-order harness) and the Shape-A
     blackboard loop path — so the two drivers can never drift on what counts as a miss.
     """
+    flag_claims = flag_found_claim_view(state)
+    if flag_claims.verified or flag_claims.runtime or flag_claims.candidate:
+        return False
     if state.runtime_flags and not state.verified_flags:
         return False
     if state.candidate_flags and not state.runtime_flags:
@@ -128,6 +132,7 @@ class RecoveryController:
             current_chain=current_chain,
             used_chains=used_chains,
         )
+        flag_claims = flag_found_claim_view(state)
 
         # P4 stopping rule — phase-budget backstop. The per-chain heuristics below
         # reset ``no_progress_count`` on any micro-progress, so a solve that keeps
@@ -144,6 +149,8 @@ class RecoveryController:
             and state.rounds_in_phase(Phase.EXPLOIT) >= exploit_budget
             and not state.verified_flags
             and not state.runtime_flags
+            and not flag_claims.verified
+            and not flag_claims.runtime
         ):
             return RecoveryDecision(
                 action="stop_phase_budget",
@@ -155,6 +162,21 @@ class RecoveryController:
                 suggested_actions=[
                     "emit retrospective",
                     "record phase-budget exhaustion as a coverage gap",
+                ],
+            )
+
+        if flag_claims.runtime and not flag_claims.verified:
+            latest = flag_claims.runtime[-1]
+            return RecoveryDecision(
+                action="wait_for_verification",
+                should_stop=True,
+                reason=(
+                    f"检测到 runtime flag 但尚未 verified: {latest.content}；"
+                    "请通过提交端点或用户确认继续。"
+                ),
+                suggested_actions=[
+                    "submit to platform if endpoint exists",
+                    "ask user confirmation",
                 ],
             )
 
@@ -173,6 +195,21 @@ class RecoveryController:
                 ],
             )
 
+        if flag_claims.candidate and not flag_claims.runtime and not reranked:
+            latest = flag_claims.candidate[-1]
+            return RecoveryDecision(
+                action="stop_candidate_only",
+                should_stop=True,
+                reason=(
+                    f"检测到 source-only candidate flag: {latest.content}；"
+                    "未获得运行时验证，已停止误报。"
+                ),
+                suggested_actions=[
+                    "seek runtime primitive",
+                    "avoid reporting source-only flag as success",
+                ],
+            )
+
         if state.candidate_flags and not state.runtime_flags and not reranked:
             latest = state.candidate_flags[-1]
             return RecoveryDecision(
@@ -185,6 +222,22 @@ class RecoveryController:
                 suggested_actions=[
                     "seek runtime primitive",
                     "avoid reporting source-only flag as success",
+                ],
+            )
+
+        if flag_claims.candidate and reranked:
+            latest = flag_claims.candidate[-1]
+            return RecoveryDecision(
+                action="switch_chain",
+                should_stop=False,
+                reason=(
+                    f"当前仅有 source-only candidate flag {latest.content}；"
+                    f"改走下一条链路 {reranked[0]} 寻找运行时证据。"
+                ),
+                next_chain_order=reranked,
+                suggested_actions=[
+                    "deprioritize source-only path",
+                    f"continue with {reranked[0]}",
                 ],
             )
 
@@ -321,6 +374,20 @@ class RecoveryController:
         )
 
     def finalize(self, state: CTFState, *, used_chains: list[str], no_progress_count: int) -> RecoveryDecision:
+        flag_claims = flag_found_claim_view(state)
+        if flag_claims.runtime and not flag_claims.verified:
+            latest = flag_claims.runtime[-1]
+            state.repertoire_miss = False
+            return RecoveryDecision(
+                action="wait_for_verification",
+                should_stop=True,
+                reason=(
+                    f"检测到 runtime flag 但尚未 verified: {latest.content}；"
+                    "请通过提交端点或用户确认继续。"
+                ),
+                suggested_actions=["submit or confirm runtime flag"],
+            )
+
         if state.runtime_flags and not state.verified_flags:
             latest = state.runtime_flags[-1]
             return RecoveryDecision(
@@ -331,6 +398,19 @@ class RecoveryController:
                     "请通过提交端点或用户确认继续。"
                 ),
                 suggested_actions=["submit or confirm runtime flag"],
+            )
+
+        if flag_claims.candidate and not flag_claims.runtime:
+            latest = flag_claims.candidate[-1]
+            state.repertoire_miss = False
+            return RecoveryDecision(
+                action="stop_candidate_only",
+                should_stop=True,
+                reason=(
+                    f"检测到 source-only candidate flag: {latest.content}；"
+                    "未获得运行时验证，已停止误报。"
+                ),
+                suggested_actions=["seek stronger runtime primitive next run"],
             )
 
         if state.candidate_flags and not state.runtime_flags:
