@@ -277,6 +277,7 @@ def test_p1_claim_views_can_only_record_non_verified_structured_facts() -> None:
 def test_p2h_completion_control_paths_do_not_write_verification_proof() -> None:
     guarded_files = [
         "flaghunter/agents/pa_agent/control_receipts.py",
+        "flaghunter/harness/control_receipts.py",
         "flaghunter/tools/finish/__init__.py",
     ]
     forbidden_tokens = {

@@ -8,7 +8,7 @@ from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from ...agents.pa_agent.control_receipts import record_completion_control_receipt
+from ...harness.control_receipts import record_completion_control_receipt
 from ..registry import Tool as Tool
 from ..registry import ToolSchema, register_tool
 
