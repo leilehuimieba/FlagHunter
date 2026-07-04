@@ -19,9 +19,21 @@ EXPECTED_ADAPTER_PACKAGES = (
     "flaghunter.adapters.audit",
     "flaghunter.adapters.crew",
     "flaghunter.adapters.mcp",
+    "flaghunter.adapters.proof",
     "flaghunter.adapters.runtime",
     "flaghunter.adapters.storage",
     "flaghunter.adapters.tools",
+)
+
+EXPECTED_ADAPTER_NAMESPACE_EXPORTS = (
+    "artifacts",
+    "audit",
+    "crew",
+    "mcp",
+    "proof",
+    "runtime",
+    "storage",
+    "tools",
 )
 
 FORBIDDEN_INIT_IMPORT_PREFIXES = (
@@ -94,6 +106,27 @@ def test_adapter_namespace_packages_are_importable() -> None:
         assert module.__name__ == module_name
 
 
+def test_root_adapter_namespace_declares_managed_packages() -> None:
+    module = importlib.import_module("flaghunter.adapters")
+
+    assert module.__all__ == EXPECTED_ADAPTER_NAMESPACE_EXPORTS
+
+
+def test_expected_adapter_package_list_covers_all_package_directories() -> None:
+    actual = {
+        "flaghunter.adapters"
+        + (
+            "."
+            + path.parent.relative_to(ADAPTERS_ROOT).as_posix().replace("/", ".")
+            if path.parent != ADAPTERS_ROOT
+            else ""
+        )
+        for path in sorted(ADAPTERS_ROOT.rglob("__init__.py"))
+    }
+
+    assert set(EXPECTED_ADAPTER_PACKAGES) == actual
+
+
 def test_adapter_package_initializers_do_not_wire_concrete_implementations() -> None:
     offenders: list[tuple[str, str]] = []
 
@@ -103,6 +136,34 @@ def test_adapter_package_initializers_do_not_wire_concrete_implementations() -> 
             normalized = imported.lstrip(".")
             if normalized.startswith(FORBIDDEN_INIT_IMPORT_PREFIXES):
                 offenders.append((_relative(path), imported))
+        text = path.read_text(encoding="utf-8")
+        offenders.extend(
+            (_relative(path), token)
+            for token in FORBIDDEN_ACTION_TOKENS
+            if token in text
+        )
+        offenders.extend(
+            (_relative(path), token)
+            for token in FORBIDDEN_PROOF_ACTION_TOKENS
+            if token in text
+        )
+
+    assert offenders == []
+
+
+def test_adapter_implementation_sources_do_not_wire_concrete_implementations() -> None:
+    offenders: list[tuple[str, str]] = []
+
+    for path in _python_sources(ADAPTERS_ROOT):
+        if path.name == "__init__.py":
+            continue
+
+        tree = _parse(path)
+        for imported in _imported_module_names(tree):
+            normalized = imported.lstrip(".")
+            if normalized.startswith(FORBIDDEN_INIT_IMPORT_PREFIXES):
+                offenders.append((_relative(path), imported))
+
         text = path.read_text(encoding="utf-8")
         offenders.extend(
             (_relative(path), token)
