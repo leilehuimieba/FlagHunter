@@ -404,6 +404,82 @@ def test_evidence_snapshot_contract_builds_legacy_payload_shape() -> None:
     assert EvidenceSnapshot.from_dict(payload).to_dict() == payload
 
 
+def test_ledger_event_readback_contract_projects_legacy_shape() -> None:
+    from flaghunter.domain.challenge.contracts.ledger_events import (
+        LedgerEventReadback,
+        build_ledger_event_readback,
+    )
+
+    readback = build_ledger_event_readback(
+        [
+            {
+                "type": "task_finished",
+                "payload": {"token": "ignored-token"},
+            },
+            {
+                "type": "model_call",
+                "t": 1.0,
+                "payload": {
+                    "model": "model token=model-token",
+                    "provider": "provider",
+                    "status": "success",
+                    "duration_ms": 42,
+                    "total_tokens": 30,
+                },
+            },
+            {
+                "event_type": "handoff_created",
+                "ts": 2.0,
+                "payload": {
+                    "handoff_id": "handoff-1",
+                    "source": "web password=source-password",
+                    "target": "dispatcher",
+                    "decision_kind": "direct",
+                    "next_action": "Authorization: Bearer action-token",
+                },
+            },
+        ],
+        limit=5,
+    )
+
+    assert readback == {
+        "refs": [
+            {
+                "type": "model_call",
+                "t": 1.0,
+                "model": "model token=<redacted>",
+                "provider": "provider",
+                "status": "success",
+                "durationMs": 42,
+                "totalTokens": 30,
+            },
+            {
+                "type": "handoff_created",
+                "t": 2.0,
+                "handoffId": "handoff-1",
+                "source": "web password=<redacted>",
+                "target": "dispatcher",
+                "decisionKind": "direct",
+                "nextAction": "<redacted>",
+            },
+        ],
+        "summary": {
+            "countsByType": {
+                "model_call": 1,
+                "handoff_created": 1,
+            },
+            "hasModelCall": True,
+            "hasStateTransition": False,
+            "hasBudgetEvent": False,
+            "hasHandoff": True,
+        },
+    }
+    versioned = LedgerEventReadback.from_dict(readback).to_dict()
+    assert versioned["schemaVersion"] == "p2.ledger_event_readback.v1"
+    assert versioned["refs"] == readback["refs"]
+    assert versioned["summary"] == readback["summary"]
+
+
 def test_contract_package_does_not_import_concrete_or_outer_layers() -> None:
     offenders: list[tuple[str, str]] = []
     for path in _contract_sources():
