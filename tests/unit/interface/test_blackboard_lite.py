@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import ast
+from pathlib import Path
 from types import SimpleNamespace
 
 from flaghunter.agents.pa_agent.ctf_state import CTFState, Hypothesis
@@ -11,6 +13,105 @@ from flaghunter.interface.blackboard_lite import (
     serialize_blackboard_snapshot,
 )
 from flaghunter.mcp.server.mcp_tools import TaskEntry
+
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+BLACKBOARD_LITE_PATH = REPO_ROOT / "flaghunter" / "interface" / "blackboard_lite.py"
+
+
+def _parse_blackboard_lite() -> ast.Module:
+    return ast.parse(
+        BLACKBOARD_LITE_PATH.read_text(encoding="utf-8-sig"),
+        filename=str(BLACKBOARD_LITE_PATH),
+    )
+
+
+def _function_source(tree: ast.Module, name: str) -> str:
+    text = BLACKBOARD_LITE_PATH.read_text(encoding="utf-8-sig")
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef) and node.name == name:
+            return ast.get_source_segment(text, node) or ""
+    raise AssertionError(f"{name} was not found")
+
+
+def test_build_task_blackboard_snapshot_source_stays_read_only_projection() -> None:
+    tree = _parse_blackboard_lite()
+    public_helper_source = _function_source(tree, "build_task_blackboard_snapshot")
+    allowed_legacy_read_imports = {
+        "flaghunter.agents.pa_agent.ctf_state",
+    }
+    forbidden_import_prefixes = {
+        "flaghunter.tools",
+        "flaghunter.runtime",
+        "flaghunter.mcp",
+        "flaghunter.session",
+        "flaghunter.agents.crew",
+        "subprocess",
+        "requests",
+        "httpx",
+        "socket",
+        "playwright",
+    }
+    forbidden_import_names = {
+        "ToolExecutor",
+        "WorkerPool",
+        "CrewOrchestrator",
+        "CTFTaskDispatcher",
+        "CTFVerifier",
+        "RecoveryController",
+    }
+    forbidden_helper_tokens = {
+        "open(",
+        "write_text",
+        "subprocess",
+        "requests",
+        "httpx",
+        "socket",
+        "playwright",
+        "verification_decision",
+        "upgrade_claim_to_verified",
+        "append_verification_record",
+        "append_proof_record",
+        "confirm_claim",
+        "create_claim",
+        "add_flag(",
+        'level="verified"',
+        "level='verified'",
+        "verified_flags",
+    }
+    offenders: list[str] = []
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name in allowed_legacy_read_imports:
+                    continue
+                if (
+                    alias.name in forbidden_import_names
+                    or any(
+                        alias.name == prefix or alias.name.startswith(f"{prefix}.")
+                        for prefix in forbidden_import_prefixes
+                    )
+                ):
+                    offenders.append(f"import {alias.name}")
+        if isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            if module in allowed_legacy_read_imports:
+                continue
+            if any(
+                module == prefix or module.startswith(f"{prefix}.")
+                for prefix in forbidden_import_prefixes
+            ):
+                offenders.append(f"from {module}")
+            for alias in node.names:
+                if alias.name in forbidden_import_names:
+                    offenders.append(f"from {module} import {alias.name}")
+
+    offenders.extend(
+        token for token in forbidden_helper_tokens if token in public_helper_source
+    )
+
+    assert offenders == []
 
 
 def test_build_task_blackboard_snapshot_aggregates_ingress_decision_and_resume_facts() -> None:

@@ -397,6 +397,22 @@ Candidate A: Web blackboard snapshot projection.
 - Required approval: short plan before implementation; no dispatcher loop
   changes, no proof writes, no production wiring changes.
 
+#### Candidate A source guard baseline
+
+Status: source guard added before any production path switch.
+
+`tests/unit/interface/test_blackboard_lite.py` now guards
+`flaghunter/interface/blackboard_lite.py::build_task_blackboard_snapshot` as a
+read-only presentation projection. The guard allows the existing legacy
+`CTFState` read dependency while confirming:
+
+- no execution/runtime imports beyond existing read-side projection dependencies
+- no proof upgrade surfaces
+- no production path switch
+
+This baseline keeps Candidate A stable until an approved neutral blackboard
+projection builder can prove output equivalence.
+
 Candidate B: Web control-observation trace timeline.
 
 - Current path:
