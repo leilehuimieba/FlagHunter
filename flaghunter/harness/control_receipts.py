@@ -2,20 +2,12 @@
 
 from __future__ import annotations
 
-import re
 from enum import Enum
 from typing import Any
 
-
-_CONTROL_METADATA_KEYS = {
-    "stop_reason",
-    "finish_status",
-    "selected_claim_id",
-    "selected_verification_record_id",
-    "selected_trace_id",
-    "answer_kind",
-    "source_channel",
-}
+from flaghunter.domain.challenge.contracts.control import (
+    build_control_receipt_payload,
+)
 
 
 def record_completion_control_receipt(
@@ -45,7 +37,6 @@ def record_completion_control_receipt(
         return None
 
     selected = _select_existing_completion_evidence(state)
-    normalized_stop_reason = _redact_control_text(stop_reason)[:200]
     normalized_success = bool(success)
     normalized_status = (
         str(finish_status or "").strip()
@@ -55,35 +46,24 @@ def record_completion_control_receipt(
             success=normalized_success,
         )
     )
-    raw_metadata = {
-        "stop_reason": normalized_stop_reason,
-        "finish_status": normalized_status,
-        "selected_claim_id": selected_claim_id or selected.get("claim_id", ""),
-        "selected_verification_record_id": (
+    payload = build_control_receipt_payload(
+        producer=str(producer or "").strip() or "control:completion",
+        success=normalized_success,
+        stop_reason=stop_reason,
+        finish_status=normalized_status,
+        input_summary=input_summary,
+        output_summary=output_summary,
+        artifact_refs=artifact_refs,
+        answer_kind=answer_kind,
+        source_channel=source_channel,
+        selected_claim_id=selected_claim_id or selected.get("claim_id", ""),
+        selected_verification_record_id=(
             selected_verification_record_id or selected.get("verification_record_id", "")
         ),
-        "selected_trace_id": selected_trace_id or selected.get("trace_id", ""),
-        "answer_kind": str(answer_kind or "").strip(),
-        "source_channel": str(source_channel or "").strip(),
-        **dict(metadata or {}),
-    }
-    safe_metadata = {
-        key: _safe_metadata_value(raw_metadata.get(key, ""))
-        for key in sorted(_CONTROL_METADATA_KEYS)
-    }
-    return state.record_execution_trace(
-        kind="control_receipt",
-        producer=str(producer or "").strip() or "control:completion",
-        input_summary=_redact_control_text(input_summary)[:500],
-        output_summary=_redact_control_text(output_summary)[:1000],
-        success=normalized_success,
-        artifact_refs=[
-            _redact_control_text(item)[:500]
-            for item in list(artifact_refs or [])
-            if str(item or "").strip()
-        ],
-        metadata=safe_metadata,
+        selected_trace_id=selected_trace_id or selected.get("trace_id", ""),
+        metadata=metadata,
     )
+    return state.record_execution_trace(**payload)
 
 
 def _select_existing_completion_evidence(state: Any) -> dict[str, Any]:
@@ -154,38 +134,7 @@ def _claim_has_verified_record(claim: Any, record: Any) -> bool:
     )
 
 
-def _safe_metadata_value(value: Any) -> Any:
-    if isinstance(value, (bool, int, float)) or value is None:
-        return value
-    return _redact_control_text(value)[:200]
-
-
 def _enum_value(value: Any) -> str:
     if isinstance(value, Enum):
         return str(value.value or "").strip()
     return str(getattr(value, "value", value) or "").strip()
-
-
-def _redact_control_text(value: Any) -> str:
-    text = str(value or "")
-    if not text:
-        return ""
-    text = re.sub(r"(?im)^\s*set-cookie\s*:.*$", "<redacted>", text)
-    text = re.sub(r"(?im)^\s*cookie\s*:.*$", "<redacted>", text)
-    text = re.sub(r"(?im)^\s*authorization\s*:.*$", "<redacted>", text)
-    text = re.sub(
-        r"(?i)\bauthorization\s*:\s*bearer\s+[^\s,;&]+",
-        "authorization=<redacted>",
-        text,
-    )
-    text = re.sub(
-        r"(?i)\b(token|api[_-]?key|password|secret|session|cookie|authorization)\b\s*[:=]\s*(\"[^\"]*\"|'[^']*'|[^\s,;&]+)",
-        r"\1=<redacted>",
-        text,
-    )
-    text = re.sub(
-        r"(?i)([\"'](?:token|api[_-]?key|password|secret|session|cookie|authorization)[\"']\s*:\s*)([\"'][^\"']*[\"']|[^,\n\r}\]]+)",
-        r'\1"<redacted>"',
-        text,
-    )
-    return text

@@ -16,6 +16,12 @@ CONTRACTS_ROOT = REPO_ROOT / "flaghunter" / "domain" / "challenge" / "contracts"
 
 
 EXPECTED_CONTRACTS = {
+    "flaghunter.domain.challenge.contracts.control": {
+        "ControlReceipt": {
+            "producer": "control:finish",
+            "success": True,
+        },
+    },
     "flaghunter.domain.challenge.contracts.claims": {
         "ChallengeClaim": {
             "claim_id": "claim-1",
@@ -281,6 +287,74 @@ def test_evidence_text_redaction_is_deterministic_and_bounded() -> None:
     assert "super-secret-token" not in redacted
     assert len(redacted) <= 40
     assert redact_text("", max_chars=40) == ""
+
+
+def test_control_receipt_payload_matches_legacy_trace_shape() -> None:
+    from flaghunter.domain.challenge.contracts.control import (
+        build_control_receipt_payload,
+    )
+
+    payload = build_control_receipt_payload(
+        producer="control:finish",
+        success=True,
+        stop_reason="all_steps_complete",
+        finish_status="answered",
+        input_summary="Cookie: session=secret-cookie",
+        output_summary="password=secret-password token=secret-token",
+        artifact_refs=["Authorization: Bearer secret-auth"],
+        answer_kind="plan_completion",
+        source_channel="finish_tool",
+        selected_claim_id="claim-1",
+        selected_verification_record_id="record-1",
+        selected_trace_id="trace-1",
+        metadata={"ignored_extra": "token=extra"},
+    )
+
+    assert payload == {
+        "kind": "control_receipt",
+        "producer": "control:finish",
+        "input_summary": "<redacted>",
+        "output_summary": "password=<redacted> token=<redacted>",
+        "success": True,
+        "artifact_refs": ["<redacted>"],
+        "metadata": {
+            "answer_kind": "plan_completion",
+            "finish_status": "answered",
+            "selected_claim_id": "claim-1",
+            "selected_trace_id": "trace-1",
+            "selected_verification_record_id": "record-1",
+            "source_channel": "finish_tool",
+            "stop_reason": "all_steps_complete",
+        },
+    }
+
+
+def test_control_receipt_contract_round_trips_to_trace_payload() -> None:
+    from flaghunter.domain.challenge.contracts.control import ControlReceipt
+
+    receipt = ControlReceipt(
+        producer="control:finish",
+        success=True,
+        input_summary="Cookie: session=secret-cookie",
+        output_summary="password=secret-password",
+        artifact_refs=["token=artifact-token"],
+        metadata={"stop_reason": "all_steps_complete"},
+    )
+
+    trace_payload = receipt.to_trace_payload()
+    assert trace_payload["kind"] == "control_receipt"
+    assert trace_payload["input_summary"] == "<redacted>"
+    assert trace_payload["output_summary"] == "password=<redacted>"
+    assert trace_payload["artifact_refs"] == ["token=<redacted>"]
+    assert trace_payload["metadata"] == {
+        "answer_kind": "",
+        "finish_status": "",
+        "selected_claim_id": "",
+        "selected_trace_id": "",
+        "selected_verification_record_id": "",
+        "source_channel": "",
+        "stop_reason": "all_steps_complete",
+    }
 
 
 def test_contract_package_does_not_import_concrete_or_outer_layers() -> None:
