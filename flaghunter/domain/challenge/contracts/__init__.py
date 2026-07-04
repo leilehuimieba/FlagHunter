@@ -20,6 +20,7 @@ from .sanitization import (
     sanitize_json_value,
     sanitize_metadata,
 )
+from .strategies import StrategyCatalog, StrategyRef, StrategySelection
 from .task_execution import (
     TaskBrief,
     TaskExecutionEdge,
@@ -70,6 +71,9 @@ __all__ = [
     "ReadModelRef",
     "ResumeContextRef",
     "ReviewState",
+    "StrategyCatalog",
+    "StrategyRef",
+    "StrategySelection",
     "TASK_DAG_PLAN_SCHEMA_VERSION",
     "TASK_DAG_READY_SELECTION_SCHEMA_VERSION",
     "TaskBrief",

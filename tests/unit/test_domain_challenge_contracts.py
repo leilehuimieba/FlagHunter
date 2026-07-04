@@ -66,6 +66,18 @@ EXPECTED_CONTRACTS = {
             "outcome": "completed",
         },
     },
+    "flaghunter.domain.challenge.contracts.strategies": {
+        "StrategyRef": {
+            "strategy_id": "strategy-1",
+        },
+        "StrategySelection": {
+            "run_id": "run-1",
+            "selected_strategy_id": "strategy-1",
+        },
+        "StrategyCatalog": {
+            "run_id": "run-1",
+        },
+    },
     "flaghunter.domain.challenge.contracts.task_graph": {
         "TaskGraphNode": {
             "node_id": "task-1",
@@ -129,6 +141,7 @@ EXPECTED_SCHEMA_VERSIONS = {
     "flaghunter.domain.challenge.contracts.artifacts": "challenge.artifact_manifest.v1",
     "flaghunter.domain.challenge.contracts.checkpoints": "challenge.checkpoint_manifest.v1",
     "flaghunter.domain.challenge.contracts.progress": "challenge.progress.v1",
+    "flaghunter.domain.challenge.contracts.strategies": "challenge.strategy_catalog.v1",
     "flaghunter.domain.challenge.contracts.task_execution": "challenge.task_execution.v1",
 }
 
@@ -146,6 +159,14 @@ EXPECTED_CLASS_SCHEMA_VERSIONS = {
         "flaghunter.domain.challenge.contracts.checkpoints",
         "ResumeContextRef",
     ): "challenge.resume_context_ref.v1",
+    (
+        "flaghunter.domain.challenge.contracts.strategies",
+        "StrategyRef",
+    ): "challenge.strategy_ref.v1",
+    (
+        "flaghunter.domain.challenge.contracts.strategies",
+        "StrategySelection",
+    ): "challenge.strategy_selection.v1",
     (
         "flaghunter.domain.challenge.contracts.progress",
         "TaskProgressRef",
@@ -496,6 +517,66 @@ def test_checkpoint_manifest_contract_sanitizes_resume_context() -> None:
         "nextActionCounts": {"resume_from_checkpoint": 1},
     }
     assert CheckpointManifest.from_dict(payload).to_dict() == payload
+    _assert_json_friendly(payload)
+
+
+def test_strategy_catalog_contract_sanitizes_selection_context() -> None:
+    from flaghunter.domain.challenge.contracts import (
+        StrategyCatalog,
+        StrategyRef,
+        StrategySelection,
+    )
+
+    catalog = StrategyCatalog(
+        run_id="run-1",
+        strategies=[
+            StrategyRef(
+                strategy_id="strategy-a",
+                name="HTTP/1.1 200 OK\n<html>password=name-password</html>",
+                strategy_kind="analysis",
+                status="available",
+                capability_refs=["capability-a"],
+                policy_refs=["policy-a"],
+                metadata={
+                    "authorization": "Bearer metadata-token",
+                    "note": "visible",
+                },
+            )
+        ],
+        selections=[
+            StrategySelection(
+                run_id="run-1",
+                selected_strategy_id="strategy-a",
+                reason_preview="picked because token=reason-token",
+                score=0.75,
+                candidate_strategy_ids=["strategy-a", "strategy-b"],
+                policy_refs=["policy-a"],
+            )
+        ],
+    )
+
+    payload = catalog.to_dict()
+
+    assert payload["schemaVersion"] == "challenge.strategy_catalog.v1"
+    assert payload["strategies"][0]["schemaVersion"] == "challenge.strategy_ref.v1"
+    assert payload["strategies"][0]["namePreview"] == "<redacted raw body>"
+    assert payload["strategies"][0]["metadata"] == {
+        "authorization": "<redacted>",
+        "note": "visible",
+    }
+    assert payload["selections"][0]["schemaVersion"] == (
+        "challenge.strategy_selection.v1"
+    )
+    assert payload["selections"][0]["reasonPreview"] == (
+        "picked because token=<redacted>"
+    )
+    assert payload["summary"] == {
+        "strategyCount": 1,
+        "selectionCount": 1,
+        "kindCounts": {"analysis": 1},
+        "statusCounts": {"available": 1},
+    }
+    assert StrategyCatalog.from_dict(payload).to_dict() == payload
     _assert_json_friendly(payload)
 
 
