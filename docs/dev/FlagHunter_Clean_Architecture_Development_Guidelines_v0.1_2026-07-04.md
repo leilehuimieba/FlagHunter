@@ -2,11 +2,11 @@
 
 Date: 2026-07-04
 Status: draft for incremental adoption
-Scope: module boundaries, contracts, ports/adapters, presentation read models, proof authority, source guards
+Scope: module boundaries, contracts, ports/adapters, presentation read models, proof authority, source guards, domain-neutral public naming
 
 ## 1. North Star
 
-FlagHunter should converge toward a clean, testable architecture where the CTF/authorized-testing domain is stable, small, and explicit, while runtime execution, storage, UI, MCP, crew orchestration, and provider integrations are replaceable adapters.
+FlagHunter should converge toward a clean, testable architecture where the core platform is a general challenge, competition, and task agent framework. Security and CTF workflows remain supported use cases, but they should live behind adapters, strategy packs, fixtures, and compatibility shims rather than defining the vocabulary of the core architecture.
 
 The dependency rule is:
 
@@ -18,6 +18,16 @@ Composition Root wires concrete implementations
 ```
 
 Inner layers must not import outer layers. If a lower-level module needs an effect, it receives a Protocol/port rather than importing a concrete runtime, tool executor, UI notifier, storage class, MCP server, or worker pool.
+
+## 1.1 Domain-Neutral Public Naming
+
+New public architecture contracts should use domain-neutral names. Prefer `challenge`, `competition`, `task`, `run`, `agent`, `worker`, `tool`, `claim`, `evidence`, `proof`, `artifact`, `receipt`, `trace`, `review`, `read model`, `checkpoint`, `policy`, and `strategy`.
+
+Avoid new public core package/module/class/function/schema names containing security-specific terms such as `ctf`, `pentest`, `exploit`, `vulnerability`, `hacking`, `attack`, or `redteam`.
+
+Existing legacy names remain implementation facts. Do not mass-rename historical modules such as `ctf_dispatcher.py` or `ctf_state.py` in unrelated slices. Treat them as legacy implementation or adapter details until an explicit migration introduces neutral contracts plus compatibility shims.
+
+Detailed naming rules live in `docs/dev/FlagHunter_Domain_Neutral_Naming_Policy_v0.1_2026-07-04.md`.
 
 ## 2. Target Layers
 
@@ -49,13 +59,13 @@ Contract modules should be boring by design. A good contract file can be importe
 Recommended names:
 
 ```text
-flaghunter/domain/ctf/contracts/claims.py
-flaghunter/domain/ctf/contracts/proof.py
-flaghunter/domain/ctf/contracts/solve_node.py
-flaghunter/domain/ctf/contracts/task_dag.py
-flaghunter/domain/ctf/contracts/audit.py
-flaghunter/domain/ctf/contracts/control.py
-flaghunter/domain/ctf/contracts/read_models.py
+flaghunter/domain/challenge/contracts/claims.py
+flaghunter/domain/challenge/contracts/proof.py
+flaghunter/domain/challenge/contracts/solve_node.py
+flaghunter/domain/challenge/contracts/task_dag.py
+flaghunter/domain/challenge/contracts/audit.py
+flaghunter/domain/challenge/contracts/control.py
+flaghunter/domain/challenge/contracts/read_models.py
 ```
 
 ### Use Cases / Application Services
@@ -78,11 +88,11 @@ Forbidden:
 Recommended names:
 
 ```text
-flaghunter/application/ctf/solve_challenge.py
-flaghunter/application/ctf/record_tool_receipt.py
-flaghunter/application/ctf/build_evidence_snapshot.py
-flaghunter/application/ctf/run_task_dag.py
-flaghunter/application/ctf/dispatch_crew_task.py
+flaghunter/application/challenge/solve_challenge.py
+flaghunter/application/challenge/record_tool_receipt.py
+flaghunter/application/challenge/build_evidence_snapshot.py
+flaghunter/application/challenge/run_task_dag.py
+flaghunter/application/challenge/dispatch_worker_task.py
 ```
 
 ### Ports
@@ -101,7 +111,7 @@ class ToolRunnerPort(Protocol):
 
 
 class VerifierPort(Protocol):
-    async def verify_flag_claim(self, claim_id: str, evidence: "EvidenceBundle") -> "VerificationReceipt":
+    async def review_claim(self, claim_id: str, evidence: "EvidenceBundle") -> "VerificationReceipt":
         ...
 
 
@@ -117,7 +127,7 @@ First-class ports FlagHunter should introduce before moving concrete code:
 
 - `ToolRunnerPort`: execute a named tool and return a receipt/read model.
 - `RuntimeActionPort`: HTTP/browser/shell operations at the runtime-action level.
-- `VerifierPort`: ask proof authority to verify a candidate.
+- `VerifierPort`: ask proof authority to review a claim against evidence.
 - `ProofAuthorityPort`: the only writer allowed to upgrade to verified proof.
 - `StateStorePort`: load/save state snapshots.
 - `ClaimStorePort`: create non-verified claims, append verifier records, read claim views.
@@ -192,7 +202,7 @@ Responsibilities:
 Forbidden outside composition root:
 
 - New concrete `LocalRuntime`, `DockerRuntime`, `SSHRuntime`.
-- New concrete `CTFTaskDispatcher`.
+- New concrete legacy dispatcher implementations such as `CTFTaskDispatcher`.
 - New concrete `WorkerPool`.
 - New concrete file ledger/checkpoint/artifact stores.
 - Direct global settings mutation except in explicit configuration use cases.
@@ -300,11 +310,12 @@ Do not start with a large production refactor. Use this order:
 
 1. Docs-only: document current ownership, target layering, and forbidden dependencies.
 2. Ports skeleton: add Protocol files and source guards without changing runtime behavior.
-3. Adapter wrappers: wrap existing implementations behind ports while preserving call sites.
-4. Application services: move orchestration behind use cases one entrypoint at a time.
-5. Composition root: move concrete object creation into one assembly function.
-6. Presentation migration: CLI/TUI/MCP/Web call use cases/read models, not concrete engines.
-7. Source guard expansion: enforce each boundary as it becomes real.
+3. Neutral domain contracts: introduce `domain/challenge` contracts before relocating legacy security/CTF contracts.
+4. Adapter wrappers: wrap existing implementations behind ports while preserving call sites.
+5. Application services: move orchestration behind use cases one entrypoint at a time.
+6. Composition root: move concrete object creation into one assembly function.
+7. Presentation migration: CLI/TUI/MCP/Web call use cases/read models, not concrete engines.
+8. Source guard expansion: enforce each boundary as it becomes real.
 
 Stop after every slice with tests. Do not combine proof changes, dispatcher-loop changes, crew migration, and presentation migration in the same patch.
 
@@ -315,7 +326,7 @@ Do not apply this automatically while other commit-split threads are active. If/
 ```markdown
 ## Clean Architecture Boundary Rule
 
-New FlagHunter modules must follow the Domain/Contracts -> Application Services -> Ports -> Adapters -> Presentation dependency rule. Contracts are dataclass/schema/Protocol-only and may not import runtime/tool executor/UI/storage. Presentation consumes read models. Concrete implementations are wired only in the composition root. Verified proof can only be upgraded by verifier/proof-authority code; candidates, controls, tools, model outputs, state, handoff, crew, replay, audit, and eval artifacts are not proof authorities. Every module boundary requires a contract, builder/use case, boundary tests, and source guard.
+New FlagHunter modules must follow the Domain/Contracts -> Application Services -> Ports -> Adapters -> Presentation dependency rule. New public contracts and ports use domain-neutral challenge/task/claim/evidence/proof naming; legacy CTF/security names are adapter or compatibility details until explicitly migrated. Contracts are dataclass/schema/Protocol-only and may not import runtime/tool executor/UI/storage. Presentation consumes read models. Concrete implementations are wired only in the composition root. Verified proof can only be upgraded by verifier/proof-authority code; candidates, controls, tools, model outputs, state, handoff, crew, replay, audit, and eval artifacts are not proof authorities. Every module boundary requires a contract, builder/use case, boundary tests, and source guard.
 ```
 
 ## 9. PR Checklist
@@ -323,6 +334,7 @@ New FlagHunter modules must follow the Domain/Contracts -> Application Services 
 Before opening a PR for boundary work:
 
 - The changed module declares its layer.
+- New public core names follow the domain-neutral naming policy.
 - Public payloads have `schemaVersion`.
 - New cross-module calls use Protocol/schema, not concrete implementation imports.
 - Contracts do not import runtime/tool executor/UI/storage.

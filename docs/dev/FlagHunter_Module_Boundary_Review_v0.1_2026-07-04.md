@@ -15,6 +15,8 @@ Scope reviewed:
 
 This review is docs-only. It does not propose changing dispatcher, crew, recovery, tool executor, or P1-P5 behavior in the current slice.
 
+Naming note: this review names existing legacy modules exactly when describing current code. Target architecture names should be domain-neutral. New public contracts should use challenge/task/claim/evidence/proof vocabulary, while legacy CTF/security names are treated as adapter or compatibility details until explicitly migrated.
+
 ## 1. Findings First
 
 ### Added files
@@ -192,7 +194,7 @@ Incremental target, not a single refactor:
 ```text
 flaghunter/
   domain/
-    ctf/
+    challenge/
       contracts/
         claims.py
         proof.py
@@ -207,14 +209,14 @@ flaghunter/
         redaction.py
         proof_like_fields.py
   application/
-    ctf/
+    challenge/
       solve_challenge.py
-      verify_candidate.py
+      review_claim.py
       record_tool_receipt.py
       build_evidence_snapshot.py
       run_task_dag.py
-      dispatch_crew_task.py
-      recover_from_dag_result.py
+      dispatch_worker_task.py
+      recover_from_task_result.py
   ports/
     tool_runner.py
     runtime_actions.py
@@ -255,6 +257,8 @@ flaghunter/
 
 During migration, keep compatibility re-export modules in old paths so existing tests and entrypoints remain stable.
 
+Security/CTF-specific implementations should move behind adapters or strategy packs instead of becoming core package names. For example, a future adapter can wrap `CTFTaskDispatcher`, but new application services should be named around challenges, tasks, claims, evidence, and proof.
+
 ## 5. First Safe Ports To Extract
 
 These can be added as Protocol-only skeletons without changing behavior:
@@ -280,7 +284,7 @@ These can be added as Protocol-only skeletons without changing behavior:
    - Initial value: makes proof writes reviewable and source-guardable.
 
 5. `VerifierPort`
-   - Method: `verify_flag_candidate(candidate, evidence) -> VerificationReceipt`.
+   - Method: `review_claim(claim, evidence) -> VerificationReceipt`.
    - Adapter wraps `CTFVerifier`.
    - Initial value: separates verification orchestration from state storage.
 
@@ -338,11 +342,18 @@ The companion guidelines document defines the desired rule:
 - Add `flaghunter/ports/` Protocol modules.
 - Add contract-only tests proving no implementation imports.
 - Add source guards for ports and future domain/contracts package.
+- Enforce neutral public names for the new ports package.
 - Do not wire them into dispatcher yet.
+
+### Phase 1.5: Domain-neutral naming gate
+
+- Add or update guards so new public core contracts avoid security/CTF-specific vocabulary.
+- Keep historical CTF/security names in legacy modules, compatibility shims, adapters, fixtures, and writeups only.
+- Update docs and AGENTS guidance when a new boundary is introduced.
 
 ### Phase 2: Contract relocation with compatibility re-exports
 
-- Copy or move stable P1-P5 contracts/readbacks into `flaghunter/domain/ctf/contracts/`.
+- Copy or move stable P1-P5 contracts/readbacks into `flaghunter/domain/challenge/contracts/`.
 - Keep old `agents/pa_agent/*` import paths as re-export shims.
 - Start with pure readback modules: solve-node/task-DAG/audit/evidence surfaces.
 - Do not move `CTFState` as a whole.
@@ -389,7 +400,7 @@ Do not edit root `AGENTS.md` in this worktree while commit-split threads are act
 ```markdown
 ## Clean Architecture Boundary Rule
 
-New FlagHunter modules must follow the Domain/Contracts -> Application Services -> Ports -> Adapters -> Presentation dependency rule. Contracts are dataclass/schema/Protocol-only and may not import runtime/tool executor/UI/storage. Presentation consumes read models. Concrete implementations are wired only in the composition root. Verified proof can only be upgraded by verifier/proof-authority code; candidates, controls, tools, model outputs, state, handoff, crew, replay, audit, and eval artifacts are not proof authorities. Every module boundary requires a contract, builder/use case, boundary tests, and source guard.
+New FlagHunter modules must follow the Domain/Contracts -> Application Services -> Ports -> Adapters -> Presentation dependency rule. New public contracts and ports use domain-neutral challenge/task/claim/evidence/proof naming; legacy CTF/security names are adapter or compatibility details until explicitly migrated. Contracts are dataclass/schema/Protocol-only and may not import runtime/tool executor/UI/storage. Presentation consumes read models. Concrete implementations are wired only in the composition root. Verified proof can only be upgraded by verifier/proof-authority code; candidates, controls, tools, model outputs, state, handoff, crew, replay, audit, and eval artifacts are not proof authorities. Every module boundary requires a contract, builder/use case, boundary tests, and source guard.
 ```
 
 ## 9. Verification Plan

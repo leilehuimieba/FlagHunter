@@ -14,6 +14,12 @@ Kali image).
 > existing `.env` files keep working. FlagHunter is an independent project and does **not**
 > depend on or derive from any external upstream project.
 
+> **Architecture naming direction:** new public architecture contracts should use
+> domain-neutral challenge/task/claim/evidence/proof naming. Existing CTF/security names are
+> legacy implementation, adapter, fixture, or compatibility details until a focused migration
+> explicitly introduces neutral contracts and shims. Do not mass-rename historical modules as
+> part of unrelated work.
+
 ## Tech stack
 
 - **Python 3.10+**, packaged with Hatchling (`pyproject.toml`)
@@ -275,6 +281,34 @@ Both controls are implemented in `flaghunter/interface/tui.py` via
 ---
 
 ## Key architectural patterns
+
+### Clean architecture boundary rule
+
+New FlagHunter modules must follow the dependency direction:
+
+```text
+Presentation -> Application Services -> Domain/Contracts
+             -> Ports
+Adapters     -> Ports + external systems
+Composition Root wires concrete implementations
+```
+
+Contracts are dataclass/schema/Protocol-only and may not import runtime, tool executor, UI,
+MCP, storage, worker pool, browser, subprocess, or other concrete adapters. Presentation
+consumes read models or application services. Concrete implementations are assembled only in
+the composition root.
+
+New public contracts and ports must use neutral framework vocabulary such as `challenge`,
+`task`, `run`, `agent`, `worker`, `tool`, `claim`, `evidence`, `proof`, `artifact`,
+`receipt`, `trace`, `review`, `read model`, `checkpoint`, `policy`, and `strategy`. Avoid new
+core public names containing `ctf`, `pentest`, `exploit`, `vulnerability`, `hacking`,
+`attack`, or `redteam`; keep those terms in legacy paths, adapters, fixtures, benchmarks, or
+historical docs until explicitly migrated.
+
+Verified proof can only be upgraded by verifier/proof-authority code. Candidates, controls,
+tools, model outputs, state reconstruction, handoff, crew receipts, replay/audit artifacts,
+eval artifacts, and presentation selectors are not proof authorities. Every new module
+boundary needs a contract, builder/use case, boundary tests, and source guards.
 
 ### Agent core loop (`BaseAgent._run_loop`)
 

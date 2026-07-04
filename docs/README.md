@@ -2,7 +2,7 @@
 
 > 适用仓库：`D:\webstudy\FlagHunter`
 >
-> 最后更新：`2026-06-18`
+> 最后更新：`2026-07-04`
 >
 > 目标：把当前最值得先读、先维护、先对齐的文档收口到一个低成本入口。
 > 历史快照、阶段验收证据与已实现特性的设计草案已于 2026-06-18 清理，本入口只保留仍然有效的文档。
@@ -20,6 +20,8 @@
 5. `docs/dev/FlagHunter_红队智能体架构_对标顶级红队工程学_2026-06-17_V2.md` —— 架构方向锚
 6. `docs/dev/项目工程治理流程_V1.md` —— 怎么把本项目当工程治理(7 阶段生命周期 + 文档=控制面 + 宏观调控)
 7. `docs/dev/并行开发分工_2026-06-18_V1.md` —— 多 agent 同仓并行的分工/契约/worktree/合并(开新会话前必读)
+8. `docs/dev/FlagHunter_Clean_Architecture_Development_Guidelines_v0.1_2026-07-04.md` —— clean architecture、ports/adapters、proof authority、source guard 总规范
+9. `docs/dev/FlagHunter_Domain_Neutral_Naming_Policy_v0.1_2026-07-04.md` —— 新公共契约去安全/CTF领域化命名规则
 
 ---
 
@@ -27,7 +29,7 @@
 
 ### 2.1 架构主线（当前最重要）
 
-这三份是当前架构演进的核心，构成"领域知识 + 工程实现 + 已落地骨架"的闭环：
+这些文档是当前架构演进的核心，构成"领域知识 + 工程实现 + 已落地骨架 + 后续解耦规范"的闭环：
 
 - `docs/dev/FlagHunter_架构决策记录_自顶向下骨架与两关节契约_2026-06-17_V1.md`
   —— 目标骨架、两关节契约、不变量 I1–I4、P0–P5 路线与进度（ADR，source of truth）
@@ -35,6 +37,14 @@
   —— 对标 ATT&CK / UKC / Diamond / PTES / WSTG 与顶级红队思维，框架优化的方向锚
 - `docs/dev/FlagHunter_agent引擎工程层优化_知识库补遗_2026-06-17_V1.md`
   —— 记忆 / 控制面 / 评估 / 工具四类工程层优化清单与 Do-First 短名单
+- `docs/dev/FlagHunter_Clean_Architecture_Development_Guidelines_v0.1_2026-07-04.md`
+  —— Domain/Contracts、Application Services、Ports、Adapters、Presentation、Composition Root 的依赖规则与 proof authority 约束
+- `docs/dev/FlagHunter_Module_Boundary_Review_v0.1_2026-07-04.md`
+  —— 当前耦合点、模块化评分、ports skeleton 路线、分阶段解耦计划
+- `docs/dev/FlagHunter_Domain_Neutral_Naming_Policy_v0.1_2026-07-04.md`
+  —— 新公共 contract/port/domain 命名使用 challenge/task/claim/evidence/proof 等中性词，历史 CTF/security 名称作为 adapter/legacy 细节逐步迁移
+- `docs/dev/FlagHunter_P5_Pre_Eval_Plan_v0.1_2026-07-04.md`
+  —— P5 仅 pre-eval 的计划与边界，未经明确授权不实现学习闭环
 
 愿景背景：
 
@@ -114,6 +124,8 @@
 - 策略注册 / detect_type / 假设生成 / web 桥接清单 → **可达性基准（§2.3）**
 - verifier 来源集合 / 门控 / FlagProof schema → **验证判定基准（§2.3）**
 - recovery 失败动作 / 预算阈值 / harness 字段 → **评估与失败分类基准（§2.3）**
+- 新公共 ports/contracts/domain/application 命名 → **Domain-Neutral Naming Policy + Clean Architecture Guidelines**
+- 模块边界、接口契约、source guard、composition root 变化 → **Clean Architecture Guidelines + Module Boundary Review**
 
 维护原则只有一句话：
 
