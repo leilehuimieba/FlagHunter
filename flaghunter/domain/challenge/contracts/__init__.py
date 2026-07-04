@@ -8,6 +8,7 @@ from .control import ControlReceipt, build_control_receipt_payload, redact_contr
 from .evidence import EvidenceRecord, redact_text
 from .evidence_snapshot import EvidenceSnapshot, build_evidence_snapshot_payload
 from .ledger_events import LedgerEventReadback, build_ledger_event_readback
+from .policies import PolicyCatalog, PolicyRef, PolicyReviewRef
 from .proof import ProofRecord, ReviewState
 from .progress import ChallengeProgressReadback, TaskProgressRef, WorkerTraceRef
 from .read_models import ChallengeRunSnapshot, ReadModelRef
@@ -67,6 +68,9 @@ __all__ = [
     "EvidenceRecord",
     "EvidenceSnapshot",
     "LedgerEventReadback",
+    "PolicyCatalog",
+    "PolicyRef",
+    "PolicyReviewRef",
     "ProofRecord",
     "ReadModelRef",
     "ResumeContextRef",

@@ -59,6 +59,18 @@ EXPECTED_CONTRACTS = {
             "evidence_value": "observed answer",
         },
     },
+    "flaghunter.domain.challenge.contracts.policies": {
+        "PolicyRef": {
+            "policy_id": "policy-1",
+        },
+        "PolicyReviewRef": {
+            "review_id": "review-1",
+            "policy_id": "policy-1",
+        },
+        "PolicyCatalog": {
+            "run_id": "run-1",
+        },
+    },
     "flaghunter.domain.challenge.contracts.receipts": {
         "TaskReceipt": {
             "receipt_id": "receipt-1",
@@ -140,6 +152,7 @@ EXPECTED_CONTRACTS = {
 EXPECTED_SCHEMA_VERSIONS = {
     "flaghunter.domain.challenge.contracts.artifacts": "challenge.artifact_manifest.v1",
     "flaghunter.domain.challenge.contracts.checkpoints": "challenge.checkpoint_manifest.v1",
+    "flaghunter.domain.challenge.contracts.policies": "challenge.policy_catalog.v1",
     "flaghunter.domain.challenge.contracts.progress": "challenge.progress.v1",
     "flaghunter.domain.challenge.contracts.strategies": "challenge.strategy_catalog.v1",
     "flaghunter.domain.challenge.contracts.task_execution": "challenge.task_execution.v1",
@@ -159,6 +172,14 @@ EXPECTED_CLASS_SCHEMA_VERSIONS = {
         "flaghunter.domain.challenge.contracts.checkpoints",
         "ResumeContextRef",
     ): "challenge.resume_context_ref.v1",
+    (
+        "flaghunter.domain.challenge.contracts.policies",
+        "PolicyRef",
+    ): "challenge.policy_ref.v1",
+    (
+        "flaghunter.domain.challenge.contracts.policies",
+        "PolicyReviewRef",
+    ): "challenge.policy_review_ref.v1",
     (
         "flaghunter.domain.challenge.contracts.strategies",
         "StrategyRef",
@@ -577,6 +598,64 @@ def test_strategy_catalog_contract_sanitizes_selection_context() -> None:
         "statusCounts": {"available": 1},
     }
     assert StrategyCatalog.from_dict(payload).to_dict() == payload
+    _assert_json_friendly(payload)
+
+
+def test_policy_catalog_contract_sanitizes_review_context() -> None:
+    from flaghunter.domain.challenge.contracts import (
+        PolicyCatalog,
+        PolicyRef,
+        PolicyReviewRef,
+    )
+
+    catalog = PolicyCatalog(
+        run_id="run-1",
+        policies=[
+            PolicyRef(
+                policy_id="policy-a",
+                name="HTTP/1.1 200 OK\n<html>password=policy-password</html>",
+                policy_kind="scope",
+                status="active",
+                applies_to_refs=["strategy-a"],
+                checkpoint_refs=["checkpoint-a"],
+                metadata={
+                    "authorization": "Bearer metadata-token",
+                    "note": "visible",
+                },
+            )
+        ],
+        reviews=[
+            PolicyReviewRef(
+                review_id="review-a",
+                policy_id="policy-a",
+                run_id="run-1",
+                subject_ref="task-a",
+                status="recorded",
+                summary_preview="review token=review-token",
+                evidence_refs=["evidence-a"],
+            )
+        ],
+    )
+
+    payload = catalog.to_dict()
+
+    assert payload["schemaVersion"] == "challenge.policy_catalog.v1"
+    assert payload["policies"][0]["schemaVersion"] == "challenge.policy_ref.v1"
+    assert payload["policies"][0]["namePreview"] == "<redacted raw body>"
+    assert payload["policies"][0]["metadata"] == {
+        "authorization": "<redacted>",
+        "note": "visible",
+    }
+    assert payload["reviews"][0]["schemaVersion"] == "challenge.policy_review_ref.v1"
+    assert payload["reviews"][0]["summaryPreview"] == "review token=<redacted>"
+    assert payload["summary"] == {
+        "policyCount": 1,
+        "reviewCount": 1,
+        "kindCounts": {"scope": 1},
+        "statusCounts": {"active": 1},
+        "reviewStatusCounts": {"recorded": 1},
+    }
+    assert PolicyCatalog.from_dict(payload).to_dict() == payload
     _assert_json_friendly(payload)
 
 
