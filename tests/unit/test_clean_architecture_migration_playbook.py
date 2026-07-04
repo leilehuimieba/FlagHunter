@@ -134,3 +134,20 @@ def test_playbook_records_candidate_a_source_guard_baseline() -> None:
     assert "no execution/runtime imports beyond existing read-side projection dependencies" in text
     assert "no proof upgrade surfaces" in text
     assert "no production path switch" in text
+
+
+def test_playbook_records_candidate_a_approval_plan() -> None:
+    text = _playbook_text()
+
+    assert "Candidate A approval plan" in text
+    assert "flaghunter/interface/blackboard_lite.py::build_task_blackboard_snapshot" in text
+    assert "tests/unit/interface/test_blackboard_lite.py" in text
+    assert "neutral blackboard projection builder" in text
+    assert "old/new output equivalence" in text
+    assert "rollback point" in text
+    assert "approval required before implementation" in text
+    assert "no dispatcher loop changes" in text
+    assert "no ToolExecutor changes" in text
+    assert "no WorkerPool/CrewOrchestrator changes" in text
+    assert "no MCP production wiring" in text
+    assert "no proof authority behavior changes" in text

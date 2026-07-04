@@ -397,6 +397,65 @@ Candidate A: Web blackboard snapshot projection.
 - Required approval: short plan before implementation; no dispatcher loop
   changes, no proof writes, no production wiring changes.
 
+#### Candidate A approval plan
+
+Status: approval required before implementation.
+
+Scope: prepare a future read-only switch for the Web blackboard snapshot
+projection. The current helper reads `ctfStateSnapshot`, reconstructs legacy
+`CTFState`, and projects display-only facts, hypotheses, pending verification
+items, candidates, action results, active decision state, recommended action,
+and attack surfaces. The future implementation should introduce a neutral
+blackboard projection builder or application-service-built read model while
+preserving the existing public snapshot shape.
+
+File list for the future implementation slice:
+
+- `flaghunter/interface/blackboard_lite.py::build_task_blackboard_snapshot`
+- `tests/unit/interface/test_blackboard_lite.py`
+- optional neutral projection builder under `flaghunter/application/challenge/`
+  or `flaghunter/domain/challenge/contracts/` only if it remains a pure,
+  read-only neutral blackboard projection builder
+
+Required fixture evidence:
+
+- old/new output equivalence for representative existing
+  `ctfStateSnapshot` inputs
+- old/new output equivalence for missing or malformed state snapshots
+- old/new output equivalence for decision records, ingress handoff, session
+  context action results, candidates, and attack surfaces
+- no proof writes and no proof authority decisions
+
+Risk: medium. The path is read-only, but it feeds Web task detail, task API
+serialization, control-decision inputs, and MCP readback formatting. The first
+implementation slice must preserve field names, list ordering where currently
+tested, selected/recommended candidate semantics, and formatting helper output.
+
+Rollback point: revert the single Candidate A implementation commit. No schema
+migration, production wiring, MCP handler rewiring, or composition-root change
+should be introduced in that commit.
+
+Verification commands for the future implementation slice:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/interface/test_blackboard_lite.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py -q
+git diff --check
+```
+
+Explicit non-goals for Candidate A:
+
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no composition root changes
+- no concrete adapter implementation
+- no proof authority behavior changes
+- no P5 implementation
+
 #### Candidate A source guard baseline
 
 Status: source guard added before any production path switch.
