@@ -328,3 +328,52 @@ The migration is complete when:
 - Proof authority writes are isolated and source-guarded.
 - Legacy security-specific public core names no longer expand into new core architecture surfaces.
 - Existing behavior and supported entry points pass their regression/acceptance tests.
+
+## 7. Current Execution Status
+
+This ledger records the currently integrated low-risk skeleton work on branch
+`codex/flaghunter-domain-challenge-contracts`. It is a planning aid, not a
+production-wiring approval.
+
+### Phase 4 application service skeletons completed
+
+These use cases now exist as neutral application services under
+`flaghunter/application/challenge/`. They depend only on domain contracts and
+ports, have behavior tests, and are covered by the `.importlinter`
+`application-service-boundary` contract.
+
+- `BuildChallengeRunSnapshot`
+- `RecordTaskReceipt`
+- `BuildEvidenceSnapshot`
+- `ReviewClaim`
+- `RecordToolReceipt`
+- `DispatchWorkerTask`
+
+The completed skeletons do not connect production call sites and do not change
+the dispatcher loop, `CTFState`, `CTFVerifier`, `ToolExecutor`, crew runtime,
+MCP production wiring, or composition root behavior.
+
+### Phase 4 verification baseline
+
+Focused Phase 4 regression should include:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/agents/test_p1_claim_invariants.py tests/unit/tools/test_finish_control_receipt.py tests/unit/agents/test_p2_audit_export.py tests/unit/agents/test_p2_evidence_snapshot.py tests/unit/agents/test_p2_ledger_event_readback.py tests/unit/agents/test_p4_task_dag_plan_schema.py tests/unit/agents/test_p4_task_dag_ready_selector.py tests/unit/agents/test_p4_task_dag_replay_audit_bundle.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py tests/unit/agents/test_phase2b_compatibility_shims.py tests/unit/test_adapter_boundary_skeleton.py tests/unit/test_tool_runner_adapter.py tests/unit/test_runtime_action_adapter.py tests/unit/test_read_model_store_adapter.py tests/unit/test_state_store_adapter.py tests/unit/test_audit_store_adapter.py tests/unit/test_artifact_store_adapter.py tests/unit/test_checkpoint_store_adapter.py tests/unit/test_claim_store_adapter.py tests/unit/test_verifier_adapter.py tests/unit/test_proof_authority_adapter.py tests/unit/test_crew_bridge_adapter.py tests/unit/test_task_dag_runner_adapter.py tests/unit/test_application_challenge_snapshot_service.py tests/unit/test_application_task_receipt_service.py tests/unit/test_application_evidence_snapshot_service.py tests/unit/test_application_claim_review_service.py tests/unit/test_application_tool_receipt_service.py tests/unit/test_application_worker_task_service.py -q
+```
+
+### Next approval gate
+
+The next material step is no longer another neutral skeleton by default; it is
+choosing a first production read path or wiring route. Any slice that touches
+production wiring, composition root, `CTFTaskDispatcher`, `CTFState`,
+`CTFVerifier`, `ToolExecutor`, `WorkerPool`, `CrewOrchestrator`, MCP production
+wiring, persisted schema compatibility, or proof authority behavior requires a
+separate approval plan before implementation.
+
+Recommended next low-risk alternatives before wiring:
+
+- Add or tighten source guards for application service behavior.
+- Add adapter fixtures that prove injected ports can be substituted without
+  production wiring.
+- Identify one read-only presentation/query path candidate and prepare an
+  approval plan with file list, risk, rollback point, and verification command.
