@@ -612,6 +612,23 @@ def test_audit_evidence_contract_builds_legacy_export_shape() -> None:
     assert AuditEvidenceExport.from_dict(payload).to_dict() == payload
 
 
+def test_audit_contract_uses_shared_sanitization_helpers() -> None:
+    path = CONTRACTS_ROOT / "audit.py"
+    tree = _parse(path)
+    imported_helpers: set[str] = set()
+    imports_control = False
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            if node.module == "sanitization" and node.level == 1:
+                imported_helpers.update(alias.name for alias in node.names)
+            if node.module == "control" and node.level == 1:
+                imports_control = True
+
+    assert "redact_sensitive_text" in imported_helpers
+    assert imports_control is False
+
+
 def test_task_plan_contract_relocates_legacy_task_dag_plan_objects() -> None:
     import flaghunter.agents.pa_agent.task_dag_plan as legacy_task_plan
     import flaghunter.domain.challenge.contracts.task_dag_plan as domain_task_plan

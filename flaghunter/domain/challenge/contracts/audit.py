@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping
 
 from ._serialization import JsonValue, coerce_json_dict, coerce_json_list
-from .control import redact_control_text
+from .sanitization import redact_sensitive_text
 
 
 SCHEMA_VERSION = "p2.audit_evidence.v1"
@@ -121,4 +121,4 @@ def build_audit_evidence_payload(
 
 
 def _preview(value: Any, *, limit: int) -> str:
-    return redact_control_text(str(value or ""))[: max(0, int(limit))]
+    return redact_sensitive_text(str(value or ""))[: max(0, int(limit))]
