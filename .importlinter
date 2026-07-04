@@ -47,6 +47,26 @@ forbidden_modules =
     flaghunter.config
 
 
+# --- CLEAN: APPLICATION services import no concrete layers -------------------
+[importlinter:contract:application-service-boundary]
+name = APPLICATION services import only contracts and ports
+type = forbidden
+allow_indirect_imports = true
+source_modules =
+    flaghunter.application
+forbidden_modules =
+    flaghunter.interface
+    flaghunter.mcp.server
+    flaghunter.session
+    flaghunter.agents
+    flaghunter.adapters
+    flaghunter.tools
+    flaghunter.knowledge
+    flaghunter.runtime
+    flaghunter.llm
+    flaghunter.config
+
+
 # --- CLEAN: FOUNDATION imports nothing higher --------------------------------
 [importlinter:contract:foundation-independence]
 name = FOUNDATION (config) imports nothing above it

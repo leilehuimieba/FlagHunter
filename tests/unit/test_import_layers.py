@@ -62,3 +62,11 @@ def test_domain_layer_has_import_linter_boundary() -> None:
 
     assert "[importlinter:contract:domain-contract-independence]" in config_text
     assert "flaghunter.domain" in config_text
+
+
+def test_application_layer_has_import_linter_boundary() -> None:
+    """Application services may use ports/contracts but not concrete layers."""
+    config_text = open(CONFIG_PATH, encoding="utf-8").read()
+
+    assert "[importlinter:contract:application-service-boundary]" in config_text
+    assert "flaghunter.application" in config_text
