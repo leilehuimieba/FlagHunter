@@ -5,11 +5,15 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from flaghunter.domain.challenge.contracts.audit import (
+    SCHEMA_VERSION,
+    build_audit_evidence_payload,
+)
+
 from .ctf_state import CTFState
 from .p3_solve_readback import build_p3_solve_readback
 
 
-SCHEMA_VERSION = "p2.audit_evidence.v1"
 _ALLOWED_TRACE_METADATA_KEYS = {
     "tool_name",
     "status",
@@ -87,52 +91,40 @@ def build_audit_evidence_export(
         reverse=True,
     )[:normalized_trace_limit]
 
-    return {
-        "schemaVersion": SCHEMA_VERSION,
-        "target": _preview(
-            getattr(state, "target", "") if state is not None else "",
-            limit=normalized_preview_limit,
-        ),
-        "goal": _preview(
-            getattr(state, "goal", "") if state is not None else "",
-            limit=normalized_preview_limit,
-        ),
-        "stopReason": _preview(
-            getattr(state, "stop_reason", "") if state is not None else "",
-            limit=normalized_preview_limit,
-        ),
-        "summary": {
-            "claimCount": len(claims),
-            "exportedClaimCount": len(sorted_claims),
-            "truncatedClaimCount": max(0, len(claims) - len(sorted_claims)),
-            "verificationRecordCount": len(records),
-            "exportedVerificationRecordCount": len(sorted_records),
-            "truncatedVerificationRecordCount": max(0, len(records) - len(sorted_records)),
-            "executionTraceCount": len(traces),
-            "exportedExecutionTraceCount": len(sorted_traces),
-            "truncatedExecutionTraceCount": max(0, len(traces) - len(sorted_traces)),
-            "candidateClaimCount": sum(1 for claim in claims if _claim_level(claim) == "conjecture"),
-            "verifiedClaimCount": sum(1 for claim in claims if _claim_level(claim) == "verified"),
-            "retractedClaimCount": sum(
-                1
-                for claim in claims
-                if _claim_level(claim) == "retracted" or _claim_status(claim) == "retracted"
-            ),
-        },
-        "claims": [
+    return build_audit_evidence_payload(
+        target=getattr(state, "target", "") if state is not None else "",
+        goal=getattr(state, "goal", "") if state is not None else "",
+        stop_reason=getattr(state, "stop_reason", "") if state is not None else "",
+        claims=[
             _claim_export(state, claim, preview_limit=normalized_preview_limit)
             for claim in sorted_claims
         ],
-        "verificationRecords": [
+        verification_records=[
             _verification_record_export(record, preview_limit=normalized_preview_limit)
             for record in sorted_records
         ],
-        "executionTraces": [
+        execution_traces=[
             _execution_trace_export(trace, preview_limit=normalized_preview_limit)
             for trace in sorted_traces
         ],
-        "p3SolveSnapshot": p3_solve_snapshot,
-    }
+        p3_solve_snapshot=p3_solve_snapshot,
+        claim_count=len(claims),
+        verification_record_count=len(records),
+        execution_trace_count=len(traces),
+        candidate_claim_count=sum(
+            1 for claim in claims if _claim_level(claim) == "conjecture"
+        ),
+        accepted_claim_count=sum(
+            1 for claim in claims if _claim_level(claim) == "verified"
+        ),
+        retracted_claim_count=sum(
+            1
+            for claim in claims
+            if _claim_level(claim) == "retracted"
+            or _claim_status(claim) == "retracted"
+        ),
+        preview_limit=normalized_preview_limit,
+    )
 
 
 def _recent_first(items: list[Any]) -> list[Any]:

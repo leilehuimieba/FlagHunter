@@ -480,6 +480,56 @@ def test_ledger_event_readback_contract_projects_legacy_shape() -> None:
     assert versioned["summary"] == readback["summary"]
 
 
+def test_audit_evidence_contract_builds_legacy_export_shape() -> None:
+    from flaghunter.domain.challenge.contracts.audit import (
+        AuditEvidenceExport,
+        build_audit_evidence_payload,
+    )
+
+    payload = build_audit_evidence_payload(
+        target="http://target/?token=target-token",
+        goal="login password=goal-password",
+        stop_reason="done secret=stop-secret",
+        claims=[{"claimId": "claim-1"}],
+        verification_records=[{"recordId": "record-1"}],
+        execution_traces=[{"traceId": "trace-1"}],
+        p3_solve_snapshot={"schemaVersion": "p3.solve_readback.v1"},
+        claim_count=2,
+        verification_record_count=3,
+        execution_trace_count=4,
+        candidate_claim_count=1,
+        accepted_claim_count=0,
+        retracted_claim_count=1,
+        preview_limit=80,
+    )
+
+    assert payload == {
+        "schemaVersion": "p2.audit_evidence.v1",
+        "target": "http://target/?token=<redacted>",
+        "goal": "login password=<redacted>",
+        "stopReason": "done secret=<redacted>",
+        "summary": {
+            "claimCount": 2,
+            "exportedClaimCount": 1,
+            "truncatedClaimCount": 1,
+            "verificationRecordCount": 3,
+            "exportedVerificationRecordCount": 1,
+            "truncatedVerificationRecordCount": 2,
+            "executionTraceCount": 4,
+            "exportedExecutionTraceCount": 1,
+            "truncatedExecutionTraceCount": 3,
+            "candidateClaimCount": 1,
+            "verifiedClaimCount": 0,
+            "retractedClaimCount": 1,
+        },
+        "claims": [{"claimId": "claim-1"}],
+        "verificationRecords": [{"recordId": "record-1"}],
+        "executionTraces": [{"traceId": "trace-1"}],
+        "p3SolveSnapshot": {"schemaVersion": "p3.solve_readback.v1"},
+    }
+    assert AuditEvidenceExport.from_dict(payload).to_dict() == payload
+
+
 def test_contract_package_does_not_import_concrete_or_outer_layers() -> None:
     offenders: list[tuple[str, str]] = []
     for path in _contract_sources():
