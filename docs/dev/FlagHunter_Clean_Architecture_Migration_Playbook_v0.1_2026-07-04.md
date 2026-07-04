@@ -593,6 +593,67 @@ Candidate C: Web task serialization and control-decision snapshot merge.
   continue, and control decision views.
 - Required approval: separate short plan; one call-site family per commit.
 
+#### Candidate C approval plan
+
+Status: approval required before implementation.
+
+Prerequisite: proceed only after Candidate A output equivalence is proven for a
+neutral blackboard projection builder. Candidate C must not introduce a second
+projection shape or bypass the Candidate A equivalence fixtures.
+
+Scope: prepare future read-only switches for the Web task serialization and
+control-decision snapshot merge paths. The current helpers call
+`build_task_blackboard_snapshot`, merge existing `blackboardSnapshot` payloads,
+and feed task detail serialization, retry/continue/control-decision flows, and
+active decision summaries.
+
+File list for the future implementation slices:
+
+- `flaghunter/interface/web_serialize_task.py::_serialize_task`
+- `flaghunter/interface/web_control_decision.py::_task_blackboard_snapshot_for_decision`
+- existing Candidate A fixtures in `tests/unit/interface/test_blackboard_lite.py`
+- focused Web serialization/control-decision fixture tests added only as needed
+
+Required fixture evidence:
+
+- old/new output equivalence for `_serialize_task` task detail output
+- old/new output equivalence for `_task_blackboard_snapshot_for_decision`
+- preserved fallback merge behavior between rebuilt and existing
+  `blackboardSnapshot`
+- preserved active decision summary and next-action explanation fields
+- no proof writes and no proof authority decisions
+
+Risk: medium-to-high. This is a fan-out path for task list/detail, retry,
+continue, and control-decision views. Implementation must use one call-site
+family per commit: serialize-task projection first, control-decision snapshot
+merge second, and no MCP readback change in either commit.
+
+Rollback point: revert the single Candidate C implementation commit for the
+affected call-site family. No schema migration, MCP handler rewiring,
+composition-root change, or production execution wiring should be introduced in
+that commit.
+
+Verification commands for the future implementation slices:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/interface/test_blackboard_lite.py tests/unit/test_clean_architecture_migration_playbook.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py -q
+git diff --check
+```
+
+Explicit non-goals for Candidate C:
+
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no composition root changes
+- no concrete adapter implementation
+- no proof authority behavior changes
+- no P5 implementation
+
 Deferred MCP readback candidate:
 
 - Current path:
