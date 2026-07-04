@@ -681,6 +681,69 @@ Deferred MCP readback candidate:
 - Required approval: explicit MCP production wiring approval before any handler
   route is rewired.
 
+#### Deferred MCP readback approval plan
+
+Status: approval required before implementation.
+
+Prerequisite: proceed only after Web read-model projection equivalence is proven
+for the neutral blackboard/read-model path. MCP readback must consume the same
+approved read-model projection and must not become an independent projection
+shape.
+
+Scope: prepare a future read-only switch for MCP blackboard readback text. The
+current helper imports presentation blackboard builders and formats task state
+snapshots into user-facing lines. The future implementation should preserve the
+existing line text, ordering, and omission behavior while using the approved
+neutral read-model projection as input.
+
+File list for the future implementation slice:
+
+- `flaghunter/mcp/server/mcp_tools.py::_append_blackboard_snapshot_lines`
+- focused MCP readback fixture tests for representative blackboard snapshot
+  lines
+- the already-approved Web read-model projection fixtures that prove the input
+  projection shape is equivalent
+
+Required fixture evidence:
+
+- old/new output equivalence for representative MCP readback text
+- old/new output equivalence for empty, missing, or malformed blackboard
+  snapshot inputs
+- preserved ordering for facts, hypotheses, pending verification items,
+  candidates, action results, and attack surfaces already emitted by the helper
+- no proof writes and no proof authority decisions
+
+Risk: high. The helper is read-only, but it lives inside MCP server task
+readback code, so implementation counts as MCP production wiring unless
+explicitly approved. It must be isolated as one MCP readback commit and must not
+change task execution, task creation, async task tracking, or handler routing.
+
+Rollback point: revert the single Deferred MCP implementation commit. No schema
+migration, dispatcher loop change, ToolExecutor change, WorkerPool/CrewOrchestrator
+change, composition-root change, or proof authority behavior change should be
+introduced in that commit.
+
+Verification commands for the future implementation slice:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py -q
+git diff --check
+```
+
+Explicit non-goals for Deferred MCP:
+
+- no MCP production wiring without explicit approval
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no composition root changes
+- no concrete adapter implementation
+- no proof authority behavior changes
+- no P5 implementation
+
 First read-path switch approval plan must include:
 
 - file list

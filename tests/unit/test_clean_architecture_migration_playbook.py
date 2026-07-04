@@ -180,3 +180,19 @@ def test_playbook_records_candidate_c_source_guard_baseline() -> None:
     assert "no execution/runtime imports" in text
     assert "no side-effect sinks" in text
     assert "no proof upgrade surfaces" in text
+
+
+def test_playbook_records_deferred_mcp_readback_approval_plan() -> None:
+    text = _playbook_text()
+
+    assert "Deferred MCP readback approval plan" in text
+    assert "flaghunter/mcp/server/mcp_tools.py::_append_blackboard_snapshot_lines" in text
+    assert "approval required before implementation" in text
+    assert "after Web read-model projection equivalence is proven" in text
+    assert "no MCP production wiring" in text
+    assert "no dispatcher loop changes" in text
+    assert "no ToolExecutor changes" in text
+    assert "no WorkerPool/CrewOrchestrator changes" in text
+    assert "no proof authority behavior changes" in text
+    assert "rollback point" in text
+    assert "old/new output equivalence" in text
