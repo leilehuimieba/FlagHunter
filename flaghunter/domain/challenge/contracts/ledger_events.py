@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping
 
 from ._serialization import JsonValue, coerce_json_dict, coerce_json_list
-from .control import redact_control_text
+from .sanitization import redact_sensitive_text
 
 
 SCHEMA_VERSION = "p2.ledger_event_readback.v1"
@@ -134,4 +134,4 @@ def _project_event(event: dict[str, Any]) -> dict[str, JsonValue]:
 
 
 def _text(value: Any) -> str:
-    return redact_control_text(value).strip()[:160]
+    return redact_sensitive_text(value).strip()[:160]

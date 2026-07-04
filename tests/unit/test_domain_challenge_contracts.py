@@ -562,6 +562,23 @@ def test_ledger_event_readback_contract_projects_legacy_shape() -> None:
     assert versioned["summary"] == readback["summary"]
 
 
+def test_ledger_event_contract_uses_shared_sanitization_helpers() -> None:
+    path = CONTRACTS_ROOT / "ledger_events.py"
+    tree = _parse(path)
+    imported_helpers: set[str] = set()
+    imports_control = False
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            if node.module == "sanitization" and node.level == 1:
+                imported_helpers.update(alias.name for alias in node.names)
+            if node.module == "control" and node.level == 1:
+                imports_control = True
+
+    assert "redact_sensitive_text" in imported_helpers
+    assert imports_control is False
+
+
 def test_audit_evidence_contract_builds_legacy_export_shape() -> None:
     from flaghunter.domain.challenge.contracts.audit import (
         AuditEvidenceExport,
