@@ -86,6 +86,31 @@ CTF_WP_SEARCH_THRESHOLD = int(
     os.environ.get("FLAGHUNTER_CTF_WP_SEARCH_THRESHOLD", "4")
 )
 
+# CTF Solver P1 canonical Claim / VerificationRecord migration switch.
+# Runtime-backed evidence is intentionally not a top-level Claim level in P1;
+# it is represented later by VerificationRecord.method/decision metadata.
+CTF_CLAIMS_V1_ENV_VAR = "FLAGHUNTER_CTF_CLAIMS_V1"
+CTF_CLAIMS_V1_DEFAULT = False
+CTF_P1_CLAIM_KIND_ALLOWLIST = (
+    "flag_found",
+    "credential_valid",
+    "endpoint_exists",
+    "exploit_succeeded",
+)
+CTF_RUNTIME_IS_VERIFICATION_SEMANTIC = True
+
+
+def env_flag_enabled(name: str, *, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return bool(default)
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def is_ctf_claims_v1_enabled() -> bool:
+    """Return the live P1 canonical claim-store feature switch."""
+    return env_flag_enabled(CTF_CLAIMS_V1_ENV_VAR, default=CTF_CLAIMS_V1_DEFAULT)
+
 # File Extensions
 KNOWLEDGE_TEXT_EXTENSIONS = [".txt", ".md"]
 KNOWLEDGE_DATA_EXTENSIONS = [".json"]

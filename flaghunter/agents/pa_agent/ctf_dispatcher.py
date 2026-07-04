@@ -39,12 +39,12 @@ from ...harness.audit_events import (
     build_task_finished_event,
     build_tool_called_event,
     build_tool_finished_event,
-    build_verification_decision_event,
 )
 from ...harness.checkpoint_store import CheckpointStore
 from ...harness.session_ledger import SessionLedger
 from ...knowledge.kill_chain import Phase
 from ...knowledge.profile import Profile, get_profile
+from ...config.constants import is_ctf_claims_v1_enabled
 from .chains.base import _ChainOutcome
 from .chains.file_read import LFIChainMixin
 from .chains.injection import GenericInjectionChainMixin
@@ -55,13 +55,29 @@ from .chains.upload import UploadChainMixin
 from .chains.web import WebChainMixin
 from .chains.xss import XSSChainMixin
 from .coordinator import CTFCoordinator, CoordinatorDispatcherServices
+from .control_receipts import record_completion_control_receipt
 from .flag_parser import FlagParserMixin
 from .flag_proof import FlagProofMixin
 from .hash_backup_executor import HashBackupExecutorMixin
 from .artifact_forensics import ArtifactForensicsMixin
 from .audit_infra import AuditInfraMixin, AuditStore, RuntimeAuditedActions
 from .capability_registry import CapabilityRegistry
-from .ctf_state import CTFState, FlagProof, FlagRecord, LLMStepLog
+from .ctf_state import (
+    CTFState,
+    ClaimKind,
+    ClaimLevel,
+    ClaimStatus,
+    FlagProof,
+    FlagRecord,
+    LLMStepLog,
+)
+from .solve_node import (
+    SolveNode,
+    SolveNodeKind,
+    SolveNodeReceipt,
+    SolveNodeStatus,
+    TaskBrief,
+)
 from .exploit_replay_memory import ExploitReplayMemoryMixin
 from .flag_observer import FlagObserver, FlagObserverMixin
 from .hypothesis_engine import _CHAIN_BY_KIND, HypothesisEngine
@@ -229,6 +245,18 @@ def _best_flag_record(bucket: list[FlagRecord]) -> FlagRecord | None:
         key=lambda r: float(getattr(r, "confidence", 0.0) or 0.0),
         default=None,
     )
+
+
+def _canonical_verified_flag_claim_value(state: CTFState) -> str | None:
+    if not is_ctf_claims_v1_enabled():
+        return None
+    claim = state.strongest_claim(ClaimKind.FLAG_FOUND)
+    if claim is None:
+        return None
+    if claim.level != ClaimLevel.VERIFIED or claim.status != ClaimStatus.ACTIVE:
+        return None
+    value = str(claim.content or "").strip()
+    return value or None
 
 
 def _blackboard_loop_enabled() -> bool:
@@ -579,6 +607,14 @@ class CTFTaskDispatcher(
             self._active_hypothesis_context = active_hypothesis
             self._active_strategy_context = strategy
             experiment = iteration_contract["experiment"]
+            p3_attempt = self._record_p3_strategy_attempt_start(
+                chain_name=chain_name,
+                target=target,
+                hint=hint,
+                strategy=strategy,
+                active_hypothesis=active_hypothesis,
+                attempt_index=chain_index,
+            )
 
             try:
                 outcome = await self._execute_chain(
@@ -588,6 +624,13 @@ class CTFTaskDispatcher(
                     hint=hint,
                 )
             except ToolMissingError as exc:
+                self._record_p3_strategy_attempt_receipt(
+                    p3_attempt,
+                    status="blocked",
+                    output_summary="missing tools",
+                    error_class=type(exc).__name__,
+                    error_summary=", ".join(sorted(exc.missing)),
+                )
                 self._active_hypothesis_context = None
                 self._active_strategy_context = None
                 missing_names = sorted(exc.missing)
@@ -615,6 +658,11 @@ class CTFTaskDispatcher(
             finally:
                 self._active_hypothesis_context = None
                 self._active_strategy_context = None
+            self._record_p3_strategy_attempt_receipt(
+                p3_attempt,
+                status="completed" if bool(getattr(outcome, "progress", False) or getattr(outcome, "flag", None)) else "partial",
+                output_summary=str(getattr(outcome, "reason", "") or ""),
+            )
             wrong_flag_result = await self.coordinator._apply_wrong_flag_early_stop_contract(
                 contract_ctx,
                 result=result,
@@ -984,6 +1032,12 @@ class CTFTaskDispatcher(
             result.reason = f"wrong flag feedback: {latest_wrong.get('flag', '')}"
             if previous_reason and "wrong flag feedback" not in previous_reason.lower():
                 result.reason += f" | previous={previous_reason}"
+        elif not result.success:
+            canonical_flag = _canonical_verified_flag_claim_value(self.state)
+            if canonical_flag:
+                result.success = True
+                result.flag = canonical_flag
+                result.reason = "canonical_verified_flag_claim"
 
         reason = result.reason or self.state.stop_reason or ""
         self.state.stop_reason = reason
@@ -1081,6 +1135,7 @@ class CTFTaskDispatcher(
             missing_capabilities=missing_capabilities,
         )
         self.state.stop_report = stop_report.to_dict()
+        self._record_completion_control_receipt(result, reason=reason)
         finished_event = build_task_finished_event(
             success=result.success,
             flag=result.flag or "",
@@ -1110,6 +1165,159 @@ class CTFTaskDispatcher(
         except Exception:
             pass
         return result
+
+    def _record_p3_strategy_attempt_start(
+        self,
+        *,
+        chain_name: str,
+        target: str,
+        hint: str,
+        strategy: Any,
+        active_hypothesis: Any,
+        attempt_index: int,
+    ) -> dict[str, str]:
+        node_id = ""
+        try:
+            if self.state is None:
+                return {}
+            strategy_id = str(getattr(strategy, "kind", "") or chain_name or "").strip()
+            hypothesis_id = str(getattr(active_hypothesis, "id", "") or "").strip()
+            node = SolveNode(
+                run_id=str(self._ledger_run_id or self._checkpoint_run_id or ""),
+                kind=SolveNodeKind.EXPLOIT,
+                status=SolveNodeStatus.RUNNING,
+                title=f"{chain_name}:{strategy_id or 'strategy_attempt'}",
+                goal=f"attempt strategy for {target}",
+                summary=str(getattr(strategy, "minimal_experiment", "") or hint or ""),
+                metadata={
+                    "phase": Phase.EXPLOIT,
+                    "chain_name": str(chain_name or "").strip(),
+                    "strategy_id": strategy_id,
+                    "strategy_name": strategy_id,
+                    "hypothesis_id": hypothesis_id,
+                    "attempt_index": int(attempt_index),
+                    "source_channel": "ctf_dispatcher",
+                },
+            )
+            node_id = self.state.record_solve_node(node)
+            brief = TaskBrief(
+                node_id=node_id,
+                run_id=str(self._ledger_run_id or self._checkpoint_run_id or ""),
+                worker_type="single_agent_dispatcher",
+                objective=f"{chain_name}:{strategy_id or 'strategy_attempt'}",
+                context_summary=str(getattr(active_hypothesis, "description", "") or hint or ""),
+                constraints=[
+                    str(getattr(strategy, "precondition_description", "") or "").strip(),
+                ],
+                metadata={
+                    "phase": Phase.EXPLOIT,
+                    "chain_name": str(chain_name or "").strip(),
+                    "strategy_id": strategy_id,
+                    "attempt_index": int(attempt_index),
+                    "source_channel": "ctf_dispatcher",
+                },
+            )
+            brief_id = self.state.record_task_brief(brief)
+            return {
+                "node_id": node_id,
+                "brief_id": brief_id,
+                "chain_name": str(chain_name or "").strip(),
+                "strategy_id": strategy_id,
+                "attempt_index": str(int(attempt_index)),
+            }
+        except Exception:
+            if node_id and self.state is not None:
+                try:
+                    self.state.solve_node_graph.nodes_by_id.pop(node_id, None)
+                except Exception:
+                    pass
+            return {}
+
+    def _record_p3_strategy_attempt_receipt(
+        self,
+        attempt: dict[str, str],
+        *,
+        status: str,
+        output_summary: str = "",
+        error_class: str = "",
+        error_summary: str = "",
+    ) -> str:
+        try:
+            if self.state is None or not attempt:
+                return ""
+            node_id = str(attempt.get("node_id") or "").strip()
+            brief_id = str(attempt.get("brief_id") or "").strip()
+            original_node_snapshot: dict[str, Any] | None = None
+            if node := self.state.get_solve_node(node_id):
+                original_node_snapshot = node.to_dict()
+                updated_node = SolveNode.from_dict(original_node_snapshot)
+                updated_node.status = (
+                    SolveNodeStatus.BLOCKED
+                    if status == "blocked"
+                    else SolveNodeStatus.FAILED
+                    if status == "failed"
+                    else SolveNodeStatus.COMPLETED
+                )
+                updated_node.summary = output_summary or updated_node.summary
+                updated_node.finished_at = time.time()
+                updated_node.updated_at = updated_node.finished_at
+                self.state.record_solve_node(updated_node)
+            receipt = SolveNodeReceipt(
+                node_id=node_id,
+                run_id=str(self._ledger_run_id or self._checkpoint_run_id or ""),
+                worker_id="ctf_dispatcher",
+                worker_type="single_agent_dispatcher",
+                status=status,
+                finished_at=time.time(),
+                input_brief_id=brief_id,
+                output_summary=output_summary,
+                error_class=error_class,
+                error_summary=error_summary,
+                metadata={
+                    "phase": Phase.EXPLOIT,
+                    "chain_name": str(attempt.get("chain_name") or "").strip(),
+                    "strategy_id": str(attempt.get("strategy_id") or "").strip(),
+                    "attempt_index": str(attempt.get("attempt_index") or "").strip(),
+                    "source_channel": "ctf_dispatcher",
+                },
+            )
+            try:
+                return self.state.record_solve_node_receipt(receipt)
+            except Exception:
+                if original_node_snapshot is not None:
+                    try:
+                        self.state.record_solve_node(
+                            SolveNode.from_dict(original_node_snapshot)
+                        )
+                    except Exception:
+                        pass
+                return ""
+        except Exception:
+            return ""
+
+    def _record_completion_control_receipt(
+        self,
+        result: SolveResult,
+        *,
+        reason: str,
+    ) -> None:
+        if self.state is None:
+            return
+        try:
+            record_completion_control_receipt(
+                self.state,
+                producer="control:stop",
+                success=bool(result.success),
+                stop_reason=reason,
+                input_summary=(
+                    "chain_used=" + ",".join(str(item) for item in result.chain_used)
+                ),
+                output_summary=reason or ("solved" if result.success else "stopped"),
+                answer_kind="solve_result",
+                source_channel="ctf_dispatcher",
+            )
+        except Exception:
+            pass
 
     async def _start_failover_monitor_if_available(self) -> None:
         if self._failover_monitor is not None:

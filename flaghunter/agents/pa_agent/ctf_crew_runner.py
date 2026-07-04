@@ -38,6 +38,14 @@ def derive_crew_stop_reason(summary: Any) -> str:
     if base_reason in {"flag_verified", "crew_timeout"} or base_reason.startswith("worker_error:"):
         return base_reason
 
+    flag_summary = (
+        getattr(summary, "flag_summary", None)
+        if getattr(summary, "flag_summary", None) is not None
+        else {}
+    )
+    if isinstance(flag_summary, dict) and list(flag_summary.get("verifiedFlags") or []):
+        return "flag_verified"
+
     worker_results = dict(getattr(summary, "worker_results", {}) or {})
     reasons = [
         str(item.get("reason") or "").strip().lower()

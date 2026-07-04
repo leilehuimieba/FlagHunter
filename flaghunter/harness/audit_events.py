@@ -1,6 +1,22 @@
 from __future__ import annotations
 
+import hashlib
+import re
 from typing import Any
+
+
+_DEFAULT_PREVIEW_LIMIT = 160
+_METADATA_ALLOWLIST = {
+    "budget_name",
+    "checkpoint_id",
+    "phase",
+    "provider",
+    "run_id",
+    "source_channel",
+    "status",
+    "task_id",
+    "worker_id",
+}
 
 
 def _event(event_type: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -8,6 +24,72 @@ def _event(event_type: str, payload: dict[str, Any] | None = None) -> dict[str, 
         "event_type": str(event_type or "").strip(),
         "payload": dict(payload or {}),
     }
+
+
+def _redact_text(value: Any) -> str:
+    text = str(value or "")
+    if not text:
+        return ""
+    text = re.sub(r"(?im)^\s*set-cookie\s*:.*$", "<redacted>", text)
+    text = re.sub(r"(?im)^\s*cookie\s*:.*$", "<redacted>", text)
+    text = re.sub(r"(?im)^\s*authorization\s*:.*$", "<redacted>", text)
+    text = re.sub(
+        r"(?i)\bauthorization\s*:\s*bearer\s+[^\s,;&]+",
+        "authorization=<redacted>",
+        text,
+    )
+    text = re.sub(
+        r"(?i)\b(token|api[_-]?key|password|secret|session|cookie|authorization)\b\s*[:=]\s*(\"[^\"]*\"|'[^']*'|[^\s,;&]+)",
+        r"\1=<redacted>",
+        text,
+    )
+    text = re.sub(
+        r"(?i)([\"'](?:token|api[_-]?key|password|secret|session|cookie|authorization)[\"']\s*:\s*)([\"'][^\"']*[\"']|[^,\n\r}\]]+)",
+        r'\1"<redacted>"',
+        text,
+    )
+    return text
+
+
+def _preview(value: Any, *, limit: int = _DEFAULT_PREVIEW_LIMIT) -> str:
+    return _redact_text(value)[: max(0, int(limit))]
+
+
+def _safe_field(value: Any, *, limit: int = _DEFAULT_PREVIEW_LIMIT) -> str:
+    return _preview(value, limit=limit).strip()
+
+
+def _sha256_text(value: Any) -> str:
+    text = str(value or "")
+    if not text:
+        return ""
+    return hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()
+
+
+def _safe_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(metadata, dict):
+        return {}
+    safe: dict[str, Any] = {}
+    for key in sorted(_METADATA_ALLOWLIST):
+        if key not in metadata:
+            continue
+        value = metadata[key]
+        if isinstance(value, (bool, int, float)) or value is None:
+            safe[key] = value
+        else:
+            safe[key] = _preview(value)
+    return safe
+
+
+def _maybe_number(value: Any) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return value
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return value
 
 
 def build_dispatcher_started_event(
@@ -169,6 +251,142 @@ def build_verification_decision_event(
             "confidence": confidence,
             "hypothesis_id": str(hypothesis_id or "").strip(),
             "strategy_kind": str(strategy_kind or "").strip(),
+        },
+    )
+
+
+def build_model_call_event(
+    *,
+    model: str,
+    provider: str = "",
+    status: str = "",
+    duration_ms: float | int | None = None,
+    prompt: str = "",
+    completion: str = "",
+    prompt_tokens: int | None = None,
+    completion_tokens: int | None = None,
+    total_tokens: int | None = None,
+    metadata: dict[str, Any] | None = None,
+    preview_limit: int = _DEFAULT_PREVIEW_LIMIT,
+) -> dict[str, Any]:
+    normalized_prompt_tokens = int(prompt_tokens or 0)
+    normalized_completion_tokens = int(completion_tokens or 0)
+    normalized_total_tokens = (
+        int(total_tokens)
+        if total_tokens is not None
+        else normalized_prompt_tokens + normalized_completion_tokens
+    )
+    return _event(
+        "model_call",
+        {
+            "model": _safe_field(model),
+            "provider": _safe_field(provider),
+            "status": _safe_field(status),
+            "duration_ms": _maybe_number(duration_ms),
+            "prompt_preview": _preview(prompt, limit=preview_limit),
+            "completion_preview": _preview(completion, limit=preview_limit),
+            "prompt_sha256": _sha256_text(prompt),
+            "completion_sha256": _sha256_text(completion),
+            "prompt_tokens": normalized_prompt_tokens,
+            "completion_tokens": normalized_completion_tokens,
+            "total_tokens": normalized_total_tokens,
+            "metadata": _safe_metadata(metadata),
+        },
+    )
+
+
+def build_state_transition_event(
+    *,
+    from_state: str,
+    to_state: str,
+    reason: str = "",
+    source: str = "",
+    success: bool | None = None,
+    metadata: dict[str, Any] | None = None,
+    preview_limit: int = _DEFAULT_PREVIEW_LIMIT,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "from_state": _safe_field(from_state),
+        "to_state": _safe_field(to_state),
+        "reason_preview": _preview(reason, limit=preview_limit),
+        "source": _safe_field(source),
+        "metadata": _safe_metadata(metadata),
+    }
+    if success is not None:
+        payload["success"] = bool(success)
+    return _event("state_transition", payload)
+
+
+def build_budget_event(
+    *,
+    budget_name: str,
+    event: str,
+    used: int | float | None = None,
+    limit: int | float | None = None,
+    remaining: int | float | None = None,
+    unit: str = "",
+    source: str = "",
+    metadata: dict[str, Any] | None = None,
+    preview_limit: int = _DEFAULT_PREVIEW_LIMIT,
+) -> dict[str, Any]:
+    del preview_limit
+    return _event(
+        "budget_event",
+        {
+            "budget_name": _safe_field(budget_name),
+            "event": _safe_field(event),
+            "used": _maybe_number(used),
+            "limit": _maybe_number(limit),
+            "remaining": _maybe_number(remaining),
+            "unit": _safe_field(unit),
+            "source": _safe_field(source),
+            "metadata": _safe_metadata(metadata),
+        },
+    )
+
+
+def build_handoff_created_event(
+    *,
+    handoff_id: str,
+    source: str = "",
+    target: str = "",
+    decision_kind: str = "",
+    next_action: str = "",
+    reason: str = "",
+    metadata: dict[str, Any] | None = None,
+    preview_limit: int = _DEFAULT_PREVIEW_LIMIT,
+) -> dict[str, Any]:
+    return _event(
+        "handoff_created",
+        {
+            "handoff_id": _safe_field(handoff_id),
+            "source": _safe_field(source),
+            "target": _safe_field(target),
+            "decision_kind": _safe_field(decision_kind),
+            "next_action": _safe_field(next_action),
+            "reason_preview": _preview(reason, limit=preview_limit),
+            "metadata": _safe_metadata(metadata),
+        },
+    )
+
+
+def build_handoff_consumed_event(
+    *,
+    handoff_id: str,
+    consumer: str = "",
+    status: str = "",
+    reason: str = "",
+    metadata: dict[str, Any] | None = None,
+    preview_limit: int = _DEFAULT_PREVIEW_LIMIT,
+) -> dict[str, Any]:
+    return _event(
+        "handoff_consumed",
+        {
+            "handoff_id": _safe_field(handoff_id),
+            "consumer": _safe_field(consumer),
+            "status": _safe_field(status),
+            "reason_preview": _preview(reason, limit=preview_limit),
+            "metadata": _safe_metadata(metadata),
         },
     )
 

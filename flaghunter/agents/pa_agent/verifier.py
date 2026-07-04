@@ -2,13 +2,26 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import time
 from datetime import datetime, timezone
 from typing import Awaitable, Callable
 
-from .ctf_state import CTFState, FlagProof, VerificationResult
+from ...config.constants import CTF_P1_CLAIM_KIND_ALLOWLIST, is_ctf_claims_v1_enabled
+from .ctf_state import (
+    CTFState,
+    Claim,
+    ExecutionTrace,
+    ClaimKind,
+    ClaimLevel,
+    ClaimStatus,
+    FlagProof,
+    VerificationDecision,
+    VerificationMethod,
+    VerificationResult,
+)
 from .dispatcher_helpers import _FLAG_BODY
 from .platform_orchestrator import PlatformTaskOrchestrator
 
@@ -89,6 +102,8 @@ class CTFVerifier:
         self.confirmation_callback = confirmation_callback
         self.flag_patterns = self._compile_flag_patterns()
         self.platform_orchestrator = PlatformTaskOrchestrator()
+        self.claims_v1_enabled = is_ctf_claims_v1_enabled
+        self.claim_kind_allowlist = CTF_P1_CLAIM_KIND_ALLOWLIST
 
     async def verify_flag(
         self,
@@ -1040,6 +1055,18 @@ class CTFVerifier:
             metadata.setdefault("operator_confirmed", False)
             metadata.setdefault("created_at", time.time())
             result.metadata = metadata
+            try:
+                self._sync_flag_claim(state, result)
+            except Exception as exc:
+                state.meta_reasonings.append(
+                    {
+                        "type": "flag_claim_sync_error",
+                        "flag": result.flag,
+                        "decision": result.decision,
+                        "error": f"{type(exc).__name__}: {exc}",
+                        "created_at": time.time(),
+                    }
+                )
             state.meta_reasonings.append(
                 {
                     "type": "flag_verification_decision",
@@ -1053,6 +1080,224 @@ class CTFVerifier:
                 }
             )
         return result
+
+    def _sync_flag_claim(self, state: CTFState, result: VerificationResult) -> None:
+        if not self.claims_v1_enabled():
+            return
+        if ClaimKind.FLAG_FOUND.value not in self.claim_kind_allowlist:
+            return
+        normalized_flag = str(result.flag or "").strip()
+        decision = str(result.decision or "").strip()
+        if not normalized_flag or decision not in {"candidate", "runtime", "verified", "rejected"}:
+            return
+
+        trace = self._ensure_result_trace(state, result)
+        claim = self._get_or_create_flag_claim(state, result, trace)
+        if claim is None:
+            return
+
+        if decision == "candidate":
+            return
+
+        record = self._append_flag_verification_record(state, claim, result, trace)
+        if decision == "verified":
+            state.upgrade_claim_to_verified(
+                claim.id,
+                verification_record_id=record.id,
+                verifier_id="ctf_verifier",
+            )
+        elif decision == "rejected" and (
+            claim.level != ClaimLevel.RETRACTED or claim.status != ClaimStatus.RETRACTED
+        ):
+            state.retract_claim(
+                claim.id,
+                reason=result.rationale or "flag rejected by verifier",
+                trace_id=record.trace_id,
+                actor_id="ctf_verifier",
+            )
+
+    def _get_or_create_flag_claim(
+        self,
+        state: CTFState,
+        result: VerificationResult,
+        trace: ExecutionTrace,
+    ) -> Claim | None:
+        normalized_flag = str(result.flag or "").strip()
+        if not normalized_flag:
+            return None
+        include_inactive = str(result.decision or "").strip() == "rejected"
+        candidates = state.find_claims_by_kind(
+            ClaimKind.FLAG_FOUND,
+            include_inactive=include_inactive,
+        )
+        for claim in candidates:
+            if claim.normalized_content == normalized_flag:
+                self._promote_claim_primary_trace(claim, trace)
+                return claim
+
+        metadata = dict(result.metadata or {})
+        metadata["legacy_decision"] = str(result.decision or "").strip()
+        if result.proof is not None:
+            metadata["proof_type"] = result.proof.proof_type
+            metadata["proof_source_trust"] = result.proof.source_trust
+            metadata["proof_submit_confidence"] = result.proof.submit_confidence
+
+        return state.create_claim(
+            kind=ClaimKind.FLAG_FOUND,
+            content=normalized_flag,
+            level=ClaimLevel.CONJECTURE,
+            producer_type="verifier",
+            producer_id="ctf_verifier",
+            primary_trace_id=trace.id,
+            source_channel=result.evidence_source,
+            confidence=float(result.confidence or 0.0),
+            confidence_reason=result.rationale,
+            replayable=bool(result.proof and result.proof.replayable),
+            metadata=metadata,
+        )
+
+    def _promote_claim_primary_trace(self, claim: Claim, trace: ExecutionTrace) -> None:
+        current = str(claim.primary_trace_id or "").strip()
+        if current == trace.id:
+            return
+        evidence_trace_ids = list(claim.evidence_trace_ids or [])
+        if current and current not in evidence_trace_ids:
+            evidence_trace_ids.append(current)
+        if trace.id in evidence_trace_ids:
+            evidence_trace_ids = [item for item in evidence_trace_ids if item != trace.id]
+        claim.primary_trace_id = trace.id
+        claim.evidence_trace_ids = evidence_trace_ids
+        claim.metadata["primary_trace_promoted_by"] = "ctf_verifier"
+        claim.metadata["primary_trace_receipt_id"] = trace.receipt_id
+        claim.updated_at = time.time()
+
+    def _append_flag_verification_record(
+        self,
+        state: CTFState,
+        claim: Claim,
+        result: VerificationResult,
+        trace: ExecutionTrace,
+    ):
+        decision = self._record_decision_for_result(result)
+        passed = decision in {
+            VerificationDecision.RUNTIME_SUPPORTED,
+            VerificationDecision.VERIFIED,
+        }
+        sufficient = decision == VerificationDecision.VERIFIED
+        metadata = dict(result.metadata or {})
+        metadata["legacy_decision"] = str(result.decision or "").strip()
+        metadata["receipt_id"] = trace.receipt_id
+        metadata["trace_kind"] = trace.kind.value
+        if result.proof is not None:
+            metadata["proof_type"] = result.proof.proof_type
+            metadata["source_trust"] = result.proof.source_trust
+            metadata["submit_confidence"] = result.proof.submit_confidence
+
+        return state.append_verification_record(
+            claim.id,
+            verifier_type="verifier",
+            verifier_id="ctf_verifier",
+            method=self._verification_method_for_result(result),
+            decision=decision,
+            trace_id=trace.id,
+            passed=passed,
+            sufficient_for_upgrade=sufficient,
+            rationale=result.rationale,
+            evidence_summary=self._evidence_summary_for_result(result),
+            confidence_delta=float(result.confidence or 0.0),
+            replayable=bool(result.proof and result.proof.replayable),
+            submitted_value=str(result.flag or "").strip() or None,
+            metadata=metadata,
+        )
+
+    def _ensure_result_trace(
+        self,
+        state: CTFState,
+        result: VerificationResult,
+    ) -> ExecutionTrace:
+        metadata = dict(result.metadata or {})
+        existing_trace_id = str(metadata.get("trace_id") or "").strip()
+        if existing_trace_id and existing_trace_id in state.execution_traces_by_id:
+            return state.execution_traces_by_id[existing_trace_id]
+
+        decision = str(result.decision or "").strip()
+        receipt = state.record_verification_receipt(
+            verifier_id="ctf_verifier",
+            decision=decision,
+            flag=result.flag,
+            evidence_source=result.evidence_source,
+            rationale=result.rationale,
+            success=decision in {"runtime", "verified", "candidate"},
+            artifact_refs=list(getattr(result.proof, "related_observations", []) or []),
+            metadata={
+                "verification_path": str(metadata.get("verification_path") or "").strip(),
+                "platform_verified": bool(metadata.get("platform_verified")),
+                "operator_confirmed": bool(metadata.get("operator_confirmed")),
+                "requires_followup": bool(result.requires_followup),
+                "confidence": float(result.confidence or 0.0),
+            },
+        )
+        metadata["trace_id"] = receipt.id
+        metadata["receipt_id"] = receipt.receipt_id
+        result.metadata = metadata
+        return receipt
+
+    def _record_decision_for_result(
+        self,
+        result: VerificationResult,
+    ) -> VerificationDecision:
+        mapping = {
+            "candidate": VerificationDecision.CANDIDATE,
+            "runtime": VerificationDecision.RUNTIME_SUPPORTED,
+            "verified": VerificationDecision.VERIFIED,
+            "rejected": VerificationDecision.REJECTED,
+            "insufficient": VerificationDecision.INSUFFICIENT,
+        }
+        return mapping.get(str(result.decision or "").strip(), VerificationDecision.INSUFFICIENT)
+
+    def _verification_method_for_result(
+        self,
+        result: VerificationResult,
+    ) -> VerificationMethod:
+        metadata = dict(result.metadata or {})
+        path = str(metadata.get("verification_path") or "").strip()
+        evidence_source = str(result.evidence_source or "").strip()
+        proof_type = str(getattr(result.proof, "proof_type", "") or "").strip()
+
+        if path.startswith("prior_submit"):
+            return VerificationMethod.PRIOR_SUBMIT_LOOKUP
+        if "platform_submit" in path or evidence_source == "platform-submit":
+            return VerificationMethod.PLATFORM_SUBMIT
+        if path.startswith("submit_endpoint"):
+            return VerificationMethod.PLATFORM_SUBMIT
+        if path == "local_challenge_runtime":
+            return VerificationMethod.LOCAL_CHALLENGE_AUTO_VERIFY
+        if path.startswith("operator") or proof_type == "user_confirm":
+            return VerificationMethod.OPERATOR_CONFIRM
+        if proof_type == "runtime_command":
+            return VerificationMethod.RUNTIME_COMMAND
+        if proof_type == "dom_element":
+            return VerificationMethod.RUNTIME_BROWSER
+        if proof_type == "source_code_leak":
+            return VerificationMethod.DETERMINISTIC_PARSER
+        if proof_type in {"runtime_http", "runtime_collector", "platform_accept"}:
+            return VerificationMethod.RUNTIME_HTTP
+        return VerificationMethod.NONE
+
+    def _evidence_summary_for_result(self, result: VerificationResult) -> str:
+        if result.proof is not None and result.proof.evidence_snippet:
+            return str(result.proof.evidence_snippet or "")[:200]
+        return str(result.rationale or result.evidence_source or "")[:200]
+
+    def _trace_id_for_result(self, result: VerificationResult, *, suffix: str) -> str:
+        flag = str(result.flag or "").strip()
+        source = str(result.evidence_source or "").strip()
+        decision = str(result.decision or "").strip()
+        path = str((result.metadata or {}).get("verification_path") or "").strip()
+        digest = hashlib.sha256(
+            f"{flag}\0{source}\0{decision}\0{path}\0{suffix}".encode("utf-8")
+        ).hexdigest()[:16]
+        return f"ctf_verifier:{suffix}:{digest}"
 
     def _compile_flag_patterns(self) -> tuple[re.Pattern[str], ...]:
         extra = os.getenv("CTF_FLAG_PATTERNS", "")

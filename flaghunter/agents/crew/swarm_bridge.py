@@ -2,12 +2,44 @@
 
 import json
 import os
+import re
 from typing import Any, Awaitable, Callable
 
 # Severity ranking for ordering peer-agent findings in the orchestrator prompt:
 # the most actionable (critical/high) surface first so the next dispatch round
 # re-prioritises around them. Unknown severities sort last.
 _SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+_SENSITIVE_KEYS = r"token|api[_-]?key|password|secret|session|cookie|authorization"
+
+
+def _redact_swarm_text(value: Any, *, limit: int | None = None) -> str:
+    text = str(value or "")
+    text = re.sub(r"(?im)^\s*set-cookie\s*:.*$", "<redacted>", text)
+    text = re.sub(r"(?im)^\s*cookie\s*:.*$", "<redacted>", text)
+    text = re.sub(r"(?im)^\s*authorization\s*:.*$", "<redacted>", text)
+    text = re.sub(
+        r"(?i)\bauthorization\s*:\s*bearer\s+[^\s,;&]+",
+        "authorization=<redacted>",
+        text,
+    )
+    text = re.sub(
+        r"(?i)\bauthorization\s*=\s*bearer\s+[^\s,;&]+",
+        "authorization=<redacted>",
+        text,
+    )
+    text = re.sub(
+        rf"(?i)\b({_SENSITIVE_KEYS})\b\s*[:=]\s*(\"[^\"]*\"|'[^']*'|[^\s,;&]+)",
+        lambda match: f"{match.group(1)}=<redacted>",
+        text,
+    )
+    text = re.sub(
+        rf"(?i)([\"'](?:{_SENSITIVE_KEYS})[\"']\s*:\s*)([\"'][^\"']*[\"']|[^,\n\r}}\]]+)",
+        lambda match: f"{match.group(1)}\"<redacted>\"",
+        text,
+    )
+    if limit is not None and len(text) > limit:
+        return text[:limit] + "…"
+    return text
 
 
 def _extract_flag_values(state: Any, attr_name: str) -> list[str]:
@@ -21,6 +53,8 @@ def _extract_flag_values(state: Any, attr_name: str) -> list[str]:
 
 
 def _extract_state_diff(state: Any) -> dict[str, Any]:
+    from ..pa_agent.claim_views import preferred_flag_summary
+
     observations = []
     for item in list(getattr(state, "observations", []) or []):
         observations.append(
@@ -31,12 +65,14 @@ def _extract_state_diff(state: Any) -> dict[str, Any]:
                 "metadata": dict(getattr(item, "metadata", {}) or {}),
             }
         )
+    flag_summary = preferred_flag_summary(state)
     return {
         "observations": observations,
-        "candidate_flags": _extract_flag_values(state, "candidate_flags"),
-        "runtime_flags": _extract_flag_values(state, "runtime_flags"),
-        "verified_flags": _extract_flag_values(state, "verified_flags"),
-        "rejected_flags": _extract_flag_values(state, "rejected_flags"),
+        "candidate_flags": list(flag_summary["candidateFlags"]),
+        "runtime_flags": list(flag_summary["runtimeFlags"]),
+        "verified_flags": list(flag_summary["verifiedFlags"]),
+        "rejected_flags": list(flag_summary["rejectedFlags"]),
+        "retracted_flags": list(flag_summary["retractedFlags"]),
         "stop_reason": str(getattr(state, "stop_reason", "") or ""),
     }
 
@@ -233,7 +269,7 @@ def _finding_summary(msg: Any) -> str:
         text = str(data.get("finding") or raw)
     except Exception:
         text = raw
-    text = text.strip().replace("\n", " ")
+    text = _redact_swarm_text(text).strip().replace("\n", " ")
     return text[:160] + ("…" if len(text) > 160 else "")
 
 
@@ -275,10 +311,14 @@ async def recall_swarm_board_context(
         )
         finding_lines: list[str] = []
         for msg in ranked[:max_findings]:
-            sev = str((getattr(msg, "metadata", {}) or {}).get("severity", "") or "")
+            sev = _redact_swarm_text(
+                (getattr(msg, "metadata", {}) or {}).get("severity", "")
+            )
             tag = f"[{sev}] " if sev else ""
-            scope = f" — {msg.target}" if getattr(msg, "target", "") else ""
-            who = f" ({msg.sender})" if getattr(msg, "sender", "") else ""
+            scope_value = _redact_swarm_text(getattr(msg, "target", ""))
+            sender_value = _redact_swarm_text(getattr(msg, "sender", ""))
+            scope = f" — {scope_value}" if scope_value else ""
+            who = f" ({sender_value})" if sender_value else ""
             finding_lines.append(f"- {tag}{_finding_summary(msg)}{scope}{who}")
 
         router = get_pheromone_router()
@@ -286,7 +326,7 @@ async def recall_swarm_board_context(
         # Drop the ``chain:``-namespaced trails (those bias chain order, not target
         # selection); surface only real attack targets as hot.
         hot_lines = [
-            f"- {tgt} (强度 {strength:.2f})"
+            f"- {_redact_swarm_text(tgt)} (强度 {strength:.2f})"
             for tgt, strength in top
             if not str(tgt).startswith("chain:")
         ]
@@ -299,8 +339,11 @@ async def recall_swarm_board_context(
         # the top finding is only medium/low/info → byte-identical to the 2B prompt.
         if ranked and _severity_rank(ranked[0]) <= _SEVERITY_ORDER["high"]:
             top = ranked[0]
-            top_sev = str((getattr(top, "metadata", {}) or {}).get("severity", "") or "").lower()
-            top_scope = f" on {top.target}" if getattr(top, "target", "") else ""
+            top_sev = _redact_swarm_text(
+                (getattr(top, "metadata", {}) or {}).get("severity", "")
+            ).lower()
+            top_target = _redact_swarm_text(getattr(top, "target", ""))
+            top_scope = f" on {top_target}" if top_target else ""
             sections.append(
                 "## 🚨 Reprioritize — high-severity peer finding\n"
                 f"A peer agent reported a [{top_sev}] finding{top_scope}: "
@@ -343,7 +386,7 @@ async def on_worker_complete(
         messenger = get_messenger(agent_id)
         await messenger.report_finding(
             target=target,
-            finding=(result or "")[:500],
+            finding=_redact_swarm_text(result, limit=500),
             severity="info",
         )
     except Exception:

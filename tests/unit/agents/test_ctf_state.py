@@ -1,10 +1,31 @@
 from __future__ import annotations
 
 import asyncio
+import json
 
 import pytest
 
-from flaghunter.agents.pa_agent.ctf_state import CTFState, FlagProof, LLMStepLog
+from flaghunter.agents.pa_agent.claim_views import preferred_flag_summary
+from flaghunter.agents.pa_agent.ctf_state import (
+    CTFState,
+    ClaimKind,
+    ClaimLevel,
+    ClaimStatus,
+    FlagProof,
+    LLMStepLog,
+    VerificationDecision,
+    VerificationMethod,
+)
+from flaghunter.agents.pa_agent.task_dag_plan import (
+    TaskDAGNode,
+    TaskDAGPlan,
+    TaskDAGStatus,
+    build_task_dag_plan_readback,
+)
+
+
+def _enable_claims_v1(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FLAGHUNTER_CTF_CLAIMS_V1", "1")
 
 
 def test_ctf_state_exploration_agenda_defaults_to_empty():
@@ -393,6 +414,475 @@ def test_ctf_state_records_llm_step_and_weak_decision():
     assert len(state.llm_exploration_log) == 1
     assert state.llm_exploration_log[0].action_type == "http_request"
     assert state.weak_decision_log == ["missing fallback for shell action"]
+
+
+def test_ctf_state_can_create_canonical_claim(monkeypatch):
+    _enable_claims_v1(monkeypatch)
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+
+    claim = state.create_claim(
+        kind=ClaimKind.FLAG_FOUND,
+        content=" flag{maybe} ",
+        producer_type="solver",
+        producer_id="unit-test",
+        primary_trace_id="trace-1",
+        confidence=0.4,
+    )
+
+    assert claim.kind == ClaimKind.FLAG_FOUND
+    assert claim.content == "flag{maybe}"
+    assert claim.normalized_content == "flag{maybe}"
+    assert claim.level == ClaimLevel.CONJECTURE
+    assert claim.status == ClaimStatus.ACTIVE
+    assert state.get_claim(claim.id) is claim
+    assert state.find_claims_by_kind(ClaimKind.FLAG_FOUND) == [claim]
+    assert state.active_claims() == [claim]
+
+
+def test_ctf_state_can_append_verification_record(monkeypatch):
+    _enable_claims_v1(monkeypatch)
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    claim = state.create_claim(
+        kind=ClaimKind.FLAG_FOUND,
+        content="flag{runtime}",
+        producer_type="solver",
+        producer_id="unit-test",
+        primary_trace_id="trace-claim",
+    )
+
+    record = state.append_verification_record(
+        claim.id,
+        verifier_type="ctf_verifier",
+        verifier_id="unit-verifier",
+        method="runtime_http",
+        decision="runtime_supported",
+        passed=True,
+        sufficient_for_upgrade=False,
+        trace_id="trace-verification",
+        rationale="observed in HTTP response",
+    )
+
+    assert record.claim_id == claim.id
+    assert record.passed is True
+    assert record.sufficient_for_upgrade is False
+    assert state.verification_records_by_id[record.id] is record
+    assert state.verification_index_by_claim[claim.id] == [record.id]
+    assert claim.verification_record_ids == [record.id]
+    assert claim.level == ClaimLevel.CONJECTURE
+
+
+def test_ctf_state_can_upgrade_claim_to_verified(monkeypatch):
+    _enable_claims_v1(monkeypatch)
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    claim = state.create_claim(
+        kind=ClaimKind.FLAG_FOUND,
+        content="flag{verified}",
+        producer_type="solver",
+        producer_id="unit-test",
+        primary_trace_id="trace-claim",
+    )
+    record = state.append_verification_record(
+        claim.id,
+        verifier_type="ctf_verifier",
+        verifier_id="unit-verifier",
+        method="platform_submit",
+        decision="verified",
+        passed=True,
+        sufficient_for_upgrade=True,
+        trace_id="trace-platform",
+        rationale="platform accepted it",
+    )
+
+    upgraded = state.upgrade_claim_to_verified(
+        claim.id,
+        verification_record_id=record.id,
+        verifier_id="unit-verifier",
+    )
+
+    assert upgraded is claim
+    assert claim.level == ClaimLevel.VERIFIED
+    assert claim.status == ClaimStatus.ACTIVE
+    assert state.strongest_claim(ClaimKind.FLAG_FOUND) is claim
+
+
+def test_ctf_state_can_retract_claim_without_deleting_it(monkeypatch):
+    _enable_claims_v1(monkeypatch)
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    claim = state.create_claim(
+        kind=ClaimKind.FLAG_FOUND,
+        content="flag{wrong}",
+        producer_type="solver",
+        producer_id="unit-test",
+        primary_trace_id="trace-claim",
+    )
+
+    retracted = state.retract_claim(
+        claim.id,
+        reason="platform rejected it",
+        trace_id="trace-reject",
+        actor_id="unit-verifier",
+    )
+
+    assert retracted is claim
+    assert claim.level == ClaimLevel.RETRACTED
+    assert claim.status == ClaimStatus.RETRACTED
+    assert claim.retracted_at is not None
+    assert claim.metadata["retraction_reason"] == "platform rejected it"
+    assert state.get_claim(claim.id) is claim
+    assert state.active_claims() == []
+
+
+def test_ctf_state_canonical_claims_survive_snapshot_round_trip(monkeypatch):
+    _enable_claims_v1(monkeypatch)
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    claim = state.create_claim(
+        kind=ClaimKind.FLAG_FOUND,
+        content="flag{persisted}",
+        producer_type="solver",
+        producer_id="unit-test",
+        primary_trace_id="trace-claim",
+    )
+    record = state.append_verification_record(
+        claim.id,
+        verifier_type="ctf_verifier",
+        verifier_id="unit-verifier",
+        method="platform_submit",
+        decision="verified",
+        passed=True,
+        sufficient_for_upgrade=True,
+        trace_id="trace-platform",
+        rationale="platform accepted it",
+    )
+    state.upgrade_claim_to_verified(claim.id, verification_record_id=record.id)
+
+    snapshot = state.to_snapshot()
+    json.dumps(snapshot)
+    restored = CTFState.from_snapshot(snapshot)
+    restored_claim = restored.get_claim(claim.id)
+    restored_record = restored.verification_records_by_id[record.id]
+
+    assert restored_claim is not None
+    assert restored_claim.level == ClaimLevel.VERIFIED
+    assert restored_claim.verification_record_ids == [record.id]
+    assert restored_record.claim_id == claim.id
+    assert restored_record.passed is True
+    assert restored_record.sufficient_for_upgrade is True
+    assert restored_record.decision == VerificationDecision.VERIFIED
+    assert restored.find_claims_by_kind(ClaimKind.FLAG_FOUND) == [restored_claim]
+    assert restored.verification_index_by_claim[claim.id] == [record.id]
+
+
+def test_ctf_state_from_snapshot_enforces_retracted_claim_invariant(monkeypatch):
+    _enable_claims_v1(monkeypatch)
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    claim = state.create_claim(
+        kind=ClaimKind.FLAG_FOUND,
+        content="flag{wrong_after_resume}",
+        producer_type="verifier",
+        producer_id="ctf_verifier",
+        primary_trace_id="trace-claim",
+    )
+    record = state.append_verification_record(
+        claim.id,
+        verifier_type="verifier",
+        verifier_id="ctf_verifier",
+        method=VerificationMethod.PLATFORM_SUBMIT,
+        decision=VerificationDecision.REJECTED,
+        passed=False,
+        sufficient_for_upgrade=False,
+        trace_id="trace-reject",
+    )
+    state.retract_claim(
+        claim.id,
+        reason="platform rejected it",
+        trace_id=record.trace_id,
+        actor_id="ctf_verifier",
+    )
+    snapshot = state.to_snapshot()
+    snapshot["claims_by_id"][claim.id]["status"] = "active"
+    snapshot["claims_by_id"][claim.id]["retracted_at"] = None
+
+    restored = CTFState.from_snapshot(snapshot)
+    restored_claim = restored.get_claim(claim.id)
+
+    assert restored_claim is not None
+    assert restored_claim.level == ClaimLevel.RETRACTED
+    assert restored_claim.status == ClaimStatus.RETRACTED
+    assert restored_claim.retracted_at is not None
+    assert restored.find_claims_by_kind(ClaimKind.FLAG_FOUND) == []
+    assert restored.verification_index_by_claim[claim.id] == [record.id]
+
+
+def test_ctf_state_from_snapshot_demotes_verified_claim_missing_record(monkeypatch):
+    _enable_claims_v1(monkeypatch)
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    claim = state.create_claim(
+        kind=ClaimKind.FLAG_FOUND,
+        content="flag{forged_verified_missing_record}",
+        producer_type="solver",
+        producer_id="unit-test",
+        primary_trace_id="trace-claim",
+        confidence=0.9,
+    )
+
+    snapshot = state.to_snapshot()
+    snapshot["claims_by_id"][claim.id]["level"] = "verified"
+    snapshot["claims_by_id"][claim.id]["confidence"] = 1.0
+    snapshot["claims_by_id"][claim.id]["verification_record_ids"] = ["missing-record"]
+    snapshot["verification_records_by_id"] = {}
+
+    restored = CTFState.from_snapshot(snapshot)
+    restored_claim = restored.get_claim(claim.id)
+    strongest = restored.strongest_claim(ClaimKind.FLAG_FOUND)
+    summary = preferred_flag_summary(restored)
+
+    assert restored_claim is not None
+    assert restored_claim.level == ClaimLevel.CONJECTURE
+    assert restored_claim.status == ClaimStatus.ACTIVE
+    assert restored_claim.confidence <= 0.5
+    assert restored_claim.verification_record_ids == []
+    assert (
+        restored_claim.metadata["restore_integrity_warning"]
+        == "verified_claim_missing_sufficient_record"
+    )
+    assert summary["verifiedFlags"] == []
+    assert "flag{forged_verified_missing_record}" not in summary["verifiedFlags"]
+    assert strongest is restored_claim
+    assert strongest.level != ClaimLevel.VERIFIED
+
+
+@pytest.mark.parametrize(
+    ("decision", "passed", "sufficient_for_upgrade"),
+    [
+        (VerificationDecision.VERIFIED, False, True),
+        (VerificationDecision.VERIFIED, True, False),
+        (VerificationDecision.RUNTIME_SUPPORTED, True, True),
+    ],
+)
+def test_ctf_state_from_snapshot_demotes_verified_claim_with_insufficient_record(
+    monkeypatch,
+    decision,
+    passed,
+    sufficient_for_upgrade,
+):
+    _enable_claims_v1(monkeypatch)
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    claim = state.create_claim(
+        kind=ClaimKind.FLAG_FOUND,
+        content="flag{forged_verified_insufficient_record}",
+        producer_type="solver",
+        producer_id="unit-test",
+        primary_trace_id="trace-claim",
+        confidence=0.9,
+    )
+    record = state.append_verification_record(
+        claim.id,
+        verifier_type="ctf_verifier",
+        verifier_id="unit-verifier",
+        method=VerificationMethod.PLATFORM_SUBMIT,
+        decision=VerificationDecision.VERIFIED,
+        passed=True,
+        sufficient_for_upgrade=True,
+        trace_id="trace-platform",
+        rationale="platform accepted it",
+    )
+    state.upgrade_claim_to_verified(claim.id, verification_record_id=record.id)
+
+    snapshot = state.to_snapshot()
+    snapshot["verification_records_by_id"][record.id]["decision"] = decision.value
+    snapshot["verification_records_by_id"][record.id]["passed"] = passed
+    snapshot["verification_records_by_id"][record.id][
+        "sufficient_for_upgrade"
+    ] = sufficient_for_upgrade
+
+    restored = CTFState.from_snapshot(snapshot)
+    restored_claim = restored.get_claim(claim.id)
+    summary = preferred_flag_summary(restored)
+
+    assert restored_claim is not None
+    assert restored_claim.level == ClaimLevel.CONJECTURE
+    assert restored_claim.status == ClaimStatus.ACTIVE
+    assert restored_claim.confidence <= 0.5
+    assert (
+        restored_claim.metadata["restore_integrity_warning"]
+        == "verified_claim_missing_sufficient_record"
+    )
+    assert summary["verifiedFlags"] == []
+    assert restored.strongest_claim(ClaimKind.FLAG_FOUND).level != ClaimLevel.VERIFIED
+
+
+def test_ctf_claims_feature_flag_off_preserves_legacy_flag_behavior(monkeypatch):
+    monkeypatch.setenv("FLAGHUNTER_CTF_CLAIMS_V1", "0")
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+
+    state.add_flag(
+        "flag{legacy}",
+        level="candidate",
+        evidence_source="source-leak",
+        rationale="legacy bucket path",
+    )
+
+    assert state.ctf_claims_v1_enabled is False
+    assert [record.value for record in state.candidate_flags] == ["flag{legacy}"]
+    assert state.runtime_flags == []
+    assert state.verified_flags == []
+    assert state.rejected_flags == []
+    assert state.claims_by_id == {}
+
+
+def test_ctf_claims_feature_flag_off_rejects_canonical_writes(monkeypatch):
+    monkeypatch.setenv("FLAGHUNTER_CTF_CLAIMS_V1", "0")
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+
+    with pytest.raises(RuntimeError, match="FLAGHUNTER_CTF_CLAIMS_V1"):
+        state.create_claim(
+            kind=ClaimKind.FLAG_FOUND,
+            content="flag{blocked}",
+            producer_type="solver",
+            producer_id="unit-test",
+            primary_trace_id="trace-claim",
+        )
+
+    assert state.claims_by_id == {}
+
+
+def test_ctf_state_task_dag_plan_snapshot_round_trip_and_redaction() -> None:
+    state = CTFState(target="http://ctf.local", goal="get flag")
+    plan = TaskDAGPlan(
+        id="plan-state",
+        metadata={"source": "unit", "token": "plan-token"},
+    )
+    plan.add_node(
+        TaskDAGNode(
+            id="task-a",
+            title="PING 127.0.0.1\n64 bytes from 127.0.0.1",
+            goal="collect facts password=goal-password",
+            status=TaskDAGStatus.SUCCEEDED,
+            metadata={"safe": "kept", "secret": "node-secret"},
+        )
+    )
+    plan.add_node(
+        TaskDAGNode(
+            id="task-b",
+            status=TaskDAGStatus.INSUFFICIENT,
+            depends_on=["task-a"],
+            task_brief_id="brief-b",
+            solve_node_id="node-b",
+            receipt_ids=["receipt-b"],
+            claim_ids=["claim-b"],
+            trace_ids=["trace-b"],
+            verification_record_ids=["verification-b"],
+        )
+    )
+
+    state.set_task_dag_plan(plan)
+    snapshot = state.to_snapshot()
+    restored = CTFState.from_snapshot(snapshot)
+    restored_plan = restored.get_task_dag_plan()
+    snapshot_text = repr(snapshot)
+
+    assert snapshot["task_dag_plan"]["schemaVersion"] == "p4.task_dag_plan.v1"
+    assert restored_plan.id == "plan-state"
+    assert sorted(restored_plan.nodes_by_id) == ["task-a", "task-b"]
+    assert restored_plan.get_node("task-a").status is TaskDAGStatus.SUCCEEDED
+    assert restored_plan.get_node("task-b").status is TaskDAGStatus.INSUFFICIENT
+    assert restored_plan.get_node("task-b").depends_on == ["task-a"]
+    assert [(edge.source_id, edge.target_id) for edge in restored_plan.edges] == [
+        ("task-a", "task-b")
+    ]
+    assert restored_plan.get_node("task-b").task_brief_id == "brief-b"
+    assert restored_plan.get_node("task-b").solve_node_id == "node-b"
+    assert restored_plan.get_node("task-b").receipt_ids == ["receipt-b"]
+    assert restored_plan.get_node("task-b").claim_ids == ["claim-b"]
+    assert restored_plan.get_node("task-b").trace_ids == ["trace-b"]
+    assert restored_plan.get_node("task-b").verification_record_ids == [
+        "verification-b"
+    ]
+    assert restored_plan.metadata["source"] == "unit"
+    assert restored_plan.get_node("task-a").metadata["safe"] == "kept"
+    assert "<redacted raw body>" in snapshot_text
+    assert "<redacted>" in snapshot_text
+    for leaked in (
+        "PING 127.0.0.1",
+        "64 bytes from",
+        "goal-password",
+        "plan-token",
+        "node-secret",
+    ):
+        assert leaked not in snapshot_text
+
+
+def test_ctf_state_task_dag_plan_legacy_and_malformed_restore_are_stable() -> None:
+    legacy = CTFState.from_snapshot({"target": "http://ctf.local", "goal": "get flag"})
+    malformed = CTFState.from_snapshot(
+        {
+            "target": "http://ctf.local",
+            "goal": "get flag",
+            "task_dag_plan": "not-a-dict token=legacy-token",
+        }
+    )
+
+    assert legacy.get_task_dag_plan().to_dict()["summary"]["nodeCount"] == 0
+    malformed_readback = build_task_dag_plan_readback(malformed.get_task_dag_plan())
+    malformed_text = repr(malformed_readback)
+
+    assert malformed_readback["summary"]["nodeCount"] == 0
+    assert malformed_readback["summary"]["restoreWarningCount"] == 1
+    assert "legacy-token" not in malformed_text
+
+
+def test_ctf_state_rejects_untraceable_claims(monkeypatch):
+    _enable_claims_v1(monkeypatch)
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+
+    for field_name, kwargs in [
+        ("kind", {"kind": "   "}),
+        ("content", {"content": "   "}),
+        ("primary_trace_id", {"primary_trace_id": "   "}),
+        ("producer_type", {"producer_type": "   "}),
+        ("producer_id", {"producer_id": "   "}),
+    ]:
+        payload = {
+            "kind": ClaimKind.FLAG_FOUND,
+            "content": "flag{traceable}",
+            "producer_type": "solver",
+            "producer_id": "unit-test",
+            "primary_trace_id": "trace-claim",
+        }
+        payload.update(kwargs)
+        with pytest.raises(ValueError, match=field_name):
+            state.create_claim(**payload)
+
+
+def test_ctf_state_rejects_untraceable_verification_records(monkeypatch):
+    _enable_claims_v1(monkeypatch)
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    claim = state.create_claim(
+        kind=ClaimKind.FLAG_FOUND,
+        content="flag{traceable}",
+        producer_type="solver",
+        producer_id="unit-test",
+        primary_trace_id="trace-claim",
+    )
+
+    for field_name, kwargs in [
+        ("method", {"method": "   "}),
+        ("decision", {"decision": "   "}),
+        ("trace_id", {"trace_id": "   "}),
+        ("verifier_type", {"verifier_type": "   "}),
+        ("verifier_id", {"verifier_id": "   "}),
+    ]:
+        payload = {
+            "claim_id": claim.id,
+            "verifier_type": "ctf_verifier",
+            "verifier_id": "unit-verifier",
+            "method": "runtime_http",
+            "decision": "runtime_supported",
+            "trace_id": "trace-verification",
+        }
+        payload.update(kwargs)
+        with pytest.raises(ValueError, match=field_name):
+            state.append_verification_record(**payload)
 
 
 @pytest.mark.asyncio

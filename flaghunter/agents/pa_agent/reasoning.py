@@ -12,6 +12,7 @@ _FLAG_PATTERN = re.compile(
     r"(?:flag|ctf|CTF|FLAG)\{[^}\r\n]{1,200}\}",
 )
 
+from .claim_views import flag_found_claim_view, preferred_flag_summary
 from .ctf_state import CTFState, Experiment, Hypothesis
 
 FailureNextAction = Literal[
@@ -260,12 +261,21 @@ class PreActionReasoning:
 
     @staticmethod
     def _find_rejected_flag(action_spec: dict[str, Any], state: CTFState) -> str | None:
-        if not state.rejected_flags:
-            return None
+        flag_claims = flag_found_claim_view(state)
+        rejected_values = [
+            str(getattr(record, "value", "") or "").strip()
+            for record in list(state.rejected_flags)
+            if str(getattr(record, "value", "") or "").strip()
+        ]
+        rejected_values.extend(
+            str(claim.content or "").strip()
+            for claim in flag_claims.retracted
+            if str(claim.content or "").strip()
+        )
         blob = json.dumps(action_spec, ensure_ascii=False, sort_keys=True)
-        for record in state.rejected_flags:
-            if record.value and record.value in blob:
-                return record.value
+        for value in rejected_values:
+            if value and value in blob:
+                return value
         return None
 
     @staticmethod
@@ -683,12 +693,13 @@ class ReasoningLayer:
                     + str(blocked_surface.get("reason") or blocked_surface.get("value") or "uniform failure surface")
                 )
 
+        flag_summary = preferred_flag_summary(state)
         report = StopReport(
             reason=report_reason,
-            candidate_flags=[item.value for item in state.candidate_flags],
-            runtime_flags=[item.value for item in state.runtime_flags],
-            verified_flags=[item.value for item in state.verified_flags],
-            rejected_flags=[item.value for item in state.rejected_flags],
+            candidate_flags=list(flag_summary["candidateFlags"]),
+            runtime_flags=list(flag_summary["runtimeFlags"]),
+            verified_flags=list(flag_summary["verifiedFlags"]),
+            rejected_flags=list(flag_summary["rejectedFlags"]),
             strongest_remaining_hypothesis=strongest,
             why_not_pursued=why_not_pursued,
             missing_capabilities=list(missing_capabilities or []),
@@ -820,7 +831,8 @@ class ReasoningLayer:
         reason: str,
         missing_capabilities: list[str],
     ) -> str:
-        if state.verified_flags:
+        flag_summary = preferred_flag_summary(state)
+        if flag_summary["verifiedFlags"]:
             return "flag_verified"
         lowered = str(reason or "").lower()
         if "already solved" in lowered:
@@ -831,11 +843,17 @@ class ReasoningLayer:
             or "user rejected runtime flag" in lowered
         ):
             return "wrong_flag_feedback"
-        if missing_capabilities and not state.runtime_flags and not state.candidate_flags:
+        if (
+            missing_capabilities
+            and not flag_summary["runtimeFlags"]
+            and not flag_summary["candidateFlags"]
+        ):
             return "capability_ceiling"
         if "runtime flag" in lowered:
             return "runtime_pending_verification"
-        if "candidate flag" in lowered or (state.candidate_flags and not state.runtime_flags):
+        if "candidate flag" in lowered or (
+            flag_summary["candidateFlags"] and not flag_summary["runtimeFlags"]
+        ):
             return "candidate_only"
         if (
             "uniform blocked responses" in lowered
@@ -889,16 +907,18 @@ class ReasoningLayer:
             if missing_capabilities:
                 steps.append("缺失能力：" + ", ".join(missing_capabilities))
             return steps + memory_steps
-        if state.candidate_flags:
+        flag_summary = preferred_flag_summary(state)
+        if flag_summary["candidateFlags"]:
             return ["手动验证以下候选 flag 是否能在运行时再次获得："] + [
-                item.value for item in state.candidate_flags[:3]
+                item for item in flag_summary["candidateFlags"][:3]
             ] + memory_steps
         return ["查看最近的 reasoning / retrospective，换一条更强假设链路。"] + memory_steps
 
     def _learned_rule_for_state(self, state: CTFState, reason: str) -> str | None:
-        if state.runtime_flags and not state.verified_flags:
+        flag_summary = preferred_flag_summary(state)
+        if flag_summary["runtimeFlags"] and not flag_summary["verifiedFlags"]:
             return "运行时拿到 flag 也必须走独立验证，不能直接宣告成功。"
-        if state.candidate_flags and not state.runtime_flags:
+        if flag_summary["candidateFlags"] and not flag_summary["runtimeFlags"]:
             return "源码中的 flag 只能视为 candidate，必须继续追运行时证据。"
         if self.degradation_events:
             return "高质量实现缺失时，应优先使用可用降质实现而不是直接进入安装流。"

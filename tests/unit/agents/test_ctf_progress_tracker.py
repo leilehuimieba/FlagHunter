@@ -1,6 +1,13 @@
 from types import SimpleNamespace
 
 from flaghunter.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
+from flaghunter.agents.pa_agent.ctf_state import (
+    CTFState,
+    ClaimKind,
+    ClaimLevel,
+    VerificationDecision,
+    VerificationMethod,
+)
 from flaghunter.agents.pa_agent.progress_tracker import ProgressTracker
 
 _PROGRESS_TRACKER_MODULE = "flaghunter.agents.pa_agent.progress_tracker"
@@ -96,3 +103,46 @@ def test_derive_progress_delta_chain_outcome_progress_short_circuits_to_none():
         )
         == "rejected"
     )
+
+
+def _runtime_flag_claim(state: CTFState, value: str):
+    claim = state.create_claim(
+        kind=ClaimKind.FLAG_FOUND,
+        content=value,
+        level=ClaimLevel.CONJECTURE,
+        producer_type="test",
+        producer_id="progress",
+        primary_trace_id=f"trace:{value}",
+    )
+    state.append_verification_record(
+        claim.id,
+        verifier_type="verifier",
+        verifier_id="ctf_verifier",
+        method=VerificationMethod.RUNTIME_HTTP,
+        decision=VerificationDecision.RUNTIME_SUPPORTED,
+        trace_id=f"verify:{value}",
+        passed=True,
+    )
+    return claim
+
+
+def test_snapshot_flag_counts_includes_canonical_flag_claims_when_enabled(monkeypatch):
+    monkeypatch.setenv("FLAGHUNTER_CTF_CLAIMS_V1", "1")
+    state = CTFState(target="http://ctf.local", goal="get flag")
+    _runtime_flag_claim(state, "flag{claim_runtime}")
+
+    counts = ProgressTracker().snapshot_flag_counts(state)
+
+    assert counts["claim_flag_found_total"] == 1
+    assert counts["claim_flag_found_runtime"] == 1
+    assert counts["claim_flag_found_verified"] == 0
+    assert counts["claim_flag_found_retracted"] == 0
+
+
+def test_derive_progress_delta_reads_canonical_runtime_claim_when_enabled(monkeypatch):
+    monkeypatch.setenv("FLAGHUNTER_CTF_CLAIMS_V1", "1")
+    state = CTFState(target="http://ctf.local", goal="get flag")
+    before = ProgressTracker().snapshot_flag_counts(state)
+    _runtime_flag_claim(state, "flag{claim_runtime}")
+
+    assert ProgressTracker().derive_progress_delta(state, before) == "strong"

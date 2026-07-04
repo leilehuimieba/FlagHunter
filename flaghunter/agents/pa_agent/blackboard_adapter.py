@@ -25,6 +25,7 @@ from typing import Callable, Optional
 from ...knowledge.blackboard_schema import BoardView
 from .blackboard import project_board
 from .blackboard_loop import Action
+from .claim_views import flag_found_claim_view, record_structured_claim_fact
 from .ctf_state import CTFState, FlagRecord
 
 # Tool results are recorded as observations that the next board projection renders;
@@ -87,6 +88,23 @@ def make_goal(state: CTFState) -> GoalFn:
     """
 
     def _goal() -> Optional[str]:
+        flag_claims = flag_found_claim_view(state)
+        if flag_claims.verified:
+            best = max(
+                flag_claims.verified,
+                key=lambda claim: float(getattr(claim, "confidence", 0.0) or 0.0),
+            )
+            value = str(getattr(best, "content", "") or "").strip()
+            if value:
+                return value
+        if flag_claims.runtime:
+            best = max(
+                flag_claims.runtime,
+                key=lambda claim: float(getattr(claim, "confidence", 0.0) or 0.0),
+            )
+            value = str(getattr(best, "content", "") or "").strip()
+            if value:
+                return value
         for bucket in (state.verified_flags, state.runtime_flags):
             best = _best_flag(bucket)
             if best is not None and str(getattr(best, "value", "") or "").strip():
@@ -145,6 +163,8 @@ def make_record_fact(state: CTFState) -> RecordContentFn:
     def _record(content: str) -> None:
         text = str(content or "").strip()
         if text:
+            if record_structured_claim_fact(state, text):
+                return
             state.add_observation("model_fact", text, source="brain")
 
     return _record

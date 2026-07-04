@@ -7,7 +7,7 @@ import random as _random
 import re as _re
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from urllib.parse import urlparse
@@ -50,6 +50,31 @@ _ERROR_CLASSES = {
     "transient",
     "none",
 }
+_SENSITIVE_ARGUMENT_KEYS = {
+    "api_key",
+    "apikey",
+    "authorization",
+    "auth",
+    "cookie",
+    "headers",
+    "password",
+    "secret",
+    "session",
+    "token",
+}
+_SENSITIVE_OUTPUT_HEADER_PATTERNS = (
+    _re.compile(r"(?im)^(\s*set-cookie\s*:\s*).*$"),
+    _re.compile(r"(?im)^(\s*cookie\s*:\s*).*$"),
+)
+_SENSITIVE_OUTPUT_BEARER_RE = _re.compile(
+    r"(?i)(authorization\s*:\s*bearer\s+)[^\s,;]+"
+)
+_SENSITIVE_OUTPUT_KEY_VALUE_RE = _re.compile(
+    r"(?i)\b(token|api[_-]?key|password|secret|session)\b(\s*[=:]\s*)(\"[^\"]*\"|'[^']*'|[^\s,;&]+)"
+)
+_SENSITIVE_OUTPUT_JSON_KEY_RE = _re.compile(
+    r"(?i)([\"'](?:token|api[_-]?key|password|secret|session|cookie|authorization)[\"']\s*:\s*)([\"'][^\"']*[\"']|[^,\n\r}\]]+)"
+)
 
 # Tool execution result cache — P5 performance optimization
 _TOOL_CACHE_TTL_SECONDS = 60
@@ -117,6 +142,40 @@ def _as_text(value: Any) -> str:
     if isinstance(value, str):
         return value
     return str(value)
+
+
+def _redact_tool_arguments(value: Any) -> Any:
+    if isinstance(value, dict):
+        redacted: dict[str, Any] = {}
+        for key, item in value.items():
+            key_text = str(key)
+            if any(marker in key_text.lower() for marker in _SENSITIVE_ARGUMENT_KEYS):
+                redacted[key_text] = "<redacted>"
+            else:
+                redacted[key_text] = _redact_tool_arguments(item)
+        return redacted
+    if isinstance(value, list):
+        return [_redact_tool_arguments(item) for item in value]
+    if isinstance(value, tuple):
+        return [_redact_tool_arguments(item) for item in value]
+    return value
+
+
+def _compact_tool_arguments(arguments: dict) -> dict:
+    redacted = _redact_tool_arguments(arguments or {})
+    return redacted if isinstance(redacted, dict) else {}
+
+
+def _sanitize_tool_output_summary(value: Any) -> str:
+    text = _as_text(value)
+    if not text:
+        return ""
+    for pattern in _SENSITIVE_OUTPUT_HEADER_PATTERNS:
+        text = pattern.sub(r"\1<redacted>", text)
+    text = _SENSITIVE_OUTPUT_BEARER_RE.sub(r"\1<redacted>", text)
+    text = _SENSITIVE_OUTPUT_JSON_KEY_RE.sub(r"\1\"<redacted>\"", text)
+    text = _SENSITIVE_OUTPUT_KEY_VALUE_RE.sub(r"\1\2<redacted>", text)
+    return text[:1000]
 
 
 def _classify_error(error: Optional[str]) -> str:
@@ -298,6 +357,9 @@ class ExecutionResult:
     error_class: Optional[str] = None
     stdout_clean: Optional[str] = None
     stderr_noise: Optional[str] = None
+    trace_id: str = ""
+    receipt_id: str = ""
+    discovered_flags: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if self.status is None:
@@ -419,7 +481,12 @@ def _build_tool_install_confirmation_message(
 
 
 async def _handle_flag_discovery(
-    flags: list[str], tool_name: str, runtime: Any
+    flags: list[str],
+    tool_name: str,
+    runtime: Any,
+    *,
+    trace_id: str = "",
+    receipt_id: str = "",
 ) -> None:
     """Handle flag discovery: persist to notes + emit notification."""
     import logging
@@ -438,15 +505,20 @@ async def _handle_flag_discovery(
 
             key = f"flag_{tool_name}_{int(time.time() * 1000)}_{idx}"
             async with _notes_lock:
+                metadata = {
+                    "source_tool": tool_name,
+                    "found_at": datetime.now().isoformat(),
+                }
+                if trace_id:
+                    metadata["trace_id"] = trace_id
+                if receipt_id:
+                    metadata["receipt_id"] = receipt_id
                 _notes[key] = {
                     "content": flag,
                     "category": "credential",
                     "confidence": "high",
                     "status": "confirmed",
-                    "metadata": {
-                        "source_tool": tool_name,
-                        "found_at": datetime.now().isoformat(),
-                    },
+                    "metadata": metadata,
                 }
                 _save_notes_unlocked()
             log.info("FLAG FOUND by %s: %s", tool_name, flag)
@@ -551,6 +623,8 @@ class ToolExecutor:
         never affect tool execution (same discipline as the flag scanner).
         """
         self.execution_history.append(result)
+        self._record_tool_receipt(result, tool, cache_hit=cache_hit)
+        self._link_discovered_flags_to_candidate_claims(result)
         try:
             from .provenance import record_call_sync
 
@@ -580,6 +654,109 @@ class ToolExecutor:
             pass
         return result
 
+    def _ctf_state(self) -> Any:
+        return getattr(self.runtime, "ctf_state", None) or getattr(
+            self.runtime, "state", None
+        )
+
+    def _record_tool_receipt(
+        self,
+        result: ExecutionResult,
+        tool: Optional["Tool"] = None,
+        *,
+        cache_hit: bool = False,
+    ) -> None:
+        try:
+            state = self._ctf_state()
+            if state is None or not hasattr(state, "record_tool_receipt"):
+                return
+            output = result.stdout_clean if result.stdout_clean is not None else result.result
+            if not output and result.error:
+                output = result.error
+            receipt = state.record_tool_receipt(
+                tool_name=result.tool_name,
+                arguments=_compact_tool_arguments(result.arguments or {}),
+                output_summary=_sanitize_tool_output_summary(output),
+                success=bool(result.success),
+                metadata={
+                    "status": result.status or ("success" if result.success else "error"),
+                    "error_class": result.error_class or "none",
+                    "duration_ms": float(result.duration_ms or 0.0),
+                    "cache_hit": bool(cache_hit),
+                    "tool_category": getattr(tool, "category", "") or "",
+                    "run_id": self.run_id,
+                },
+            )
+            result.trace_id = receipt.id
+            result.receipt_id = receipt.receipt_id
+        except Exception:
+            pass
+
+    def _link_discovered_flags_to_candidate_claims(self, result: ExecutionResult) -> None:
+        if not result.discovered_flags or not result.trace_id:
+            return
+        try:
+            state = self._ctf_state()
+            if state is None:
+                return
+            if getattr(state, "ctf_claims_v1_enabled", False) is not True:
+                return
+            if not (
+                hasattr(state, "find_claims_by_kind")
+                and hasattr(state, "create_claim")
+            ):
+                return
+            for flag in dict.fromkeys(str(item).strip() for item in result.discovered_flags):
+                if not flag:
+                    continue
+                claim = self._find_existing_flag_claim(state, flag)
+                metadata = {
+                    "source_tool": result.tool_name,
+                    "source_trace_id": result.trace_id,
+                    "source_receipt_id": result.receipt_id,
+                    "source_channel": "tool_flag_scan",
+                }
+                if claim is None:
+                    state.create_claim(
+                        kind="flag_found",
+                        content=flag,
+                        producer_type="tool",
+                        producer_id=result.tool_name,
+                        primary_trace_id=result.trace_id,
+                        run_id=self.run_id,
+                        level="conjecture",
+                        source_channel="tool_flag_scan",
+                        evidence_trace_ids=[result.trace_id],
+                        confidence=0.4,
+                        confidence_reason="flag-like value found in tool output",
+                        tags=["tool_flag_scan"],
+                        metadata=metadata,
+                    )
+                    continue
+                if not getattr(claim, "primary_trace_id", ""):
+                    claim.primary_trace_id = result.trace_id
+                evidence = list(getattr(claim, "evidence_trace_ids", []) or [])
+                if result.trace_id not in evidence:
+                    evidence.append(result.trace_id)
+                    claim.evidence_trace_ids = evidence
+                claim.metadata.update(metadata)
+                claim.updated_at = time.time()
+        except Exception:
+            pass
+
+    def _find_existing_flag_claim(self, state: Any, flag: str) -> Any:
+        normalized = str(flag or "").strip()
+        try:
+            claims = state.find_claims_by_kind("flag_found", include_inactive=False)
+        except TypeError:
+            claims = state.find_claims_by_kind("flag_found")
+        for claim in claims or []:
+            if str(getattr(claim, "normalized_content", "") or "").strip() == normalized:
+                return claim
+            if str(getattr(claim, "content", "") or "").strip() == normalized:
+                return claim
+        return None
+
     async def execute(
         self, tool: "Tool", arguments: dict, timeout: Optional[int] = None
     ) -> ExecutionResult:
@@ -606,12 +783,24 @@ class ToolExecutor:
         if tool.name not in _NON_CACHEABLE_TOOLS:
             cached = self._result_cache.get(tool.name, arguments)
         if cached is not None:
-            cached_result = cached
-            # Update timestamps for the cached result copy
-            cached_result.start_time = start_time
-            cached_result.end_time = datetime.now()
-            cached_result.duration_ms = 0.0
-            return self._finalize(cached_result, tool, cache_hit=True)
+            cached_result = replace(
+                cached,
+                start_time=start_time,
+                end_time=datetime.now(),
+                duration_ms=0.0,
+                trace_id="",
+                receipt_id="",
+            )
+            result = self._finalize(cached_result, tool, cache_hit=True)
+            if result.discovered_flags:
+                await _handle_flag_discovery(
+                    list(result.discovered_flags),
+                    tool.name,
+                    self.runtime,
+                    trace_id=result.trace_id,
+                    receipt_id=result.receipt_id,
+                )
+            return result
 
         # Validate arguments
         is_valid, error_msg = tool.validate_arguments(arguments)
@@ -703,15 +892,12 @@ class ToolExecutor:
                 )
 
                 # ── Flag scanner ──────────────────────────────────────────────────────
+                discovered_flags: tuple[str, ...] = ()
                 if isinstance(output, str) and output:
                     try:
-                        _found_flags = _FLAG_PATTERN.findall(output)
-                        if _found_flags:
-                            await _handle_flag_discovery(
-                                flags=_found_flags,
-                                tool_name=tool.name,
-                                runtime=self.runtime,
-                            )
+                        discovered_flags = tuple(
+                            dict.fromkeys(_FLAG_PATTERN.findall(output))
+                        )
                     except Exception:
                         pass
                 # ──────────────────────────────────────────────────────────────────────
@@ -725,8 +911,17 @@ class ToolExecutor:
                     start_time=start_time,
                     end_time=end_time,
                     duration_ms=(end_time - start_time).total_seconds() * 1000,
+                    discovered_flags=discovered_flags,
                 )
                 self._finalize(result, tool)
+                if discovered_flags:
+                    await _handle_flag_discovery(
+                        flags=list(discovered_flags),
+                        tool_name=tool.name,
+                        runtime=self.runtime,
+                        trace_id=result.trace_id,
+                        receipt_id=result.receipt_id,
+                    )
                 # Cache successful result (P5 optimization)
                 # Skip cache for stateful tools whose results change between calls.
                 if tool.name not in _NON_CACHEABLE_TOOLS:

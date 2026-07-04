@@ -12,6 +12,7 @@ from .constants import (
     DEFAULT_TEMPERATURE,
     DOCKER_SANDBOX_IMAGE,
     get_openai_api_base,
+    is_ctf_claims_v1_enabled,
 )
 
 
@@ -46,6 +47,7 @@ class Settings:
 
     # Agent Settings
     max_iterations: int = AGENT_MAX_ITERATIONS
+    ctf_claims_v1: bool = field(default_factory=is_ctf_claims_v1_enabled)
 
     # VPN Settings
     vpn_config_path: Optional[Path] = None

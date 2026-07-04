@@ -55,6 +55,16 @@ def test_derive_crew_stop_reason_passthrough_and_mapping():
         derive_crew_stop_reason(_summary(stop_reason="workers_completed"))
         == "all_hypotheses_exhausted"
     )
+    # canonical claim summary can mark crew success even without legacy verified flags
+    assert (
+        derive_crew_stop_reason(
+            _summary(
+                stop_reason="workers_completed",
+                flag_summary={"verifiedFlags": ["flag{canonical_crew_verified}"]},
+            )
+        )
+        == "flag_verified"
+    )
     # fallback when nothing matches
     assert derive_crew_stop_reason(_summary()) == "workers_completed"
 

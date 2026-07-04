@@ -1,15 +1,21 @@
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
 from flaghunter.harness.audit_events import (
     build_artifact_registered_event,
+    build_budget_event,
     build_control_action_completed_event,
     build_control_action_started_event,
     build_checkpoint_written_event,
     build_dispatcher_started_event,
+    build_handoff_consumed_event,
+    build_handoff_created_event,
+    build_model_call_event,
     build_missing_tools_recorded_event,
     build_recovery_decision_event,
+    build_state_transition_event,
     build_task_finished_event,
     build_tool_called_event,
     build_tool_finished_event,
@@ -295,3 +301,238 @@ def test_build_tool_called_and_finished_events_keep_runtime_contract() -> None:
             "metadata": {"phase": "llm_action"},
         },
     }
+
+
+def test_p2_build_model_call_event_keeps_compact_safe_contract() -> None:
+    event = build_model_call_event(
+        model="claude-sonnet-4",
+        provider="anthropic",
+        status="success",
+        duration_ms=1234.5,
+        prompt=(
+            "Authorization: Bearer prompt-token\n"
+            "Cookie: session=prompt-cookie\n"
+            "Solve with password=prompt-password " + "A" * 400
+        ),
+        completion="secret=completion-secret token=completion-token " + "B" * 400,
+        prompt_tokens=111,
+        completion_tokens=222,
+        metadata={
+            "source_channel": "ctf_dispatcher",
+            "api_key": "metadata-api-key",
+            "headers": {"Authorization": "Bearer metadata-token"},
+            "large": "C" * 500,
+        },
+    )
+
+    payload = event["payload"]
+    event_text = repr(event)
+
+    assert event["event_type"] == "model_call"
+    assert payload["model"] == "claude-sonnet-4"
+    assert payload["provider"] == "anthropic"
+    assert payload["status"] == "success"
+    assert payload["duration_ms"] == 1234.5
+    assert payload["prompt_tokens"] == 111
+    assert payload["completion_tokens"] == 222
+    assert payload["total_tokens"] == 333
+    assert "prompt" not in payload
+    assert "completion" not in payload
+    assert len(payload["prompt_preview"]) <= 160
+    assert len(payload["completion_preview"]) <= 160
+    assert len(payload["prompt_sha256"]) == 64
+    assert len(payload["completion_sha256"]) == 64
+    assert payload["metadata"] == {"source_channel": "ctf_dispatcher"}
+    for leaked in (
+        "prompt-token",
+        "prompt-cookie",
+        "prompt-password",
+        "completion-secret",
+        "completion-token",
+        "metadata-api-key",
+        "metadata-token",
+        "Authorization",
+        "Cookie",
+    ):
+        assert leaked not in event_text
+
+
+def test_p2_state_budget_and_handoff_events_are_compact_and_redacted() -> None:
+    state_event = build_state_transition_event(
+        from_state="THINKING",
+        to_state="EXECUTING",
+        reason="switch because token=state-token password=state-password " + "x" * 400,
+        source="agent_loop",
+        success=True,
+        metadata={"phase": "exploit", "secret": "state-secret"},
+    )
+    budget_event = build_budget_event(
+        budget_name="phase_round",
+        event="threshold_reached",
+        used=12,
+        limit=12,
+        remaining=0,
+        unit="round",
+        source="recovery",
+        metadata={"phase": "exploit", "token": "budget-token"},
+    )
+    created = build_handoff_created_event(
+        handoff_id="handoff-1",
+        source="web",
+        target="dispatcher",
+        decision_kind="direct_execute",
+        next_action="verify_runtime_signal",
+        reason="handoff with cookie=handoff-cookie",
+        metadata={"run_id": "run-1", "password": "handoff-password"},
+    )
+    consumed = build_handoff_consumed_event(
+        handoff_id="handoff-1",
+        consumer="dispatcher",
+        status="accepted",
+        reason="consumed Authorization: Bearer consumed-token",
+        metadata={"checkpoint_id": "checkpoint-1", "api_key": "consumed-api-key"},
+    )
+
+    assert state_event["event_type"] == "state_transition"
+    assert state_event["payload"]["from_state"] == "THINKING"
+    assert state_event["payload"]["to_state"] == "EXECUTING"
+    assert state_event["payload"]["metadata"] == {"phase": "exploit"}
+    assert len(state_event["payload"]["reason_preview"]) <= 160
+    assert budget_event["event_type"] == "budget_event"
+    assert budget_event["payload"]["budget_name"] == "phase_round"
+    assert budget_event["payload"]["event"] == "threshold_reached"
+    assert budget_event["payload"]["used"] == 12
+    assert budget_event["payload"]["limit"] == 12
+    assert budget_event["payload"]["remaining"] == 0
+    assert budget_event["payload"]["metadata"] == {"phase": "exploit"}
+    assert created["event_type"] == "handoff_created"
+    assert created["payload"]["handoff_id"] == "handoff-1"
+    assert created["payload"]["decision_kind"] == "direct_execute"
+    assert created["payload"]["next_action"] == "verify_runtime_signal"
+    assert created["payload"]["metadata"] == {"run_id": "run-1"}
+    assert consumed["event_type"] == "handoff_consumed"
+    assert consumed["payload"]["handoff_id"] == "handoff-1"
+    assert consumed["payload"]["consumer"] == "dispatcher"
+    assert consumed["payload"]["metadata"] == {"checkpoint_id": "checkpoint-1"}
+
+    combined = repr([state_event, budget_event, created, consumed])
+    for leaked in (
+        "state-token",
+        "state-password",
+        "state-secret",
+        "budget-token",
+        "handoff-cookie",
+        "handoff-password",
+        "consumed-token",
+        "consumed-api-key",
+        "Authorization",
+    ):
+        assert leaked not in combined
+
+
+def test_p2_event_builders_redact_sensitive_structured_fields() -> None:
+    events = [
+        build_handoff_created_event(
+            handoff_id="handoff token=handoff-id-token",
+            source="web token=source-token",
+            target="http://ctf.local/?token=target-token",
+            decision_kind="direct secret=decision-secret",
+            next_action="use password=action-password",
+        ),
+        build_handoff_consumed_event(
+            handoff_id="handoff token=consumed-id-token",
+            consumer="dispatcher password=consumer-password",
+            status="accepted secret=status-secret",
+        ),
+        build_state_transition_event(
+            from_state="THINKING token=from-token",
+            to_state="EXECUTING password=to-password",
+            source="agent password=source-password",
+        ),
+        build_budget_event(
+            budget_name="phase token=budget-token",
+            event="used password=budget-password",
+            unit="round secret=unit-secret",
+            source="recovery secret=source-secret",
+        ),
+        build_model_call_event(
+            model="model token=model-token",
+            provider="provider password=provider-password",
+            status="success secret=status-secret",
+        ),
+    ]
+
+    event_text = repr(events)
+
+    for leaked in (
+        "handoff-id-token",
+        "source-token",
+        "target-token",
+        "decision-secret",
+        "action-password",
+        "consumed-id-token",
+        "consumer-password",
+        "status-secret",
+        "from-token",
+        "to-password",
+        "source-password",
+        "budget-token",
+        "budget-password",
+        "unit-secret",
+        "source-secret",
+        "model-token",
+        "provider-password",
+    ):
+        assert leaked not in event_text
+
+
+def test_p2_event_builders_redact_jsonish_sensitive_structured_fields() -> None:
+    events = [
+        build_handoff_created_event(
+            handoff_id="handoff-json",
+            target=json.dumps({"token": "json-target-token"}),
+            next_action=json.dumps({"password": "json-action-password"}),
+        ),
+        build_handoff_consumed_event(
+            handoff_id="handoff-json-consumed",
+            consumer=json.dumps({"cookie": "json-consumer-cookie"}),
+            status=json.dumps({"authorization": "Bearer json-status-auth"}),
+        ),
+        build_state_transition_event(
+            from_state=json.dumps({"api_key": "json-from-key"}),
+            to_state="EXECUTING",
+            source=json.dumps({"session": "json-source-session"}),
+        ),
+        build_budget_event(
+            budget_name=json.dumps({"secret": "json-budget-secret"}),
+            event=json.dumps({"token": "json-budget-token"}),
+            source=json.dumps({"password": "json-source-password"}),
+        ),
+        build_model_call_event(
+            model=json.dumps({"token": "json-model-token"}),
+            provider=json.dumps({"password": "json-provider-password"}),
+            status=json.dumps({"secret": "json-status-secret"}),
+            prompt=json.dumps({"authorization": "Bearer json-prompt-auth"}),
+            completion=json.dumps({"cookie": "json-completion-cookie"}),
+        ),
+    ]
+
+    event_text = repr(events)
+
+    for leaked in (
+        "json-target-token",
+        "json-action-password",
+        "json-consumer-cookie",
+        "json-status-auth",
+        "json-from-key",
+        "json-source-session",
+        "json-budget-secret",
+        "json-budget-token",
+        "json-source-password",
+        "json-model-token",
+        "json-provider-password",
+        "json-status-secret",
+        "json-prompt-auth",
+        "json-completion-cookie",
+    ):
+        assert leaked not in event_text

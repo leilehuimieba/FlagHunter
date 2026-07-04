@@ -93,9 +93,16 @@ class FlagObserver:
             hypothesis_id=active_hypothesis or "",
             strategy_kind=active_strategy or "",
         )
+        trace_id = str((verification.metadata or {}).get("trace_id") or "").strip()
+        receipt_id = str((verification.metadata or {}).get("receipt_id") or "").strip()
+        verification_payload = dict(verification_event.get("payload") or {})
+        if trace_id:
+            verification_payload["trace_id"] = trace_id
+        if receipt_id:
+            verification_payload["receipt_id"] = receipt_id
         record_session_event(
             str(verification_event.get("event_type") or "verification_decision"),
-            dict(verification_event.get("payload") or {}),
+            verification_payload,
         )
 
         if verification.decision == "candidate":
@@ -106,6 +113,8 @@ class FlagObserver:
                 target=urlparse(target).netloc or target,
                 strategy_kind=active_strategy or "",
                 verification_path=str((verification.metadata or {}).get("verification_path") or ""),
+                trace_id=trace_id,
+                receipt_id=receipt_id,
                 artifact_producer="verifier",
                 artifact_category="flag_candidate",
             )
@@ -117,6 +126,8 @@ class FlagObserver:
                 target=urlparse(target).netloc or target,
                 strategy_kind=active_strategy or "",
                 verification_path=str((verification.metadata or {}).get("verification_path") or ""),
+                trace_id=trace_id,
+                receipt_id=receipt_id,
                 artifact_producer="verifier",
                 artifact_category="flag_runtime",
             )
@@ -128,6 +139,8 @@ class FlagObserver:
                 target=urlparse(target).netloc or target,
                 strategy_kind=active_strategy or "",
                 verification_path=str((verification.metadata or {}).get("verification_path") or ""),
+                trace_id=trace_id,
+                receipt_id=receipt_id,
                 artifact_producer="verifier",
                 artifact_category="flag_verified",
             )
@@ -137,6 +150,8 @@ class FlagObserver:
                 value=f"rejected={verification.flag}; reason={verification.rationale}",
                 category="task",
                 target=urlparse(target).netloc or target,
+                trace_id=trace_id,
+                receipt_id=receipt_id,
             )
             if verification.flag:
                 await record_wrong_flag_feedback(

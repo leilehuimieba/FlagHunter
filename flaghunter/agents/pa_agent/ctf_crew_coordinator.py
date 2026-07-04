@@ -15,6 +15,7 @@ from typing import Any, Awaitable, Callable, Literal
 from urllib.parse import urlparse
 
 from ...knowledge.graph import ShadowGraph
+from .claim_views import preferred_flag_summary
 from .ctf_state import CTFState
 
 
@@ -48,6 +49,7 @@ class CrewRunSummary:
     worker_results: dict[str, dict[str, Any]] = field(default_factory=dict)
     verified_flag: str | None = None
     stop_reason: str = ""
+    flag_summary: dict[str, list[str]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -57,6 +59,10 @@ class CrewRunSummary:
             "worker_results": dict(self.worker_results),
             "verified_flag": self.verified_flag,
             "stop_reason": self.stop_reason,
+            "flag_summary": {
+                key: list(value)
+                for key, value in dict(self.flag_summary or {}).items()
+            },
         }
 
 
@@ -215,8 +221,20 @@ class CTFCrewCoordinator:
                             summary.cancelled_workers.append(other_id)
                         pending = set()
                         break
+                    self._refresh_summary_flags(summary)
+                    if summary.verified_flag:
+                        summary.stop_reason = "flag_verified"
+                        self._cancel_event.set()
+                        for other_id, other_task in tasks.items():
+                            if other_task.done():
+                                continue
+                            other_task.cancel()
+                            summary.cancelled_workers.append(other_id)
+                        pending = set()
+                        break
             if not summary.stop_reason:
                 summary.stop_reason = "workers_completed"
+            self._refresh_summary_flags(summary)
             return summary
         finally:
             self._cancel_event.set()
@@ -311,6 +329,20 @@ class CTFCrewCoordinator:
                 result["verified_flag"] = verification.flag
             else:
                 result["verified_flag"] = None
+
+    def _refresh_summary_flags(self, summary: CrewRunSummary) -> None:
+        flag_summary = preferred_flag_summary(self.state)
+        summary.flag_summary = {
+            key: list(value)
+            for key, value in flag_summary.items()
+        }
+        verified = [
+            str(item).strip()
+            for item in list(flag_summary.get("verifiedFlags") or [])
+            if str(item).strip()
+        ]
+        if verified and not summary.verified_flag:
+            summary.verified_flag = verified[0]
 
     async def _default_worker_runner(
         self,
@@ -648,6 +680,7 @@ class CTFCrewCoordinator:
             },
             verified_flag=second_round.verified_flag or first_round.verified_flag,
             stop_reason=second_round.stop_reason or first_round.stop_reason,
+            flag_summary=dict(second_round.flag_summary or first_round.flag_summary or {}),
         )
 
     def _emit(self, message: str) -> None:

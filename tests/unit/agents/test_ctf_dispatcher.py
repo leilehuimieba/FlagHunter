@@ -19,7 +19,12 @@ from flaghunter.agents.pa_agent.ctf_dispatcher import (
 from flaghunter.agents.pa_agent.capability_registry import CapabilityEntry
 from flaghunter.agents.pa_agent.coordinator import CoordinatorDispatcherServices
 from flaghunter.agents.pa_agent.ctf_planner import find_auth_form
-from flaghunter.agents.pa_agent.ctf_state import CTFState
+from flaghunter.agents.pa_agent.ctf_state import (
+    CTFState,
+    ClaimKind,
+    VerificationDecision,
+    VerificationMethod,
+)
 from flaghunter.agents.pa_agent.strategy_registry import StrategyServices
 from flaghunter.agents.pa_agent.strategy_memory import (
     ChallengeFingerprint,
@@ -133,6 +138,55 @@ def test_activity_metrics_reflects_real_dispatcher_activity():
     assert metrics["llm_exploration_steps"] == 3
     assert metrics["tool_calls"] == 3
     assert dispatcher._tool_call_count == 3
+
+
+@pytest.mark.asyncio
+async def test_finalize_solve_result_reads_canonical_verified_flag_claim(monkeypatch):
+    monkeypatch.setenv("FLAGHUNTER_CTF_CLAIMS_V1", "1")
+    dispatcher = CTFTaskDispatcher(runtime=_DispatcherRuntime(), progress_callback=None)
+    dispatcher.state = CTFState(target="http://ctf.local", goal="get flag")
+    claim = dispatcher.state.create_claim(
+        kind=ClaimKind.FLAG_FOUND,
+        content="flag{canonical_done}",
+        producer_type="verifier",
+        producer_id="ctf_verifier",
+        primary_trace_id="trace-canonical-done",
+    )
+    record = dispatcher.state.append_verification_record(
+        claim.id,
+        verifier_type="verifier",
+        verifier_id="ctf_verifier",
+        method=VerificationMethod.LOCAL_CHALLENGE_AUTO_VERIFY,
+        decision=VerificationDecision.VERIFIED,
+        trace_id="trace-canonical-done-verify",
+        passed=True,
+        sufficient_for_upgrade=True,
+    )
+    dispatcher.state.upgrade_claim_to_verified(
+        claim.id,
+        verification_record_id=record.id,
+        verifier_id="ctf_verifier",
+    )
+
+    class _Memory:
+        def build_fingerprint(self, state):
+            return SimpleNamespace(id="fp")
+
+        def build_entry(self, *, state, fingerprint, chain_used, solved):
+            return SimpleNamespace(id="entry-canonical")
+
+        async def save(self, entry):
+            return None
+
+    dispatcher.strategy_memory = _Memory()  # type: ignore[assignment]
+
+    result = await dispatcher._finalize_solve_result(
+        SolveResult(success=False, reason="legacy path did not set success")
+    )
+
+    assert result.success is True
+    assert result.flag == "flag{canonical_done}"
+    assert result.reason == "canonical_verified_flag_claim"
 
 
 def test_dispatcher_conforms_to_coordinator_dispatcher_services_protocol():

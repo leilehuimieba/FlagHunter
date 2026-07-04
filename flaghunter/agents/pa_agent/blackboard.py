@@ -29,6 +29,7 @@ from ...knowledge.blackboard_schema import (
     BoardView,
     intent_sort_key,
 )
+from .claim_views import claim_confidence, claim_source, preferred_flag_buckets
 from .ctf_state import CTFState, FlagRecord
 
 _REFUTED_HYPOTHESIS_STATUSES = {"rejected", "exhausted"}
@@ -82,6 +83,15 @@ def _flag_fact(record: FlagRecord, kind: str) -> BoardFact:
     )
 
 
+def _claim_flag_fact(claim, kind: str) -> BoardFact:
+    return BoardFact.flag(
+        kind=kind,
+        value=str(getattr(claim, "content", "") or ""),
+        source=claim_source(claim),
+        confidence=claim_confidence(claim),
+    )
+
+
 def project_board(
     state: CTFState,
     *,
@@ -113,14 +123,27 @@ def project_board(
                 source=str(getattr(art, "source", "") or ""),
             )
         )
-    for record in state.verified_flags:
-        facts.append(_flag_fact(record, "verified_flag"))
-    for record in state.runtime_flags:
-        facts.append(_flag_fact(record, "runtime_flag"))
-    for record in state.rejected_flags:
-        # A rejected flag is a refuted fact — kept visible so the loop/model
-        # does not re-propose it.
-        facts.append(_flag_fact(record, "refuted_flag"))
+    flag_buckets = preferred_flag_buckets(state)
+    if flag_buckets["verified"].from_claims:
+        for claim in flag_buckets["verified"].items:
+            facts.append(_claim_flag_fact(claim, "verified_flag"))
+    else:
+        for record in flag_buckets["verified"].items:
+            facts.append(_flag_fact(record, "verified_flag"))
+    if flag_buckets["runtime"].from_claims:
+        for claim in flag_buckets["runtime"].items:
+            facts.append(_claim_flag_fact(claim, "runtime_flag"))
+    else:
+        for record in flag_buckets["runtime"].items:
+            facts.append(_flag_fact(record, "runtime_flag"))
+    if flag_buckets["retracted"].from_claims:
+        for claim in flag_buckets["retracted"].items:
+            facts.append(_claim_flag_fact(claim, "refuted_flag"))
+    else:
+        for record in flag_buckets["retracted"].items:
+            # A rejected flag is a refuted fact — kept visible so the loop/model
+            # does not re-propose it.
+            facts.append(_flag_fact(record, "refuted_flag"))
 
     intents: list[BoardIntent] = []
     for hyp in state.hypotheses:
@@ -160,22 +183,40 @@ def project_board(
                 origin="exploration_agenda",
             )
         )
-    for record in state.candidate_flags:
-        intents.append(
-            BoardIntent(
-                id="",
-                kind="candidate_flag",
-                description=str(getattr(record, "value", "") or ""),
-                confidence=float(getattr(record, "confidence", 0.0) or 0.0),
-                value_score=float(getattr(record, "confidence", 0.0) or 0.0),
-                status="active",
-                refuted=False,
-                next_experiments=[],
-                # A candidate flag is the most direct intent — one verify step away.
-                directness=2,
-                origin="candidate_flag",
+    if flag_buckets["candidate"].from_claims:
+        for claim in flag_buckets["candidate"].items:
+            confidence = claim_confidence(claim)
+            intents.append(
+                BoardIntent(
+                    id=str(getattr(claim, "id", "") or ""),
+                    kind="candidate_flag",
+                    description=str(getattr(claim, "content", "") or ""),
+                    confidence=confidence,
+                    value_score=confidence,
+                    status="active",
+                    refuted=False,
+                    next_experiments=[],
+                    directness=2,
+                    origin="claim_store",
+                )
             )
-        )
+    else:
+        for record in flag_buckets["candidate"].items:
+            intents.append(
+                BoardIntent(
+                    id="",
+                    kind="candidate_flag",
+                    description=str(getattr(record, "value", "") or ""),
+                    confidence=float(getattr(record, "confidence", 0.0) or 0.0),
+                    value_score=float(getattr(record, "confidence", 0.0) or 0.0),
+                    status="active",
+                    refuted=False,
+                    next_experiments=[],
+                    # A candidate flag is the most direct intent — one verify step away.
+                    directness=2,
+                    origin="candidate_flag",
+                )
+            )
 
     # Active first; among active, highest value, then most direct (shortest
     # remaining path — 走最短链), then highest confidence. Refuted/exhausted

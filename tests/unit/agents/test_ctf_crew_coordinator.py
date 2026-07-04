@@ -8,7 +8,14 @@ from flaghunter.agents.pa_agent.ctf_crew_coordinator import (
     CTFCrewCoordinator,
     CrewWorkerSpec,
 )
-from flaghunter.agents.pa_agent.ctf_state import CTFState, Hypothesis
+from flaghunter.agents.pa_agent.ctf_state import (
+    CTFState,
+    ClaimKind,
+    ClaimLevel,
+    VerificationDecision,
+    VerificationMethod,
+    Hypothesis,
+)
 from flaghunter.agents.pa_agent.verifier import CTFVerifier
 
 
@@ -33,6 +40,68 @@ class _FakeVerifier:
                 "metadata": {"platform_verified": False, "operator_confirmed": False},
             },
         )()
+
+
+def _crew_flag_claim(
+    state: CTFState,
+    value: str,
+    *,
+    runtime_supported: bool = False,
+    verified: bool = False,
+    retracted: bool = False,
+):
+    claim = state.create_claim(
+        kind=ClaimKind.FLAG_FOUND,
+        content=value,
+        producer_type="verifier",
+        producer_id="ctf_verifier",
+        primary_trace_id=f"trace:{value}",
+        source_channel="crew-test",
+        confidence=0.7,
+    )
+    if runtime_supported:
+        state.append_verification_record(
+            claim.id,
+            verifier_type="verifier",
+            verifier_id="ctf_verifier",
+            method=VerificationMethod.RUNTIME_HTTP,
+            decision=VerificationDecision.RUNTIME_SUPPORTED,
+            trace_id=f"verify:runtime:{value}",
+            passed=True,
+        )
+    if verified:
+        record = state.append_verification_record(
+            claim.id,
+            verifier_type="verifier",
+            verifier_id="ctf_verifier",
+            method=VerificationMethod.PLATFORM_SUBMIT,
+            decision=VerificationDecision.VERIFIED,
+            trace_id=f"verify:verified:{value}",
+            passed=True,
+            sufficient_for_upgrade=True,
+        )
+        state.upgrade_claim_to_verified(
+            claim.id,
+            verification_record_id=record.id,
+            verifier_id="ctf_verifier",
+        )
+    if retracted:
+        record = state.append_verification_record(
+            claim.id,
+            verifier_type="verifier",
+            verifier_id="ctf_verifier",
+            method=VerificationMethod.PLATFORM_SUBMIT,
+            decision=VerificationDecision.REJECTED,
+            trace_id=f"verify:rejected:{value}",
+            passed=False,
+        )
+        state.retract_claim(
+            claim.id,
+            reason="platform rejected it",
+            trace_id=record.trace_id,
+            actor_id="ctf_verifier",
+        )
+    return claim
 
 
 @pytest.mark.asyncio
@@ -126,6 +195,7 @@ async def test_ctf_crew_coordinator_cancels_remaining_workers_after_verified_fla
     assert "recon-slow" in summary.cancelled_workers
     assert "verifier-slow" in summary.cancelled_workers
     assert [record.value for record in state.verified_flags] == ["flag{crew_verified}"]
+    assert summary.to_dict()["flag_summary"]["verifiedFlags"] == ["flag{crew_verified}"]
 
 
 def test_ctf_crew_coordinator_plans_parallel_recon_workers_from_endpoint_prefixes():
@@ -444,3 +514,106 @@ async def test_crew6_total_timeout_cancels_remaining_workers_and_preserves_compl
     assert summary.stop_reason == "crew_timeout"
     assert "slow-exploit" in summary.cancelled_workers
     assert any(item.value == "first result" for item in state.observations)
+
+
+@pytest.mark.asyncio
+async def test_crew_summary_includes_canonical_flag_claim_buckets(monkeypatch):
+    monkeypatch.setenv("FLAGHUNTER_CTF_CLAIMS_V1", "1")
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    _crew_flag_claim(state, "flag{crew_candidate}")
+    _crew_flag_claim(state, "flag{crew_runtime}", runtime_supported=True)
+    _crew_flag_claim(state, "flag{crew_retracted}", retracted=True)
+
+    async def _runner(spec: dict, shared_state: CTFState, cancel_event: asyncio.Event):
+        return {
+            "worker_id": spec["worker_id"],
+            "observations": [],
+            "candidate_flags": [],
+            "verified_flag": None,
+        }
+
+    coordinator = CTFCrewCoordinator(
+        state=state,
+        verifier=_FakeVerifier(),
+        worker_runner=_runner,
+        timeout_seconds=3,
+    )
+
+    summary = await coordinator.run(
+        [CrewWorkerSpec(worker_id="worker-a", worker_type="recon", task="observe")]
+    )
+
+    assert summary.stop_reason == "workers_completed"
+    assert summary.to_dict()["flag_summary"] == {
+        "verifiedFlags": [],
+        "runtimeFlags": ["flag{crew_runtime}"],
+        "candidateFlags": ["flag{crew_candidate}"],
+        "retractedFlags": ["flag{crew_retracted}"],
+        "rejectedFlags": ["flag{crew_retracted}"],
+    }
+
+
+@pytest.mark.asyncio
+async def test_crew_stop_reason_reads_existing_canonical_verified_claim(monkeypatch):
+    monkeypatch.setenv("FLAGHUNTER_CTF_CLAIMS_V1", "1")
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    _crew_flag_claim(state, "flag{crew_canonical_verified}", verified=True)
+
+    async def _runner(spec: dict, shared_state: CTFState, cancel_event: asyncio.Event):
+        return {
+            "worker_id": spec["worker_id"],
+            "observations": [],
+            "candidate_flags": [],
+            "verified_flag": None,
+        }
+
+    coordinator = CTFCrewCoordinator(
+        state=state,
+        verifier=_FakeVerifier(),
+        worker_runner=_runner,
+        timeout_seconds=3,
+    )
+
+    summary = await coordinator.run(
+        [CrewWorkerSpec(worker_id="worker-a", worker_type="recon", task="observe")]
+    )
+
+    assert summary.stop_reason == "flag_verified"
+    assert summary.verified_flag == "flag{crew_canonical_verified}"
+    assert state.verified_flags == []
+
+
+@pytest.mark.asyncio
+async def test_crew_merge_does_not_directly_write_verified_claim(monkeypatch):
+    monkeypatch.setenv("FLAGHUNTER_CTF_CLAIMS_V1", "1")
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+
+    async def _runner(spec: dict, shared_state: CTFState, cancel_event: asyncio.Event):
+        return {
+            "worker_id": spec["worker_id"],
+            "observations": [],
+            "candidate_flags": [
+                {"value": "flag{candidate_not_verified}", "level": "verified"}
+            ],
+            "verified_flag": None,
+        }
+
+    coordinator = CTFCrewCoordinator(
+        state=state,
+        verifier=_FakeVerifier(),
+        worker_runner=_runner,
+        timeout_seconds=3,
+    )
+
+    summary = await coordinator.run(
+        [CrewWorkerSpec(worker_id="worker-a", worker_type="exploit", task="probe")]
+    )
+
+    assert summary.stop_reason == "workers_completed"
+    assert summary.verified_flag is None
+    assert state.verified_flags == []
+    assert [
+        claim
+        for claim in state.find_claims_by_kind(ClaimKind.FLAG_FOUND, include_inactive=True)
+        if claim.level == ClaimLevel.VERIFIED
+    ] == []

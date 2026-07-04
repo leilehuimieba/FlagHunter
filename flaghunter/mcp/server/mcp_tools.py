@@ -400,6 +400,9 @@ def _build_ingress_handoff(
         if runtime_flag:
             handoff["runtimeFlag"] = runtime_flag
     if str(decision.get("nextAction") or "").strip() == "verify_or_submit_flag":
+        # P1 selector-only contract: MCP ingress forwards verifiedFlag only as a
+        # route to an existing canonical verified claim. It is not proof and
+        # cannot create success or verified_flags on its own.
         verified_flag = next(
             (
                 str(item.get("value") or "").strip()
@@ -678,6 +681,9 @@ def _ctf_dispatcher_hint(entry: TaskEntry) -> str:
     decision_parts = build_control_decision_parts(
         decision, blackboard_snapshot, endpoint_fallback=str(handoff.get("endpoint") or "").strip()
     )
+    # build_control_decision_parts may include verifiedFlag, but only as a
+    # selector, not as proof. The coordinator must still require a canonical
+    # verified flag_found claim upgraded through CTFVerifier + VerificationRecord.
     if decision_parts:
         structured_parts.append("[control_decision]\n" + "\n".join(decision_parts))
     challenge_path = str(challenge_context.get("challengePath") or "").strip()

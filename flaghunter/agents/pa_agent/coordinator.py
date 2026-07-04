@@ -8,9 +8,9 @@ from ...harness.audit_events import (
     build_control_action_completed_event,
     build_control_action_started_event,
     build_dispatcher_started_event,
-    build_verification_decision_event,
 )
 from ...knowledge.kill_chain import Phase
+from .claim_views import flag_found_claim_view
 from .ctf_state import CTFState
 
 
@@ -367,6 +367,8 @@ def _resolve_verified_flag_from_hint(hint: str) -> str:
     decision = _parse_control_decision_block(hint)
     if str(decision.get("nextAction") or "").strip() != "verify_or_submit_flag":
         return ""
+    # P1 invariant: verifiedFlag is only a selector/routing signal. It is not
+    # proof and must not mint success or verified state by itself.
     return str(decision.get("verifiedFlag") or "").strip()
 
 
@@ -381,7 +383,21 @@ def _resolve_verified_flag_from_decision(decision: dict[str, str] | None) -> str
     item = decision if isinstance(decision, dict) else {}
     if str(item.get("nextAction") or "").strip() != "verify_or_submit_flag":
         return ""
+    # verifiedFlag remains a selector only; the actual proof is the canonical
+    # Claim upgraded by CTFVerifier + VerificationRecord + upgrade_claim_to_verified(...).
     return str(item.get("verifiedFlag") or "").strip()
+
+
+def _existing_canonical_verified_flag(state: CTFState | None, requested_flag: str) -> str:
+    requested = str(requested_flag or "").strip()
+    if state is None or not requested:
+        return ""
+    view = flag_found_claim_view(state)
+    for claim in reversed(view.verified):
+        value = str(getattr(claim, "content", "") or "").strip()
+        if value == requested:
+            return value
+    return ""
 
 
 def _should_bootstrap_local_assets_from_hint(hint: str) -> bool:
@@ -1061,6 +1077,21 @@ class CTFCoordinator:
             strongest_hypothesis_status=str(strongest_hypothesis.get("status") or "").strip(),
             strongest_hypothesis_confidence=strongest_hypothesis.get("confidence"),
         )
+        control_trace = None
+        if dispatcher.state is not None and hasattr(dispatcher.state, "record_execution_trace"):
+            control_trace = dispatcher.state.record_execution_trace(
+                kind="control_receipt",
+                producer="control:verify_runtime_signal",
+                input_summary=runtime_flag,
+                output_summary="blackboard/control requested runtime flag verification",
+                success=False,
+                metadata={
+                    "decision_kind": str(decision.get("decisionKind") or "").strip(),
+                    "driver": str(decision.get("driver") or "").strip(),
+                    "next_action": str(decision.get("nextAction") or "").strip(),
+                    "target": target,
+                },
+            )
 
         verification = await dispatcher._observe_flag(
             runtime_flag,
@@ -1068,6 +1099,28 @@ class CTFCoordinator:
             evidence_source="runtime-blackboard-signal",
             rationale="blackboard runtime flag requested verification",
         )
+        if control_trace is not None and dispatcher.state is not None:
+            control_trace.success = bool(
+                str(getattr(verification, "decision", "") or "").strip()
+                in {"runtime", "verified"}
+            )
+            control_trace.output_summary = (
+                f"verifier decision={getattr(verification, 'decision', '')}"
+            )
+            verification_metadata = dict(getattr(verification, "metadata", None) or {})
+            verification_trace_id = str(verification_metadata.get("trace_id") or "").strip()
+            verification_trace = dispatcher.state.execution_traces_by_id.get(
+                verification_trace_id
+            )
+            if verification_trace is not None:
+                verification_trace.metadata["control_trace_id"] = control_trace.id
+                verification_trace.metadata["control_receipt_id"] = control_trace.receipt_id
+            for record in reversed(list(dispatcher.state.verification_records_by_id.values())):
+                if record.trace_id != verification_trace_id:
+                    continue
+                if control_trace.id not in record.evidence_trace_ids:
+                    record.evidence_trace_ids.append(control_trace.id)
+                break
         if getattr(verification, "decision", "") != "verified":
             self._record_control_action_completed(
                 dispatcher,
@@ -1122,6 +1175,14 @@ class CTFCoordinator:
         verified_flag = _resolve_verified_flag_from_decision(decision)
         if not verified_flag:
             return None
+        # verifiedFlag is selector-only, not proof: it narrows which existing
+        # canonical fact may be read. If no matching verified claim exists, the
+        # coordinator must continue the normal flow instead of fabricating
+        # success or writing verified_flags.
+        canonical_verified_flag = _existing_canonical_verified_flag(
+            dispatcher.state,
+            verified_flag,
+        )
         self._record_control_action_started(
             dispatcher,
             action="verify_or_submit_flag",
@@ -1134,39 +1195,30 @@ class CTFCoordinator:
             strongest_hypothesis_status=str(strongest_hypothesis.get("status") or "").strip(),
             strongest_hypothesis_confidence=strongest_hypothesis.get("confidence"),
         )
+        if not canonical_verified_flag:
+            self._record_control_action_completed(
+                dispatcher,
+                action="verify_or_submit_flag",
+                result="ignored",
+                decision_kind=str(decision.get("decisionKind") or "").strip(),
+                driver=str(decision.get("driver") or "").strip(),
+                switched_from=str(followup_provenance.get("switched_from") or "").strip(),
+                trigger_reason=str(followup_provenance.get("trigger_reason") or "").strip(),
+                strongest_hypothesis_kind=str(strongest_hypothesis.get("kind") or "").strip(),
+                strongest_hypothesis_status=str(strongest_hypothesis.get("status") or "").strip(),
+                strongest_hypothesis_confidence=strongest_hypothesis.get("confidence"),
+            )
+            return None
 
         result = SolveResult(
             success=True,
-            flag=verified_flag,
-            reason="blackboard 已有 verified flag",
+            flag=canonical_verified_flag,
+            reason="canonical_verified_flag_claim",
         )
         result.chain_used.append("verified_flag")
         result.notes = list(dispatcher._notes_log)
         if dispatcher.state is not None:
             dispatcher.state.stop_reason = result.reason
-            dispatcher.state.add_flag(
-                verified_flag,
-                level="verified",
-                evidence_source="blackboard-verified-flag",
-                rationale="blackboard already held verified flag",
-                confidence=1.0,
-                metadata={
-                    "verification_path": "control_verified_flag",
-                    "platform_verified": False,
-                    "operator_confirmed": False,
-                },
-            )
-            verification_event = build_verification_decision_event(
-                decision="verified",
-                flag=verified_flag,
-                evidence_source="blackboard-verified-flag",
-                rationale="blackboard already held verified flag",
-                confidence=1.0,
-            )
-            dispatcher._record_session_event(
-                str(verification_event.get("event_type") or "verification_decision"),
-                dict(verification_event.get("payload") or {}),
-            )
         self._record_control_action_completed(
             dispatcher,
             action="verify_or_submit_flag",

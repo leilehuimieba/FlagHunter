@@ -4,8 +4,21 @@ from types import SimpleNamespace
 
 import pytest
 
-from flaghunter.agents.pa_agent.ctf_state import CTFState
+from flaghunter.agents.pa_agent.ctf_state import (
+    CTFState,
+    ClaimKind,
+    ClaimLevel,
+    ClaimStatus,
+    VerificationDecision,
+)
 from flaghunter.agents.pa_agent.verifier import CTFVerifier
+
+
+def _flag_claims(state: CTFState, *, include_inactive: bool = False):
+    return state.find_claims_by_kind(
+        ClaimKind.FLAG_FOUND,
+        include_inactive=include_inactive,
+    )
 
 
 @pytest.mark.asyncio
@@ -28,6 +41,128 @@ async def test_verifier_marks_source_only_flag_as_candidate():
     assert result.proof is not None
     assert result.proof.source_trust == "source_only"
     assert result.proof.submit_confidence == 0.0
+
+
+@pytest.mark.asyncio
+async def test_verifier_claims_v1_source_candidate_double_writes_claim(monkeypatch):
+    monkeypatch.setenv("FLAGHUNTER_CTF_CLAIMS_V1", "1")
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    verifier = CTFVerifier(runtime=None)
+
+    result = await verifier.verify_flag(
+        state,
+        flag="flag{claims_candidate}",
+        evidence_source="source-leak",
+        rationale="found in source archive",
+    )
+
+    assert result.decision == "candidate"
+    assert [record.value for record in state.candidate_flags] == ["flag{claims_candidate}"]
+    claims = _flag_claims(state)
+    assert len(claims) == 1
+    assert claims[0].content == "flag{claims_candidate}"
+    assert claims[0].kind == ClaimKind.FLAG_FOUND
+    assert claims[0].level == ClaimLevel.CONJECTURE
+    assert claims[0].status == ClaimStatus.ACTIVE
+
+
+@pytest.mark.asyncio
+async def test_verifier_claims_v1_off_keeps_legacy_buckets_without_claims(monkeypatch):
+    monkeypatch.setenv("FLAGHUNTER_CTF_CLAIMS_V1", "0")
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    verifier = CTFVerifier(runtime=None)
+
+    result = await verifier.verify_flag(
+        state,
+        flag="flag{legacy_candidate_only}",
+        evidence_source="source-leak",
+        rationale="found in source archive",
+    )
+
+    assert result.decision == "candidate"
+    assert [record.value for record in state.candidate_flags] == ["flag{legacy_candidate_only}"]
+    assert state.claims_by_id == {}
+    assert state.verification_records_by_id == {}
+
+
+@pytest.mark.asyncio
+async def test_verifier_claims_v1_runtime_supported_adds_verification_record(monkeypatch):
+    monkeypatch.setenv("FLAGHUNTER_CTF_CLAIMS_V1", "1")
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    verifier = CTFVerifier(runtime=None)
+
+    result = await verifier.verify_flag(
+        state,
+        flag="flag{claims_runtime}",
+        evidence_source="http-response",
+        rationale="echoed by target",
+    )
+
+    assert result.decision == "runtime"
+    assert [record.value for record in state.runtime_flags] == ["flag{claims_runtime}"]
+    claims = _flag_claims(state)
+    assert len(claims) == 1
+    claim = claims[0]
+    assert claim.level == ClaimLevel.CONJECTURE
+    assert len(claim.verification_record_ids) == 1
+    record = state.verification_records_by_id[claim.verification_record_ids[0]]
+    assert record.claim_id == claim.id
+    assert record.decision == VerificationDecision.RUNTIME_SUPPORTED
+    assert record.passed is True
+    assert record.sufficient_for_upgrade is False
+
+
+@pytest.mark.asyncio
+async def test_verifier_claims_v1_verified_upgrades_claim(monkeypatch):
+    monkeypatch.setenv("FLAGHUNTER_CTF_CLAIMS_V1", "1")
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    state.local_challenge_auto_verify = True
+    verifier = CTFVerifier(runtime=None)
+
+    result = await verifier.verify_flag(
+        state,
+        flag="flag{claims_verified}",
+        evidence_source="http-response",
+        rationale="runtime flag from local challenge",
+    )
+
+    assert result.decision == "verified"
+    assert [record.value for record in state.verified_flags] == ["flag{claims_verified}"]
+    claims = _flag_claims(state)
+    assert len(claims) == 1
+    claim = claims[0]
+    assert claim.level == ClaimLevel.VERIFIED
+    assert claim.status == ClaimStatus.ACTIVE
+    record = state.verification_records_by_id[claim.verification_record_ids[-1]]
+    assert record.decision == VerificationDecision.VERIFIED
+    assert record.passed is True
+    assert record.sufficient_for_upgrade is True
+
+
+@pytest.mark.asyncio
+async def test_verifier_claims_v1_rejected_retracts_claim(monkeypatch):
+    monkeypatch.setenv("FLAGHUNTER_CTF_CLAIMS_V1", "1")
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    verifier = CTFVerifier(runtime=None)
+
+    result = verifier.reject_flag(
+        state,
+        flag="flag{claims_wrong}",
+        evidence_source="platform-submit",
+        rationale="platform rejected flag",
+    )
+
+    assert result.decision == "rejected"
+    assert [record.value for record in state.rejected_flags] == ["flag{claims_wrong}"]
+    claims = _flag_claims(state, include_inactive=True)
+    assert len(claims) == 1
+    claim = claims[0]
+    assert claim.level == ClaimLevel.RETRACTED
+    assert claim.status == ClaimStatus.RETRACTED
+    record = state.verification_records_by_id[claim.verification_record_ids[-1]]
+    assert record.decision == VerificationDecision.REJECTED
+    assert record.passed is False
+    assert record.sufficient_for_upgrade is False
 
 
 @pytest.mark.asyncio

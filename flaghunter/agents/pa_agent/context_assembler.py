@@ -185,12 +185,30 @@ class ContextAssembler:
                 for item in list(latest_checkpoint.get("verifiedFlags") or [])
                 if str(item).strip()
             ]
+            runtime_flags = [
+                str(item).strip()
+                for item in list(latest_checkpoint.get("runtimeFlags") or [])
+                if str(item).strip()
+            ]
+            retracted_flags = [
+                str(item).strip()
+                for item in list(
+                    latest_checkpoint.get("retractedFlags")
+                    or latest_checkpoint.get("rejectedFlags")
+                    or []
+                )
+                if str(item).strip()
+            ]
             if label:
                 parts.append("latest_checkpoint=" + label)
             if stop_reason:
                 parts.append("stop_reason=" + stop_reason)
             if verified_flags:
                 parts.append("verified_flags=" + ", ".join(verified_flags))
+            if runtime_flags:
+                parts.append("runtime_flags=" + ", ".join(runtime_flags))
+            if retracted_flags:
+                parts.append("retracted_flags=" + ", ".join(retracted_flags))
         if recent_event_types:
             parts.append("recent_events=" + ", ".join(recent_event_types))
         if artifact_titles:
@@ -267,8 +285,9 @@ class ContextAssembler:
         for item in items:
             cat = str(item.get("category", "info")).capitalize()
             content = str(item.get("content", ""))
-            if len(content) > _MAX_ITEM_CHARS:
-                content = content[:_MAX_ITEM_CHARS - 3] + "..."
+            item_limit = 600 if str(item.get("key") or "") == "session_context" else _MAX_ITEM_CHARS
+            if len(content) > item_limit:
+                content = content[:item_limit - 3] + "..."
             grouped.setdefault(cat, []).append(content)
 
         sections: list[str] = []

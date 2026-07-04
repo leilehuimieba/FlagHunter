@@ -229,6 +229,9 @@ def build_control_decision_parts(
         if runtime_flag:
             decision_parts.append(f"runtimeFlag={runtime_flag}")
     if next_action == "verify_or_submit_flag":
+        # P1 selector-only contract: verifiedFlag is copied only to route the
+        # dispatcher toward an already-existing canonical verified claim. It is
+        # not proof and must not cause success without verifier-created records.
         verified_flag = next(
             (
                 str(item.get("value") or "").strip()
@@ -415,6 +418,9 @@ def resolve_control_decision(payload: Mapping[str, Any] | None) -> dict[str, Any
             facts.append(f"strongestHypothesisStatus={strongest_status}")
 
     if any(_clean_text(item.get("kind")) == "verified_flag" for item in blackboard_facts):
+        # This action names the route, not the proof. The coordinator may only
+        # finish if CTFState already contains a canonical verified flag_found
+        # claim upgraded by CTFVerifier + VerificationRecord.
         facts.append("blackboard.verified_flag=present")
         suppressed_recommendation = _suppressed_recommendation(
             blackboard,

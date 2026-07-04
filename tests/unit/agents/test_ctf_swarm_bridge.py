@@ -9,7 +9,12 @@ from flaghunter.agents.crew.swarm_bridge import (
     build_ctf_dispatcher_worker_runner,
     run_ctf_dispatcher_worker,
 )
-from flaghunter.agents.pa_agent.ctf_state import CTFState
+from flaghunter.agents.pa_agent.ctf_state import (
+    CTFState,
+    ClaimKind,
+    VerificationDecision,
+    VerificationMethod,
+)
 
 
 class _FakeDispatcher:
@@ -51,6 +56,62 @@ class _FakeDispatcher:
         )
 
 
+class _CanonicalClaimDispatcher:
+    def __init__(self):
+        self.calls: list[dict[str, str]] = []
+        self.state = CTFState(target="http://ctf.local", goal="拿到flag")
+        runtime_claim = self.state.create_claim(
+            kind=ClaimKind.FLAG_FOUND,
+            content="flag{canonical_runtime_from_worker}",
+            producer_type="verifier",
+            producer_id="ctf_verifier",
+            primary_trace_id="trace-runtime",
+            source_channel="worker-test",
+        )
+        self.state.append_verification_record(
+            runtime_claim.id,
+            verifier_type="verifier",
+            verifier_id="ctf_verifier",
+            method=VerificationMethod.RUNTIME_HTTP,
+            decision=VerificationDecision.RUNTIME_SUPPORTED,
+            trace_id="verify-runtime",
+            passed=True,
+        )
+        rejected_claim = self.state.create_claim(
+            kind=ClaimKind.FLAG_FOUND,
+            content="flag{canonical_retracted_from_worker}",
+            producer_type="verifier",
+            producer_id="ctf_verifier",
+            primary_trace_id="trace-retracted",
+            source_channel="worker-test",
+        )
+        record = self.state.append_verification_record(
+            rejected_claim.id,
+            verifier_type="verifier",
+            verifier_id="ctf_verifier",
+            method=VerificationMethod.PLATFORM_SUBMIT,
+            decision=VerificationDecision.REJECTED,
+            trace_id="verify-rejected",
+            passed=False,
+        )
+        self.state.retract_claim(
+            rejected_claim.id,
+            reason="platform rejected it",
+            trace_id=record.trace_id,
+            actor_id="ctf_verifier",
+        )
+
+    async def run(self, *, target: str, goal: str, type: str, hint: str):
+        self.calls.append(
+            {"target": target, "goal": goal, "type": type, "hint": hint}
+        )
+        return SimpleNamespace(
+            success=False,
+            flag=None,
+            reason="canonical worker finished",
+        )
+
+
 @pytest.mark.asyncio
 async def test_run_ctf_dispatcher_worker_returns_state_diff():
     dispatcher = _FakeDispatcher(success=False, flag=None)
@@ -73,6 +134,28 @@ async def test_run_ctf_dispatcher_worker_returns_state_diff():
     assert result["runtime_flags"] == []
     assert result["state_diff"]["observations"][0]["kind"] == "worker_observation"
     assert dispatcher.calls[0]["type"] == "web"
+
+
+@pytest.mark.asyncio
+async def test_run_ctf_dispatcher_worker_state_diff_reads_canonical_claims(monkeypatch):
+    monkeypatch.setenv("FLAGHUNTER_CTF_CLAIMS_V1", "1")
+    dispatcher = _CanonicalClaimDispatcher()
+
+    result = await run_ctf_dispatcher_worker(
+        dispatcher,
+        target="http://ctf.local",
+        goal="拿到flag",
+        chtype="web",
+        hint="",
+        worker_id="worker-canonical",
+        worker_type="exploit",
+        cancel_event=None,
+    )
+
+    assert result["verified_flag"] is None
+    assert result["runtime_flags"] == ["flag{canonical_runtime_from_worker}"]
+    assert result["state_diff"]["runtime_flags"] == ["flag{canonical_runtime_from_worker}"]
+    assert result["state_diff"]["rejected_flags"] == ["flag{canonical_retracted_from_worker}"]
 
 
 @pytest.mark.asyncio
@@ -294,6 +377,37 @@ async def test_recall_board_context_hot_targets_drop_chain_namespace(monkeypatch
     assert "http://host (强度 4.20)" in out
     assert "10.0.0.5" in out
     assert "chain:web" not in out  # chain pheromone is not a target
+
+
+@pytest.mark.asyncio
+async def test_recall_board_context_redacts_sensitive_prompt_surface(monkeypatch):
+    board = _FakeBoard(
+        [
+            _finding_msg(
+                finding='rce {"token":"finding-token"} password=finding-pass',
+                severity="critical",
+                target="http://h?api_key=target-key",
+                sender="peer cookie=sender-cookie",
+                ts=1.0,
+            )
+        ]
+    )
+    router = _FakeTopRouter(
+        [("http://hot?authorization=Bearer hot-auth", 4.2), ("chain:web", 9.9)]
+    )
+    _patch_m5_read(monkeypatch, board=board, router=router)
+
+    out = await recall_swarm_board_context("http://t")
+
+    for leaked in (
+        "finding-token",
+        "finding-pass",
+        "target-key",
+        "sender-cookie",
+        "hot-auth",
+    ):
+        assert leaked not in out
+    assert "<redacted>" in out
 
 
 @pytest.mark.asyncio

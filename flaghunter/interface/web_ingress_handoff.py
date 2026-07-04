@@ -108,6 +108,9 @@ def _build_ingress_handoff(task: dict[str, Any]) -> dict[str, Any]:
         if runtime_flag:
             handoff["runtimeFlag"] = runtime_flag
     if str(decision.get("nextAction") or "").strip() == "verify_or_submit_flag":
+        # P1: carry verifiedFlag as a selector for an existing canonical
+        # verified claim only. Web ingress/replay cannot use it as proof or
+        # create verified state.
         verified_flag = next(
             (
                 str(item.get("value") or "").strip()

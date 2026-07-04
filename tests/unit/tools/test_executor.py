@@ -3,6 +3,7 @@
 import asyncio
 import pytest
 
+from flaghunter.agents.pa_agent.ctf_state import CTFState
 from flaghunter.tools import executor as executor_module
 from flaghunter.tools.executor import ExecutionResult, ToolExecutor
 from flaghunter.tools.registry import Tool, ToolSchema
@@ -26,6 +27,13 @@ def _make_tool(name: str = "t", success: bool = True, delay: float = 0.0,
         required=required or [],
     )
     return Tool(name=name, description="", schema=schema, execute_fn=fn)
+
+
+def _make_output_tool(name: str, output: str) -> Tool:
+    async def fn(arguments: dict, runtime) -> str:
+        return output
+
+    return Tool(name=name, description="", schema=ToolSchema(), execute_fn=fn)
 
 
 def _make_executor(timeout: int = 10, max_retries: int = 0) -> ToolExecutor:
@@ -90,6 +98,218 @@ class TestToolExecutorSuccess:
         assert result.end_time is not None
         assert result.end_time >= result.start_time
 
+    @pytest.mark.asyncio
+    async def test_records_tool_receipt_when_runtime_exposes_ctf_state(self):
+        state = CTFState(target="http://ctf.local", goal="get flag")
+        runtime = type("RuntimeWithState", (), {"ctf_state": state})()
+        executor = ToolExecutor(runtime=runtime)
+        tool = _make_tool(name="http_request")
+
+        result = await executor.execute(tool, {"cmd": "GET /"})
+        trace = state.execution_traces_by_id[result.trace_id]
+
+        assert result.success is True
+        assert result.trace_id
+        assert result.receipt_id == trace.receipt_id
+        assert trace.kind == "tool_receipt"
+        assert trace.producer == "tool:http_request"
+        assert trace.success is True
+        assert trace.metadata["tool_name"] == "http_request"
+        assert trace.metadata["status"] == "success"
+
+    @pytest.mark.asyncio
+    async def test_tool_receipt_redacts_sensitive_arguments(self):
+        state = CTFState(target="http://ctf.local", goal="get flag")
+        runtime = type("RuntimeWithState", (), {"ctf_state": state})()
+        executor = ToolExecutor(runtime=runtime)
+        tool = _make_tool(name="http_request")
+
+        result = await executor.execute(
+            tool,
+            {
+                "cmd": "GET /",
+                "cookie": "session=super-secret-cookie",
+                "headers": {"Authorization": "Bearer top-secret-token"},
+                "api_key": "secret-api-key",
+            },
+        )
+        trace = state.get_execution_trace(result.trace_id)
+
+        assert trace is not None
+        assert "super-secret-cookie" not in trace.input_summary
+        assert "top-secret-token" not in trace.input_summary
+        assert "secret-api-key" not in trace.input_summary
+        assert "<redacted>" in trace.input_summary
+
+    @pytest.mark.asyncio
+    async def test_tool_receipt_output_summary_is_compact(self):
+        state = CTFState(target="http://ctf.local", goal="get flag")
+        runtime = type("RuntimeWithState", (), {"ctf_state": state})()
+        executor = ToolExecutor(runtime=runtime)
+        tool = _make_output_tool("long_output", "A" * 2000)
+
+        result = await executor.execute(tool, {})
+        trace = state.get_execution_trace(result.trace_id)
+
+        assert trace is not None
+        assert len(trace.output_summary) <= 1000
+        assert trace.output_summary == "A" * 1000
+
+    @pytest.mark.asyncio
+    async def test_tool_receipt_output_summary_redacts_sensitive_output(self):
+        state = CTFState(target="http://ctf.local", goal="get flag")
+        runtime = type("RuntimeWithState", (), {"ctf_state": state})()
+        executor = ToolExecutor(runtime=runtime)
+        tool = _make_output_tool(
+            "http_request",
+            "\n".join(
+                [
+                    "HTTP/1.1 200 OK",
+                    "Set-Cookie: session=super-secret-cookie; Path=/",
+                    "Cookie: csrftoken=raw-cookie-token",
+                    "Authorization: Bearer top-secret-token",
+                    "token=plain-token-value",
+                    "api_key=raw-api-key-value",
+                    "password=secret123",
+                    '"secret": "json-secret-value"',
+                ]
+            ),
+        )
+
+        result = await executor.execute(tool, {})
+        trace = state.get_execution_trace(result.trace_id)
+
+        assert trace is not None
+        assert len(trace.output_summary) <= 1000
+        for leaked in (
+            "super-secret-cookie",
+            "raw-cookie-token",
+            "top-secret-token",
+            "plain-token-value",
+            "raw-api-key-value",
+            "secret123",
+            "json-secret-value",
+        ):
+            assert leaked not in trace.output_summary
+        assert "<redacted>" in trace.output_summary
+
+    @pytest.mark.asyncio
+    async def test_cached_tool_result_keeps_original_receipt_linkage_stable(self):
+        calls = {"count": 0}
+
+        async def cacheable_tool(arguments, runtime):
+            calls["count"] += 1
+            return "cached-output"
+
+        state = CTFState(target="http://ctf.local", goal="get flag")
+        runtime = type("RuntimeWithState", (), {"ctf_state": state})()
+        executor = ToolExecutor(runtime=runtime)
+        tool = Tool(
+            name="cacheable_http",
+            description="",
+            schema=ToolSchema(),
+            execute_fn=cacheable_tool,
+        )
+
+        first = await executor.execute(tool, {"url": "http://ctf.local/"})
+        first_trace_id = first.trace_id
+        second = await executor.execute(tool, {"url": "http://ctf.local/"})
+
+        assert calls["count"] == 1
+        assert len(state.execution_traces_by_id) == 2
+        assert first is not second
+        assert first.trace_id == first_trace_id
+        assert second.trace_id
+        assert second.trace_id != first.trace_id
+        assert state.get_execution_trace(first.trace_id) is not None
+        assert state.get_execution_trace(second.trace_id) is not None
+
+    @pytest.mark.asyncio
+    async def test_flag_scanning_creates_candidate_claim_with_tool_trace_evidence(self, monkeypatch):
+        monkeypatch.setenv("FLAGHUNTER_CTF_CLAIMS_V1", "1")
+        state = CTFState(target="http://ctf.local", goal="get flag")
+        runtime = type("RuntimeWithState", (), {"ctf_state": state})()
+        executor = ToolExecutor(runtime=runtime)
+        tool = _make_output_tool("http_request", "body says flag{tool_candidate_1}")
+
+        result = await executor.execute(tool, {"url": "http://ctf.local/"})
+        claims = list(state.claims_by_id.values())
+
+        assert result.trace_id
+        assert len(claims) == 1
+        claim = claims[0]
+        assert claim.kind.value == "flag_found"
+        assert claim.level.value in {"conjecture", "runtime"}
+        assert claim.status.value == "active"
+        assert claim.content == "flag{tool_candidate_1}"
+        assert claim.primary_trace_id == result.trace_id
+        assert result.trace_id in claim.evidence_trace_ids
+        assert claim.metadata["source_tool"] == "http_request"
+        assert claim.metadata["source_trace_id"] == result.trace_id
+        assert claim.metadata["source_receipt_id"] == result.receipt_id
+        assert state.verified_flags == []
+
+    @pytest.mark.asyncio
+    async def test_repeated_flag_scanning_reuses_candidate_claim_and_adds_trace_evidence(self, monkeypatch):
+        monkeypatch.setenv("FLAGHUNTER_CTF_CLAIMS_V1", "1")
+        state = CTFState(target="http://ctf.local", goal="get flag")
+        runtime = type("RuntimeWithState", (), {"ctf_state": state})()
+        executor = ToolExecutor(runtime=runtime)
+        tool = _make_output_tool("http_request", "flag{same_candidate}")
+
+        first = await executor.execute(tool, {"url": "http://ctf.local/a"})
+        second = await executor.execute(tool, {"url": "http://ctf.local/b"})
+        claims = list(state.claims_by_id.values())
+
+        assert len(claims) == 1
+        claim = claims[0]
+        assert claim.content == "flag{same_candidate}"
+        assert first.trace_id in claim.evidence_trace_ids
+        assert second.trace_id in claim.evidence_trace_ids
+        assert claim.evidence_trace_ids.count(first.trace_id) == 1
+        assert claim.evidence_trace_ids.count(second.trace_id) == 1
+        assert claim.metadata["source_trace_id"] == second.trace_id
+        assert claim.metadata["source_receipt_id"] == second.receipt_id
+        assert claim.level.value != "verified"
+        assert state.verified_flags == []
+
+    @pytest.mark.asyncio
+    async def test_flag_scanning_claim_metadata_does_not_store_sensitive_output(self, monkeypatch):
+        monkeypatch.setenv("FLAGHUNTER_CTF_CLAIMS_V1", "1")
+        state = CTFState(target="http://ctf.local", goal="get flag")
+        runtime = type("RuntimeWithState", (), {"ctf_state": state})()
+        executor = ToolExecutor(runtime=runtime)
+        tool = _make_output_tool(
+            "http_request",
+            "Set-Cookie: session=super-secret-cookie\n"
+            "Authorization: Bearer top-secret-token\n"
+            "flag{safe_candidate}",
+        )
+
+        await executor.execute(tool, {"url": "http://ctf.local/"})
+        claim = next(iter(state.claims_by_id.values()))
+        metadata_text = repr(claim.metadata)
+
+        assert "super-secret-cookie" not in metadata_text
+        assert "top-secret-token" not in metadata_text
+        assert "Set-Cookie" not in metadata_text
+        assert "Authorization" not in metadata_text
+
+    @pytest.mark.asyncio
+    async def test_flag_scanning_does_not_write_candidate_claim_when_claims_flag_off(self, monkeypatch):
+        monkeypatch.delenv("FLAGHUNTER_CTF_CLAIMS_V1", raising=False)
+        state = CTFState(target="http://ctf.local", goal="get flag")
+        runtime = type("RuntimeWithState", (), {"ctf_state": state})()
+        executor = ToolExecutor(runtime=runtime)
+        tool = _make_output_tool("http_request", "flag{legacy_only_candidate}")
+
+        result = await executor.execute(tool, {"url": "http://ctf.local/"})
+
+        assert result.success is True
+        assert result.trace_id
+        assert state.claims_by_id == {}
+        assert state.verified_flags == []
+
 
 # ---------------------------------------------------------------------------
 # ToolExecutor.execute — failure paths
@@ -111,6 +331,64 @@ class TestToolExecutorFailure:
         result = await executor.execute(tool, {"cmd": "x"})
         assert result.success is False
         assert "simulated failure" in result.error
+
+    @pytest.mark.asyncio
+    async def test_failed_tool_call_records_failed_tool_receipt(self):
+        state = CTFState(target="http://ctf.local", goal="get flag")
+        runtime = type("RuntimeWithState", (), {"ctf_state": state})()
+        executor = ToolExecutor(runtime=runtime)
+        tool = _make_tool(name="boom", success=False)
+
+        result = await executor.execute(tool, {"cmd": "x"})
+        trace = state.get_execution_trace(result.trace_id)
+
+        assert result.success is False
+        assert trace is not None
+        assert trace.kind == "tool_receipt"
+        assert trace.success is False
+        assert trace.metadata["status"] == "error"
+        assert trace.metadata["error_class"] == "transient"
+        assert "simulated failure" in trace.output_summary
+        assert state.claims_by_id == {}
+        assert state.verified_flags == []
+
+    @pytest.mark.asyncio
+    async def test_failed_tool_receipt_redacts_sensitive_error_text(self):
+        async def leaking_failure(arguments, runtime):
+            raise RuntimeError(
+                "request failed with Authorization: Bearer error-token "
+                "and password=error-password"
+            )
+
+        state = CTFState(target="http://ctf.local", goal="get flag")
+        runtime = type("RuntimeWithState", (), {"ctf_state": state})()
+        executor = ToolExecutor(runtime=runtime)
+        tool = Tool(
+            name="http_request",
+            description="",
+            schema=ToolSchema(),
+            execute_fn=leaking_failure,
+        )
+
+        result = await executor.execute(tool, {})
+        trace = state.get_execution_trace(result.trace_id)
+
+        assert result.success is False
+        assert trace is not None
+        assert "error-token" not in trace.output_summary
+        assert "error-password" not in trace.output_summary
+        assert "<redacted>" in trace.output_summary
+
+    @pytest.mark.asyncio
+    async def test_tool_receipt_is_optional_without_ctf_state(self):
+        executor = _make_executor()
+        tool = _make_tool(name="plain_tool")
+
+        result = await executor.execute(tool, {"cmd": "x"})
+
+        assert result.success is True
+        assert result.trace_id == ""
+        assert result.receipt_id == ""
 
     @pytest.mark.asyncio
     async def test_timeout_returns_failure(self):

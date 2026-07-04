@@ -9,9 +9,14 @@ import pytest
 import flaghunter.tools.notes as notes_module
 from flaghunter.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher, SolveResult
 from flaghunter.agents.pa_agent.coordinator import CTFCoordinator
-from flaghunter.agents.pa_agent.ctf_state import Hypothesis
+from flaghunter.agents.pa_agent.ctf_state import (
+    CTFState,
+    ClaimKind,
+    Hypothesis,
+    VerificationDecision,
+    VerificationMethod,
+)
 from flaghunter.agents.pa_agent.recovery import RecoveryDecision
-from flaghunter.agents.pa_agent.ctf_state import CTFState
 from flaghunter.harness.checkpoint_store import CheckpointStore
 from flaghunter.harness.session_ledger import SessionLedger
 from flaghunter.tools.notes import set_notes_file
@@ -25,6 +30,34 @@ class _Runtime:
 def _clear_test_notes(path: Path) -> None:
     set_notes_file(path)
     notes_module._notes.clear()
+
+
+def _add_verified_flag_claim(state: CTFState, value: str) -> None:
+    claim = state.create_claim(
+        kind=ClaimKind.FLAG_FOUND,
+        content=value,
+        producer_type="verifier",
+        producer_id="ctf_verifier",
+        primary_trace_id=f"claim:{value}",
+        source_channel="test",
+        confidence=0.9,
+    )
+    record = state.append_verification_record(
+        claim.id,
+        verifier_type="verifier",
+        verifier_id="ctf_verifier",
+        method=VerificationMethod.LOCAL_CHALLENGE_AUTO_VERIFY,
+        decision=VerificationDecision.VERIFIED,
+        trace_id=f"verify:{value}",
+        passed=True,
+        sufficient_for_upgrade=True,
+        submitted_value=value,
+    )
+    state.upgrade_claim_to_verified(
+        claim.id,
+        verification_record_id=record.id,
+        verifier_id="ctf_verifier",
+    )
 
 
 class _BootstrapCapableDispatcher:
@@ -2116,7 +2149,7 @@ async def test_coordinator_records_control_action_events_for_runtime_signal(tmp_
 
 
 @pytest.mark.asyncio
-async def test_coordinator_records_control_action_events_for_verified_flag(tmp_path: Path):
+async def test_coordinator_verified_flag_hint_does_not_bypass_verifier(tmp_path: Path):
     coordinator = CTFCoordinator()
 
     class _CapabilityRegistry:
@@ -2189,7 +2222,7 @@ async def test_coordinator_records_control_action_events_for_verified_flag(tmp_p
 
         async def _run_solve_loop(self, **kwargs):
             self.run_called = True
-            return SolveResult(success=False, reason="should-not-run")
+            return SolveResult(success=False, reason="continued-after-untrusted-verified-hint")
 
     dispatcher = _Dispatcher()
 
@@ -2212,24 +2245,17 @@ async def test_coordinator_records_control_action_events_for_verified_flag(tmp_p
         checkpoint_root=tmp_path / "checkpoints",
     )
 
-    assert result.success is True
-    assert dispatcher.run_called is False
+    assert result.success is False
+    assert result.reason == "continued-after-untrusted-verified-hint"
+    assert dispatcher.run_called is True
+    assert dispatcher.state is not None
+    assert dispatcher.state.verified_flags == []
     event_types = [event_type for event_type, _ in dispatcher.recorded_events]
-    assert event_types[:4] == [
-        "dispatcher_started",
-        "control_action_started",
-        "verification_decision",
-        "control_action_completed",
-    ]
-    assert dispatcher.recorded_events[1][1]["action"] == "verify_or_submit_flag"
-    assert dispatcher.recorded_events[2][1]["decision"] == "verified"
-    assert dispatcher.recorded_events[2][1]["flag"] == "flag{verified_from_blackboard}"
-    assert dispatcher.recorded_events[3][1]["action"] == "verify_or_submit_flag"
-    assert dispatcher.recorded_events[3][1]["result"] == "ok"
+    assert "verification_decision" not in event_types
 
 
 @pytest.mark.asyncio
-async def test_coordinator_verified_flag_early_finish_from_structured_ingress_handoff_without_hint(
+async def test_coordinator_verified_flag_handoff_does_not_bypass_verifier_without_hint(
     tmp_path: Path,
 ):
     coordinator = CTFCoordinator()
@@ -2313,7 +2339,7 @@ async def test_coordinator_verified_flag_early_finish_from_structured_ingress_ha
 
         async def _run_solve_loop(self, **kwargs):
             self.run_called = True
-            return SolveResult(success=False, reason="should-not-run")
+            return SolveResult(success=False, reason="continued-after-untrusted-verified-handoff")
 
     dispatcher = _Dispatcher()
 
@@ -2341,26 +2367,16 @@ async def test_coordinator_verified_flag_early_finish_from_structured_ingress_ha
         checkpoint_root=tmp_path / "checkpoints",
     )
 
-    # D1 regression guard: execute() carried the handoff onto the dispatcher field
-    # from the param alone (no pre-set), so the structured read面 is live. Without
-    # the fix this stays None and the early finish below never fires.
+    # D1 regression guard: execute() still carries the handoff onto the dispatcher
+    # field from the param alone, but verifiedFlag is no longer proof of success.
     assert dispatcher._ingress_handoff == verified_flag_handoff
-    assert result.success is True
-    assert result.flag == "flag{verified_from_handoff}"
-    assert dispatcher.run_called is False
+    assert result.success is False
+    assert result.reason == "continued-after-untrusted-verified-handoff"
+    assert dispatcher.run_called is True
+    assert dispatcher.state is not None
+    assert dispatcher.state.verified_flags == []
     event_types = [event_type for event_type, _ in dispatcher.recorded_events]
-    assert event_types[:4] == [
-        "dispatcher_started",
-        "control_action_started",
-        "verification_decision",
-        "control_action_completed",
-    ]
-    assert dispatcher.recorded_events[1][1]["action"] == "verify_or_submit_flag"
-    assert dispatcher.recorded_events[1][1]["switched_from"] == "verify_runtime_signal"
-    assert dispatcher.recorded_events[1][1]["trigger_reason"] == "runtime verifier rejected candidate"
-    assert dispatcher.recorded_events[2][1]["flag"] == "flag{verified_from_handoff}"
-    assert dispatcher.recorded_events[3][1]["action"] == "verify_or_submit_flag"
-    assert dispatcher.recorded_events[3][1]["result"] == "ok"
+    assert "verification_decision" not in event_types
 
 
 @pytest.mark.asyncio
@@ -2533,69 +2549,48 @@ class _CoordinatorEarlyFinishRuntime:
 
 
 @pytest.mark.asyncio
-async def test_coordinator_verified_flag_early_finish_emits_verification_and_aligned_finish_checkpoint(
+async def test_coordinator_verified_flag_contract_accepts_existing_canonical_verified(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
 ) -> None:
-    monkeypatch.setattr(
-        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
-        lambda self, tools: {},
-    )
-    _clear_test_notes(tmp_path / "notes_coordinator_verified_early.json")
+    monkeypatch.setenv("FLAGHUNTER_CTF_CLAIMS_V1", "1")
+    coordinator = CTFCoordinator()
 
-    dispatcher = CTFTaskDispatcher(
-        runtime=_CoordinatorEarlyFinishRuntime(),
-        progress_callback=None,
-        verification_callback=lambda flag: "yes",
-    )
+    class _Dispatcher:
+        def __init__(self):
+            self._notes_log = []
+            self.state = CTFState(target="127.0.0.1:3000", goal="拿到flag")
+            _add_verified_flag_claim(self.state, "flag{coordinator_verified_existing}")
+            self.recorded_events: list[tuple[str, dict[str, object]]] = []
 
-    result = await dispatcher.run(
-        target="127.0.0.1:3000",
-        goal="拿到flag",
-        type="web",
+        def _record_session_event(self, event_type: str, payload: dict[str, object]):
+            self.recorded_events.append((event_type, dict(payload)))
+
+        def _write_checkpoint(self, label: str, payload: dict[str, object]):
+            return None
+
+        async def _finalize_solve_result(self, result: SolveResult):
+            return result
+
+    dispatcher = _Dispatcher()
+
+    result = await coordinator._apply_verified_flag_contract(
+        dispatcher,
         hint=(
             "[control_decision]\n"
             "decisionKind=direct_execute\n"
             "nextAction=verify_or_submit_flag\n"
             "driver=blackboard.verified_flag\n"
-            "verifiedFlag=flag{coordinator_verified_early}"
+            "verifiedFlag=flag{coordinator_verified_existing}"
         ),
-        run_id="run-coordinator-verified-early",
-        ledger_root=tmp_path / "ledgers",
-        checkpoint_root=tmp_path / "checkpoints",
     )
 
-    events = SessionLedger(tmp_path / "ledgers").read_events("run-coordinator-verified-early")
-    checkpoints = CheckpointStore(tmp_path / "checkpoints").list_checkpoints(
-        "run-coordinator-verified-early"
-    )
-    latest = CheckpointStore(tmp_path / "checkpoints").latest_checkpoint(
-        "run-coordinator-verified-early"
-    )
-
+    assert result is not None
     assert result.success is True
-    assert result.flag == "flag{coordinator_verified_early}"
-    assert result.reason == "blackboard 已有 verified flag"
-    assert latest is not None
-    event_types = [event["event_type"] for event in events]
-    assert "verification_decision" in event_types
-    assert event_types.index("control_action_started") < event_types.index("verification_decision")
-    assert event_types.index("verification_decision") < event_types.index("task_finished")
-    assert event_types.index("control_action_completed") < event_types.index("task_finished")
-    verification_event = next(event for event in events if event["event_type"] == "verification_decision")
-    task_finished_event = next(event for event in events if event["event_type"] == "task_finished")
-    assert verification_event["payload"]["decision"] == "verified"
-    assert verification_event["payload"]["flag"] == "flag{coordinator_verified_early}"
-    assert task_finished_event["payload"]["reason"] == "blackboard 已有 verified flag"
-    assert checkpoints[-1]["label"] == "task_finished"
-    assert checkpoints[-1]["metadata"]["reason"] == "blackboard 已有 verified flag"
-    assert checkpoints[-1]["metadata"]["flag"] == "flag{coordinator_verified_early}"
-    restored = CTFState.from_snapshot(latest["state"])
-    assert restored.stop_reason == "blackboard 已有 verified flag"
-    assert any(
-        record.value == "flag{coordinator_verified_early}"
-        for record in restored.verified_flags
-    )
+    assert result.flag == "flag{coordinator_verified_existing}"
+    assert result.reason == "canonical_verified_flag_claim"
+    assert dispatcher.state.verified_flags == []
+    event_types = [event_type for event_type, _ in dispatcher.recorded_events]
+    assert "verification_decision" not in event_types
 
 
 @pytest.mark.asyncio
@@ -3637,7 +3632,7 @@ async def test_coordinator_bootstraps_local_assets_before_pre_recon_when_request
 
 
 @pytest.mark.asyncio
-async def test_coordinator_returns_verified_flag_from_hint_before_recon(
+async def test_coordinator_verified_flag_hint_continues_to_recon_and_solve_loop(
     tmp_path: Path,
 ):
     coordinator = CTFCoordinator()
@@ -3722,7 +3717,7 @@ async def test_coordinator_returns_verified_flag_from_hint_before_recon(
 
         async def _run_solve_loop(self, **kwargs):
             self.run_called = True
-            return SolveResult(success=False, reason="should-not-run")
+            return SolveResult(success=False, reason="continued-after-untrusted-verified-hint")
 
     dispatcher = _Dispatcher()
 
@@ -3745,19 +3740,17 @@ async def test_coordinator_returns_verified_flag_from_hint_before_recon(
         checkpoint_root=tmp_path / "checkpoints",
     )
 
-    assert dispatcher.run_called is False
-    assert dispatcher.phase_recon_called is False
-    assert dispatcher.finalized_results
-    assert result.success is True
-    assert result.flag == "flag{verified_from_blackboard}"
-    assert result.chain_used == ["verified_flag"]
-    assert result.reason == "blackboard 已有 verified flag"
-    assert result.notes == []
+    assert dispatcher.run_called is True
+    assert dispatcher.phase_recon_called is True
+    assert dispatcher.finalized_results == []
+    assert result.success is False
+    assert result.flag is None
+    assert result.reason == "continued-after-untrusted-verified-hint"
     assert dispatcher.state is not None
-    assert dispatcher.state.stop_reason == "blackboard 已有 verified flag"
-    assert captured["load_rejected_flags"] == 0
-    assert captured["snapshot_platform_context"] == 0
-    assert captured["capability_full_check"] == 0
+    assert dispatcher.state.verified_flags == []
+    assert captured["load_rejected_flags"] == 1
+    assert captured["snapshot_platform_context"] == 1
+    assert captured["capability_full_check"] == 1
 
 
 @pytest.mark.asyncio
@@ -3775,10 +3768,15 @@ async def test_coordinator_returns_verified_flag_from_hint_before_recon(
             ),
             {"artifactPaths": []},
             lambda dispatcher, result: (
-                result.flag == "flag{matrix_verified}"
-                and dispatcher.call_order == ["finalize_result"]
-                and dispatcher.run_called is False
-                and dispatcher.phase_recon_called is False
+                result.flag is None
+                and dispatcher.call_order.index("load_rejected_flags")
+                < dispatcher.call_order.index("snapshot_platform_context")
+                and dispatcher.call_order.index("snapshot_platform_context")
+                < dispatcher.call_order.index("phase_recon")
+                and dispatcher.call_order.index("phase_recon")
+                < dispatcher.call_order.index("run")
+                and dispatcher.run_called is True
+                and dispatcher.phase_recon_called is True
             ),
         ),
         (

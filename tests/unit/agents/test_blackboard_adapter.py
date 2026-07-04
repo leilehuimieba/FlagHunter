@@ -18,7 +18,7 @@ from flaghunter.agents.pa_agent.blackboard_adapter import (
     make_view,
 )
 from flaghunter.agents.pa_agent.blackboard_loop import Action, Budget, run_blackboard_solve
-from flaghunter.agents.pa_agent.ctf_state import CTFState
+from flaghunter.agents.pa_agent.ctf_state import CTFState, ClaimKind, ClaimLevel
 from flaghunter.knowledge.blackboard_schema import BoardView
 
 
@@ -115,6 +115,45 @@ def test_record_fact_and_intent_append_with_brain_source():
     assert ("model_fact", "app is Flask", "brain") in kinds
     assert ("model_intent", "try SSTI on /greet", "brain") in kinds
     assert len([o for o in state.observations if o.kind == "model_fact"]) == 1
+
+
+def test_record_fact_writes_structured_conjecture_claim_when_enabled(monkeypatch):
+    monkeypatch.setenv("FLAGHUNTER_CTF_CLAIMS_V1", "1")
+    state = _state()
+
+    make_record_fact(state)(
+        '{"kind":"flag_found","content":"flag{brain_candidate}","level":"conjecture","confidence":0.42}'
+    )
+
+    claims = state.find_claims_by_kind(ClaimKind.FLAG_FOUND)
+    assert len(claims) == 1
+    assert claims[0].content == "flag{brain_candidate}"
+    assert claims[0].level == ClaimLevel.CONJECTURE
+    assert claims[0].producer_type == "blackboard"
+    assert not [o for o in state.observations if o.kind == "model_fact"]
+
+
+def test_record_fact_falls_back_to_observation_for_unstructured_or_verified_claim(monkeypatch):
+    monkeypatch.setenv("FLAGHUNTER_CTF_CLAIMS_V1", "1")
+    state = _state()
+    record = make_record_fact(state)
+
+    record("plain note without structure")
+    record('{"kind":"flag_found","content":"flag{no_direct_verified}","level":"verified"}')
+
+    assert state.find_claims_by_kind(ClaimKind.FLAG_FOUND, include_inactive=True) == []
+    assert [
+        (o.kind, o.value, o.source)
+        for o in state.observations
+        if o.kind == "model_fact"
+    ] == [
+        ("model_fact", "plain note without structure", "brain"),
+        (
+            "model_fact",
+            '{"kind":"flag_found","content":"flag{no_direct_verified}","level":"verified"}',
+            "brain",
+        ),
+    ]
 
 
 # --- bind_seams + end-to-end through the slice-1 loop ----------------------

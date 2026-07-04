@@ -18,6 +18,8 @@ including the ``chain_outcome.progress`` short-circuit to ``"none"``.
 
 from __future__ import annotations
 
+from .claim_views import flag_claim_counts, flag_found_claim_view
+
 
 class ProgressTracker:
     """Snapshot flag counts and grade turn deltas into a hypothesis signal.
@@ -29,7 +31,7 @@ class ProgressTracker:
     def snapshot_flag_counts(self, state) -> dict[str, int]:
         if state is None:
             return {}
-        return {
+        counts = {
             "candidate": len(state.candidate_flags),
             "runtime": len(state.runtime_flags),
             "verified": len(state.verified_flags),
@@ -42,6 +44,9 @@ class ProgressTracker:
                 ]
             ),
         }
+        if flag_found_claim_view(state).has_any:
+            counts.update(flag_claim_counts(state))
+        return counts
 
     def derive_progress_delta(
         self,
@@ -62,8 +67,16 @@ class ProgressTracker:
         if state is None:
             return "none"
         after = self.snapshot_flag_counts(state)
+        if after.get("claim_flag_found_verified", 0) > before_state.get(
+            "claim_flag_found_verified", 0
+        ):
+            return "terminal"
         if after.get("verified", 0) > before_state.get("verified", 0):
             return "terminal"
+        if after.get("claim_flag_found_runtime", 0) > before_state.get(
+            "claim_flag_found_runtime", 0
+        ):
+            return "strong"
         if after.get("runtime", 0) > before_state.get("runtime", 0):
             return "strong"
         if after.get("uniform_failure_surface", 0) > before_state.get("uniform_failure_surface", 0):
@@ -76,6 +89,10 @@ class ProgressTracker:
                 return "none"
             return "rejected"
         if after.get("candidate", 0) > before_state.get("candidate", 0):
+            return "weak"
+        if after.get("claim_flag_found_candidate", 0) > before_state.get(
+            "claim_flag_found_candidate", 0
+        ):
             return "weak"
         return "none"
 

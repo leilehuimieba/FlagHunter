@@ -5,8 +5,17 @@ from types import SimpleNamespace
 import pytest
 
 import flaghunter.tools.notes as notes_module
+from flaghunter.agents.pa_agent.blackboard import project_blackboard
+from flaghunter.agents.pa_agent.claim_views import preferred_flag_summary
 from flaghunter.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
-from flaghunter.agents.pa_agent.ctf_state import CTFState
+from flaghunter.agents.pa_agent.ctf_state import (
+    CTFState,
+    ClaimKind,
+    ClaimLevel,
+    ClaimStatus,
+    VerificationDecision,
+    VerificationMethod,
+)
 from flaghunter.agents.pa_agent.strategy_memory import (
     ChallengeFingerprint,
     StrategyMemoryEntry,
@@ -86,6 +95,80 @@ class _CheckpointSQLiSubmitRejectRuntime:
 
     async def execute_command(self, command: str, timeout: int = 180):
         return SimpleNamespace(exit_code=0, stdout="", stderr="")
+
+
+def _checkpoint_flag_claim(
+    state: CTFState,
+    value: str,
+    *,
+    runtime_supported: bool = False,
+    verified: bool = False,
+    retracted: bool = False,
+):
+    claim = state.create_claim(
+        kind=ClaimKind.FLAG_FOUND,
+        content=value,
+        producer_type="verifier",
+        producer_id="ctf_verifier",
+        primary_trace_id=f"trace:{value}",
+        source_channel="checkpoint-test",
+        confidence=0.7,
+        metadata={"source": "checkpoint-test", "value": value},
+    )
+    if runtime_supported:
+        state.append_verification_record(
+            claim.id,
+            verifier_type="verifier",
+            verifier_id="ctf_verifier",
+            method=VerificationMethod.RUNTIME_HTTP,
+            decision=VerificationDecision.RUNTIME_SUPPORTED,
+            trace_id=f"verify:runtime:{value}",
+            passed=True,
+            sufficient_for_upgrade=False,
+            evidence_summary="runtime echoed flag",
+            submitted_value=value,
+            metadata={"path": "runtime"},
+        )
+    if verified:
+        record = state.append_verification_record(
+            claim.id,
+            verifier_type="verifier",
+            verifier_id="ctf_verifier",
+            method=VerificationMethod.PLATFORM_SUBMIT,
+            decision=VerificationDecision.VERIFIED,
+            trace_id=f"verify:verified:{value}",
+            passed=True,
+            sufficient_for_upgrade=True,
+            evidence_summary="platform accepted flag",
+            submitted_value=value,
+            metadata={"path": "platform"},
+        )
+        state.upgrade_claim_to_verified(
+            claim.id,
+            verification_record_id=record.id,
+            verifier_id="ctf_verifier",
+        )
+    if retracted:
+        record = state.append_verification_record(
+            claim.id,
+            verifier_type="verifier",
+            verifier_id="ctf_verifier",
+            method=VerificationMethod.PLATFORM_SUBMIT,
+            decision=VerificationDecision.REJECTED,
+            trace_id=f"verify:rejected:{value}",
+            passed=False,
+            sufficient_for_upgrade=False,
+            evidence_summary="platform rejected flag",
+            submitted_value=value,
+            metadata={"path": "platform"},
+        )
+        state.retract_claim(
+            claim.id,
+            reason="platform rejected it",
+            trace_id=record.trace_id,
+            actor_id="ctf_verifier",
+        )
+    return claim
 
 
 @pytest.mark.asyncio
@@ -273,6 +356,213 @@ def test_restore_context_hydrates_state_from_resume_checkpoint(tmp_path) -> None
     )
     assert dispatcher.state.has_flag("flag{runtime_from_checkpoint}", level="runtime")
     assert dispatcher.state.has_flag("flag{rejected_from_checkpoint}", level="rejected")
+
+
+def test_checkpoint_round_trip_restores_canonical_verified_claim(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("FLAGHUNTER_CTF_CLAIMS_V1", "1")
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    claim = _checkpoint_flag_claim(state, "flag{checkpoint_canonical_verified}", verified=True)
+
+    store = CheckpointStore(tmp_path / "checkpoints")
+    record = store.save_checkpoint(
+        run_id="run-canonical-verified",
+        label="task_finished",
+        state_snapshot=state.to_snapshot(),
+        metadata={},
+    )
+    latest = store.latest_checkpoint("run-canonical-verified")
+    restored = CTFState.from_snapshot(latest["state"])
+    restored_claim = restored.get_claim(claim.id)
+    strongest = restored.strongest_claim(ClaimKind.FLAG_FOUND)
+    summary = preferred_flag_summary(restored)
+    board = project_blackboard(restored)
+
+    assert latest["checkpoint_id"] == record["checkpoint_id"]
+    assert restored_claim is not None
+    assert restored_claim.id == claim.id
+    assert restored_claim.level == ClaimLevel.VERIFIED
+    assert restored_claim.status == ClaimStatus.ACTIVE
+    assert strongest is not None
+    assert strongest.id == claim.id
+    assert summary["verifiedFlags"] == ["flag{checkpoint_canonical_verified}"]
+    assert any(
+        item["kind"] == "verified_flag"
+        and item["value"] == "flag{checkpoint_canonical_verified}"
+        for item in board["facts"]
+    )
+
+
+def test_checkpoint_round_trip_restores_runtime_supported_claim(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("FLAGHUNTER_CTF_CLAIMS_V1", "1")
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    claim = _checkpoint_flag_claim(
+        state,
+        "flag{checkpoint_canonical_runtime}",
+        runtime_supported=True,
+    )
+
+    store = CheckpointStore(tmp_path / "checkpoints")
+    store.save_checkpoint(
+        run_id="run-canonical-runtime",
+        label="runtime_pending",
+        state_snapshot=state.to_snapshot(),
+        metadata={},
+    )
+    restored = CTFState.from_snapshot(
+        store.latest_checkpoint("run-canonical-runtime")["state"]
+    )
+    restored_claim = restored.get_claim(claim.id)
+    record_id = restored_claim.verification_record_ids[0]
+    restored_record = restored.verification_records_by_id[record_id]
+    summary = preferred_flag_summary(restored)
+    board = project_blackboard(restored)
+
+    assert restored_claim is not None
+    assert restored_claim.level == ClaimLevel.CONJECTURE
+    assert restored_record.decision == VerificationDecision.RUNTIME_SUPPORTED
+    assert restored_record.method == VerificationMethod.RUNTIME_HTTP
+    assert restored_record.passed is True
+    assert restored_record.sufficient_for_upgrade is False
+    assert summary["runtimeFlags"] == ["flag{checkpoint_canonical_runtime}"]
+    assert any(
+        item["kind"] == "runtime_flag"
+        and item["value"] == "flag{checkpoint_canonical_runtime}"
+        for item in board["facts"]
+    )
+
+
+def test_checkpoint_round_trip_restores_retracted_claim(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("FLAGHUNTER_CTF_CLAIMS_V1", "1")
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    claim = _checkpoint_flag_claim(
+        state,
+        "flag{checkpoint_canonical_retracted}",
+        retracted=True,
+    )
+
+    store = CheckpointStore(tmp_path / "checkpoints")
+    store.save_checkpoint(
+        run_id="run-canonical-retracted",
+        label="wrong_flag",
+        state_snapshot=state.to_snapshot(),
+        metadata={},
+    )
+    restored = CTFState.from_snapshot(
+        store.latest_checkpoint("run-canonical-retracted")["state"]
+    )
+    restored_claim = restored.get_claim(claim.id)
+    record_id = restored_claim.verification_record_ids[0]
+    restored_record = restored.verification_records_by_id[record_id]
+    summary = preferred_flag_summary(restored)
+    board = project_blackboard(restored)
+
+    assert restored_claim is not None
+    assert restored_claim.level == ClaimLevel.RETRACTED
+    assert restored_claim.status == ClaimStatus.RETRACTED
+    assert restored_claim.retracted_at is not None
+    assert restored_record.decision == VerificationDecision.REJECTED
+    assert restored.find_claims_by_kind(ClaimKind.FLAG_FOUND) == []
+    assert summary["retractedFlags"] == ["flag{checkpoint_canonical_retracted}"]
+    assert summary["rejectedFlags"] == ["flag{checkpoint_canonical_retracted}"]
+    assert any(
+        item["kind"] == "refuted_flag"
+        and item["value"] == "flag{checkpoint_canonical_retracted}"
+        for item in board["facts"]
+    )
+
+
+def test_legacy_checkpoint_without_claim_store_still_restores(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("FLAGHUNTER_CTF_CLAIMS_V1", "1")
+    state = CTFState(target="http://ctf.local", goal="拿到flag")
+    state.add_flag(
+        "flag{legacy_checkpoint_verified}",
+        level="verified",
+        evidence_source="legacy-checkpoint",
+        confidence=0.9,
+    )
+    snapshot = state.to_snapshot()
+    for key in (
+        "claims_by_id",
+        "claim_index_by_kind",
+        "verification_records_by_id",
+        "verification_index_by_claim",
+    ):
+        snapshot.pop(key, None)
+
+    store = CheckpointStore(tmp_path / "checkpoints")
+    store.save_checkpoint(
+        run_id="run-legacy-checkpoint",
+        label="legacy",
+        state_snapshot=snapshot,
+        metadata={},
+    )
+    restored = CTFState.from_snapshot(
+        store.latest_checkpoint("run-legacy-checkpoint")["state"]
+    )
+    summary = preferred_flag_summary(restored)
+    board = project_blackboard(restored)
+
+    assert restored.claims_by_id == {}
+    assert restored.verification_records_by_id == {}
+    assert restored.has_flag("flag{legacy_checkpoint_verified}", level="verified")
+    assert summary["verifiedFlags"] == ["flag{legacy_checkpoint_verified}"]
+    assert any(
+        item["kind"] == "verified_flag"
+        and item["value"] == "flag{legacy_checkpoint_verified}"
+        for item in board["facts"]
+    )
+
+
+def test_restore_context_hydrates_canonical_claims_from_resume_checkpoint(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setenv("FLAGHUNTER_CTF_CLAIMS_V1", "1")
+    previous_state = CTFState(
+        target="http://ctf.local",
+        goal="拿到flag",
+        detected_type="web",
+    )
+    claim = _checkpoint_flag_claim(
+        previous_state,
+        "flag{resume_canonical_verified}",
+        verified=True,
+    )
+
+    store = CheckpointStore(tmp_path / "checkpoints")
+    record = store.save_checkpoint(
+        run_id="run-prev-canonical",
+        label="task_finished",
+        state_snapshot=previous_state.to_snapshot(),
+        metadata={},
+    )
+    dispatcher = CTFTaskDispatcher(
+        runtime=_CheckpointRuntime(),
+        progress_callback=None,
+        verification_callback=lambda flag: "yes",
+    )
+    dispatcher.state = CTFState(target="http://ctf.local", goal="继续拿到flag")
+    dispatcher._challenge_context = {
+        "resumeContext": {
+            "runId": "run-prev-canonical",
+            "checkpointId": record["checkpoint_id"],
+            "summary": "resume canonical checkpoint",
+        }
+    }
+    dispatcher._setup_checkpoint_store(
+        run_id="run-current-canonical",
+        checkpoint_root=tmp_path / "checkpoints",
+    )
+
+    dispatcher._restore_context()
+
+    assert dispatcher.state is not None
+    restored_claim = dispatcher.state.get_claim(claim.id)
+    summary = preferred_flag_summary(dispatcher.state)
+    assert restored_claim is not None
+    assert restored_claim.level == ClaimLevel.VERIFIED
+    assert dispatcher.state.strongest_claim(ClaimKind.FLAG_FOUND).id == claim.id
+    assert summary["verifiedFlags"] == ["flag{resume_canonical_verified}"]
 
 
 @pytest.mark.asyncio
