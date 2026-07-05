@@ -15,6 +15,12 @@ from flaghunter.interface.web_trace_timeline import (
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 TRACE_TIMELINE_PATH = REPO_ROOT / "flaghunter" / "interface" / "web_trace_timeline.py"
+PLAYBOOK_PATH = (
+    REPO_ROOT
+    / "docs"
+    / "dev"
+    / "FlagHunter_Clean_Architecture_Migration_Playbook_v0.1_2026-07-04.md"
+)
 
 
 def _task_with_observations(observations: list[Any]) -> dict[str, Any]:
@@ -42,6 +48,10 @@ def _function_source(tree: ast.Module, name: str) -> str:
         if isinstance(node, ast.FunctionDef) and node.name == name:
             return ast.get_source_segment(text, node) or ""
     raise AssertionError(f"{name} was not found")
+
+
+def _playbook_text() -> str:
+    return PLAYBOOK_PATH.read_text(encoding="utf-8")
 
 
 def test_control_observation_timeline_projects_supported_rows() -> None:
@@ -213,3 +223,21 @@ def test_control_observation_timeline_source_stays_read_only() -> None:
     )
 
     assert offenders == []
+
+
+def test_candidate_b_pre_approval_guard_blocks_neutral_projection_wiring() -> None:
+    playbook = _playbook_text()
+    assert "Candidate B pre-approval production switch guard" in playbook
+    assert "Candidate B: ready for approval review, not approved" in playbook
+
+    source = TRACE_TIMELINE_PATH.read_text(encoding="utf-8-sig")
+    forbidden_wiring_tokens = {
+        "flaghunter.application.challenge",
+        "flaghunter.domain.challenge.contracts",
+        "board_read_model_service",
+        "build_task_board_projection",
+        "BuildChallengeBoardReadModel",
+        "ChallengeBoardReadModel",
+    }
+
+    assert sorted(token for token in forbidden_wiring_tokens if token in source) == []
