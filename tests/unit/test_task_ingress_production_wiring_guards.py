@@ -24,6 +24,14 @@ PRODUCTION_ENTRY_ROOTS = (
     "flaghunter/config",
 )
 
+PRODUCTION_ENTRY_FILES = (
+    "flaghunter/__main__.py",
+    "flaghunter/hooks.py",
+    "flaghunter/logging_config.py",
+    "flaghunter/observability.py",
+    "flaghunter/task_registry.py",
+)
+
 REQUIRED_PRODUCTION_ENTRY_ROOTS = {
     "flaghunter/interface",
     "flaghunter/mcp",
@@ -33,6 +41,14 @@ REQUIRED_PRODUCTION_ENTRY_ROOTS = {
     "flaghunter/session",
     "flaghunter/workspaces",
     "flaghunter/config",
+}
+
+REQUIRED_PRODUCTION_ENTRY_FILES = {
+    "flaghunter/__main__.py",
+    "flaghunter/hooks.py",
+    "flaghunter/logging_config.py",
+    "flaghunter/observability.py",
+    "flaghunter/task_registry.py",
 }
 
 FORBIDDEN_TASK_INGRESS_WIRING_TOKENS = {
@@ -68,6 +84,10 @@ def _production_sources() -> list[Path]:
         root_path = REPO_ROOT / root
         if root_path.exists():
             paths.extend(sorted(root_path.rglob("*.py")))
+    for entry_file in PRODUCTION_ENTRY_FILES:
+        file_path = REPO_ROOT / entry_file
+        if file_path.exists():
+            paths.append(file_path)
     return paths
 
 
@@ -112,3 +132,17 @@ def test_task_ingress_pre_wiring_guard_covers_required_entry_roots() -> None:
     assert "Task ingress production entry root coverage guard" in playbook
     for root in sorted(REQUIRED_PRODUCTION_ENTRY_ROOTS):
         assert root in playbook
+
+
+def test_task_ingress_pre_wiring_guard_covers_required_entry_files() -> None:
+    assert REQUIRED_PRODUCTION_ENTRY_FILES <= set(PRODUCTION_ENTRY_FILES)
+
+    scanned_paths = {
+        path.relative_to(REPO_ROOT).as_posix() for path in _production_sources()
+    }
+    assert REQUIRED_PRODUCTION_ENTRY_FILES <= scanned_paths
+
+    playbook = _playbook_text()
+    assert "Task ingress production entry file coverage guard" in playbook
+    for entry_file in sorted(REQUIRED_PRODUCTION_ENTRY_FILES):
+        assert entry_file in playbook
