@@ -1510,6 +1510,74 @@ Boundary confirmation for this baseline:
 - no WorkerPool/CrewOrchestrator changes
 - no proof authority behavior changes
 
+#### Deferred MCP implementation readiness checklist
+
+Status: blocked on Web projection equivalence and explicit MCP approval, not approved for implementation.
+
+Deferred MCP readback remains downstream of the approved Web read-model
+projection path. It may proceed only after Web read-model projection equivalence
+is proven and explicit MCP production wiring approval is granted.
+
+Current pre-switch baselines recorded:
+
+- Deferred MCP readback approval plan
+- Deferred MCP source guard baseline
+- Deferred MCP readback formatting fixture baseline
+- Deferred MCP empty/malformed readback fixture baseline
+
+Readiness scope for the future implementation slice:
+
+- target only `flaghunter/mcp/server/mcp_tools.py::_append_blackboard_snapshot_lines`
+- use `tests/unit/mcp/test_mcp_ingress_mode_contract.py` as the focused MCP
+  readback fixture home
+- must consume the same approved read-model projection
+- must not become an independent projection shape
+- preserve readback line text, ordering, and omission behavior
+- no task execution or handler routing changes
+- no proof writes and no proof authority decisions
+
+Required fixture evidence:
+
+- old/new output equivalence for representative MCP readback text
+- old/new output equivalence for empty, missing, or malformed blackboard
+  snapshot inputs
+- preserved ordering for facts, hypotheses, pending verification items, candidates, action results, and attack surfaces
+- no synthesized facts, actions, proof state, or fallback text for degraded
+  inputs
+
+Implementation gate:
+
+- after Web read-model projection equivalence is proven
+- explicit MCP production wiring approval is still required before editing the
+  MCP readback helper
+- one Deferred MCP implementation commit only
+- rollback point: revert the single Deferred MCP implementation commit
+- no schema migration, dispatcher loop change, ToolExecutor change,
+  WorkerPool/CrewOrchestrator change, composition-root change, or proof
+  authority behavior change in that commit
+
+Required verification for the future Deferred MCP implementation slice:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/mcp/test_mcp_ingress_mode_contract.py tests/unit/test_clean_architecture_migration_playbook.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py -q
+git diff --check
+```
+
+Explicit non-goals for the requested Deferred MCP implementation slice:
+
+- no MCP production wiring without explicit approval
+- no task execution or handler routing changes
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no composition root changes
+- no concrete adapter implementation
+- no proof authority behavior changes
+- no P5 implementation
+
 First read-path switch approval plan must include:
 
 - file list

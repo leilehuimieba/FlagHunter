@@ -483,6 +483,46 @@ def test_playbook_records_deferred_mcp_empty_malformed_fixture_baseline() -> Non
     assert "no proof authority behavior changes" in text
 
 
+def test_playbook_records_deferred_mcp_implementation_readiness_checklist() -> None:
+    text = _playbook_text()
+
+    assert "Deferred MCP implementation readiness checklist" in text
+    assert "Status: blocked on Web projection equivalence and explicit MCP approval, not approved for implementation." in text
+    assert "Deferred MCP readback approval plan" in text
+    assert "Deferred MCP source guard baseline" in text
+    assert "Deferred MCP readback formatting fixture baseline" in text
+    assert "Deferred MCP empty/malformed readback fixture baseline" in text
+    assert "flaghunter/mcp/server/mcp_tools.py::_append_blackboard_snapshot_lines" in text
+    assert "tests/unit/mcp/test_mcp_ingress_mode_contract.py" in text
+    assert "after Web read-model projection equivalence is proven" in text
+    assert "explicit MCP production wiring approval" in text
+    assert "must consume the same approved read-model projection" in text
+    assert "must not become an independent projection shape" in text
+    assert "old/new output equivalence" in text
+    assert "preserved ordering for facts, hypotheses, pending verification items, candidates, action results, and attack surfaces" in text
+    assert "rollback point: revert the single Deferred MCP implementation commit" in text
+    for non_goal in (
+        "no MCP production wiring without explicit approval",
+        "no task execution or handler routing changes",
+        "no dispatcher loop changes",
+        "no `CTFState` ownership split",
+        "no `CTFVerifier` proof behavior changes",
+        "no ToolExecutor changes",
+        "no WorkerPool/CrewOrchestrator changes",
+        "no composition root changes",
+        "no concrete adapter implementation",
+        "no proof authority behavior changes",
+        "no P5 implementation",
+    ):
+        assert non_goal in text
+    for command in (
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/mcp/test_mcp_ingress_mode_contract.py tests/unit/test_clean_architecture_migration_playbook.py -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py -q",
+        "git diff --check",
+    ):
+        assert command in text
+
+
 def test_playbook_records_application_service_source_guard_baseline() -> None:
     text = _playbook_text()
 
