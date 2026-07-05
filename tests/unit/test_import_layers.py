@@ -162,3 +162,23 @@ def test_core_clean_architecture_import_linter_boundaries_cover_outer_layers() -
         for module_name in sorted(required_modules):
             assert module_name in section
             assert module_name in playbook_text
+
+
+def test_core_import_linter_coverage_completeness_links_source_guards() -> None:
+    """Import-linter core contracts must stay tied to source-guard completeness."""
+    with open(PLAYBOOK_PATH, encoding="utf-8") as handle:
+        playbook_text = handle.read()
+
+    assert "Core import-linter coverage completeness guard" in playbook_text
+    for guard_name in (
+        "Domain contract source guard coverage completeness guard",
+        "Ports source guard coverage completeness guard",
+        "Application service source guard coverage completeness guard",
+    ):
+        assert guard_name in playbook_text
+    for contract_name in (
+        "domain-contract-independence",
+        "ports-contract-boundary",
+        "application-service-boundary",
+    ):
+        assert contract_name in playbook_text

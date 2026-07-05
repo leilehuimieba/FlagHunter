@@ -1353,6 +1353,42 @@ Boundary confirmation for this guard:
 - no ToolExecutor changes
 - no proof authority behavior changes
 
+### Core import-linter coverage completeness guard
+
+Status: aggregate coverage completeness guard added for core import-linter
+contracts.
+
+`tests/unit/test_import_layers.py` now requires the import-linter coverage
+record to stay linked to the source-guard completeness records for the neutral
+core layers:
+
+- `Domain contract source guard coverage completeness guard`
+- `Ports source guard coverage completeness guard`
+- `Application service source guard coverage completeness guard`
+
+The import-linter contract names must remain visible in the same governance
+record:
+
+- `domain-contract-independence`
+- `ports-contract-boundary`
+- `application-service-boundary`
+
+This aggregate guard prevents the `.importlinter` architecture gate from
+drifting away from the AST/source guards that cover production wiring surfaces,
+outer-layer imports, side-effect sinks, proof authority surfaces, and neutral
+public naming for domain contracts, ports, and application services.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter construction
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 ### Public surface domain-neutral naming coverage guard
 
 Status: public naming coverage guard added for neutral ports and application
