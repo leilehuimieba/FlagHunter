@@ -35,6 +35,17 @@ FORBIDDEN_TASK_INGRESS_WIRING_TOKENS = {
     "flaghunter.ports.task_ingress",
 }
 
+REQUIRED_TASK_INGRESS_WIRING_TOKENS = {
+    "TaskIngressAdapter",
+    "TaskIngressPort",
+    "SubmitTaskIngress",
+    "task_ingress_adapter",
+    "task_ingress_service",
+    "flaghunter.adapters.mcp",
+    "flaghunter.application.challenge.task_ingress_service",
+    "flaghunter.ports.task_ingress",
+}
+
 
 def _playbook_text() -> str:
     return PLAYBOOK_PATH.read_text(encoding="utf-8")
@@ -72,3 +83,12 @@ def test_task_ingress_pre_wiring_guard_covers_mcp_server_entrypoints() -> None:
     assert "flaghunter/mcp" in PRODUCTION_ENTRY_ROOTS
     assert "flaghunter/mcp/server" in playbook
     assert "MCP server changes" in playbook
+
+
+def test_task_ingress_pre_wiring_guard_covers_explicit_wiring_tokens() -> None:
+    assert REQUIRED_TASK_INGRESS_WIRING_TOKENS <= FORBIDDEN_TASK_INGRESS_WIRING_TOKENS
+
+    playbook = _playbook_text()
+    assert "Task ingress production wiring token coverage guard" in playbook
+    for token in sorted(REQUIRED_TASK_INGRESS_WIRING_TOKENS):
+        assert token in playbook

@@ -1458,6 +1458,43 @@ Boundary confirmation for this baseline:
 - no proof authority behavior changes
 - no P5 implementation
 
+#### Task ingress production wiring token coverage guard
+
+Status: explicit production wiring token coverage guard added before task
+ingress production wiring approval.
+
+`tests/unit/test_task_ingress_production_wiring_guards.py` now requires the
+production entrypoint pre-wiring guard to explicitly cover every task ingress
+adapter, service, port, and module import token that would indicate production
+wiring:
+
+- `TaskIngressAdapter`
+- `TaskIngressPort`
+- `SubmitTaskIngress`
+- `flaghunter.adapters.mcp`
+- `flaghunter.application.challenge.task_ingress_service`
+- `flaghunter.ports.task_ingress`
+- `task_ingress_adapter`
+- `task_ingress_service`
+
+This guard keeps task ingress adapter/service/port skeletons from being wired
+into interface, MCP, agents, tools, runtime, session, workspace, or config
+entrypoints before explicit production wiring approval.
+
+Boundary confirmation for this guard:
+
+- no production entrypoint wiring
+- no MCP production wiring
+- no concrete adapter construction
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no composition root changes
+- no proof authority behavior changes
+- no P5 implementation
+
 ### Task ingress application service skeleton baseline
 
 Status: task ingress application service skeleton added before production wiring.
