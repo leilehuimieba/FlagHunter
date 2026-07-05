@@ -1770,7 +1770,8 @@ def test_playbook_records_task_ingress_production_entrypoint_guard_baseline() ->
 
     assert "Task ingress production entrypoint pre-wiring guard baseline" in text
     assert "tests/unit/test_task_ingress_production_wiring_guards.py" in text
-    assert "interface, agents, tools, runtime, session, workspaces, and config" in text
+    assert "interface, MCP, agents, tools, runtime, session, workspaces, and config" in text
+    assert "flaghunter/mcp/server" in text
     assert "TaskIngressAdapter" in text
     assert "SubmitTaskIngress" in text
     assert "TaskIngressPort" in text

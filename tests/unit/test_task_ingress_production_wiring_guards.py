@@ -15,6 +15,7 @@ PLAYBOOK_PATH = (
 
 PRODUCTION_ENTRY_ROOTS = (
     "flaghunter/interface",
+    "flaghunter/mcp",
     "flaghunter/agents",
     "flaghunter/tools",
     "flaghunter/runtime",
@@ -63,3 +64,11 @@ def test_task_ingress_production_entrypoints_remain_unwired_before_approval() ->
         )
 
     assert offenders == []
+
+
+def test_task_ingress_pre_wiring_guard_covers_mcp_server_entrypoints() -> None:
+    playbook = _playbook_text()
+
+    assert "flaghunter/mcp" in PRODUCTION_ENTRY_ROOTS
+    assert "flaghunter/mcp/server" in playbook
+    assert "MCP server changes" in playbook

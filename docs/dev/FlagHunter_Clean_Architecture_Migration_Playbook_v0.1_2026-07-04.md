@@ -846,17 +846,19 @@ Boundary confirmation for this baseline:
 Status: production entrypoint pre-wiring guard added before production wiring.
 
 `tests/unit/test_task_ingress_production_wiring_guards.py` now guards
-interface, agents, tools, runtime, session, workspaces, and config production
-entrypoint packages against importing or constructing `TaskIngressAdapter`,
-`SubmitTaskIngress`, `TaskIngressPort`, task ingress adapters, task ingress
-application services, or task ingress port modules before explicit production
-wiring approval is recorded.
+interface, MCP, agents, tools, runtime, session, workspaces, and config
+production entrypoint packages against importing or constructing
+`TaskIngressAdapter`, `SubmitTaskIngress`, `TaskIngressPort`, task ingress
+adapters, task ingress application services, or task ingress port modules
+before explicit production wiring approval is recorded. The scan includes
+`flaghunter/mcp/server` so MCP server entrypoints cannot silently adopt the
+task ingress runway before approval.
 
 Required gate: explicit production wiring approval.
 
 This guard keeps task ingress skeleton work from becoming accidental production
-entrypoint wiring through CLI, TUI, dispatcher, tool executor, runtime, session,
-workspace, or configuration paths.
+entrypoint wiring through CLI, TUI, MCP server, dispatcher, tool executor,
+runtime, session, workspace, or configuration paths.
 
 Boundary confirmation for this baseline:
 
