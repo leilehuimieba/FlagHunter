@@ -425,6 +425,22 @@ Boundary confirmation for this baseline:
 - no production wiring
 - no behavior changes in existing audit or artifact paths
 
+### Crew/task graph adapter substitution fixture baseline
+
+Status: substitution fixture added before production wiring.
+
+`tests/unit/test_adapter_port_substitution.py` now proves fake injected runners can be substituted without production wiring for the crew bridge and task graph runner adapters.
+The fixture confirms crew-facing adapters delegate to injected runners rather
+than constructing `WorkerPool`, `CrewOrchestrator`, task execution loops,
+runtime implementations, or proof authority components.
+
+Boundary confirmation for this baseline:
+
+- no WorkerPool or CrewOrchestrator construction
+- no dispatcher, MCP, runtime, or proof authority wiring
+- no production wiring
+- no behavior changes in existing crew or task graph paths
+
 ### Next approval gate
 
 The next material step is no longer another neutral skeleton by default; it is

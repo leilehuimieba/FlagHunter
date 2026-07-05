@@ -6,6 +6,8 @@ from typing import Any, Mapping
 
 from flaghunter.adapters.artifacts.artifact_store_adapter import ArtifactStoreAdapter
 from flaghunter.adapters.audit.audit_store_adapter import AuditStoreAdapter
+from flaghunter.adapters.crew.crew_bridge_adapter import CrewBridgeAdapter
+from flaghunter.adapters.crew.task_dag_runner_adapter import TaskDAGRunnerAdapter
 from flaghunter.adapters.storage.checkpoint_store_adapter import CheckpointStoreAdapter
 from flaghunter.adapters.storage.claim_store_adapter import ClaimStoreAdapter
 from flaghunter.adapters.storage.read_model_store_adapter import ReadModelStoreAdapter
@@ -17,9 +19,11 @@ from flaghunter.ports import (
     AuditStorePort,
     CheckpointStorePort,
     ClaimStorePort,
+    CrewBridgePort,
     ReadModelStorePort,
     RuntimeActionPort,
     StateStorePort,
+    TaskDAGRunnerPort,
     ToolRunnerPort,
 )
 
@@ -248,6 +252,44 @@ class SubstitutableArtifactStore:
         return {"store": self.label, **artifact}
 
 
+class SubstitutableCrewBridge:
+    def __init__(self, label: str) -> None:
+        self.label = label
+        self.calls: list[dict[str, Any]] = []
+
+    async def dispatch_task(self, request: Mapping[str, Any]) -> Mapping[str, Any]:
+        payload = dict(request)
+        self.calls.append(payload)
+        return {
+            "schemaVersion": "challenge.worker_receipt.v1",
+            "bridge": self.label,
+            "taskId": payload.get("taskId"),
+            "status": "queued",
+        }
+
+
+class SubstitutableTaskGraphRunner:
+    def __init__(self, label: str) -> None:
+        self.label = label
+        self.calls: list[tuple[dict[str, Any], dict[str, Any]]] = []
+
+    async def run_ready_task(
+        self,
+        plan: Mapping[str, Any],
+        state_snapshot: Mapping[str, Any],
+    ) -> Mapping[str, Any]:
+        plan_payload = dict(plan)
+        state_payload = dict(state_snapshot)
+        self.calls.append((plan_payload, state_payload))
+        return {
+            "schemaVersion": "challenge.task_receipt.v1",
+            "runner": self.label,
+            "taskId": plan_payload.get("taskId"),
+            "runId": state_payload.get("runId"),
+            "outcome": "completed",
+        }
+
+
 async def test_tool_runner_adapter_substitutes_injected_ports_without_wiring() -> None:
     first_runner = FirstToolRunner()
     second_runner = SecondToolRunner()
@@ -418,3 +460,45 @@ def test_audit_and_artifact_adapters_substitute_injected_stores_without_wiring()
         "runId": "run-1",
     }
     assert missing_artifact is None
+
+
+async def test_crew_adapters_substitute_injected_runners_without_wiring() -> None:
+    crew_bridge = SubstitutableCrewBridge("crew-a")
+    task_runner = SubstitutableTaskGraphRunner("runner-a")
+    crew_adapter = CrewBridgeAdapter(crew_bridge)
+    task_runner_adapter = TaskDAGRunnerAdapter(task_runner)
+    worker_request = {
+        "schemaVersion": "challenge.worker_task.v1",
+        "taskId": "worker-task-1",
+        "taskType": "review",
+    }
+    plan = {
+        "schemaVersion": "challenge.task_graph_node.v1",
+        "taskId": "task-1",
+        "taskType": "review",
+    }
+    state_snapshot = {
+        "schemaVersion": "challenge.run_snapshot.v1",
+        "runId": "run-1",
+    }
+
+    worker_receipt = await crew_adapter.dispatch_task(worker_request)
+    task_receipt = await task_runner_adapter.run_ready_task(plan, state_snapshot)
+
+    assert isinstance(crew_adapter, CrewBridgePort)
+    assert isinstance(task_runner_adapter, TaskDAGRunnerPort)
+    assert crew_bridge.calls == [worker_request]
+    assert task_runner.calls == [(plan, state_snapshot)]
+    assert worker_receipt == {
+        "schemaVersion": "challenge.worker_receipt.v1",
+        "bridge": "crew-a",
+        "taskId": "worker-task-1",
+        "status": "queued",
+    }
+    assert task_receipt == {
+        "schemaVersion": "challenge.task_receipt.v1",
+        "runner": "runner-a",
+        "taskId": "task-1",
+        "runId": "run-1",
+        "outcome": "completed",
+    }

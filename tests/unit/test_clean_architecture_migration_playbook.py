@@ -316,3 +316,14 @@ def test_playbook_records_audit_artifact_adapter_substitution_fixture_baseline()
     assert "fake injected stores can be substituted without production wiring" in text
     assert "no audit log or artifact file construction" in text
     assert "no dispatcher, MCP, crew, or proof authority wiring" in text
+
+
+def test_playbook_records_crew_task_graph_adapter_substitution_fixture_baseline() -> None:
+    text = _playbook_text()
+
+    assert "Crew/task graph adapter substitution fixture baseline" in text
+    assert "tests/unit/test_adapter_port_substitution.py" in text
+    assert "crew bridge and task graph runner adapters" in text
+    assert "fake injected runners can be substituted without production wiring" in text
+    assert "no WorkerPool or CrewOrchestrator construction" in text
+    assert "no dispatcher, MCP, runtime, or proof authority wiring" in text
