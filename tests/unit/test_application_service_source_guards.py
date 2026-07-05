@@ -8,6 +8,12 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 APPLICATION_ROOT = REPO_ROOT / "flaghunter" / "application"
+PLAYBOOK_PATH = (
+    REPO_ROOT
+    / "docs"
+    / "dev"
+    / "FlagHunter_Clean_Architecture_Migration_Playbook_v0.1_2026-07-04.md"
+)
 
 ALLOWED_FLAGHUNTER_IMPORT_PREFIXES = (
     "flaghunter.domain",
@@ -49,8 +55,13 @@ FORBIDDEN_CALLS = {
 }
 
 FORBIDDEN_NAME_TOKENS = {
+    "AgentSession",
+    "CompositionRoot",
     "CTFTaskDispatcher",
     "CTFVerifier",
+    "FlagHunterAgent",
+    "MCPRouter",
+    "MCPServer",
     "ToolExecutor",
     "WorkerPool",
     "CrewOrchestrator",
@@ -58,6 +69,8 @@ FORBIDDEN_NAME_TOKENS = {
     "DockerRuntime",
     "SSHRuntime",
     "ProofAuthorityPort",
+    "create_agent",
+    "run_task_async",
 }
 
 FORBIDDEN_PROOF_TOKENS = {
@@ -159,6 +172,35 @@ def test_application_services_have_no_proof_upgrade_or_runtime_surfaces() -> Non
         offenders.extend(
             (_relative(path), token)
             for token in FORBIDDEN_NAME_TOKENS | FORBIDDEN_PROOF_TOKENS
+            if token in text
+        )
+
+    assert offenders == []
+
+
+def test_application_services_have_no_production_wiring_surfaces() -> None:
+    required_tokens = {
+        "FlagHunterAgent",
+        "AgentSession",
+        "MCPRouter",
+        "MCPServer",
+        "CompositionRoot",
+        "create_agent",
+        "run_task_async",
+    }
+    assert required_tokens <= FORBIDDEN_NAME_TOKENS
+
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Application service production wiring source guard" in playbook
+    for token in sorted(required_tokens):
+        assert token in playbook
+
+    offenders: list[tuple[str, str]] = []
+    for path in _application_sources():
+        text = path.read_text(encoding="utf-8")
+        offenders.extend(
+            (_relative(path), token)
+            for token in required_tokens
             if token in text
         )
 

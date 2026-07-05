@@ -642,6 +642,36 @@ root change. It exists so later application-service slices cannot accidentally
 reach into concrete legacy implementations while clean architecture wiring is
 still pending approval.
 
+#### Application service production wiring source guard
+
+Status: production wiring source guard added before composition-root approval.
+
+`tests/unit/test_application_service_source_guards.py` now also guards
+application services against production assembly surfaces. Application services
+must stay use-case level and may not construct or reference these production
+wiring names before composition-root approval:
+
+- `FlagHunterAgent`
+- `AgentSession`
+- `MCPRouter`
+- `MCPServer`
+- `CompositionRoot`
+- `create_agent`
+- `run_task_async`
+
+This guard keeps application services from becoming an accidental composition
+root, MCP server task runner, or agent/session factory while production wiring
+remains explicitly out of scope.
+
+Boundary confirmation for this guard:
+
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 ### Adapter port substitution fixture baseline
 
 Status: substitution fixture added before production wiring.
