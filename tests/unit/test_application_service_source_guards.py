@@ -57,6 +57,27 @@ FORBIDDEN_CALLS = {
     "socket.socket",
 }
 
+REQUIRED_SIDE_EFFECT_SINKS = {
+    "open",
+    "Path.open",
+    "Path.read_text",
+    "Path.write_text",
+    "Path.read_bytes",
+    "Path.write_bytes",
+    "subprocess.run",
+    "subprocess.Popen",
+    "subprocess.call",
+    "asyncio.create_subprocess_exec",
+    "asyncio.create_subprocess_shell",
+    "requests.get",
+    "requests.post",
+    "requests.request",
+    "httpx.get",
+    "httpx.post",
+    "httpx.request",
+    "socket.socket",
+}
+
 FORBIDDEN_NAME_TOKENS = {
     "AgentSession",
     "CompositionRoot",
@@ -200,6 +221,15 @@ def test_application_services_have_no_side_effect_sinks() -> None:
                 offenders.append((_relative(path), call_name, node.lineno))
 
     assert offenders == []
+
+
+def test_application_side_effect_guard_covers_explicit_sinks() -> None:
+    assert REQUIRED_SIDE_EFFECT_SINKS <= FORBIDDEN_CALLS
+
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Application service side-effect sink coverage guard" in playbook
+    for token in sorted(REQUIRED_SIDE_EFFECT_SINKS):
+        assert token in playbook
 
 
 def test_application_services_have_no_proof_upgrade_or_runtime_surfaces() -> None:

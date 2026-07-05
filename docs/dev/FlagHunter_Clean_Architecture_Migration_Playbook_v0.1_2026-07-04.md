@@ -866,6 +866,50 @@ root change. It exists so later application-service slices cannot accidentally
 reach into concrete legacy implementations while clean architecture wiring is
 still pending approval.
 
+#### Application service side-effect sink coverage guard
+
+Status: explicit side-effect sink coverage guard recorded for neutral
+application services.
+
+`tests/unit/test_application_service_source_guards.py` now requires the
+application service source guard to explicitly cover common filesystem,
+process, network, and socket sinks:
+
+- `open`
+- `Path.open`
+- `Path.read_text`
+- `Path.write_text`
+- `Path.read_bytes`
+- `Path.write_bytes`
+- `subprocess.run`
+- `subprocess.Popen`
+- `subprocess.call`
+- `asyncio.create_subprocess_exec`
+- `asyncio.create_subprocess_shell`
+- `requests.get`
+- `requests.post`
+- `requests.request`
+- `httpx.get`
+- `httpx.post`
+- `httpx.request`
+- `socket.socket`
+
+This guard keeps application services as pure use-case orchestration over
+neutral contracts and ports, and prevents future service slices from becoming
+filesystem readers/writers, process launchers, network clients, socket users,
+runtime surfaces, or tool executors.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter construction
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 #### Application service production wiring source guard
 
 Status: production wiring source guard added before composition-root approval.
