@@ -120,9 +120,29 @@ FORBIDDEN_PROOF_ACTION_TOKENS = {
     "verification_decision",
     "upgrade_claim_to_verified",
     "append_verification_record",
+    "append_proof_record",
+    "confirm_claim",
     'level="verified"',
     "level='verified'",
     "verified_flags",
+}
+
+REQUIRED_PROOF_ACTION_TOKENS = {
+    "verification_decision",
+    "upgrade_claim_to_verified",
+    "append_verification_record",
+    "append_proof_record",
+    "confirm_claim",
+    'level="verified"',
+    "level='verified'",
+    "verified_flags",
+}
+
+ALLOWED_PROOF_ACTION_TOKENS_BY_PATH = {
+    "flaghunter/adapters/proof/proof_authority_adapter.py": {
+        "append_proof_record",
+        "confirm_claim",
+    },
 }
 
 FORBIDDEN_PRODUCTION_WIRING_TOKENS = {
@@ -169,6 +189,13 @@ def _imported_module_names(tree: ast.Module) -> list[str]:
 def _python_sources(root: Path) -> list[Path]:
     assert root.is_dir(), f"missing package root: {_relative(root)}"
     return sorted(root.rglob("*.py"))
+
+
+def _forbidden_proof_action_tokens_for(path: Path) -> set[str]:
+    return FORBIDDEN_PROOF_ACTION_TOKENS - ALLOWED_PROOF_ACTION_TOKENS_BY_PATH.get(
+        _relative(path),
+        set(),
+    )
 
 
 def test_adapter_namespace_packages_are_importable() -> None:
@@ -223,7 +250,7 @@ def test_adapter_package_initializers_do_not_wire_concrete_implementations() -> 
         )
         offenders.extend(
             (_relative(path), token)
-            for token in FORBIDDEN_PROOF_ACTION_TOKENS
+            for token in _forbidden_proof_action_tokens_for(path)
             if token in text
         )
 
@@ -276,7 +303,7 @@ def test_adapter_implementation_sources_do_not_wire_concrete_implementations() -
         )
         offenders.extend(
             (_relative(path), token)
-            for token in FORBIDDEN_PROOF_ACTION_TOKENS
+            for token in _forbidden_proof_action_tokens_for(path)
             if token in text
         )
 
@@ -289,6 +316,16 @@ def test_adapter_action_guard_covers_explicit_sinks() -> None:
     playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
     assert "Adapter action sink coverage guard" in playbook
     for token in sorted(REQUIRED_ACTION_SINK_TOKENS):
+        assert token in playbook
+
+
+def test_adapter_proof_action_guard_covers_authority_sinks() -> None:
+    assert REQUIRED_PROOF_ACTION_TOKENS <= FORBIDDEN_PROOF_ACTION_TOKENS
+
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Adapter proof action coverage guard" in playbook
+    assert "dedicated proof authority adapter" in playbook
+    for token in sorted(REQUIRED_PROOF_ACTION_TOKENS):
         assert token in playbook
 
 
