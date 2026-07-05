@@ -58,6 +58,7 @@ def test_playbook_tracks_completed_phase4_application_services() -> None:
         "ReviewClaim",
         "RecordToolReceipt",
         "DispatchWorkerTask",
+        "SubmitTaskIngress",
     ):
         assert service_name in text
 
@@ -143,6 +144,7 @@ def test_playbook_records_phase4_verification_baseline() -> None:
 
     assert "tests/unit/test_import_layers.py" in text
     assert "tests/unit/test_application_worker_task_service.py" in text
+    assert "tests/unit/test_application_task_ingress_service.py" in text
     assert "application-service-boundary" in text
 
 
@@ -1684,5 +1686,19 @@ def test_playbook_records_task_ingress_adapter_skeleton_baseline() -> None:
     assert "delegates to injected task ingress ports" in text
     assert "no MCP production wiring" in text
     assert "no `flaghunter/mcp/server` imports" in text
+    assert "no dispatcher loop changes" in text
+    assert "no proof authority behavior changes" in text
+
+
+def test_playbook_records_task_ingress_application_service_baseline() -> None:
+    text = _playbook_text()
+
+    assert "Task ingress application service skeleton baseline" in text
+    assert "SubmitTaskIngress" in text
+    assert "TaskIngressPort" in text
+    assert "tests/unit/test_application_task_ingress_service.py" in text
+    assert "depends only on neutral contracts and ports" in text
+    assert "no MCP production wiring" in text
+    assert "no concrete adapter construction" in text
     assert "no dispatcher loop changes" in text
     assert "no proof authority behavior changes" in text

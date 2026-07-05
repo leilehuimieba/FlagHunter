@@ -349,6 +349,7 @@ ports, have behavior tests, and are covered by the `.importlinter`
 - `RecordToolReceipt`
 - `DispatchWorkerTask`
 - `BuildChallengeBoardReadModel`
+- `SubmitTaskIngress`
 
 The completed skeletons do not connect production call sites and do not change
 the dispatcher loop, `CTFState`, `CTFVerifier`, `ToolExecutor`, crew runtime,
@@ -359,7 +360,7 @@ MCP production wiring, or composition root behavior.
 Focused Phase 4 regression should include:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/agents/test_p1_claim_invariants.py tests/unit/tools/test_finish_control_receipt.py tests/unit/agents/test_p2_audit_export.py tests/unit/agents/test_p2_evidence_snapshot.py tests/unit/agents/test_p2_ledger_event_readback.py tests/unit/agents/test_p4_task_dag_plan_schema.py tests/unit/agents/test_p4_task_dag_ready_selector.py tests/unit/agents/test_p4_task_dag_replay_audit_bundle.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py tests/unit/agents/test_phase2b_compatibility_shims.py tests/unit/test_adapter_boundary_skeleton.py tests/unit/test_tool_runner_adapter.py tests/unit/test_runtime_action_adapter.py tests/unit/test_read_model_store_adapter.py tests/unit/test_state_store_adapter.py tests/unit/test_audit_store_adapter.py tests/unit/test_artifact_store_adapter.py tests/unit/test_checkpoint_store_adapter.py tests/unit/test_claim_store_adapter.py tests/unit/test_verifier_adapter.py tests/unit/test_proof_authority_adapter.py tests/unit/test_crew_bridge_adapter.py tests/unit/test_task_dag_runner_adapter.py tests/unit/test_application_challenge_snapshot_service.py tests/unit/test_application_task_receipt_service.py tests/unit/test_application_evidence_snapshot_service.py tests/unit/test_application_claim_review_service.py tests/unit/test_application_tool_receipt_service.py tests/unit/test_application_worker_task_service.py tests/unit/test_application_board_read_model_service.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/agents/test_p1_claim_invariants.py tests/unit/tools/test_finish_control_receipt.py tests/unit/agents/test_p2_audit_export.py tests/unit/agents/test_p2_evidence_snapshot.py tests/unit/agents/test_p2_ledger_event_readback.py tests/unit/agents/test_p4_task_dag_plan_schema.py tests/unit/agents/test_p4_task_dag_ready_selector.py tests/unit/agents/test_p4_task_dag_replay_audit_bundle.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py tests/unit/agents/test_phase2b_compatibility_shims.py tests/unit/test_adapter_boundary_skeleton.py tests/unit/test_tool_runner_adapter.py tests/unit/test_runtime_action_adapter.py tests/unit/test_read_model_store_adapter.py tests/unit/test_state_store_adapter.py tests/unit/test_audit_store_adapter.py tests/unit/test_artifact_store_adapter.py tests/unit/test_checkpoint_store_adapter.py tests/unit/test_claim_store_adapter.py tests/unit/test_verifier_adapter.py tests/unit/test_proof_authority_adapter.py tests/unit/test_crew_bridge_adapter.py tests/unit/test_task_dag_runner_adapter.py tests/unit/test_task_ingress_adapter.py tests/unit/test_application_challenge_snapshot_service.py tests/unit/test_application_task_receipt_service.py tests/unit/test_application_evidence_snapshot_service.py tests/unit/test_application_claim_review_service.py tests/unit/test_application_tool_receipt_service.py tests/unit/test_application_worker_task_service.py tests/unit/test_application_task_ingress_service.py tests/unit/test_application_board_read_model_service.py -q
 ```
 
 ### Challenge board read-model skeleton baseline
@@ -739,6 +740,32 @@ Boundary confirmation for this baseline:
 
 - no MCP production wiring
 - no `flaghunter/mcp/server` imports
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no composition root changes
+- no proof authority behavior changes
+- no P5 implementation
+
+### Task ingress application service skeleton baseline
+
+Status: task ingress application service skeleton added before production wiring.
+
+`SubmitTaskIngress` now exists under `flaghunter/application/challenge/` as a
+neutral application service. It builds schema-versioned task ingress requests
+and delegates through an injected `TaskIngressPort` when one is provided. It
+depends only on neutral contracts and ports.
+
+`tests/unit/test_application_task_ingress_service.py` verifies import/re-export,
+empty-input behavior, request serialization, injected-port delegation, public
+method shape, domain-neutral names, and application-layer source guards.
+
+Boundary confirmation for this baseline:
+
+- no MCP production wiring
+- no concrete adapter construction
 - no dispatcher loop changes
 - no `CTFState` ownership split
 - no `CTFVerifier` proof behavior changes
