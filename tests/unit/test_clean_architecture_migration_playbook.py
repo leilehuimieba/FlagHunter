@@ -1982,3 +1982,40 @@ def test_playbook_parses_task_ingress_service_rollback_placeholder_consistency_g
         "Task ingress service contract migration landing record template",
     )
     assert "Rollback command: git revert <sha>" in landing_template
+
+
+def test_playbook_parses_task_ingress_service_approval_transition_atomicity_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Task ingress service approval transition atomicity guard",
+    )
+
+    assert "Status: approval transition atomicity guard recorded, implementation not approved." in section
+    assert "approval transition evidence must land before implementation" in section
+    assert "partial approval updates must fail review" in section
+    assert "no service migration is authorized by this atomicity guard" in section
+
+    required_rows = {
+        row["Atomic update"]: row["Required section"]
+        for row in _markdown_table_rows(section)
+    }
+    assert required_rows == {
+        "plan approval status": "`Task ingress service contract migration plan`",
+        "pre-approval guard status": "`Task ingress service contract migration pre-approval guard`",
+        "readiness approval status": "`Task ingress service contract migration readiness checklist`",
+        "approval flag table": "`Task ingress service contract migration approval flag consistency guard`",
+        "landing evidence template": "`Task ingress service contract migration landing record template`",
+        "rollback placeholder": "`Task ingress service rollback placeholder consistency guard`",
+        "verification evidence": "`Task ingress service contract migration readiness checklist`",
+    }
+
+    for heading in (
+        "Task ingress service contract migration plan",
+        "Task ingress service contract migration pre-approval guard",
+        "Task ingress service contract migration readiness checklist",
+        "Task ingress service contract migration approval flag consistency guard",
+        "Task ingress service contract migration landing record template",
+        "Task ingress service rollback placeholder consistency guard",
+    ):
+        assert heading in text

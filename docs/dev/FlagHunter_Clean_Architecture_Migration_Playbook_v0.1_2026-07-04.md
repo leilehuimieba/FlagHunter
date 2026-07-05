@@ -1129,6 +1129,32 @@ Required consistency:
   git revert <sha>`
 - no service migration is authorized by this rollback guard
 
+#### Task ingress service approval transition atomicity guard
+
+Status: approval transition atomicity guard recorded, implementation not approved.
+
+Any future transition from `not approved` to approved implementation for the
+task ingress service migration must update every mirrored governance surface in
+the same governance commit before implementation starts.
+
+| Atomic update | Required section |
+|---------------|------------------|
+| plan approval status | `Task ingress service contract migration plan` |
+| pre-approval guard status | `Task ingress service contract migration pre-approval guard` |
+| readiness approval status | `Task ingress service contract migration readiness checklist` |
+| approval flag table | `Task ingress service contract migration approval flag consistency guard` |
+| landing evidence template | `Task ingress service contract migration landing record template` |
+| rollback placeholder | `Task ingress service rollback placeholder consistency guard` |
+| verification evidence | `Task ingress service contract migration readiness checklist` |
+
+Rules:
+
+- approval transition evidence must land before implementation
+- partial approval updates must fail review
+- the implementation commit must remain separate from the approval-transition
+  governance commit
+- no service migration is authorized by this atomicity guard
+
 ### Adapter substitution source guard baseline
 
 Status: source guard added for substitution fixtures.
