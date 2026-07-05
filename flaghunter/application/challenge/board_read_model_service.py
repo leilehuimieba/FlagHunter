@@ -291,9 +291,13 @@ def _canonical_decision_mapping(source: Mapping[str, JsonValue]) -> dict[str, Js
     next_action = _clean_text(
         source.get("nextAction") or source.get("next_action")
     )
+    driver = _clean_text(source.get("driver") or source.get("decision_driver"))
     result.pop("next_action", None)
+    result.pop("decision_driver", None)
     if next_action:
         result["nextAction"] = next_action
+    if driver:
+        result["driver"] = driver
     return result
 
 

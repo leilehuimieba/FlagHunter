@@ -1092,6 +1092,59 @@ def test_task_board_projection_accepts_active_decision_next_action_alias() -> No
     _assert_json_friendly(projection)
 
 
+def test_task_board_projection_accepts_active_decision_driver_alias() -> None:
+    from flaghunter.application.challenge.board_read_model_service import (
+        build_task_board_projection,
+    )
+    from flaghunter.domain.challenge.contracts import ChallengeBoardReadModel
+
+    model = ChallengeBoardReadModel(
+        run_id="run-decision-driver-alias",
+        challenge_id="challenge-decision-driver-alias",
+        decisions=[
+            {
+                "nextAction": "collect_initial_facts",
+                "decision_driver": "task.local_assets",
+            }
+        ],
+        candidates=[
+            {
+                "action": "collect_initial_facts",
+                "priority": 20,
+                "selected": True,
+            },
+            {
+                "action": "probe_discovered_endpoint",
+                "priority": 11,
+            },
+        ],
+        action_results=[
+            {
+                "action": "collect_initial_facts",
+                "result": "failed",
+            }
+        ],
+    )
+
+    projection = build_task_board_projection(model)
+
+    assert projection["decisions"] == [
+        {"nextAction": "collect_initial_facts", "driver": "task.local_assets"}
+    ]
+    assert projection["active_decision"] == {
+        "nextAction": "collect_initial_facts",
+        "driver": "task.local_assets",
+    }
+    selected = [
+        item
+        for item in projection["candidates"]
+        if item["action"] == "collect_initial_facts"
+    ][0]
+    assert selected["driver"] == "task.local_assets"
+    assert "decision_driver" not in repr(projection)
+    _assert_json_friendly(projection)
+
+
 def test_task_board_projection_enriches_selected_and_recommended_candidates() -> None:
     from flaghunter.application.challenge.board_read_model_service import (
         build_task_board_projection,

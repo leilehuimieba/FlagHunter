@@ -1190,6 +1190,32 @@ Boundary confirmation for this baseline:
 - no MCP production wiring
 - no proof authority behavior changes
 
+### Candidate A neutral decision driver alias baseline
+
+Status: active decision driver alias fixture added before any production path switch.
+
+`build_task_board_projection` now accepts neutral active decision driver
+metadata as `decision_driver` and normalizes it into the Candidate A-compatible
+`driver` field. Existing `driver` remains the first source, while the alias is
+removed from projected decision rows so neutral inputs do not change the public
+response key shape.
+
+`tests/unit/test_application_board_read_model_service.py` records this baseline
+with `test_task_board_projection_accepts_active_decision_driver_alias`, so
+future Candidate A read-path equivalence work can compare active decision
+driver rows before touching `blackboard_lite.py`.
+
+Boundary confirmation for this baseline:
+
+- no production path switch
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no proof authority behavior changes
+
 ### Candidate A neutral malformed board item projection baseline
 
 Status: malformed board item fixture added before any production path switch.
