@@ -434,6 +434,39 @@ def test_playbook_records_candidate_a_implementation_approval_request() -> None:
         assert command in text
 
 
+def test_playbook_parses_candidate_a_approval_request_crispness_guard() -> None:
+    text = _playbook_text()
+    section = _section_text(text, "Candidate A approval request crispness guard")
+
+    assert "Status: crispness guard recorded, implementation not approved by this section." in section
+    assert "Candidate A implementation approval request" in section
+    assert "explicit human approval" in section
+    assert "no implementation approval by implication" in section
+
+    rows = {
+        row["Approval package field"]: row
+        for row in _markdown_table_rows(section)
+    }
+    expected_fields = {
+        "file list": (
+            "`flaghunter/interface/blackboard_lite.py`, "
+            "`tests/unit/interface/test_blackboard_lite.py`, "
+            "`flaghunter/application/challenge/board_read_model_service.py` only if required"
+        ),
+        "risk": "medium; read-only Web task detail projection",
+        "rollback point": "revert the single Candidate A implementation commit",
+        "equivalence tests": "`tests/unit/interface/test_blackboard_lite.py` representative and degraded fixtures",
+        "non-goals": "dispatcher, state ownership, verifier, ToolExecutor, crew, MCP wiring, composition root, adapters, proof authority, P5",
+        "focused commands": "blackboard focused, application projection focused, architecture/source guards, `git diff --check`",
+    }
+
+    assert rows.keys() == expected_fields.keys()
+    for field, expected_detail in expected_fields.items():
+        row = rows[field]
+        assert row["Required detail"] == expected_detail
+        assert row["Present in request"] == "true"
+
+
 def test_playbook_records_candidate_a_approved_execution_checklist() -> None:
     text = _playbook_text()
     section = _section_text(text, "Candidate A approved execution checklist")

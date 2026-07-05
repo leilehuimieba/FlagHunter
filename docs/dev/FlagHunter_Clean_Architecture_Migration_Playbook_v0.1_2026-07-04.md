@@ -969,6 +969,33 @@ Required verification for the requested implementation slice:
 git diff --check
 ```
 
+#### Candidate A approval request crispness guard
+
+Status: crispness guard recorded, implementation not approved by this section.
+
+This guard makes the Candidate A implementation approval request easy to
+review before explicit human approval. It records the required approval-package
+fields in one parseable table and does not grant implementation approval by
+implication.
+
+| Approval package field | Required detail | Present in request |
+|------------------------|-----------------|--------------------|
+| file list | `flaghunter/interface/blackboard_lite.py`, `tests/unit/interface/test_blackboard_lite.py`, `flaghunter/application/challenge/board_read_model_service.py` only if required | true |
+| risk | medium; read-only Web task detail projection | true |
+| rollback point | revert the single Candidate A implementation commit | true |
+| equivalence tests | `tests/unit/interface/test_blackboard_lite.py` representative and degraded fixtures | true |
+| non-goals | dispatcher, state ownership, verifier, ToolExecutor, crew, MCP wiring, composition root, adapters, proof authority, P5 | true |
+| focused commands | blackboard focused, application projection focused, architecture/source guards, `git diff --check` | true |
+
+Rules:
+
+- Candidate A still requires explicit human approval before implementation.
+- no implementation approval by implication is created by this checklist
+- the requested implementation remains one read-only Web blackboard projection
+  call-site family
+- no dispatcher, state, verifier, ToolExecutor, crew, MCP production wiring,
+  composition root, adapter, proof authority, or P5 work is authorized here
+
 #### Candidate A approved execution checklist
 
 Status: not approved; checklist only.
