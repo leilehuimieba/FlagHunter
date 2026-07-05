@@ -2144,6 +2144,36 @@ Boundary confirmation for this guard:
 - no ToolExecutor changes
 - no proof authority behavior changes
 
+#### Adapter substitution fixture coverage completeness guard
+
+Status: aggregate coverage completeness guard added for adapter substitution
+fixtures.
+
+`tests/unit/test_adapter_substitution_source_guards.py` now requires the
+adapter substitution fixture source guard record to keep all four guard groups
+visible together:
+
+- `Adapter substitution fixture import coverage guard`
+- `Adapter substitution fixture side-effect sink coverage guard`
+- `Adapter substitution fixture production token coverage guard`
+- `Adapter substitution fixture proof authority coverage guard`
+
+This aggregate guard prevents the adapter substitution fixture source guard
+from drifting into partial coverage. The fixture must keep import boundaries,
+side-effect sinks, production runtime tokens, and proof authority write
+surfaces covered as one complete replaceability-test boundary.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter production wiring
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 #### Adapter production wiring source guard
 
 Status: production wiring source guard added for adapter skeletons.

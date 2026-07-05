@@ -129,6 +129,13 @@ REQUIRED_PROOF_AUTHORITY_TOKENS = {
     "verifiedFlags",
 }
 
+REQUIRED_COVERAGE_GUARD_SECTIONS = {
+    "Adapter substitution fixture import coverage guard",
+    "Adapter substitution fixture side-effect sink coverage guard",
+    "Adapter substitution fixture production token coverage guard",
+    "Adapter substitution fixture proof authority coverage guard",
+}
+
 
 def _parse_substitution_test() -> ast.Module:
     assert SUBSTITUTION_TEST_PATH.is_file(), "adapter substitution fixture must exist"
@@ -252,3 +259,10 @@ def test_adapter_substitution_proof_authority_guard_covers_write_surfaces() -> N
     assert "Adapter substitution fixture proof authority coverage guard" in playbook
     for token in sorted(REQUIRED_PROOF_AUTHORITY_TOKENS):
         assert token in playbook
+
+
+def test_adapter_substitution_coverage_completeness_guard_records_all_guard_groups() -> None:
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Adapter substitution fixture coverage completeness guard" in playbook
+    for section_name in sorted(REQUIRED_COVERAGE_GUARD_SECTIONS):
+        assert section_name in playbook
