@@ -17,6 +17,12 @@ from flaghunter.mcp.server.mcp_tools import TaskEntry
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 BLACKBOARD_LITE_PATH = REPO_ROOT / "flaghunter" / "interface" / "blackboard_lite.py"
+PLAYBOOK_PATH = (
+    REPO_ROOT
+    / "docs"
+    / "dev"
+    / "FlagHunter_Clean_Architecture_Migration_Playbook_v0.1_2026-07-04.md"
+)
 
 
 def _parse_blackboard_lite() -> ast.Module:
@@ -32,6 +38,10 @@ def _function_source(tree: ast.Module, name: str) -> str:
         if isinstance(node, ast.FunctionDef) and node.name == name:
             return ast.get_source_segment(text, node) or ""
     raise AssertionError(f"{name} was not found")
+
+
+def _playbook_text() -> str:
+    return PLAYBOOK_PATH.read_text(encoding="utf-8")
 
 
 def _candidate_a_representative_task_and_context() -> tuple[dict[str, object], dict[str, object]]:
@@ -530,6 +540,21 @@ def test_build_task_blackboard_snapshot_source_stays_read_only_projection() -> N
     )
 
     assert offenders == []
+
+
+def test_candidate_a_pre_approval_guard_blocks_neutral_builder_wiring() -> None:
+    playbook = _playbook_text()
+    assert "Candidate A pre-approval production switch guard" in playbook
+    assert "Candidate A: approval requested, not approved" in playbook
+
+    source = BLACKBOARD_LITE_PATH.read_text(encoding="utf-8-sig")
+    forbidden_wiring_tokens = {
+        "flaghunter.application.challenge.board_read_model_service",
+        "build_task_board_projection",
+        "BuildChallengeBoardReadModel",
+    }
+
+    assert sorted(token for token in forbidden_wiring_tokens if token in source) == []
 
 
 def test_build_task_blackboard_snapshot_aggregates_ingress_decision_and_resume_facts() -> None:

@@ -1730,6 +1730,42 @@ No candidate may be marked `implementation landed` without a commit SHA, the
 focused regression result, the architecture/source-guard result, and the
 post-push branch status.
 
+#### Candidate A pre-approval production switch guard
+
+Status: source guard added before Candidate A implementation approval.
+
+`tests/unit/interface/test_blackboard_lite.py` now guards
+`flaghunter/interface/blackboard_lite.py::build_task_blackboard_snapshot`
+against importing or calling the neutral application board projection builder
+while Candidate A remains approval requested, not approved.
+
+Current approval fact:
+
+- Candidate A: approval requested, not approved
+
+This guard must remain active until explicit Candidate A implementation
+approval lands. Updating the guard is allowed only in the same implementation
+commit that proves old/new output equivalence for the first read-path switch.
+
+Forbidden before approval:
+
+- import `flaghunter.application.challenge.board_read_model_service`
+- call `build_task_board_projection`
+- construct `BuildChallengeBoardReadModel`
+- mark Candidate A as `implementation landed`
+- modify MCP readback, task serialization, or control-decision merge helpers
+
+Boundary confirmation for this pre-approval guard:
+
+- no production path switch
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no proof authority behavior changes
+
 First read-path switch approval plan must include:
 
 - file list
