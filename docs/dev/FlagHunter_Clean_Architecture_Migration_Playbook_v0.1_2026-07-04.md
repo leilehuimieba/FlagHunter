@@ -2182,6 +2182,30 @@ Rules:
   landing evidence update
 - no production path switch is authorized by this landed evidence guard
 
+#### Read-path approval flag aggregate guard
+
+Status: aggregate approval flag guard recorded, no implementation approved by this section.
+
+This aggregate guard ties together the boolean approval and landing fields that
+are intentionally repeated across the read-path governance tables, including
+ledger `approvedForImplementation`, readiness report `Implementation approved`,
+source-map `Implementation approved`, and landed evidence `Implementation
+landed`. A future
+approval or landing change must update all related rows in the same governance
+or implementation commit.
+
+Required aggregate checks:
+
+- ledger `approvedForImplementation` matches the readiness report
+  `Implementation approved`
+- source-map `Implementation approved` remains `false` while the ledger
+  `approvedForImplementation` remains `false`
+- landed evidence `Implementation landed` remains `false` until a landing
+  record exists
+- Candidate C source-map sub-rows must collapse back to the canonical
+  Candidate C ledger row
+- no production path switch is authorized by this aggregate approval flag guard
+
 #### Read-path approval status consistency guard
 
 Status: approval consistency guard recorded, no implementation approved by this

@@ -1159,6 +1159,52 @@ def test_playbook_parses_implementation_landed_evidence_guard() -> None:
         assert readiness_rows[candidate]["Implementation approved"] == "false"
 
 
+def test_playbook_parses_read_path_approval_flag_aggregate_guard() -> None:
+    text = _playbook_text()
+    section = _section_text(text, "Read-path approval flag aggregate guard")
+
+    assert "Status: aggregate approval flag guard recorded, no implementation approved by this section." in section
+    assert "ledger `approvedForImplementation`" in section
+    assert "readiness report `Implementation approved`" in section
+    assert "source-map `Implementation approved`" in section
+    assert "landed evidence `Implementation landed`" in section
+
+    ledger_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path candidate status ledger")
+        )
+    }
+    readiness_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path implementation approval readiness report")
+        )
+    }
+    source_rows = _markdown_table_rows(
+        _section_text(text, "Read-path pre-approval source-map guard")
+    )
+    evidence_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path implementation landed evidence guard")
+        )
+    }
+
+    source_candidates = {
+        row["Candidate"].replace(" serialize-task", "").replace(" control-decision", "")
+        for row in source_rows
+    }
+    assert set(ledger_rows) == set(readiness_rows) == set(evidence_rows)
+    assert source_candidates == set(ledger_rows)
+    for candidate, ledger_row in ledger_rows.items():
+        assert ledger_row["approvedForImplementation"] == "false"
+        assert readiness_rows[candidate]["Implementation approved"] == ledger_row["approvedForImplementation"]
+        assert evidence_rows[candidate]["Implementation landed"] == "false"
+    for row in source_rows:
+        assert row["Implementation approved"] == "false"
+
+
 def test_playbook_records_application_service_source_guard_baseline() -> None:
     text = _playbook_text()
 
