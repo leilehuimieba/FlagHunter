@@ -361,6 +361,23 @@ Focused Phase 4 regression should include:
 .\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/agents/test_p1_claim_invariants.py tests/unit/tools/test_finish_control_receipt.py tests/unit/agents/test_p2_audit_export.py tests/unit/agents/test_p2_evidence_snapshot.py tests/unit/agents/test_p2_ledger_event_readback.py tests/unit/agents/test_p4_task_dag_plan_schema.py tests/unit/agents/test_p4_task_dag_ready_selector.py tests/unit/agents/test_p4_task_dag_replay_audit_bundle.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py tests/unit/agents/test_phase2b_compatibility_shims.py tests/unit/test_adapter_boundary_skeleton.py tests/unit/test_tool_runner_adapter.py tests/unit/test_runtime_action_adapter.py tests/unit/test_read_model_store_adapter.py tests/unit/test_state_store_adapter.py tests/unit/test_audit_store_adapter.py tests/unit/test_artifact_store_adapter.py tests/unit/test_checkpoint_store_adapter.py tests/unit/test_claim_store_adapter.py tests/unit/test_verifier_adapter.py tests/unit/test_proof_authority_adapter.py tests/unit/test_crew_bridge_adapter.py tests/unit/test_task_dag_runner_adapter.py tests/unit/test_application_challenge_snapshot_service.py tests/unit/test_application_task_receipt_service.py tests/unit/test_application_evidence_snapshot_service.py tests/unit/test_application_claim_review_service.py tests/unit/test_application_tool_receipt_service.py tests/unit/test_application_worker_task_service.py -q
 ```
 
+### Application service source guard baseline
+
+Status: source guard added before production wiring.
+
+`tests/unit/test_application_service_source_guards.py` now guards the neutral
+application service package so application services import only neutral contracts and ports. The guard confirms:
+
+- no concrete execution imports
+- no side-effect sinks
+- no proof upgrade surfaces
+- no production wiring
+
+This baseline is not a dispatcher, MCP, crew, runtime, verifier, or composition
+root change. It exists so later application-service slices cannot accidentally
+reach into concrete legacy implementations while clean architecture wiring is
+still pending approval.
+
 ### Next approval gate
 
 The next material step is no longer another neutral skeleton by default; it is

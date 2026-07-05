@@ -271,3 +271,15 @@ def test_playbook_records_deferred_mcp_empty_malformed_fixture_baseline() -> Non
     assert "no MCP production wiring" in text
     assert "no task execution or handler routing changes" in text
     assert "no proof authority behavior changes" in text
+
+
+def test_playbook_records_application_service_source_guard_baseline() -> None:
+    text = _playbook_text()
+
+    assert "Application service source guard baseline" in text
+    assert "tests/unit/test_application_service_source_guards.py" in text
+    assert "application services import only neutral contracts and ports" in text
+    assert "no concrete execution imports" in text
+    assert "no side-effect sinks" in text
+    assert "no proof upgrade surfaces" in text
+    assert "no production wiring" in text
