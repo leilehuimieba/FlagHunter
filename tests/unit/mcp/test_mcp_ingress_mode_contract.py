@@ -259,6 +259,33 @@ def test_deferred_mcp_pre_approval_guard_blocks_neutral_projection_wiring() -> N
     assert sorted(token for token in forbidden_wiring_tokens if token in source) == []
 
 
+def test_mcp_task_ingress_pre_wiring_guard_blocks_adapter_and_service_wiring() -> None:
+    playbook = _playbook_text()
+    assert "Task ingress MCP pre-wiring guard baseline" in playbook
+
+    mcp_server_root = REPO_ROOT / "flaghunter" / "mcp" / "server"
+    forbidden_wiring_tokens = {
+        "TaskIngressAdapter",
+        "TaskIngressPort",
+        "SubmitTaskIngress",
+        "task_ingress_adapter",
+        "task_ingress_service",
+        "flaghunter.adapters.mcp",
+        "flaghunter.application.challenge.task_ingress_service",
+        "flaghunter.ports.task_ingress",
+    }
+    offenders: list[tuple[str, str]] = []
+    for path in sorted(mcp_server_root.rglob("*.py")):
+        source = path.read_text(encoding="utf-8-sig")
+        offenders.extend(
+            (path.relative_to(REPO_ROOT).as_posix(), token)
+            for token in sorted(forbidden_wiring_tokens)
+            if token in source
+        )
+
+    assert offenders == []
+
+
 def test_mcp_blackboard_readback_formatting_matches_candidate_a_projection() -> None:
     case = _mcp_blackboard_readback_formatting_case()
     lines: list[str] = []

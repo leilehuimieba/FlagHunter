@@ -812,6 +812,35 @@ Boundary confirmation for this baseline:
 - no proof authority behavior changes
 - no P5 implementation
 
+### Task ingress MCP pre-wiring guard baseline
+
+Status: MCP pre-wiring guard added before production wiring.
+
+`tests/unit/mcp/test_mcp_ingress_mode_contract.py` now guards the production
+MCP server package against importing or constructing `TaskIngressAdapter`,
+`SubmitTaskIngress`, `TaskIngressPort`, task ingress adapters, task ingress
+application services, or task ingress port modules before explicit production
+wiring approval is recorded.
+
+Required gate: explicit production wiring approval.
+
+This guard keeps the task ingress adapter, port, application service, and
+domain contracts available as clean architecture runway without silently
+rewiring MCP task execution.
+
+Boundary confirmation for this baseline:
+
+- no MCP production wiring
+- no concrete adapter construction
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no composition root changes
+- no proof authority behavior changes
+- no P5 implementation
+
 ### Task ingress application service skeleton baseline
 
 Status: task ingress application service skeleton added before production wiring.

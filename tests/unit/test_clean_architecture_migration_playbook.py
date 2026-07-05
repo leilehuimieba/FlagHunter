@@ -1735,3 +1735,18 @@ def test_playbook_records_task_ingress_readback_contract_baseline() -> None:
     assert "no concrete adapter construction" in text
     assert "no dispatcher loop changes" in text
     assert "no proof authority behavior changes" in text
+
+
+def test_playbook_records_task_ingress_mcp_pre_wiring_guard_baseline() -> None:
+    text = _playbook_text()
+
+    assert "Task ingress MCP pre-wiring guard baseline" in text
+    assert "tests/unit/mcp/test_mcp_ingress_mode_contract.py" in text
+    assert "TaskIngressAdapter" in text
+    assert "SubmitTaskIngress" in text
+    assert "TaskIngressPort" in text
+    assert "no MCP production wiring" in text
+    assert "explicit production wiring approval" in text
+    assert "no dispatcher loop changes" in text
+    assert "no composition root changes" in text
+    assert "no proof authority behavior changes" in text
