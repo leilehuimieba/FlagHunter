@@ -161,6 +161,18 @@ def test_playbook_records_candidate_a_missing_malformed_fixture_baseline() -> No
     assert "no production path switch" in text
 
 
+def test_playbook_records_candidate_a_decision_ingress_action_result_fixture_baseline() -> None:
+    text = _playbook_text()
+
+    assert "Candidate A decision/ingress/action-result fixture baseline" in text
+    assert "tests/unit/interface/test_blackboard_lite.py" in text
+    assert "test_candidate_a_decision_ingress_action_result_baseline" in text
+    assert "decision records, ingress handoff, and session context action results" in text
+    assert "selected candidate and recommended action ordering" in text
+    assert "old/new output equivalence" in text
+    assert "no production path switch" in text
+
+
 def test_playbook_records_candidate_a_approval_plan() -> None:
     text = _playbook_text()
 

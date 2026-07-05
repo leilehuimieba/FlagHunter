@@ -258,6 +258,200 @@ def _candidate_a_missing_or_malformed_task_cases() -> list[dict[str, object]]:
     ]
 
 
+def _candidate_a_decision_ingress_action_result_case() -> dict[str, object]:
+    state = CTFState(target="http://challenge.test", goal="collect accepted proof")
+    state.add_observation(
+        "derived_target",
+        "http://127.0.0.1:3000",
+        source="challenge_context",
+        metadata={"compose_path": r"D:\webstudy\CTF\easy_login\docker-compose.yml"},
+    )
+    state.add_observation(
+        "recon_url",
+        "http://challenge.test/admin",
+        source="recon",
+        metadata={"confidence": "high"},
+    )
+    task = {
+        "controlDecision": {
+            "shouldRun": True,
+            "decisionKind": "explore_first",
+            "reason": "derived target available for initial fact collection",
+            "nextAction": "collect_initial_facts",
+            "driver": "blackboard.derived_target.runtime_derived",
+            "facts": [
+                "mode=ctf",
+                "strongestHypothesisKind=generic_web_recon",
+                "strongestHypothesisStatus=active",
+                "strongestHypothesisConfidence=0.52",
+            ],
+        },
+        "decisionRecords": [
+            {
+                "kind": "explore_first",
+                "source": "web_ingress",
+                "nextAction": "collect_initial_facts",
+                "reason": "derived target available for initial fact collection",
+            },
+            {
+                "kind": "resume_execute",
+                "source": "mcp_ingress",
+                "nextAction": "resume_from_checkpoint",
+                "reason": "resume context available",
+            },
+        ],
+        "ingressHandoff": {
+            "decisionKind": "resume_execute",
+            "nextAction": "resume_from_checkpoint",
+            "resumeBootstrap": {
+                "runId": "run-prev-3",
+                "checkpointId": "checkpoint-prev-3",
+                "summary": "continue from saved recon state",
+            },
+        },
+        "ctfStateSnapshot": state.to_snapshot(),
+    }
+    session_context = {
+        "recentEvents": [
+            {
+                "type": "control_action_started",
+                "t": "2026-06-03T10:00:01+00:00",
+                "payload": {
+                    "action": "collect_initial_facts",
+                    "expected_action": "collect_initial_facts",
+                    "alignment": "matched",
+                    "alignment_reason": "coordinator followed ingress action",
+                    "driver": "blackboard.derived_target.runtime_derived",
+                    "strongest_hypothesis_kind": "generic_web_recon",
+                    "strongest_hypothesis_status": "active",
+                    "strongest_hypothesis_confidence": 0.52,
+                },
+            },
+            {
+                "type": "control_action_completed",
+                "t": "2026-06-03T10:00:02+00:00",
+                "payload": {
+                    "action": "collect_initial_facts",
+                    "driver": "blackboard.derived_target.runtime_derived",
+                    "result": "skipped",
+                    "details": {"reason": "already explored from inherited trace"},
+                    "strongest_hypothesis_kind": "generic_web_recon",
+                    "strongest_hypothesis_status": "active",
+                    "strongest_hypothesis_confidence": 0.52,
+                },
+            },
+        ]
+    }
+    return {
+        "task": task,
+        "sessionContext": session_context,
+        "expectedDecisions": [
+            {
+                "kind": "explore_first",
+                "source": "web_ingress",
+                "nextAction": "collect_initial_facts",
+                "reason": "derived target available for initial fact collection",
+            },
+            {
+                "kind": "resume_execute",
+                "source": "mcp_ingress",
+                "nextAction": "resume_from_checkpoint",
+                "reason": "resume context available",
+            },
+        ],
+        "expectedActiveDecision": {
+            "decisionKind": "explore_first",
+            "nextAction": "collect_initial_facts",
+            "driver": "blackboard.derived_target.runtime_derived",
+            "reason": "derived target available for initial fact collection",
+            "expectedAction": "collect_initial_facts",
+            "observedAction": "collect_initial_facts",
+            "alignment": "matched",
+            "alignmentReason": "coordinator followed ingress action",
+            "strongestHypothesisKind": "generic_web_recon",
+            "strongestHypothesisStatus": "active",
+            "strongestHypothesisConfidence": 0.52,
+        },
+        "expectedActionResults": [
+            {
+                "action": "collect_initial_facts",
+                "driver": "blackboard.derived_target.runtime_derived",
+                "result": "skipped",
+                "t": "2026-06-03T10:00:02+00:00",
+                "details": {"reason": "already explored from inherited trace"},
+                "expectedAction": "collect_initial_facts",
+                "alignment": "matched",
+                "alignmentReason": "coordinator followed ingress action",
+                "strongestHypothesisKind": "generic_web_recon",
+                "strongestHypothesisStatus": "active",
+                "strongestHypothesisConfidence": 0.52,
+            }
+        ],
+        "expectedRecommendedAction": {
+            "action": "resume_from_checkpoint",
+            "driver": "blackboard.resume_context",
+            "sourceType": "ingress",
+            "reason": "selected action failed; switch to next best candidate",
+            "switchedFrom": "collect_initial_facts",
+            "triggerResult": "skipped",
+            "triggerReason": "already explored from inherited trace",
+            "triggerActionDriver": "blackboard.derived_target.runtime_derived",
+            "triggerAt": "2026-06-03T10:00:02+00:00",
+            "strongestHypothesisKind": "generic_web_recon",
+            "strongestHypothesisStatus": "active",
+            "strongestHypothesisConfidence": 0.52,
+        },
+        "expectedCandidateOrder": [
+            "collect_initial_facts",
+            "resume_from_checkpoint",
+            "probe_discovered_endpoint",
+        ],
+        "expectedLines": [
+            "[blackboard_facts]",
+            "control_decision=explore_first",
+            "next_action=collect_initial_facts",
+            "resume_run_id=run-prev-3",
+            "resume_checkpoint_id=checkpoint-prev-3",
+            "derived_target=http://127.0.0.1:3000",
+            "discovered_endpoint=http://challenge.test/admin",
+            "[blackboard_active_decision]",
+            "decisionKind=explore_first",
+            "nextAction=collect_initial_facts",
+            "driver=blackboard.derived_target.runtime_derived",
+            "reason=derived target available for initial fact collection",
+            "expectedAction=collect_initial_facts",
+            "observedAction=collect_initial_facts",
+            "alignment=matched",
+            "alignmentReason=coordinator followed ingress action",
+            "strongestHypothesisKind=generic_web_recon",
+            "strongestHypothesisStatus=active",
+            "strongestHypothesisConfidence=0.52",
+            "[blackboard_recommended_action]",
+            "action=resume_from_checkpoint",
+            "driver=blackboard.resume_context",
+            "sourceType=ingress",
+            "reason=selected action failed; switch to next best candidate",
+            "switchedFrom=collect_initial_facts",
+            "triggerResult=skipped",
+            "triggerReason=already explored from inherited trace",
+            "triggerActionDriver=blackboard.derived_target.runtime_derived",
+            "triggerAt=2026-06-03T10:00:02+00:00",
+            "[blackboard_action_results]",
+            "action=collect_initial_facts",
+            "driver=blackboard.derived_target.runtime_derived",
+            "result=skipped",
+            "expectedAction=collect_initial_facts",
+            "alignment=matched",
+            "alignmentReason=coordinator followed ingress action",
+            "strongestHypothesisKind=generic_web_recon",
+            "strongestHypothesisStatus=active",
+            "strongestHypothesisConfidence=0.52",
+            "[blackboard_attack_surfaces]",
+            "endpoint=http://challenge.test/admin [suspected/0.375]",
+        ],
+    }
+
+
 def test_build_task_blackboard_snapshot_source_stays_read_only_projection() -> None:
     tree = _parse_blackboard_lite()
     public_helper_source = _function_source(tree, "build_task_blackboard_snapshot")
@@ -576,6 +770,24 @@ def test_candidate_a_missing_or_malformed_state_snapshot_baseline() -> None:
 
         assert snapshot == case["expectedSnapshot"]
         assert format_blackboard_snapshot_lines(snapshot) == case["expectedLines"]
+
+
+def test_candidate_a_decision_ingress_action_result_baseline() -> None:
+    case = _candidate_a_decision_ingress_action_result_case()
+
+    snapshot = serialize_blackboard_snapshot(
+        build_task_blackboard_snapshot(
+            case["task"],  # type: ignore[arg-type]
+            session_context=case["sessionContext"],  # type: ignore[arg-type]
+        )
+    )
+
+    assert snapshot["decisions"] == case["expectedDecisions"]
+    assert snapshot["activeDecision"] == case["expectedActiveDecision"]
+    assert snapshot["actionResults"] == case["expectedActionResults"]
+    assert snapshot["recommendedAction"] == case["expectedRecommendedAction"]
+    assert [item["action"] for item in snapshot["candidates"]] == case["expectedCandidateOrder"]
+    assert format_blackboard_snapshot_lines(snapshot) == case["expectedLines"]
 
 
 def test_build_entry_blackboard_snapshot_matches_web_contract() -> None:

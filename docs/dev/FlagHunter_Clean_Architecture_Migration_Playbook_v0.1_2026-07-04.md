@@ -522,6 +522,32 @@ Boundary confirmation for this baseline:
 - no MCP production wiring
 - no proof authority behavior changes
 
+#### Candidate A decision/ingress/action-result fixture baseline
+
+Status: decision/ingress/action-result fixture added before any production path
+switch.
+
+`tests/unit/interface/test_blackboard_lite.py` now includes
+`test_candidate_a_decision_ingress_action_result_baseline`. It locks the
+current public Web blackboard projection behavior for decision records, ingress handoff, and session context action results,
+including selected candidate and recommended action ordering.
+
+This fixture is not a neutral read-model switch. It exists so a future neutral
+blackboard projection builder can prove old/new output equivalence for
+decision/readback merge semantics before any Candidate A implementation changes
+are approved.
+
+Boundary confirmation for this baseline:
+
+- no production path switch
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no proof authority behavior changes
+
 Candidate B: Web control-observation trace timeline.
 
 - Current path:
