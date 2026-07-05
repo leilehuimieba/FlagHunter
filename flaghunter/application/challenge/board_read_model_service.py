@@ -228,6 +228,8 @@ def _recommended_action_projection(
     if explicit:
         _mark_recommended_candidate(candidates, _clean_text(explicit.get("action")))
         return explicit
+    if isinstance(active_decision.get("suppressedRecommendation"), Mapping):
+        return {}
     selected_action = _clean_text(active_decision.get("nextAction"))
     if not selected_action:
         return {}

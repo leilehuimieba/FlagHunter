@@ -630,6 +630,73 @@ def test_task_board_projection_omits_malformed_candidate_and_action_rows() -> No
     _assert_json_friendly(projection)
 
 
+def test_task_board_projection_respects_suppressed_recommendation() -> None:
+    from flaghunter.application.challenge.board_read_model_service import (
+        build_task_board_projection,
+    )
+    from flaghunter.domain.challenge.contracts import ChallengeBoardReadModel
+
+    model = ChallengeBoardReadModel(
+        run_id="run-suppressed-recommendation",
+        challenge_id="challenge-suppressed-recommendation",
+        decisions=[
+            {
+                "nextAction": "verify_or_submit_proof",
+                "suppressedRecommendation": {
+                    "action": "collect_initial_facts",
+                    "driver": "board.derived_target",
+                    "reason": "higher priority proof candidate present",
+                    "suppressedBy": "board.proof_candidate",
+                },
+            }
+        ],
+        candidates=[
+            {
+                "action": "verify_or_submit_proof",
+                "selected": True,
+                "recommended": False,
+            },
+            {
+                "action": "collect_initial_facts",
+                "selected": False,
+                "recommended": False,
+            },
+        ],
+        action_results=[
+            {
+                "action": "verify_or_submit_proof",
+                "driver": "board.proof_candidate",
+                "result": "failed",
+                "details": {"reason": "would derive without suppression"},
+            }
+        ],
+    )
+
+    projection = build_task_board_projection(model)
+
+    assert projection["active_decision"]["suppressedRecommendation"] == {
+        "action": "collect_initial_facts",
+        "driver": "board.derived_target",
+        "reason": "higher priority proof candidate present",
+        "suppressedBy": "board.proof_candidate",
+    }
+    assert projection["recommended_action"] == {}
+    assert projection["candidates"] == [
+        {
+            "action": "verify_or_submit_proof",
+            "selected": True,
+            "recommended": False,
+        },
+        {
+            "action": "collect_initial_facts",
+            "selected": False,
+            "recommended": False,
+        },
+    ]
+    assert "would derive without suppression" not in repr(projection["recommended_action"])
+    _assert_json_friendly(projection)
+
+
 def test_board_read_model_service_uses_only_inner_contracts() -> None:
     path = _board_service_source()
     tree = _parse(path)
