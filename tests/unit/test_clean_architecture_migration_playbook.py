@@ -591,6 +591,35 @@ def test_playbook_records_read_path_switch_acceptance_matrix() -> None:
         assert forbidden_scope in text
 
 
+def test_playbook_records_read_path_source_guard_ledger() -> None:
+    text = _playbook_text()
+
+    assert "Read-path source guard ledger" in text
+    assert "Candidate A" in text
+    assert "tests/unit/interface/test_blackboard_lite.py" in text
+    assert "flaghunter/interface/blackboard_lite.py::build_task_blackboard_snapshot" in text
+    assert "Candidate B" in text
+    assert "tests/unit/web_console/test_trace_timeline_read_model_switch.py" in text
+    assert (
+        "flaghunter/interface/web_trace_timeline.py::_build_control_observation_timeline_events"
+        in text
+    )
+    assert "Candidate C" in text
+    assert "tests/unit/interface/test_web_server.py" in text
+    assert "flaghunter/interface/web_serialize_task.py::_serialize_task" in text
+    assert "flaghunter/interface/web_control_decision.py::_task_blackboard_snapshot_for_decision" in text
+    assert "Deferred MCP" in text
+    assert "tests/unit/mcp/test_mcp_ingress_mode_contract.py" in text
+    assert "flaghunter/mcp/server/mcp_tools.py::_append_blackboard_snapshot_lines" in text
+    for guard in (
+        "no execution/runtime imports",
+        "no side-effect sinks",
+        "no proof upgrade surfaces",
+        "no production wiring",
+    ):
+        assert guard in text
+
+
 def test_playbook_records_application_service_source_guard_baseline() -> None:
     text = _playbook_text()
 

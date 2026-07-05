@@ -1649,6 +1649,25 @@ Forbidden scope for every row:
 - proof authority behavior
 - P5
 
+#### Read-path source guard ledger
+
+Status: source guard ownership recorded, no implementation approved by this
+section.
+
+| Candidate | Guard test | Guarded helper |
+|-----------|------------|----------------|
+| Candidate A | `tests/unit/interface/test_blackboard_lite.py` | `flaghunter/interface/blackboard_lite.py::build_task_blackboard_snapshot` |
+| Candidate B | `tests/unit/web_console/test_trace_timeline_read_model_switch.py` | `flaghunter/interface/web_trace_timeline.py::_build_control_observation_timeline_events` |
+| Candidate C | `tests/unit/interface/test_web_server.py` | `flaghunter/interface/web_serialize_task.py::_serialize_task` and `flaghunter/interface/web_control_decision.py::_task_blackboard_snapshot_for_decision` |
+| Deferred MCP | `tests/unit/mcp/test_mcp_ingress_mode_contract.py` | `flaghunter/mcp/server/mcp_tools.py::_append_blackboard_snapshot_lines` |
+
+Each guard must keep proving:
+
+- no execution/runtime imports
+- no side-effect sinks
+- no proof upgrade surfaces
+- no production wiring
+
 First read-path switch approval plan must include:
 
 - file list
