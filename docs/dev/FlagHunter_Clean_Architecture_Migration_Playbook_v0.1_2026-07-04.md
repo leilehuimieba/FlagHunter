@@ -1038,6 +1038,34 @@ Required verification for the future implementation commit:
 git diff --check
 ```
 
+#### Task ingress service contract migration approval flag consistency guard
+
+Status: approval consistency guard recorded, implementation not approved by this section.
+
+The task ingress service migration has three governance surfaces that must stay
+aligned before any implementation work starts:
+
+- Task ingress service contract migration plan
+- Task ingress service contract migration pre-approval guard
+- Task ingress service contract migration readiness checklist
+
+| Governance surface | Implementation approved | Service migration landed |
+|--------------------|-------------------------|--------------------------|
+| plan | false | false |
+| pre-approval guard | false | false |
+| readiness checklist | false | false |
+
+Required consistency:
+
+- the plan remains `implementation not approved`
+- the pre-approval guard remains active
+- the readiness checklist remains `not approved for implementation`
+- no implementation approval by implication
+- no service migration
+- no production wiring
+- no status-only approval without an explicit approval section and matching
+  implementation commit
+
 ### Adapter substitution source guard baseline
 
 Status: source guard added for substitution fixtures.

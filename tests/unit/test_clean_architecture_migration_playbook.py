@@ -28,6 +28,19 @@ def _section_text(text: str, heading: str) -> str:
     return text[start:next_heading]
 
 
+def _heading_section_text(text: str, heading: str) -> str:
+    for level in ("####", "###"):
+        marker = f"{level} {heading}"
+        if marker not in text:
+            continue
+        start = text.index(marker)
+        next_same_level = text.find(f"\n{level} ", start + len(marker))
+        if next_same_level == -1:
+            return text[start:]
+        return text[start:next_same_level]
+    raise AssertionError(f"missing heading: {heading}")
+
+
 def _markdown_table_rows(section: str) -> list[dict[str, str]]:
     table_lines = [
         line.strip()
@@ -1849,3 +1862,54 @@ def test_playbook_records_task_ingress_service_migration_readiness_checklist() -
         "git diff --check",
     ):
         assert command in text
+
+
+def test_playbook_parses_task_ingress_service_migration_approval_flag_consistency_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Task ingress service contract migration approval flag consistency guard",
+    )
+
+    assert "Status: approval consistency guard recorded, implementation not approved by this section." in section
+    assert "Task ingress service contract migration plan" in section
+    assert "Task ingress service contract migration pre-approval guard" in section
+    assert "Task ingress service contract migration readiness checklist" in section
+    assert "no implementation approval by implication" in section
+    assert "no service migration" in section
+
+    plan = _heading_section_text(text, "Task ingress service contract migration plan")
+    pre_approval = _heading_section_text(
+        text,
+        "Task ingress service contract migration pre-approval guard",
+    )
+    readiness = _heading_section_text(
+        text,
+        "Task ingress service contract migration readiness checklist",
+    )
+
+    assert "Status: plan recorded, implementation not approved." in plan
+    assert "Status: pre-approval guard active, implementation not approved." in pre_approval
+    assert "Status: ready for approval review, not approved for implementation." in readiness
+
+    status_rows = {
+        row["Governance surface"]: row
+        for row in _markdown_table_rows(section)
+    }
+    expected_surfaces = {
+        "plan",
+        "pre-approval guard",
+        "readiness checklist",
+    }
+    assert set(status_rows) == expected_surfaces
+    for row in status_rows.values():
+        assert row["Implementation approved"] == "false"
+        assert row["Service migration landed"] == "false"
+
+    for forbidden_phrase in (
+        "approved for implementation",
+        "implementation approved",
+        "service migration landed",
+    ):
+        assert forbidden_phrase not in plan.lower()
+        assert forbidden_phrase not in pre_approval.lower()
