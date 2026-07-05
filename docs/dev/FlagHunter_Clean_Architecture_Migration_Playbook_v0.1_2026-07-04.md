@@ -2243,6 +2243,31 @@ Rules:
   unapproved
 - no service migration is authorized by this evidence guard
 
+#### Task ingress service landing status guard
+
+Status: landing status guard recorded, service migration not landed.
+
+The task ingress service migration has not landed. The landing template,
+rollback placeholder, and approval evidence guard must continue to agree on
+that state until a future approved implementation commit supplies real landing
+evidence.
+
+| Landing surface | Required location | Current landed |
+|-----------------|-------------------|----------------|
+| landing record template | `Task ingress service contract migration landing record template` | false |
+| rollback placeholder | `Task ingress service rollback placeholder consistency guard` | false |
+| approval evidence | `Task ingress service approval transition evidence consistency guard` | false |
+
+Rules:
+
+- no landing surface may move to `Current landed` = `true` without a real
+  implementation commit SHA
+- placeholder rollback commands remain non-executable while `Current landed`
+  remains `false`
+- approval evidence rows must stay `false` while the service migration remains
+  unapproved
+- no service migration is authorized by this landing status guard
+
 ### Adapter substitution source guard baseline
 
 Status: source guard added for substitution fixtures.

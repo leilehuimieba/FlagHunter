@@ -2142,3 +2142,55 @@ def test_playbook_parses_task_ingress_service_approval_transition_evidence_consi
         "service migration landed",
     ):
         assert forbidden not in section
+
+
+def test_playbook_parses_task_ingress_service_landing_status_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Task ingress service landing status guard",
+    )
+
+    assert "Status: landing status guard recorded, service migration not landed." in section
+    assert "no service migration is authorized by this landing status guard" in section
+
+    rows = {
+        row["Landing surface"]: row
+        for row in _markdown_table_rows(section)
+    }
+    assert rows == {
+        "landing record template": {
+            "Landing surface": "landing record template",
+            "Required location": "`Task ingress service contract migration landing record template`",
+            "Current landed": "false",
+        },
+        "rollback placeholder": {
+            "Landing surface": "rollback placeholder",
+            "Required location": "`Task ingress service rollback placeholder consistency guard`",
+            "Current landed": "false",
+        },
+        "approval evidence": {
+            "Landing surface": "approval evidence",
+            "Required location": "`Task ingress service approval transition evidence consistency guard`",
+            "Current landed": "false",
+        },
+    }
+
+    landing_template = _heading_section_text(
+        text,
+        "Task ingress service contract migration landing record template",
+    )
+    rollback_guard = _heading_section_text(
+        text,
+        "Task ingress service rollback placeholder consistency guard",
+    )
+    evidence_guard = _heading_section_text(
+        text,
+        "Task ingress service approval transition evidence consistency guard",
+    )
+
+    assert "Status: landing evidence template recorded, implementation not approved." in landing_template
+    rollback_rows = _markdown_table_rows(rollback_guard)
+    assert rollback_rows[0]["Current executable"] == "false"
+    for row in _markdown_table_rows(evidence_guard):
+        assert row["Current approval evidence present"] == "false"
