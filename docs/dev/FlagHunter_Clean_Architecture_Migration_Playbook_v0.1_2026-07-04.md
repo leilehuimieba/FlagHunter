@@ -1091,11 +1091,13 @@ still allowing only `flaghunter.domain` and `flaghunter.ports` imports:
 - `flaghunter.agents`
 - `flaghunter.config`
 - `flaghunter.cpa_modules`
+- `flaghunter.eval`
 - `flaghunter.interface`
 - `flaghunter.knowledge`
 - `flaghunter.llm`
 - `flaghunter.mcp`
 - `flaghunter.playbooks`
+- `flaghunter.redteam`
 - `flaghunter.runtime`
 - `flaghunter.session`
 - `flaghunter.tools`
@@ -1103,9 +1105,10 @@ still allowing only `flaghunter.domain` and `flaghunter.ports` imports:
 
 This guard keeps `flaghunter/application/challenge` as a use-case layer that
 depends only on neutral contracts and ports, and prevents future service slices
-from reaching outward into adapters, legacy feature modules, playbooks,
-production configuration, model/runtime code, presentation, MCP, tools,
-sessions, or workspace helpers before explicit production-wiring approval.
+from reaching outward into adapters, legacy feature modules, evaluation
+harnesses, red-team legacy helpers, playbooks, production configuration,
+model/runtime code, presentation, MCP, tools, sessions, or workspace helpers
+before explicit production-wiring approval.
 
 Boundary confirmation for this guard:
 
