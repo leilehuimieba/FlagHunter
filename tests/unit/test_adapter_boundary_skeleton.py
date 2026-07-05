@@ -168,6 +168,15 @@ FORBIDDEN_PUBLIC_DOMAIN_TERMS = {
     "redteam",
 }
 
+REQUIRED_ADAPTER_COVERAGE_GUARD_SECTIONS = {
+    "Adapter production wiring source guard",
+    "Adapter action sink coverage guard",
+    "Adapter proof action coverage guard",
+    "Adapter outer-layer import coverage guard",
+    "Adapter public surface domain-neutral naming guard",
+    "Specific adapter source guard import coverage consistency guard",
+}
+
 
 def _parse(path: Path) -> ast.Module:
     with warnings.catch_warnings():
@@ -439,3 +448,10 @@ def test_adapter_public_names_docstrings_and_paths_are_domain_neutral() -> None:
                 )
 
     assert offenders == []
+
+
+def test_adapter_source_guard_coverage_completeness_records_all_guard_groups() -> None:
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Adapter source guard coverage completeness guard" in playbook
+    for section_name in sorted(REQUIRED_ADAPTER_COVERAGE_GUARD_SECTIONS):
+        assert section_name in playbook

@@ -2387,6 +2387,39 @@ Boundary confirmation for this guard:
 - no ToolExecutor changes
 - no proof authority behavior changes
 
+#### Adapter source guard coverage completeness guard
+
+Status: aggregate coverage completeness guard added for adapter skeleton source
+guards.
+
+`tests/unit/test_adapter_boundary_skeleton.py` now requires the adapter
+skeleton source guard record to keep all adapter boundary guard groups visible
+together:
+
+- `Adapter production wiring source guard`
+- `Adapter action sink coverage guard`
+- `Adapter proof action coverage guard`
+- `Adapter outer-layer import coverage guard`
+- `Adapter public surface domain-neutral naming guard`
+- `Specific adapter source guard import coverage consistency guard`
+
+This aggregate guard prevents adapter skeleton boundary coverage from drifting
+into partial protection. Adapter skeletons must keep production wiring
+surfaces, action sinks, proof authority surfaces, outer-layer imports, public
+neutral naming, and focused adapter-test import coverage guarded as one
+complete unwired-adapter boundary.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter production wiring
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 ### Adapter substitution runway completed
 
 Status: low-risk adapter substitution fixture runway completed.
