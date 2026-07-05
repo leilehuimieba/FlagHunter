@@ -414,6 +414,34 @@ Boundary confirmation for this baseline:
 - no MCP production wiring
 - no proof authority behavior changes
 
+### Candidate A neutral board projection fixture baseline
+
+Status: neutral projection fixture added before any production path switch.
+
+`build_task_board_projection` now exists as a pure helper under
+`flaghunter/application/challenge/board_read_model_service.py`. It projects an
+already-neutral `ChallengeBoardReadModel` into the Candidate A-compatible response key shape
+used by the current Web blackboard projection:
+`facts`, `hypotheses`, `pending_verifications`, `decisions`, `candidates`,
+`active_decision`, `action_results`, `recommended_action`, and
+`attack_surfaces`.
+
+`tests/unit/test_application_board_read_model_service.py` locks this
+equivalence fixture so a future Candidate A implementation slice has a
+neutral, source-guarded projection target before any presentation call site is
+switched.
+
+Boundary confirmation for this baseline:
+
+- no production path switch
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no proof authority behavior changes
+
 ### Application service source guard baseline
 
 Status: source guard added before production wiring.

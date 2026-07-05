@@ -39,12 +39,53 @@ class BuildChallengeBoardReadModel:
         )
 
 
+def build_task_board_projection(
+    read_model: ChallengeBoardReadModel | Mapping[str, Any],
+) -> dict[str, JsonValue]:
+    board = _normalize_board(read_model)
+    payload = board.to_dict()
+    evidence_items = [
+        item
+        for item in _mapping_list(payload.get("evidence"))
+        if _item_bucket(item) != "pendingVerification"
+    ]
+    pending_items = [
+        item
+        for item in _mapping_list(payload.get("evidence"))
+        if _item_bucket(item) == "pendingVerification"
+    ]
+    return {
+        "facts": [
+            _board_item_projection(item)
+            for item in _mapping_list(payload.get("facts"))
+        ],
+        "hypotheses": _mapping_list(payload.get("metadata", {}).get("hypotheses")),
+        "pending_verifications": [
+            _board_item_projection(item) for item in pending_items
+        ],
+        "decisions": _mapping_list(payload.get("decisions")),
+        "candidates": _mapping_list(payload.get("candidates")),
+        "active_decision": _first_mapping(payload.get("decisions")),
+        "action_results": _mapping_list(payload.get("actionResults")),
+        "recommended_action": coerce_json_dict(payload.get("recommendedTask")),
+        "attack_surfaces": _mapping_list(payload.get("surfaceRefs")),
+    }
+
+
 def _normalize_snapshot(
     snapshot: ChallengeRunSnapshot | Mapping[str, Any],
 ) -> ChallengeRunSnapshot:
     if isinstance(snapshot, ChallengeRunSnapshot):
         return snapshot
     return ChallengeRunSnapshot.from_dict(snapshot)
+
+
+def _normalize_board(
+    read_model: ChallengeBoardReadModel | Mapping[str, Any],
+) -> ChallengeBoardReadModel:
+    if isinstance(read_model, ChallengeBoardReadModel):
+        return read_model
+    return ChallengeBoardReadModel.from_dict(read_model)
 
 
 def _claim_items(snapshot: ChallengeRunSnapshot) -> list[BoardItem]:
@@ -121,3 +162,40 @@ def _surface_refs(value: JsonValue) -> list[dict[str, JsonValue]]:
         for item in coerce_json_list(value if isinstance(value, list) else None)
         if isinstance(item, Mapping)
     ]
+
+
+def _mapping_list(value: JsonValue) -> list[dict[str, JsonValue]]:
+    return [
+        coerce_json_dict(item)
+        for item in coerce_json_list(value if isinstance(value, list) else None)
+        if isinstance(item, Mapping)
+    ]
+
+
+def _first_mapping(value: JsonValue) -> dict[str, JsonValue]:
+    items = _mapping_list(value)
+    return items[0] if items else {}
+
+
+def _item_bucket(item: Mapping[str, Any]) -> str:
+    metadata = coerce_json_dict(item.get("metadata"))
+    bucket = metadata.get("boardBucket")
+    return str(bucket or "")
+
+
+def _board_item_projection(item: Mapping[str, Any]) -> dict[str, JsonValue]:
+    metadata = coerce_json_dict(item.get("metadata"))
+    projection: dict[str, JsonValue] = {
+        "kind": str(item.get("itemType") or ""),
+        "value": item.get("value"),
+    }
+    source = item.get("sourceRef")
+    if source is not None:
+        projection["source"] = str(source)
+    confidence = item.get("confidence")
+    if confidence is not None:
+        projection["confidence"] = confidence
+    rationale = metadata.get("rationale")
+    if rationale is not None:
+        projection["rationale"] = rationale
+    return projection

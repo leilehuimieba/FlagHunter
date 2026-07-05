@@ -285,6 +285,79 @@ def test_build_projects_neutral_snapshot_records_without_mutating_input() -> Non
     _assert_json_friendly(payload)
 
 
+def test_task_board_projection_matches_candidate_a_public_shape() -> None:
+    from flaghunter.application.challenge.board_read_model_service import (
+        build_task_board_projection,
+    )
+    from flaghunter.domain.challenge.contracts import (
+        BoardItem,
+        ChallengeBoardReadModel,
+    )
+
+    model = ChallengeBoardReadModel(
+        run_id="run-a",
+        challenge_id="challenge-a",
+        facts=[
+            BoardItem(
+                item_id="fact-1",
+                item_type="next_action",
+                value="collect_initial_facts",
+                source_ref="ingress",
+                confidence=0.75,
+                metadata={"rationale": "continue from checkpoint"},
+            )
+        ],
+        evidence=[
+            BoardItem(
+                item_id="pending-1",
+                item_type="runtime_flag",
+                value="candidate-answer",
+                source_ref="runtime",
+                metadata={
+                    "boardBucket": "pendingVerification",
+                    "rationale": "needs review",
+                },
+            )
+        ],
+        decisions=[{"nextAction": "collect_initial_facts"}],
+        candidates=[{"action": "collect_initial_facts", "selected": True}],
+        action_results=[{"action": "collect_initial_facts", "result": "ok"}],
+        recommended_task={"action": "probe_discovered_endpoint"},
+        surface_refs=[{"endpoint": "http://challenge.test/admin", "score": 0.5}],
+        metadata={"hypotheses": [{"kind": "generic_web_recon", "confidence": 0.5}]},
+    )
+
+    projection = build_task_board_projection(model)
+
+    assert projection == {
+        "facts": [
+            {
+                "kind": "next_action",
+                "value": "collect_initial_facts",
+                "source": "ingress",
+                "confidence": 0.75,
+                "rationale": "continue from checkpoint",
+            }
+        ],
+        "hypotheses": [{"kind": "generic_web_recon", "confidence": 0.5}],
+        "pending_verifications": [
+            {
+                "kind": "runtime_flag",
+                "value": "candidate-answer",
+                "source": "runtime",
+                "rationale": "needs review",
+            }
+        ],
+        "decisions": [{"nextAction": "collect_initial_facts"}],
+        "candidates": [{"action": "collect_initial_facts", "selected": True}],
+        "active_decision": {"nextAction": "collect_initial_facts"},
+        "action_results": [{"action": "collect_initial_facts", "result": "ok"}],
+        "recommended_action": {"action": "probe_discovered_endpoint"},
+        "attack_surfaces": [{"endpoint": "http://challenge.test/admin", "score": 0.5}],
+    }
+    _assert_json_friendly(projection)
+
+
 def test_board_read_model_service_uses_only_inner_contracts() -> None:
     path = _board_service_source()
     tree = _parse(path)

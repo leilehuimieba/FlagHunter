@@ -62,6 +62,19 @@ def test_playbook_records_board_read_model_sanitization_baseline() -> None:
     assert "no proof authority behavior changes" in text
 
 
+def test_playbook_records_candidate_a_neutral_projection_fixture_baseline() -> None:
+    text = _playbook_text()
+
+    assert "Candidate A neutral board projection fixture baseline" in text
+    assert "build_task_board_projection" in text
+    assert "ChallengeBoardReadModel" in text
+    assert "Candidate A-compatible response key shape" in text
+    assert "tests/unit/test_application_board_read_model_service.py" in text
+    assert "no production path switch" in text
+    assert "no MCP production wiring" in text
+    assert "no proof authority behavior changes" in text
+
+
 def test_playbook_records_next_approval_gate_after_phase4_skeletons() -> None:
     text = _playbook_text()
 
