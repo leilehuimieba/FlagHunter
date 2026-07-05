@@ -1668,6 +1668,42 @@ Each guard must keep proving:
 - no proof upgrade surfaces
 - no production wiring
 
+#### Read-path approval state transitions
+
+Status: transition rules recorded, no implementation approved by this section.
+
+Allowed states for read-path candidates:
+
+- not approved
+- ready for approval review
+- approval requested
+- approved for implementation
+- implementation landed
+- blocked
+
+Allowed transitions:
+
+- not approved -> approval requested
+- ready for approval review -> approval requested
+- approval requested -> approved for implementation
+- approved for implementation -> implementation landed
+- blocked -> approval requested
+
+Forbidden transitions:
+
+- not approved -> implementation landed
+- approval requested -> implementation landed
+- blocked -> implementation landed
+- ready for approval review -> implementation landed
+
+Rules:
+
+- moving into `approved for implementation` requires explicit human approval
+- moving into `implementation landed` requires the single implementation commit
+  for that candidate or call-site family
+- old/new output equivalence must be recorded before implementation lands
+- source guard remains green before and after the implementation commit
+
 First read-path switch approval plan must include:
 
 - file list

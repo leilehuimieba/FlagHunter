@@ -620,6 +620,39 @@ def test_playbook_records_read_path_source_guard_ledger() -> None:
         assert guard in text
 
 
+def test_playbook_records_read_path_approval_state_transitions() -> None:
+    text = _playbook_text()
+
+    assert "Read-path approval state transitions" in text
+    for state in (
+        "not approved",
+        "approval requested",
+        "approved for implementation",
+        "implementation landed",
+        "blocked",
+    ):
+        assert state in text
+    for transition in (
+        "not approved -> approval requested",
+        "approval requested -> approved for implementation",
+        "approved for implementation -> implementation landed",
+        "ready for approval review -> approval requested",
+        "blocked -> approval requested",
+    ):
+        assert transition in text
+    for forbidden_transition in (
+        "not approved -> implementation landed",
+        "approval requested -> implementation landed",
+        "blocked -> implementation landed",
+        "ready for approval review -> implementation landed",
+    ):
+        assert forbidden_transition in text
+    assert "explicit human approval" in text
+    assert "single implementation commit" in text
+    assert "old/new output equivalence" in text
+    assert "source guard remains green" in text
+
+
 def test_playbook_records_application_service_source_guard_baseline() -> None:
     text = _playbook_text()
 
