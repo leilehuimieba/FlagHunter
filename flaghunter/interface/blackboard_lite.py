@@ -4,6 +4,10 @@ import re
 from typing import Any
 
 from flaghunter.agents.pa_agent.ctf_state import CTFState
+from flaghunter.application.challenge.board_read_model_service import (
+    build_task_board_projection,
+)
+from flaghunter.domain.challenge.contracts import BoardItem, ChallengeBoardReadModel
 from flaghunter.interface.control_contract import strongest_hypothesis_contract
 from flaghunter.knowledge.attack_surface import collect_attack_surfaces
 from flaghunter.knowledge.blackboard_schema import BoardFact
@@ -665,6 +669,110 @@ def _build_recommended_action(
     return {}
 
 
+def _board_item_from_projection(
+    item: dict[str, Any],
+    *,
+    item_id: str,
+    board_bucket: str = "",
+) -> BoardItem | None:
+    kind = str(item.get("kind") or "").strip()
+    if not kind:
+        return None
+    metadata: dict[str, Any] = {}
+    if item.get("rationale") is not None:
+        metadata["rationale"] = item.get("rationale")
+    if board_bucket:
+        metadata["boardBucket"] = board_bucket
+    return BoardItem(
+        item_id=item_id,
+        item_type=kind,
+        value=item.get("value"),
+        source_ref=(
+            str(item.get("source"))
+            if item.get("source") is not None
+            else None
+        ),
+        confidence=item.get("confidence"),
+        metadata=metadata,
+    )
+
+
+def _board_items_from_projection(
+    items: list[dict[str, Any]],
+    *,
+    prefix: str,
+    board_bucket: str = "",
+) -> list[BoardItem]:
+    board_items: list[BoardItem] = []
+    for index, item in enumerate(items):
+        if not isinstance(item, dict):
+            continue
+        board_item = _board_item_from_projection(
+            item,
+            item_id=f"{prefix}-{index}",
+            board_bucket=board_bucket,
+        )
+        if board_item is not None:
+            board_items.append(board_item)
+    return board_items
+
+
+def _project_candidate_a_board(
+    snapshot: dict[str, Any],
+) -> dict[str, Any]:
+    read_model = ChallengeBoardReadModel(
+        run_id="",
+        challenge_id="",
+        facts=_board_items_from_projection(
+            list(snapshot.get("facts") or []),
+            prefix="fact",
+        ),
+        evidence=_board_items_from_projection(
+            list(snapshot.get("pending_verifications") or []),
+            prefix="pending",
+            board_bucket="pendingVerification",
+        ),
+        decisions=[
+            dict(item)
+            for item in list(snapshot.get("decisions") or [])
+            if isinstance(item, dict)
+        ],
+        candidates=[
+            dict(item)
+            for item in list(snapshot.get("candidates") or [])
+            if isinstance(item, dict)
+        ],
+        action_results=[
+            dict(item)
+            for item in list(snapshot.get("action_results") or [])
+            if isinstance(item, dict)
+        ],
+        recommended_task=(
+            dict(snapshot.get("recommended_action") or {})
+            if isinstance(snapshot.get("recommended_action"), dict)
+            else {}
+        ),
+        surface_refs=[
+            dict(item)
+            for item in list(snapshot.get("attack_surfaces") or [])
+            if isinstance(item, dict)
+        ],
+        metadata={
+            "activeDecision": (
+                dict(snapshot.get("active_decision") or {})
+                if isinstance(snapshot.get("active_decision"), dict)
+                else {}
+            ),
+            "hypotheses": [
+                dict(item)
+                for item in list(snapshot.get("hypotheses") or [])
+                if isinstance(item, dict)
+            ]
+        },
+    )
+    return build_task_board_projection(read_model)
+
+
 def _build_blackboard_snapshot(
     *,
     control_decision: dict[str, Any] | None,
@@ -794,7 +902,7 @@ def _build_blackboard_snapshot(
                 if recommended_action.get(key) is not None and key not in candidate:
                     candidate[key] = recommended_action.get(key)
 
-    return {
+    return _project_candidate_a_board({
         "facts": facts,
         "hypotheses": hypotheses,
         "pending_verifications": pending_verifications,
@@ -804,7 +912,7 @@ def _build_blackboard_snapshot(
         "action_results": action_results,
         "recommended_action": recommended_action,
         "attack_surfaces": attack_surfaces,
-    }
+    })
 
 
 def build_task_blackboard_snapshot(

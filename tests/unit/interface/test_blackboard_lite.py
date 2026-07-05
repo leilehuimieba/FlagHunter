@@ -542,19 +542,19 @@ def test_build_task_blackboard_snapshot_source_stays_read_only_projection() -> N
     assert offenders == []
 
 
-def test_candidate_a_pre_approval_guard_blocks_neutral_builder_wiring() -> None:
+def test_candidate_a_implementation_uses_neutral_board_projection() -> None:
     playbook = _playbook_text()
-    assert "Candidate A pre-approval production switch guard" in playbook
-    assert "Candidate A: approval requested, not approved" in playbook
+    assert "Candidate A implementation landing record" in playbook
+    assert "Candidate A: implementation landed" in playbook
 
     source = BLACKBOARD_LITE_PATH.read_text(encoding="utf-8-sig")
-    forbidden_wiring_tokens = {
+    required_wiring_tokens = {
         "flaghunter.application.challenge.board_read_model_service",
         "build_task_board_projection",
-        "BuildChallengeBoardReadModel",
+        "ChallengeBoardReadModel",
     }
 
-    assert sorted(token for token in forbidden_wiring_tokens if token in source) == []
+    assert sorted(token for token in required_wiring_tokens if token not in source) == []
 
 
 def test_build_task_blackboard_snapshot_aggregates_ingress_decision_and_resume_facts() -> None:

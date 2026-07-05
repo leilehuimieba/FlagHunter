@@ -73,7 +73,12 @@ def build_task_board_projection(
     decisions = _decision_list(payload.get("decisions"))
     action_results = _action_result_list(payload.get("actionResults"))
     candidates = _candidate_list(payload.get("candidates"), action_results)
-    active_decision = decisions[0] if decisions else {}
+    metadata = coerce_json_dict(payload.get("metadata"))
+    active_decision = _canonical_decision_mapping(
+        coerce_json_dict(metadata.get("activeDecision"))
+    )
+    if not active_decision:
+        active_decision = decisions[0] if decisions else {}
     evidence_items = [
         item
         for item in _mapping_list(payload.get("evidence"))
@@ -104,7 +109,7 @@ def build_task_board_projection(
             if _is_projectable_board_item(item)
         ]
         + [_board_item_projection(item) for item in evidence_items],
-        "hypotheses": _mapping_list(payload.get("metadata", {}).get("hypotheses")),
+        "hypotheses": _mapping_list(metadata.get("hypotheses")),
         "pending_verifications": [
             _board_item_projection(item) for item in pending_items
         ],

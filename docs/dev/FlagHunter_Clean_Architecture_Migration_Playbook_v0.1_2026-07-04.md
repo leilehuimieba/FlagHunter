@@ -3820,8 +3820,8 @@ Candidate C: Web task serialization and control-decision snapshot merge.
   `flaghunter/interface/web_control_decision.py::_task_blackboard_snapshot_for_decision`
 - Current coupling fact: these helpers call `build_task_blackboard_snapshot` and
   merge the result into task API projection/control-decision inputs.
-- Candidate direction: switch only after Candidate A has an equivalent neutral
-  blackboard projection builder.
+- Candidate direction: switch only after Candidate B has landed and explicit
+  Candidate C approval is granted.
 - Risk: medium-to-high. This is a fan-out path for task list/detail, retry,
   continue, and control decision views.
 - Required approval: separate short plan; one call-site family per commit.
@@ -3830,9 +3830,9 @@ Candidate C: Web task serialization and control-decision snapshot merge.
 
 Status: approval required before implementation.
 
-Prerequisite: proceed only after Candidate A output equivalence is proven for a
-neutral blackboard projection builder. Candidate C must not introduce a second
-projection shape or bypass the Candidate A equivalence fixtures.
+Prerequisite: proceed only after Candidate B lands and explicit Candidate C
+approval is granted. Candidate C must not introduce a second projection shape
+or bypass the Candidate A equivalence fixtures.
 
 Scope: prepare future read-only switches for the Web task serialization and
 control-decision snapshot merge paths. The current helpers call
@@ -3900,16 +3900,15 @@ as read-only projection/merge helpers. The guard confirms:
 - no side-effect sinks
 - no proof upgrade surfaces
 
-These constraints must hold until Candidate A output equivalence is proven and
-Candidate C implementation is approved.
+These constraints must hold until Candidate B lands and Candidate C
+implementation is approved.
 
 #### Candidate C implementation readiness checklist
 
-Status: blocked on Candidate A approval, not approved for implementation.
+Status: blocked on Candidate B approval, not approved for implementation.
 
-Candidate C remains downstream of Candidate A. It may proceed only after
-Candidate A output equivalence is proven and the neutral blackboard projection
-builder is approved for the first production read-path switch.
+Candidate C remains downstream of Candidate B. It may proceed only after
+Candidate B lands and explicit Candidate C approval is recorded.
 
 Current pre-switch baselines recorded:
 
@@ -4332,12 +4331,11 @@ git diff --check
 
 #### First read-path switch sequence gate
 
-Status: sequence guard recorded, no implementation approved by this section.
+Status: sequence guard recorded, Candidate A landed and downstream gates remain guarded.
 
-Candidate A is the only eligible first production read-path switch. The
-Candidate A approval request must be accepted before implementation, and its
-old/new output equivalence must land before any downstream Web or MCP readback
-switch starts.
+Candidate A was the first production read-path switch and has landed. Candidate
+B is now the next review gate; Candidate C and Deferred MCP remain downstream
+and not approved.
 
 Required implementation order:
 
@@ -4373,13 +4371,13 @@ Explicit non-goals for this sequence gate:
 
 #### Read-path switch acceptance matrix
 
-Status: acceptance matrix recorded, no implementation approved by this section.
+Status: acceptance matrix recorded, Candidate A landed and downstream read paths remain unapproved.
 
 | Candidate | Status | Target path | Unblock condition |
 |-----------|--------|-------------|-------------------|
-| Candidate A | approval requested, not approved | `blackboard_lite.py` | explicit Candidate A implementation approval |
-| Candidate B | ready for approval review, not approved | `web_trace_timeline.py` | Candidate A equivalence lands and Candidate B implementation approval |
-| Candidate C | blocked on Candidate A approval, not approved | `web_serialize_task.py and web_control_decision.py` | Candidate A equivalence lands and Candidate C implementation approval |
+| Candidate A | implementation landed | `blackboard_lite.py` | complete |
+| Candidate B | ready for approval review, not approved | `web_trace_timeline.py` | explicit Candidate B implementation approval |
+| Candidate C | blocked on Candidate B approval, not approved | `web_serialize_task.py and web_control_decision.py` | Candidate B lands and Candidate C implementation approval |
 | Deferred MCP | blocked on Web projection equivalence and explicit MCP approval, not approved | `mcp_tools.py` | Web projection equivalence lands plus explicit MCP production wiring approval |
 
 Required evidence before any row can move to implementation:
@@ -4458,14 +4456,13 @@ Rules:
 
 #### Read-path approval drift guard
 
-Status: approval drift guard recorded, no implementation approved by this
-section.
+Status: approval drift guard recorded, Candidate A landed and downstream read paths remain unapproved.
 
 Current approval facts must not drift silently:
 
-- Candidate A: approval requested, not approved
+- Candidate A: implementation landed
 - Candidate B: ready for approval review, not approved
-- Candidate C: blocked on Candidate A approval, not approved
+- Candidate C: blocked on Candidate B approval, not approved
 - Deferred MCP: blocked on Web projection equivalence and explicit MCP approval, not approved
 
 Any future approval status change must update all of these in the same
@@ -4484,14 +4481,13 @@ post-push branch status.
 
 #### Read-path approval package summary
 
-Status: consolidated approval package recorded, no implementation approved by
-this section.
+Status: consolidated approval package recorded, Candidate A landed and downstream read paths remain unapproved.
 
 | Candidate | Current status | Target | evidence present | remaining blocker |
 |-----------|----------------|--------|------------------|-------------------|
-| Candidate A | approval requested, not approved | `flaghunter/interface/blackboard_lite.py::build_task_blackboard_snapshot` | neutral projection fixtures, Web blackboard fixtures, source guard, pre-approval guard | explicit Candidate A implementation approval |
-| Candidate B | ready for approval review, not approved | `flaghunter/interface/web_trace_timeline.py::_build_control_observation_timeline_events` | characterization fixture, read-only source guard, pre-approval guard | Candidate A equivalence lands and Candidate B implementation approval |
-| Candidate C | blocked on Candidate A approval, not approved | `flaghunter/interface/web_serialize_task.py::_serialize_task` and `flaghunter/interface/web_control_decision.py::_task_blackboard_snapshot_for_decision` | serialize-task fixture, control-decision merge fixture, source guard, pre-approval guard | Candidate A equivalence lands and Candidate C implementation approval |
+| Candidate A | implementation landed | `flaghunter/interface/blackboard_lite.py::build_task_blackboard_snapshot` | neutral projection fixtures, Web blackboard fixtures, source guard, pre-approval guard retired by implementation landing record | complete |
+| Candidate B | ready for approval review, not approved | `flaghunter/interface/web_trace_timeline.py::_build_control_observation_timeline_events` | characterization fixture, read-only source guard, pre-approval guard | explicit Candidate B implementation approval |
+| Candidate C | blocked on Candidate B approval, not approved | `flaghunter/interface/web_serialize_task.py::_serialize_task` and `flaghunter/interface/web_control_decision.py::_task_blackboard_snapshot_for_decision` | serialize-task fixture, control-decision merge fixture, source guard, pre-approval guard | Candidate B lands and Candidate C implementation approval |
 | Deferred MCP | blocked on Web projection equivalence and explicit MCP approval, not approved | `flaghunter/mcp/server/mcp_tools.py::_append_blackboard_snapshot_lines` | readback formatting fixture, empty/malformed fixture, source guard, pre-approval guard | Web projection equivalence lands plus explicit MCP production wiring approval |
 
 This package records implementation not approved. Any production implementation
@@ -4513,7 +4509,7 @@ Forbidden scope for this package:
 
 #### Read-path candidate status ledger
 
-Status: machine-readable status ledger recorded, no implementation approved by this section.
+Status: machine-readable status ledger recorded, Candidate A landed and downstream read paths remain unapproved.
 
 This machine-readable approval ledger is the compact index for the current
 read-path candidate state. It is intentionally repetitive with the narrative
@@ -4521,9 +4517,9 @@ sections so guard tests can detect drift before implementation starts.
 
 | Candidate | canonicalStatus | approvedForImplementation | nextGate |
 |-----------|-----------------|---------------------------|----------|
-| Candidate A | approval requested, not approved | false | explicit Candidate A implementation approval |
-| Candidate B | ready for approval review, not approved | false | Candidate A equivalence lands and Candidate B implementation approval |
-| Candidate C | blocked on Candidate A approval, not approved | false | Candidate A equivalence lands and Candidate C implementation approval |
+| Candidate A | implementation landed | true | complete |
+| Candidate B | ready for approval review, not approved | false | explicit Candidate B implementation approval |
+| Candidate C | blocked on Candidate B approval, not approved | false | Candidate B lands and Candidate C implementation approval |
 | Deferred MCP | blocked on Web projection equivalence and explicit MCP approval, not approved | false | Web projection equivalence lands plus explicit MCP production wiring approval |
 
 Rules:
@@ -4621,7 +4617,7 @@ Rules:
 
 #### Read-path implementation approval readiness report
 
-Status: readiness report recorded, no implementation approved by this section.
+Status: readiness report recorded, Candidate A landed and downstream read paths remain unapproved.
 
 This report separates readiness evidence from approval. It identifies which
 candidates have enough recorded evidence to request implementation approval and
@@ -4629,24 +4625,24 @@ which candidates remain sequence-blocked by an earlier read-path switch.
 
 | Candidate | Current status | Readiness state | Missing approval | Implementation approved |
 |-----------|----------------|-----------------|------------------|-------------------------|
-| Candidate A | approval requested, not approved | approval package ready; explicit implementation approval missing | explicit Candidate A implementation approval | false |
-| Candidate B | ready for approval review, not approved | sequence blocked; Candidate A equivalence missing | Candidate A equivalence lands and Candidate B implementation approval | false |
-| Candidate C | blocked on Candidate A approval, not approved | sequence blocked; Candidate A equivalence missing | Candidate A equivalence lands and Candidate C implementation approval | false |
+| Candidate A | implementation landed | landed; output equivalence preserved | complete | true |
+| Candidate B | ready for approval review, not approved | approval package ready; explicit implementation approval missing | explicit Candidate B implementation approval | false |
+| Candidate C | blocked on Candidate B approval, not approved | sequence blocked; Candidate B equivalence missing | Candidate B lands and Candidate C implementation approval | false |
 | Deferred MCP | blocked on Web projection equivalence and explicit MCP approval, not approved | sequence blocked; Web projection equivalence and MCP approval missing | Web projection equivalence lands plus explicit MCP production wiring approval | false |
 
 Rules:
 
 - readiness evidence is not implementation approval
-- Candidate A remains the only first read-path implementation candidate ready
-  to ask for explicit approval
-- Candidate B and Candidate C remain blocked until Candidate A equivalence lands
+- Candidate A has landed as the first read-path implementation candidate
+- Candidate B is the next review gate and remains unapproved
+- Candidate C remains blocked until Candidate B lands and Candidate C approval is explicit
 - Deferred MCP remains blocked until Web projection equivalence lands and MCP
   production wiring approval is explicit
 - no production path switch is authorized by this readiness report
 
 #### Read-path pre-approval source-map guard
 
-Status: source-map guard recorded, no implementation approved by this section.
+Status: Candidate A implementation landed; unapproved read paths remain guarded.
 
 This source map lists the production source files that must remain free of
 neutral read-model projection wiring while the matching read-path candidate is
@@ -4655,7 +4651,7 @@ guards by keeping one parseable map in the playbook.
 
 | Candidate | Source path | Forbidden neutral wiring | Implementation approved |
 |-----------|-------------|--------------------------|-------------------------|
-| Candidate A | `flaghunter/interface/blackboard_lite.py` | `flaghunter.application.challenge`, `flaghunter.domain.challenge.contracts`, `build_task_board_projection`, `BuildChallengeBoardReadModel`, `ChallengeBoardReadModel` | false |
+| Candidate A | `flaghunter/interface/blackboard_lite.py` | `flaghunter.application.challenge`, `flaghunter.domain.challenge.contracts`, `build_task_board_projection`, `BuildChallengeBoardReadModel`, `ChallengeBoardReadModel` | true |
 | Candidate B | `flaghunter/interface/web_trace_timeline.py` | `flaghunter.application.challenge`, `flaghunter.domain.challenge.contracts`, `build_task_board_projection`, `BuildChallengeBoardReadModel`, `ChallengeBoardReadModel` | false |
 | Candidate C serialize-task | `flaghunter/interface/web_serialize_task.py` | `flaghunter.application.challenge`, `flaghunter.domain.challenge.contracts`, `build_task_board_projection`, `BuildChallengeBoardReadModel`, `ChallengeBoardReadModel` | false |
 | Candidate C control-decision | `flaghunter/interface/web_control_decision.py` | `flaghunter.application.challenge`, `flaghunter.domain.challenge.contracts`, `build_task_board_projection`, `BuildChallengeBoardReadModel`, `ChallengeBoardReadModel` | false |
@@ -4667,7 +4663,8 @@ Rules:
 - forbidden neutral wiring must remain absent until explicit implementation
   approval lands for that candidate
 - source-map rows must remain `Implementation approved` = `false` until the
-  matching implementation commit updates the pre-approval guard
+  matching implementation commit updates the pre-approval guard; Candidate A is
+  the only landed exception in this table
 - no production path switch is authorized by this source-map guard
 
 #### Read-path source-map forbidden-token single-source guard
@@ -4744,7 +4741,7 @@ Rules:
 
 #### Read-path implementation landed evidence guard
 
-Status: landed evidence guard recorded, no implementation approved by this section.
+Status: landed evidence guard recorded, Candidate A landed and downstream read paths remain unapproved.
 
 This guard prevents a candidate from being marked `implementation landed`
 without the landing record required by the template below. Current rows have no
@@ -4753,7 +4750,7 @@ landed.
 
 | Candidate | Implementation landed | Landing evidence | Required before landed |
 |-----------|-----------------------|------------------|------------------------|
-| Candidate A | false | none | landing record, commit SHA, regression results |
+| Candidate A | true | Candidate A implementation landing record | landing record, implementation commit, regression results |
 | Candidate B | false | none | landing record, commit SHA, regression results |
 | Candidate C | false | none | landing record, commit SHA, regression results |
 | Deferred MCP | false | none | landing record, commit SHA, regression results |
@@ -4772,7 +4769,7 @@ Rules:
 
 #### Read-path approval flag aggregate guard
 
-Status: aggregate approval flag guard recorded, no implementation approved by this section.
+Status: aggregate approval flag guard recorded, Candidate A landed and downstream read paths remain unapproved.
 
 This aggregate guard ties together the boolean approval and landing fields that
 are intentionally repeated across the read-path governance tables, including
@@ -4787,7 +4784,8 @@ Required aggregate checks:
 - ledger `approvedForImplementation` matches the readiness report
   `Implementation approved`
 - source-map `Implementation approved` remains `false` while the ledger
-  `approvedForImplementation` remains `false`
+  `approvedForImplementation` remains `false`; Candidate A is the landed
+  exception with both values `true`
 - landed evidence `Implementation landed` remains `false` until a landing
   record exists
 - Candidate C source-map sub-rows must collapse back to the canonical
@@ -4796,7 +4794,7 @@ Required aggregate checks:
 
 #### Read-path rollback command index
 
-Status: rollback command index recorded, no implementation approved by this section.
+Status: rollback command index recorded, Candidate A landed and downstream read paths remain unapproved.
 
 This index records placeholder only rollback commands for future read-path
 implementation commits. Each command becomes valid only after the matching
@@ -4806,7 +4804,7 @@ does not imply that any read-path implementation has landed.
 
 | Candidate | Rollback command | Applies after | Current executable |
 |-----------|------------------|---------------|--------------------|
-| Candidate A | `git revert <single Candidate A implementation commit>` | candidate implementation commit lands | false |
+| Candidate A | `git revert <Candidate A implementation commit>` | Candidate A implementation commit lands | false |
 | Candidate B | `git revert <single Candidate B implementation commit>` | candidate implementation commit lands | false |
 | Candidate C serialize-task | `git revert <single Candidate C serialize-task implementation commit>` | candidate implementation commit lands | false |
 | Candidate C control-decision | `git revert <single Candidate C control-decision implementation commit>` | candidate implementation commit lands | false |
@@ -4848,18 +4846,18 @@ Required parsed checks:
 
 #### Read-path implementation landing status guard
 
-Status: landing status guard recorded, no implementation landed.
+Status: landing status guard recorded, Candidate A landed and downstream read paths remain unapproved.
 
-No read-path implementation candidate has landed. The landed evidence rows,
-rollback index, and landing record template must continue to agree on that
-state until a future approved implementation commit supplies real landing
-evidence.
+Candidate A has landed. The landed evidence rows, rollback index, and landing
+record template must continue to agree that downstream read paths remain
+unapproved until future approved implementation commits supply their own
+landing evidence.
 
 | Landing surface | Required location | Current landed |
 |-----------------|-------------------|----------------|
-| landed evidence rows | `Read-path implementation landed evidence guard` | false |
+| landed evidence rows | `Read-path implementation landed evidence guard` | true |
 | rollback index | `Read-path rollback command index` | false |
-| landing record template | `Read-path implementation landing record template` | false |
+| landing record template | `Read-path implementation landing record template` | true |
 
 Rules:
 
@@ -4873,7 +4871,7 @@ Rules:
 
 #### Read-path readiness-to-landing transition guard
 
-Status: readiness-to-landing guard recorded, no implementation landed.
+Status: readiness-to-landing guard recorded, Candidate A landed and downstream read paths remain unapproved.
 
 Readiness complete alone must not unlock landing. A future read-path
 implementation can move from readiness review to landed only when explicit
@@ -4885,10 +4883,10 @@ governance or implementation commit.
 |-----------------------|------------------|-------------------|
 | readiness indexes complete | `Read-path approval package evidence completeness guard` | true |
 | approval transition evidence complete | `Read-path approval package evidence completeness guard` | false |
-| implementation approval flags raised | `Read-path approval flag aggregate guard` | false |
-| landing evidence recorded | `Read-path implementation landed evidence guard` | false |
+| implementation approval flags raised | `Read-path approval flag aggregate guard` | true |
+| landing evidence recorded | `Read-path implementation landed evidence guard` | true |
 | rollback commands executable | `Read-path rollback command index` | false |
-| landing status raised | `Read-path implementation landing status guard` | false |
+| landing status raised | `Read-path implementation landing status guard` | true |
 
 Rules:
 
@@ -4934,8 +4932,7 @@ Required parsed checks:
 
 #### Read-path approval status consistency guard
 
-Status: approval consistency guard recorded, no implementation approved by this
-section.
+Status: approval consistency guard recorded, Candidate A landed and downstream read paths remain unapproved.
 
 The read-path approval state has a single source of approval truth across the
 acceptance matrix, drift guard, approval package summary, and each
@@ -4943,9 +4940,9 @@ candidate-specific implementation readiness checklist.
 
 | Candidate | Canonical status | Must match |
 |-----------|------------------|------------|
-| Candidate A | approval requested, not approved | acceptance matrix, drift guard, approval package summary, Candidate A readiness checklist |
+| Candidate A | implementation landed | acceptance matrix, drift guard, approval package summary, Candidate A readiness checklist |
 | Candidate B | ready for approval review, not approved | acceptance matrix, drift guard, approval package summary, Candidate B readiness checklist |
-| Candidate C | blocked on Candidate A approval, not approved | acceptance matrix, drift guard, approval package summary, Candidate C readiness checklist |
+| Candidate C | blocked on Candidate B approval, not approved | acceptance matrix, drift guard, approval package summary, Candidate C readiness checklist |
 | Deferred MCP | blocked on Web projection equivalence and explicit MCP approval, not approved | acceptance matrix, drift guard, approval package summary, Deferred MCP readiness checklist |
 
 Any approval status change must land in the same governance commit before
@@ -5006,7 +5003,7 @@ call-site family.
 
 | Candidate | Required coverage | Current implementation approval |
 |-----------|-------------------|---------------------------------|
-| Candidate A | acceptance, drift, package, ledger, readiness, source-map, checklist, landing evidence | false |
+| Candidate A | acceptance, drift, package, ledger, readiness, source-map, checklist, landing evidence | true |
 | Candidate B | acceptance, drift, package, ledger, readiness, source-map, checklist, landing evidence | false |
 | Candidate C | acceptance, drift, package, ledger, readiness, source-map, checklist, landing evidence | false |
 | Deferred MCP | acceptance, drift, package, ledger, readiness, source-map, checklist, landing evidence | false |
@@ -5095,34 +5092,81 @@ Rollback command: git revert <sha>
 Boundary confirmation: <unchanged high-risk areas>
 ```
 
-#### Candidate A pre-approval production switch guard
+#### Candidate A implementation landing record
 
-Status: source guard added before Candidate A implementation approval.
-
-`tests/unit/interface/test_blackboard_lite.py` now guards
-`flaghunter/interface/blackboard_lite.py::build_task_blackboard_snapshot`
-against importing or calling the neutral application board projection builder
-while Candidate A remains approval requested, not approved.
+Status: implementation landed for Candidate A.
 
 Current approval fact:
 
-- Candidate A: approval requested, not approved
+- Candidate A: implementation landed
 
-This guard must remain active until explicit Candidate A implementation
-approval lands. Updating the guard is allowed only in the same implementation
-commit that proves old/new output equivalence for the first read-path switch.
+Target:
 
-Forbidden before approval:
+- `flaghunter/interface/blackboard_lite.py::build_task_blackboard_snapshot`
+
+Implementation summary:
+
+- Candidate A now routes the Web blackboard read projection through the neutral
+  `ChallengeBoardReadModel` and `build_task_board_projection` helper.
+- The existing legacy read-side collection remains read-only and is converted
+  into a neutral board read model before returning the public Candidate
+  A-compatible projection shape.
+- The implementation commit modifies only Candidate A production helper code,
+  Candidate A tests, and this playbook governance record.
+
+Equivalence evidence:
+
+- `tests/unit/interface/test_blackboard_lite.py` representative, degraded,
+  decision/ingress/action-result, recommendation, alignment, hypothesis, and
+  suppression fixtures preserve the existing public output shape.
+- `tests/unit/test_application_board_read_model_service.py` keeps the neutral
+  projection contract covered.
+- `tests/unit/test_clean_architecture_migration_playbook.py` records this
+  landing state and keeps unapproved downstream read paths guarded.
+
+Rollback command:
+
+- `git revert <Candidate A implementation commit>`
+
+Boundary confirmation for this landing:
+
+- no bundled Web and MCP implementation
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no composition root changes
+- no proof authority behavior changes
+- no P5 implementation
+
+#### Candidate A pre-approval production switch guard
+
+Status: retired by Candidate A implementation landing.
+
+`tests/unit/interface/test_blackboard_lite.py` now guards
+`flaghunter/interface/blackboard_lite.py::build_task_blackboard_snapshot`
+to require the neutral application board projection builder after Candidate A
+implementation approval landed.
+
+Current approval fact:
+
+- Candidate A: implementation landed
+
+This guard changed in the same implementation commit that proves old/new output
+equivalence for the first read-path switch.
+
+Required after landing:
 
 - import `flaghunter.application.challenge.board_read_model_service`
 - call `build_task_board_projection`
-- construct `BuildChallengeBoardReadModel`
-- mark Candidate A as `implementation landed`
-- modify MCP readback, task serialization, or control-decision merge helpers
+- construct or reference `ChallengeBoardReadModel`
+- keep MCP readback, task serialization, and control-decision merge helpers out
+  of this implementation commit
 
-Boundary confirmation for this pre-approval guard:
+Boundary confirmation for this landing guard:
 
-- no production path switch
 - no dispatcher loop changes
 - no `CTFState` ownership split
 - no `CTFVerifier` proof behavior changes
@@ -5144,10 +5188,10 @@ Current approval fact:
 
 - Candidate B: ready for approval review, not approved
 
-This guard must remain active until Candidate A equivalence lands and Candidate
-B implementation approval is explicitly granted. Updating the guard is allowed
-only in the same Candidate B implementation commit that proves old/new output
-equivalence for the trace timeline read path.
+This guard must remain active until Candidate B implementation approval is
+explicitly granted. Updating the guard is allowed only in the same Candidate B
+implementation commit that proves old/new output equivalence for the trace
+timeline read path.
 
 Forbidden before approval:
 
@@ -5178,14 +5222,14 @@ Status: source guard added before Candidate C implementation approval.
 `flaghunter/interface/web_serialize_task.py::_serialize_task` and
 `flaghunter/interface/web_control_decision.py::_task_blackboard_snapshot_for_decision`
 against importing or calling neutral challenge board/read-model projection
-helpers while Candidate C remains blocked on Candidate A approval, not approved.
+helpers while Candidate C remains blocked on Candidate B approval, not approved.
 
 Current approval fact:
 
-- Candidate C: blocked on Candidate A approval, not approved
+- Candidate C: blocked on Candidate B approval, not approved
 
-This guard must remain active until Candidate A equivalence lands and Candidate
-C implementation approval is explicitly granted. Updating the guard is allowed
+This guard must remain active until Candidate B lands and Candidate C
+implementation approval is explicitly granted. Updating the guard is allowed
 only in the same Candidate C implementation commit for the affected call-site
 family that proves old/new output equivalence.
 
@@ -5229,7 +5273,7 @@ Candidate C serialize-task switch must prove equivalent:
 - do not write proof, infer proof authority decisions, or switch read paths
 
 This fixture is not a production implementation approval. Candidate C remains
-blocked on Candidate A approval, not approved.
+blocked on Candidate B approval, not approved.
 
 Boundary confirmation for this fixture baseline:
 
@@ -5264,7 +5308,7 @@ future Candidate C control-decision switch must prove equivalent:
 - do not write proof, infer proof authority decisions, or switch read paths
 
 This fixture is not a production implementation approval. Candidate C remains
-blocked on Candidate A approval, not approved.
+blocked on Candidate B approval, not approved.
 
 Boundary confirmation for this fixture baseline:
 
