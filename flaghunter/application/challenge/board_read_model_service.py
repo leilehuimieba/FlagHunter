@@ -86,6 +86,17 @@ def build_task_board_projection(
         if _is_projectable_board_item(item)
         and _item_bucket(item) == "pendingVerification"
     ]
+    recommended_action = _recommended_action_projection(
+        explicit=coerce_json_dict(payload.get("recommendedTask")),
+        candidates=candidates,
+        active_decision=active_decision,
+        action_results=action_results,
+    )
+    _enrich_candidates(
+        candidates,
+        active_decision=active_decision,
+        recommended_action=recommended_action,
+    )
     return {
         "facts": [
             _board_item_projection(item)
@@ -101,12 +112,7 @@ def build_task_board_projection(
         "candidates": candidates,
         "active_decision": active_decision,
         "action_results": action_results,
-        "recommended_action": _recommended_action_projection(
-            explicit=coerce_json_dict(payload.get("recommendedTask")),
-            candidates=candidates,
-            active_decision=active_decision,
-            action_results=action_results,
-        ),
+        "recommended_action": recommended_action,
         "attack_surfaces": _mapping_list(payload.get("surfaceRefs")),
     }
 
@@ -337,6 +343,43 @@ def _mark_recommended_candidate(
     for candidate in candidates:
         if _clean_text(candidate.get("action")) == recommended_action:
             candidate["recommended"] = True
+
+
+def _enrich_candidates(
+    candidates: list[dict[str, JsonValue]],
+    *,
+    active_decision: Mapping[str, Any],
+    recommended_action: Mapping[str, Any],
+) -> None:
+    selected_action = _clean_text(active_decision.get("nextAction"))
+    recommended_action_name = _clean_text(recommended_action.get("action"))
+    for candidate in candidates:
+        action = _clean_text(candidate.get("action"))
+        if action and action == selected_action:
+            for key in (
+                "driver",
+                "reason",
+                "strongestHypothesisKind",
+                "strongestHypothesisStatus",
+                "strongestHypothesisConfidence",
+            ):
+                if active_decision.get(key) is not None and key not in candidate:
+                    candidate[key] = active_decision.get(key)
+        if action and action == recommended_action_name:
+            for key in (
+                "driver",
+                "sourceType",
+                "switchedFrom",
+                "triggerResult",
+                "triggerReason",
+                "triggerActionDriver",
+                "triggerAt",
+                "strongestHypothesisKind",
+                "strongestHypothesisStatus",
+                "strongestHypothesisConfidence",
+            ):
+                if recommended_action.get(key) is not None and key not in candidate:
+                    candidate[key] = recommended_action.get(key)
 
 
 def _latest_action_result(

@@ -902,6 +902,32 @@ Boundary confirmation for this baseline:
 - no MCP production wiring
 - no proof authority behavior changes
 
+### Candidate A neutral candidate enrichment baseline
+
+Status: candidate enrichment fixture added before any production path switch.
+
+`build_task_board_projection` now enriches the selected candidate with active
+decision display fields and enriches the recommended candidate with
+recommended-action trigger and strongest-hypothesis fields. This mirrors the
+current Candidate A blackboard display shape while keeping the work inside the
+neutral application projection helper.
+
+`tests/unit/test_application_board_read_model_service.py` records this baseline
+with `test_task_board_projection_enriches_selected_and_recommended_candidates`,
+so future Candidate A read-path equivalence work can compare selected candidate
+and recommended candidate details before touching `blackboard_lite.py`.
+
+Boundary confirmation for this baseline:
+
+- no production path switch
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no proof authority behavior changes
+
 ### Candidate A neutral malformed board item projection baseline
 
 Status: malformed board item fixture added before any production path switch.
@@ -2914,6 +2940,7 @@ baselines recorded:
 - neutral degraded projection baseline
 - neutral metadata projection baseline
 - neutral metadata alias projection baseline
+- neutral candidate enrichment baseline
 - neutral malformed board item projection baseline
 - neutral recommended action projection baseline
 - neutral explicit recommendation marker baseline
@@ -2923,6 +2950,7 @@ baselines recorded:
   `test_candidate_a_pre_approval_guard_blocks_neutral_builder_wiring`
   `test_build_promotes_neutral_board_metadata_to_read_model_fields`
   `test_build_promotes_board_metadata_aliases_to_read_model_fields`
+  `test_task_board_projection_enriches_selected_and_recommended_candidates`
   `test_candidate_a_representative_fixture_locks_public_projection_shape`
   `test_candidate_a_missing_or_malformed_state_snapshot_baseline`
   `test_candidate_a_decision_ingress_action_result_baseline`

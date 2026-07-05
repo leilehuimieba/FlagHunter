@@ -677,6 +677,76 @@ def test_task_board_projection_derives_recommended_action_from_candidate_results
     _assert_json_friendly(projection)
 
 
+def test_task_board_projection_enriches_selected_and_recommended_candidates() -> None:
+    from flaghunter.application.challenge.board_read_model_service import (
+        build_task_board_projection,
+    )
+    from flaghunter.domain.challenge.contracts import ChallengeBoardReadModel
+
+    model = ChallengeBoardReadModel(
+        run_id="run-candidate-enrichment",
+        challenge_id="challenge-candidate-enrichment",
+        decisions=[
+            {
+                "nextAction": "collect_initial_facts",
+                "driver": "board.derived_target",
+                "reason": "continue from current observation",
+                "strongestHypothesisKind": "generic_web_recon",
+                "strongestHypothesisStatus": "active",
+                "strongestHypothesisConfidence": 0.52,
+            }
+        ],
+        candidates=[
+            {
+                "action": "collect_initial_facts",
+                "selected": True,
+                "recommended": False,
+            },
+            {
+                "action": "probe_discovered_endpoint",
+                "driver": "board.discovered_endpoint",
+                "sourceType": "observation",
+                "recommended": False,
+            },
+        ],
+        action_results=[
+            {
+                "action": "collect_initial_facts",
+                "driver": "board.derived_target",
+                "result": "failed",
+                "details": {"reason": "no new facts"},
+                "t": "2026-06-03T10:00:02+00:00",
+            }
+        ],
+    )
+
+    projection = build_task_board_projection(model)
+
+    selected = [
+        item
+        for item in projection["candidates"]
+        if item["action"] == "collect_initial_facts"
+    ][0]
+    recommended = [
+        item
+        for item in projection["candidates"]
+        if item["action"] == "probe_discovered_endpoint"
+    ][0]
+    assert selected["driver"] == "board.derived_target"
+    assert selected["reason"] == "continue from current observation"
+    assert selected["strongestHypothesisKind"] == "generic_web_recon"
+    assert selected["strongestHypothesisStatus"] == "active"
+    assert selected["strongestHypothesisConfidence"] == 0.52
+    assert recommended["recommended"] is True
+    assert recommended["triggerReason"] == "no new facts"
+    assert recommended["triggerActionDriver"] == "board.derived_target"
+    assert recommended["triggerAt"] == "2026-06-03T10:00:02+00:00"
+    assert recommended["strongestHypothesisKind"] == "generic_web_recon"
+    assert recommended["strongestHypothesisStatus"] == "active"
+    assert recommended["strongestHypothesisConfidence"] == 0.52
+    _assert_json_friendly(projection)
+
+
 def test_task_board_projection_marks_explicit_recommended_candidate() -> None:
     from flaghunter.application.challenge.board_read_model_service import (
         build_task_board_projection,
