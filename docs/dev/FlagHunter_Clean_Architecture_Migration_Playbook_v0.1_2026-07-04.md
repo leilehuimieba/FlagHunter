@@ -987,6 +987,57 @@ Boundary confirmation for this pre-approval guard:
 - no proof authority behavior changes
 - no P5 implementation
 
+### Task ingress service contract migration readiness checklist
+
+Status: ready for approval review, not approved for implementation.
+
+Readiness evidence already recorded:
+
+- Task ingress application service skeleton baseline
+- Task ingress domain contract skeleton baseline
+- Task ingress readback contract skeleton baseline
+- Task ingress service contract migration plan
+- Task ingress service contract migration pre-approval guard
+
+Representative behavior evidence to preserve in the future implementation:
+
+- `test_submit_returns_pending_payload_without_ingress_port`
+- `test_submit_delegates_to_task_ingress_port_only`
+- `test_submit_accepts_minimal_empty_values`
+- `test_task_ingress_service_contract_migration_pre_approval_guard`
+
+Implementation approval constraints:
+
+- approval is still required before editing `flaghunter/application/challenge/task_ingress_service.py`
+- one service migration commit only
+- update the pre-approval guard in the same implementation commit
+- preserve current external response shape unless explicitly versioned
+- preserve raw `instructions` in the injected port request payload
+- old/new output equivalence must be proven in `tests/unit/test_application_task_ingress_service.py`
+- rollback point: revert the single service migration commit
+
+Non-goals:
+
+- no production wiring
+- no MCP server changes
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no composition root changes
+- no proof authority behavior changes
+- no P5 implementation
+
+Required verification for the future implementation commit:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_application_task_ingress_service.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_task_ingress_adapter.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py tests/unit/test_application_service_source_guards.py tests/unit/test_task_ingress_production_wiring_guards.py -q
+git diff --check
+```
+
 ### Adapter substitution source guard baseline
 
 Status: source guard added for substitution fixtures.

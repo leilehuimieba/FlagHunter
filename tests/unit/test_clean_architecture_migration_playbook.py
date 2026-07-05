@@ -1801,3 +1801,51 @@ def test_playbook_records_task_ingress_service_contract_migration_plan() -> None
         "git diff --check",
     ):
         assert command in text
+
+
+def test_playbook_records_task_ingress_service_migration_readiness_checklist() -> None:
+    text = _playbook_text()
+
+    assert "Task ingress service contract migration readiness checklist" in text
+    assert "Status: ready for approval review, not approved for implementation." in text
+    for baseline in (
+        "Task ingress application service skeleton baseline",
+        "Task ingress domain contract skeleton baseline",
+        "Task ingress readback contract skeleton baseline",
+        "Task ingress service contract migration plan",
+        "Task ingress service contract migration pre-approval guard",
+    ):
+        assert baseline in text
+    for evidence_test in (
+        "test_submit_returns_pending_payload_without_ingress_port",
+        "test_submit_delegates_to_task_ingress_port_only",
+        "test_submit_accepts_minimal_empty_values",
+        "test_task_ingress_service_contract_migration_pre_approval_guard",
+    ):
+        assert evidence_test in text
+    assert "approval is still required before editing `flaghunter/application/challenge/task_ingress_service.py`" in text
+    assert "one service migration commit only" in text
+    assert "preserve current external response shape unless explicitly versioned" in text
+    assert "preserve raw `instructions` in the injected port request payload" in text
+    assert "old/new output equivalence must be proven in `tests/unit/test_application_task_ingress_service.py`" in text
+    assert "rollback point: revert the single service migration commit" in text
+    for non_goal in (
+        "no production wiring",
+        "no MCP server changes",
+        "no dispatcher loop changes",
+        "no `CTFState` ownership split",
+        "no `CTFVerifier` proof behavior changes",
+        "no ToolExecutor changes",
+        "no WorkerPool/CrewOrchestrator changes",
+        "no composition root changes",
+        "no proof authority behavior changes",
+        "no P5 implementation",
+    ):
+        assert non_goal in text
+    for command in (
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_application_task_ingress_service.py -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_task_ingress_adapter.py -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py tests/unit/test_application_service_source_guards.py tests/unit/test_task_ingress_production_wiring_guards.py -q",
+        "git diff --check",
+    ):
+        assert command in text
