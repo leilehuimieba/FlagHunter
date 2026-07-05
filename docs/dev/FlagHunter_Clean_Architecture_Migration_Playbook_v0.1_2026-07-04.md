@@ -2432,6 +2432,16 @@ Required same-commit updates:
 - approved execution checklist
 - verification evidence
 
+| Atomic update | Required section |
+|---------------|------------------|
+| acceptance matrix row | `Read-path switch acceptance matrix` |
+| approval drift fact | `Read-path approval drift guard` |
+| candidate status ledger | `Read-path candidate status ledger` |
+| readiness report | `Read-path implementation approval readiness report` |
+| source-map approval flag | `Read-path pre-approval source-map guard` |
+| approved execution checklist | `Read-path approved execution checklist index` |
+| verification evidence | `Read-path implementation landing record template` |
+
 Rules:
 
 - approval transition evidence must land before any implementation commit

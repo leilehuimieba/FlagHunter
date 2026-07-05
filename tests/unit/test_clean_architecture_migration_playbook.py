@@ -999,6 +999,29 @@ def test_playbook_parses_approval_transition_atomicity_guard() -> None:
         assert required_phrase in section
 
 
+def test_playbook_parses_approval_transition_atomicity_location_map() -> None:
+    text = _playbook_text()
+    section = _section_text(text, "Read-path approval transition atomicity guard")
+
+    rows = {
+        row["Atomic update"]: row["Required section"].strip("`")
+        for row in _markdown_table_rows(section)
+    }
+    expected_sections = {
+        "acceptance matrix row": "Read-path switch acceptance matrix",
+        "approval drift fact": "Read-path approval drift guard",
+        "candidate status ledger": "Read-path candidate status ledger",
+        "readiness report": "Read-path implementation approval readiness report",
+        "source-map approval flag": "Read-path pre-approval source-map guard",
+        "approved execution checklist": "Read-path approved execution checklist index",
+        "verification evidence": "Read-path implementation landing record template",
+    }
+
+    assert rows == expected_sections
+    for heading in expected_sections.values():
+        assert _section_text(text, heading)
+
+
 def test_playbook_records_machine_readable_read_path_candidate_status_ledger() -> None:
     text = _playbook_text()
     section = _section_text(text, "Read-path candidate status ledger")
