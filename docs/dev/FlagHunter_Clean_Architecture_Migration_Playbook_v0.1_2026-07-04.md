@@ -466,12 +466,14 @@ contract import guard to cover every outer FlagHunter layer:
 - `flaghunter.application`
 - `flaghunter.config`
 - `flaghunter.cpa_modules`
+- `flaghunter.eval`
 - `flaghunter.interface`
 - `flaghunter.knowledge`
 - `flaghunter.llm`
 - `flaghunter.mcp`
 - `flaghunter.playbooks`
 - `flaghunter.ports`
+- `flaghunter.redteam`
 - `flaghunter.runtime`
 - `flaghunter.session`
 - `flaghunter.tools`
@@ -480,8 +482,9 @@ contract import guard to cover every outer FlagHunter layer:
 This guard keeps `flaghunter/domain/challenge/contracts` as the innermost
 schema/read-model layer and prevents future contract slices from reaching
 outward into adapters, application services, production configuration,
-legacy feature modules, playbooks, model/runtime code, presentation, MCP,
-tools, sessions, or workspace helpers.
+legacy feature modules, evaluation harnesses, red-team legacy helpers,
+playbooks, model/runtime code, presentation, MCP, tools, sessions, or
+workspace helpers.
 
 Boundary confirmation for this guard:
 
