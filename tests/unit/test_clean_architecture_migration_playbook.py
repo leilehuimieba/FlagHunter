@@ -1179,6 +1179,43 @@ def test_playbook_records_source_map_forbidden_token_single_source_guard() -> No
     assert "no production path switch" in section
 
 
+def test_playbook_parses_approval_package_source_map_consistency_guard() -> None:
+    text = _playbook_text()
+    section = _section_text(text, "Read-path approval package source-map consistency guard")
+
+    assert "Status: approval package source-map consistency guard recorded, no implementation approved by this section." in section
+    assert "evidence present" in section
+    assert "source guard" in section
+    assert "pre-approval guard" in section
+    assert "source-map coverage" in section
+    assert "no production path switch" in section
+
+    package_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path approval package summary")
+        )
+    }
+    source_rows = _markdown_table_rows(
+        _section_text(text, "Read-path pre-approval source-map guard")
+    )
+    source_paths_by_candidate: dict[str, set[str]] = {}
+    for row in source_rows:
+        candidate = row["Candidate"].replace(" serialize-task", "").replace(" control-decision", "")
+        source_paths_by_candidate.setdefault(candidate, set()).add(row["Source path"].strip("`"))
+
+    assert set(package_rows) == set(source_paths_by_candidate)
+    for candidate, package_row in package_rows.items():
+        evidence = package_row["evidence present"]
+        assert "source guard" in evidence
+        assert "pre-approval guard" in evidence
+        target_paths = {
+            target.split("::", 1)[0]
+            for target in _inline_code_values(package_row["Target"])
+        }
+        assert target_paths == source_paths_by_candidate[candidate]
+
+
 def test_playbook_parses_implementation_landed_evidence_guard() -> None:
     text = _playbook_text()
     section = _section_text(text, "Read-path implementation landed evidence guard")

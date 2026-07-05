@@ -2203,6 +2203,26 @@ Rules:
   value is `false`
 - no production path switch is authorized by this parser guard
 
+#### Read-path approval package source-map consistency guard
+
+Status: approval package source-map consistency guard recorded, no implementation approved by this section.
+
+The read-path approval package and pre-approval source map must stay aligned
+before any implementation approval is granted. Every approval package row that
+claims `evidence present` must include both `source guard` and `pre-approval
+guard`, and every target source path listed in the approval package must have
+matching source-map coverage.
+
+Required parsed checks:
+
+- approval package candidates match the canonical source-map candidates after
+  Candidate C source-map sub-rows collapse back to Candidate C
+- every approval package `evidence present` cell includes `source guard`
+- every approval package `evidence present` cell includes `pre-approval guard`
+- each approval package target source path matches the source paths listed for
+  that candidate in `Read-path pre-approval source-map guard`
+- no production path switch is authorized by this source-map coverage guard
+
 #### Read-path implementation landed evidence guard
 
 Status: landed evidence guard recorded, no implementation approved by this section.
