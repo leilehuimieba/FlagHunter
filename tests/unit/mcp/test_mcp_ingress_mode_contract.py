@@ -51,6 +51,144 @@ def _function_source(path: Path, tree: ast.Module, name: str) -> str:
     raise AssertionError(f"{name} was not found in {path}")
 
 
+def _mcp_blackboard_readback_formatting_case() -> dict[str, object]:
+    state = CTFState(target="http://challenge.test", goal="collect accepted proof")
+    state.add_observation(
+        "derived_target",
+        "http://127.0.0.1:3000",
+        source="challenge_context",
+        metadata={"compose_path": r"D:\webstudy\CTF\easy_login\docker-compose.yml"},
+    )
+    state.add_observation(
+        "recon_url",
+        "http://challenge.test/admin",
+        source="recon",
+        metadata={"confidence": "high"},
+    )
+    state.add_observation(
+        "ssti_engine_identified",
+        "tornado",
+        source="ssti_identify",
+        metadata={"engine": "tornado"},
+    )
+    state.add_observation(
+        "cookie_secret_leaked",
+        "SECRET-123",
+        source="ssti_identify",
+        metadata={"method": "handler_settings_probe"},
+    )
+    state.add_observation(
+        "resume_bootstrap_hint",
+        "continue from saved recon state",
+        source="ingress_handoff",
+        metadata={
+            "decision_kind": "resume_execute",
+            "next_action": "resume_from_checkpoint",
+            "run_id": "run-prev-mcp",
+            "checkpoint_id": "checkpoint-prev-mcp",
+        },
+    )
+    state.add_flag(
+        "flag{runtime_pending}",
+        level="runtime",
+        evidence_source="collector",
+        rationale="runtime hit",
+    )
+    state.add_exploration_item(
+        "http://challenge.test/admin",
+        discovery_source="recon",
+        hint_strength=1,
+    )
+    entry = mcp_tools.TaskEntry(
+        id="entry-mcp-readback",
+        task="solve challenge",
+        status="done",
+        created_at="2026-06-03T10:00:00+00:00",
+        agent=SimpleNamespace(runtime=None, tools=[]),
+        controlDecision={
+            "shouldRun": True,
+            "decisionKind": "explore_first",
+            "reason": "derived target available",
+            "nextAction": "collect_initial_facts",
+            "driver": "blackboard.derived_target.runtime_derived",
+            "facts": ["mode=ctf"],
+        },
+        decisionRecords=[
+            {
+                "kind": "explore_first",
+                "source": "mcp_ingress",
+                "nextAction": "collect_initial_facts",
+                "reason": "derived target available",
+            }
+        ],
+        ingressHandoff={
+            "decisionKind": "resume_execute",
+            "nextAction": "resume_from_checkpoint",
+            "resumeBootstrap": {
+                "runId": "run-prev-mcp",
+                "checkpointId": "checkpoint-prev-mcp",
+                "summary": "continue from saved recon state",
+            },
+        },
+        ctfStateSnapshot=state.to_snapshot(),
+    )
+    run_context = {
+        "recentEvents": [
+            {
+                "type": "control_action_completed",
+                "t": "2026-06-03T10:00:02+00:00",
+                "payload": {
+                    "action": "collect_initial_facts",
+                    "driver": "blackboard.derived_target.runtime_derived",
+                    "result": "failed",
+                    "details": {"reason": "no new facts"},
+                },
+            }
+        ]
+    }
+    return {
+        "entry": entry,
+        "runContext": run_context,
+        "expectedLines": [
+            "[blackboard_facts]",
+            "control_decision=explore_first",
+            "next_action=collect_initial_facts",
+            "resume_run_id=run-prev-mcp",
+            "resume_checkpoint_id=checkpoint-prev-mcp",
+            "derived_target=http://127.0.0.1:3000",
+            "discovered_endpoint=http://challenge.test/admin",
+            "identified_engine=tornado",
+            "leaked_secret=SECRET-123",
+            "resume_bootstrap_hint=continue from saved recon state",
+            "[blackboard_pending_verifications]",
+            "runtime_flag=flag{runtime_pending}",
+            "[blackboard_active_decision]",
+            "decisionKind=explore_first",
+            "nextAction=collect_initial_facts",
+            "driver=blackboard.derived_target.runtime_derived",
+            "reason=derived target available",
+            "[blackboard_recommended_action]",
+            "action=verify_runtime_signal",
+            "driver=blackboard.runtime_flag",
+            "sourceType=verification",
+            "reason=selected action failed; switch to next best candidate",
+            "switchedFrom=collect_initial_facts",
+            "triggerResult=failed",
+            "triggerReason=no new facts",
+            "triggerActionDriver=blackboard.derived_target.runtime_derived",
+            "triggerAt=2026-06-03T10:00:02+00:00",
+            "[blackboard_action_results]",
+            "action=collect_initial_facts",
+            "driver=blackboard.derived_target.runtime_derived",
+            "result=failed",
+            "[blackboard_attack_surfaces]",
+            "engine=tornado [confirmed/0.95]",
+            "secret=SECRET-123 [confirmed/0.95]",
+            "endpoint=http://challenge.test/admin [suspected/0.5]",
+        ],
+    }
+
+
 def test_mcp_blackboard_readback_helper_stays_read_only_projection() -> None:
     tree = _parse_source(MCP_TOOLS_PATH)
     helper_source = _function_source(MCP_TOOLS_PATH, tree, "_append_blackboard_snapshot_lines")
@@ -88,6 +226,19 @@ def test_mcp_blackboard_readback_helper_stays_read_only_projection() -> None:
 
     for token in sorted(forbidden_tokens):
         assert token not in helper_source
+
+
+def test_mcp_blackboard_readback_formatting_matches_candidate_a_projection() -> None:
+    case = _mcp_blackboard_readback_formatting_case()
+    lines: list[str] = []
+
+    mcp_tools._append_blackboard_snapshot_lines(
+        lines,
+        case["entry"],  # type: ignore[arg-type]
+        run_context=case["runContext"],  # type: ignore[arg-type]
+    )
+
+    assert lines == case["expectedLines"]
 
 
 @pytest.fixture(autouse=True)

@@ -245,3 +245,16 @@ def test_playbook_records_deferred_mcp_source_guard_baseline() -> None:
     assert "no side-effect sinks" in text
     assert "no proof upgrade surfaces" in text
     assert "no MCP production wiring" in text
+
+
+def test_playbook_records_deferred_mcp_readback_formatting_fixture_baseline() -> None:
+    text = _playbook_text()
+
+    assert "Deferred MCP readback formatting fixture baseline" in text
+    assert "tests/unit/mcp/test_mcp_ingress_mode_contract.py" in text
+    assert "test_mcp_blackboard_readback_formatting_matches_candidate_a_projection" in text
+    assert "representative MCP readback text" in text
+    assert "old/new output equivalence" in text
+    assert "no MCP production wiring" in text
+    assert "no task execution or handler routing changes" in text
+    assert "no proof authority behavior changes" in text

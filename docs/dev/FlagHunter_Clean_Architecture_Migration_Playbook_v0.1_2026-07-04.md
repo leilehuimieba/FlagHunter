@@ -837,6 +837,33 @@ unchanged while confirming:
 This baseline must stay in place until Web read-model projection equivalence is
 proven and a separate MCP production wiring approval is granted.
 
+#### Deferred MCP readback formatting fixture baseline
+
+Status: representative fixture added before any MCP readback implementation.
+
+`tests/unit/mcp/test_mcp_ingress_mode_contract.py` now includes
+`test_mcp_blackboard_readback_formatting_matches_candidate_a_projection` as a
+representative MCP readback text fixture. It locks the current
+`_append_blackboard_snapshot_lines` output for Candidate A-style blackboard
+projection data, including facts, pending verification readback, active
+decision fields, recommended action fallback, action results, and surface
+summaries.
+
+This fixture is not an MCP production wiring change. It exists so a future MCP
+readback switch can prove old/new output equivalence against the same public
+line ordering and text before any MCP implementation change is approved.
+
+Boundary confirmation for this baseline:
+
+- no MCP production wiring
+- no task execution or handler routing changes
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no proof authority behavior changes
+
 First read-path switch approval plan must include:
 
 - file list
