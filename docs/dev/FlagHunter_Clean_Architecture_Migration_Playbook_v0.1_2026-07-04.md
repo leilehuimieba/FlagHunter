@@ -1873,6 +1873,41 @@ Boundary confirmation for this guard:
 - no proof authority behavior changes
 - no P5 implementation
 
+#### Task ingress production pre-wiring coverage completeness guard
+
+Status: aggregate coverage completeness guard added before task ingress
+production wiring approval.
+
+`tests/unit/test_task_ingress_production_wiring_guards.py` now requires the
+task ingress production pre-wiring record to keep every pre-approval guard
+surface visible together:
+
+- `Task ingress MCP pre-wiring guard baseline`
+- `Task ingress production entrypoint pre-wiring guard baseline`
+- `Task ingress production entry root coverage guard`
+- `Task ingress production entry file coverage guard`
+- `Task ingress production wiring token coverage guard`
+
+This aggregate guard prevents task ingress production wiring protection from
+drifting into partial coverage. Task ingress adapter, port, and application
+service skeletons must remain unwired from MCP, production entry roots,
+top-level entry files, and concrete wiring tokens until explicit production
+wiring approval lands.
+
+Boundary confirmation for this guard:
+
+- no production entrypoint wiring
+- no MCP production wiring
+- no concrete adapter construction
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no composition root changes
+- no proof authority behavior changes
+- no P5 implementation
+
 ### Task ingress application service skeleton baseline
 
 Status: task ingress application service skeleton added before production wiring.

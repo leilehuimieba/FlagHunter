@@ -73,6 +73,14 @@ REQUIRED_TASK_INGRESS_WIRING_TOKENS = {
     "flaghunter.ports.task_ingress",
 }
 
+REQUIRED_TASK_INGRESS_PRODUCTION_GUARD_SECTIONS = {
+    "Task ingress MCP pre-wiring guard baseline",
+    "Task ingress production entrypoint pre-wiring guard baseline",
+    "Task ingress production entry root coverage guard",
+    "Task ingress production entry file coverage guard",
+    "Task ingress production wiring token coverage guard",
+}
+
 
 def _playbook_text() -> str:
     return PLAYBOOK_PATH.read_text(encoding="utf-8")
@@ -146,3 +154,10 @@ def test_task_ingress_pre_wiring_guard_covers_required_entry_files() -> None:
     assert "Task ingress production entry file coverage guard" in playbook
     for entry_file in sorted(REQUIRED_PRODUCTION_ENTRY_FILES):
         assert entry_file in playbook
+
+
+def test_task_ingress_pre_wiring_guard_coverage_completeness_is_recorded() -> None:
+    playbook = _playbook_text()
+    assert "Task ingress production pre-wiring coverage completeness guard" in playbook
+    for section_name in sorted(REQUIRED_TASK_INGRESS_PRODUCTION_GUARD_SECTIONS):
+        assert section_name in playbook
