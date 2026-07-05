@@ -562,6 +562,117 @@ def test_candidate_c_serialize_task_fixture_preserves_snapshot_and_summaries_bef
     }
 
 
+def test_candidate_c_control_decision_snapshot_merge_fixture_before_switch() -> None:
+    playbook = _playbook_text()
+    assert "Candidate C control-decision snapshot merge fixture baseline" in playbook
+
+    task = {
+        "controlDecision": {
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "nextAction": "collect_initial_facts",
+            "driver": "blackboard.derived_target.runtime_derived",
+            "reason": "runtime target available",
+        },
+        "blackboardSnapshot": {
+            "facts": [
+                {
+                    "kind": "derived_target",
+                    "value": "http://127.0.0.1:3000",
+                }
+            ],
+            "pendingVerifications": [
+                {
+                    "kind": "runtime_answer",
+                    "value": "answer{pending}",
+                    "source": "runtime-http",
+                }
+            ],
+            "actionResults": [
+                {
+                    "action": "collect_initial_facts",
+                    "result": "failed",
+                }
+            ],
+            "recommendedAction": {
+                "action": "verify_runtime_signal",
+                "driver": "blackboard.runtime_answer",
+            },
+            "activeDecision": {
+                "observedAction": "probe_endpoint",
+                "alignment": "mismatched",
+            },
+        },
+    }
+    explicit_snapshot = {
+        "hypotheses": [
+            {
+                "id": "hyp-1",
+                "kind": "route_probe",
+                "status": "active",
+            }
+        ],
+        "recommendedAction": {
+            "reason": "explicit fills missing reason",
+            "action": "should_not_override",
+        },
+        "activeDecision": {
+            "alignmentReason": "explicit alignment reason",
+            "nextAction": "should_not_override",
+        },
+    }
+
+    snapshot = web_server._task_blackboard_snapshot_for_decision(
+        task,
+        explicit_snapshot,
+    )
+
+    assert snapshot["facts"] == [
+        {
+            "kind": "control_decision",
+            "value": "direct_execute",
+        },
+        {
+            "kind": "next_action",
+            "value": "collect_initial_facts",
+        },
+    ]
+    assert snapshot["pendingVerifications"] == [
+        {
+            "kind": "runtime_answer",
+            "value": "answer{pending}",
+            "source": "runtime-http",
+        }
+    ]
+    assert snapshot["hypotheses"] == [
+        {
+            "id": "hyp-1",
+            "kind": "route_probe",
+            "status": "active",
+        }
+    ]
+    assert snapshot["recommendedAction"] == {
+        "action": "verify_runtime_signal",
+        "driver": "blackboard.runtime_answer",
+        "reason": "explicit fills missing reason",
+    }
+    assert snapshot["activeDecision"] == {
+        "decisionKind": "direct_execute",
+        "nextAction": "collect_initial_facts",
+        "driver": "blackboard.derived_target.runtime_derived",
+        "reason": "runtime target available",
+        "observedAction": "probe_endpoint",
+        "alignment": "mismatched",
+        "alignmentReason": "explicit alignment reason",
+    }
+    assert snapshot["actionResults"] == [
+        {
+            "action": "collect_initial_facts",
+            "result": "failed",
+        }
+    ]
+
+
 def test_ctf_dispatcher_hint_and_context_include_resume_contract():
     task = {
         "hints": [{"text": "focus on the admin flow"}],

@@ -1877,6 +1877,41 @@ Boundary confirmation for this fixture baseline:
 - no MCP production wiring
 - no proof authority behavior changes
 
+#### Candidate C control-decision snapshot merge fixture baseline
+
+Status: control-decision snapshot merge fixture added before any Candidate C
+implementation.
+
+`tests/unit/interface/test_web_server.py` now includes
+`test_candidate_c_control_decision_snapshot_merge_fixture_before_switch` as a
+representative fixture for
+`flaghunter/interface/web_control_decision.py::_task_blackboard_snapshot_for_decision`.
+
+The fixture locks the current control-decision snapshot merge behavior that a
+future Candidate C control-decision switch must prove equivalent:
+
+- rebuilt snapshot facts and active decision fields remain the primary source
+- existing task `blackboardSnapshot` fills empty list sections such as pending
+  verification items and action results
+- explicit snapshot input fills still-empty list sections such as hypotheses
+- existing and explicit active-decision fields only fill missing keys
+- recommended-action fields merge without overriding existing selected action
+- do not write proof, infer proof authority decisions, or switch read paths
+
+This fixture is not a production implementation approval. Candidate C remains
+blocked on Candidate A approval, not approved.
+
+Boundary confirmation for this fixture baseline:
+
+- no production path switch
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no proof authority behavior changes
+
 First read-path switch approval plan must include:
 
 - file list
