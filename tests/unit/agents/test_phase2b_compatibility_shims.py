@@ -64,6 +64,18 @@ FORBIDDEN_SIDE_EFFECT_TOKENS = {
     "ToolExecutor",
 }
 
+REQUIRED_SIDE_EFFECT_SINK_TOKENS = {
+    "subprocess",
+    "asyncio.subprocess",
+    "open(",
+    "write_text",
+    "requests",
+    "httpx",
+    "socket",
+    "Playwright",
+    "ToolExecutor",
+}
+
 FORBIDDEN_PROOF_ACTION_TOKENS = {
     "verification_decision",
     "upgrade_claim_to_verified",
@@ -164,6 +176,15 @@ def test_legacy_read_model_shims_have_no_side_effect_or_proof_actions() -> None:
         )
 
     assert offenders == []
+
+
+def test_legacy_read_model_shim_side_effect_guard_covers_action_sinks() -> None:
+    assert REQUIRED_SIDE_EFFECT_SINK_TOKENS <= FORBIDDEN_SIDE_EFFECT_TOKENS
+
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Legacy read-model shim side-effect sink coverage guard" in playbook
+    for token in sorted(REQUIRED_SIDE_EFFECT_SINK_TOKENS):
+        assert token in playbook
 
 
 def test_legacy_read_model_shim_proof_guard_covers_authority_sinks() -> None:

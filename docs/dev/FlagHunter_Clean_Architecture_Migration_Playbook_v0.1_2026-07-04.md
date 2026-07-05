@@ -397,6 +397,42 @@ Boundary confirmation for this guard:
 - no ToolExecutor changes
 - no proof authority behavior changes
 
+### Legacy read-model shim side-effect sink coverage guard
+
+Status: explicit side-effect sink coverage guard added for Phase 2B
+compatibility shims.
+
+`tests/unit/agents/test_phase2b_compatibility_shims.py` now requires legacy
+read-model shim side-effect guards to explicitly cover process, filesystem,
+network, socket, browser/runtime, and tool-execution sink names:
+
+- `Playwright`
+- `ToolExecutor`
+- `asyncio.subprocess`
+- `httpx`
+- `open(`
+- `requests`
+- `socket`
+- `subprocess`
+- `write_text`
+
+This guard keeps legacy read-model compatibility shims as re-export-only
+compatibility surfaces. Shims may preserve old import paths for neutral domain
+contracts, but they must not become filesystem readers/writers, process
+launchers, network clients, socket users, browser/runtime surfaces, or tool
+executors.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter construction
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 ### Legacy read-model shim outer-layer import coverage guard
 
 Status: explicit outer-layer import coverage guard added for Phase 2B
