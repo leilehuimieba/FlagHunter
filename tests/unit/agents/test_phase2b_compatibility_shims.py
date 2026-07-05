@@ -103,6 +103,12 @@ REQUIRED_OUTER_IMPORT_PREFIXES = {
     "flaghunter.redteam",
 }
 
+REQUIRED_SHIM_COVERAGE_GUARD_SECTIONS = {
+    "Legacy read-model shim outer-layer import coverage guard",
+    "Legacy read-model shim side-effect sink coverage guard",
+    "Legacy read-model shim proof action coverage guard",
+}
+
 
 def _module_path(module_name: str) -> Path:
     return REPO_ROOT / (module_name.replace(".", "/") + ".py")
@@ -203,3 +209,10 @@ def test_legacy_read_model_shim_import_guard_covers_outer_legacy_layers() -> Non
     assert "Legacy read-model shim outer-layer import coverage guard" in playbook
     for prefix in sorted(REQUIRED_OUTER_IMPORT_PREFIXES):
         assert prefix in playbook
+
+
+def test_legacy_read_model_shim_coverage_completeness_records_all_guard_groups() -> None:
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Legacy read-model shim coverage completeness guard" in playbook
+    for section_name in sorted(REQUIRED_SHIM_COVERAGE_GUARD_SECTIONS):
+        assert section_name in playbook

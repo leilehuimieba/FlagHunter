@@ -461,6 +461,36 @@ Boundary confirmation for this guard:
 - no ToolExecutor changes
 - no proof authority behavior changes
 
+### Legacy read-model shim coverage completeness guard
+
+Status: aggregate coverage completeness guard added for Phase 2B
+compatibility shims.
+
+`tests/unit/agents/test_phase2b_compatibility_shims.py` now requires the legacy
+read-model shim guard record to keep all Phase 2B shim boundary guard groups
+visible together:
+
+- `Legacy read-model shim outer-layer import coverage guard`
+- `Legacy read-model shim side-effect sink coverage guard`
+- `Legacy read-model shim proof action coverage guard`
+
+This aggregate guard prevents Phase 2B compatibility shim coverage from
+drifting into partial protection. Legacy read-model shims must remain
+re-export-only compatibility surfaces with outer-layer imports, side-effect
+sinks, and proof authority write or upgrade surfaces guarded as one complete
+shim boundary.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter construction
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 ### Challenge board read-model skeleton baseline
 
 Status: neutral read-model builder added before any production path switch.
