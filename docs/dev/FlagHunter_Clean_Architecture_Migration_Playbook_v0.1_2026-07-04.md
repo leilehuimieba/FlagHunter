@@ -2448,6 +2448,28 @@ Rules:
 - partial approval updates must fail review until all mirrored locations agree
 - no production path switch is authorized by this atomicity guard
 
+#### Read-path approval transition candidate coverage guard
+
+Status: candidate coverage guard recorded, no implementation approved by this section.
+
+Every read-path approval transition must cover the same canonical candidate set
+across the approval tables and landing evidence rows. Candidate C split source-map rows collapse to the canonical Candidate C approval state for
+approval status checks, while its future implementation commits remain split by
+call-site family.
+
+| Candidate | Required coverage | Current implementation approval |
+|-----------|-------------------|---------------------------------|
+| Candidate A | acceptance, drift, package, ledger, readiness, source-map, checklist, landing evidence | false |
+| Candidate B | acceptance, drift, package, ledger, readiness, source-map, checklist, landing evidence | false |
+| Candidate C | acceptance, drift, package, ledger, readiness, source-map, checklist, landing evidence | false |
+| Deferred MCP | acceptance, drift, package, ledger, readiness, source-map, checklist, landing evidence | false |
+
+Rules:
+
+- every approval table must keep the same canonical candidate set
+- split Candidate C source-map rows must not create a second approval state
+- no production path switch is authorized by this candidate coverage guard
+
 #### Read-path implementation landing record template
 
 Status: landing evidence template recorded, no implementation approved by this

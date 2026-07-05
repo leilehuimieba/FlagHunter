@@ -1022,6 +1022,78 @@ def test_playbook_parses_approval_transition_atomicity_location_map() -> None:
         assert _section_text(text, heading)
 
 
+def test_playbook_parses_approval_transition_candidate_coverage_guard() -> None:
+    text = _playbook_text()
+    section = _section_text(text, "Read-path approval transition candidate coverage guard")
+
+    assert "Status: candidate coverage guard recorded, no implementation approved by this section." in section
+    assert "Candidate C split source-map rows collapse to the canonical Candidate C approval state" in section
+    assert "no production path switch" in section
+
+    expected_candidates = {"Candidate A", "Candidate B", "Candidate C", "Deferred MCP"}
+    coverage_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(section)
+    }
+    acceptance_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path switch acceptance matrix")
+        )
+    }
+    package_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path approval package summary")
+        )
+    }
+    ledger_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path candidate status ledger")
+        )
+    }
+    readiness_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path implementation approval readiness report")
+        )
+    }
+    checklist_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path approved execution checklist index")
+        )
+    }
+    evidence_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path implementation landed evidence guard")
+        )
+    }
+    source_candidates = {
+        row["Candidate"].replace(" serialize-task", "").replace(" control-decision", "")
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path pre-approval source-map guard")
+        )
+    }
+
+    assert set(coverage_rows) == expected_candidates
+    assert set(acceptance_rows) == expected_candidates
+    assert set(package_rows) == expected_candidates
+    assert set(ledger_rows) == expected_candidates
+    assert set(readiness_rows) == expected_candidates
+    assert set(checklist_rows) == expected_candidates
+    assert set(evidence_rows) == expected_candidates
+    assert source_candidates == expected_candidates
+    for candidate, row in coverage_rows.items():
+        assert row["Current implementation approval"] == "false"
+        assert row["Required coverage"] == "acceptance, drift, package, ledger, readiness, source-map, checklist, landing evidence"
+        assert ledger_rows[candidate]["approvedForImplementation"] == "false"
+        assert readiness_rows[candidate]["Implementation approved"] == "false"
+        assert evidence_rows[candidate]["Implementation landed"] == "false"
+
+
 def test_playbook_records_machine_readable_read_path_candidate_status_ledger() -> None:
     text = _playbook_text()
     section = _section_text(text, "Read-path candidate status ledger")
