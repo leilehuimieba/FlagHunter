@@ -2080,3 +2080,64 @@ def test_playbook_parses_task_ingress_service_approval_transition_coverage_guard
     )
     for surface in rows:
         assert surface in atomicity_guard
+
+
+def test_playbook_parses_task_ingress_service_approval_transition_evidence_consistency_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Task ingress service approval transition evidence consistency guard",
+    )
+
+    assert "Status: approval transition evidence consistency guard recorded, implementation not approved." in section
+    assert "approval evidence must be present before implementation approval changes" in section
+    assert "no service migration is authorized by this evidence guard" in section
+
+    rows = {
+        row["Evidence item"]: row
+        for row in _markdown_table_rows(section)
+    }
+    assert rows == {
+        "red test evidence": {
+            "Evidence item": "red test evidence",
+            "Required location": "`Task ingress service contract migration readiness checklist`",
+            "Current approval evidence present": "false",
+        },
+        "green focused regression": {
+            "Evidence item": "green focused regression",
+            "Required location": "`Task ingress service contract migration readiness checklist`",
+            "Current approval evidence present": "false",
+        },
+        "architecture/source regression": {
+            "Evidence item": "architecture/source regression",
+            "Required location": "`Task ingress service contract migration readiness checklist`",
+            "Current approval evidence present": "false",
+        },
+        "approval flag update evidence": {
+            "Evidence item": "approval flag update evidence",
+            "Required location": "`Task ingress service contract migration approval flag consistency guard`",
+            "Current approval evidence present": "false",
+        },
+        "landing record placeholder": {
+            "Evidence item": "landing record placeholder",
+            "Required location": "`Task ingress service contract migration landing record template`",
+            "Current approval evidence present": "false",
+        },
+        "rollback placeholder evidence": {
+            "Evidence item": "rollback placeholder evidence",
+            "Required location": "`Task ingress service rollback placeholder consistency guard`",
+            "Current approval evidence present": "false",
+        },
+        "post-push branch status": {
+            "Evidence item": "post-push branch status",
+            "Required location": "`Task ingress service contract migration readiness checklist`",
+            "Current approval evidence present": "false",
+        },
+    }
+
+    for forbidden in (
+        "Current approval evidence present | true",
+        "implementation approved",
+        "service migration landed",
+    ):
+        assert forbidden not in section

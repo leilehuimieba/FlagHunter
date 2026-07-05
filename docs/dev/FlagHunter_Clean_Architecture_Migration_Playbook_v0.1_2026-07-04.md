@@ -1180,6 +1180,33 @@ Rules:
 - no surface listed here grants implementation approval by itself
 - no service migration is authorized by this coverage guard
 
+#### Task ingress service approval transition evidence consistency guard
+
+Status: approval transition evidence consistency guard recorded, implementation not approved.
+
+Approval evidence must be present before implementation approval changes for
+the task ingress service migration. The current state intentionally records no
+approval evidence because no service migration has been approved.
+
+| Evidence item | Required location | Current approval evidence present |
+|---------------|-------------------|-----------------------------------|
+| red test evidence | `Task ingress service contract migration readiness checklist` | false |
+| green focused regression | `Task ingress service contract migration readiness checklist` | false |
+| architecture/source regression | `Task ingress service contract migration readiness checklist` | false |
+| approval flag update evidence | `Task ingress service contract migration approval flag consistency guard` | false |
+| landing record placeholder | `Task ingress service contract migration landing record template` | false |
+| rollback placeholder evidence | `Task ingress service rollback placeholder consistency guard` | false |
+| post-push branch status | `Task ingress service contract migration readiness checklist` | false |
+
+Rules:
+
+- approval evidence must be present before implementation approval changes
+- all approval evidence rows must move together in the approval-transition
+  governance commit
+- no row may claim current approval evidence while implementation remains
+  unapproved
+- no service migration is authorized by this evidence guard
+
 ### Adapter substitution source guard baseline
 
 Status: source guard added for substitution fixtures.
