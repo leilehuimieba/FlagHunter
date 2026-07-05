@@ -371,6 +371,13 @@ FORBIDDEN_PRODUCTION_WIRING_TOKENS = {
     "run_task_async",
 }
 
+REQUIRED_DOMAIN_COVERAGE_GUARD_SECTIONS = {
+    "Domain contract production wiring source guard",
+    "Domain contract outer-layer import coverage guard",
+    "Domain contract side-effect sink coverage guard",
+    "Domain contract proof action coverage guard",
+}
+
 
 def _contract_sources() -> list[Path]:
     assert CONTRACTS_ROOT.is_dir(), "challenge contracts package must exist"
@@ -1671,3 +1678,10 @@ def test_public_names_docstrings_and_fields_are_domain_neutral() -> None:
                 )
 
     assert offenders == []
+
+
+def test_domain_contract_source_guard_coverage_completeness_records_all_guard_groups() -> None:
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Domain contract source guard coverage completeness guard" in playbook
+    for section_name in sorted(REQUIRED_DOMAIN_COVERAGE_GUARD_SECTIONS):
+        assert section_name in playbook

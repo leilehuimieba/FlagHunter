@@ -602,6 +602,35 @@ Boundary confirmation for this guard:
 - no ToolExecutor changes
 - no proof authority behavior changes
 
+### Domain contract source guard coverage completeness guard
+
+Status: aggregate coverage completeness guard added for inner domain contracts.
+
+`tests/unit/test_domain_challenge_contracts.py` now requires the domain
+contract source guard record to keep all domain boundary guard groups visible
+together:
+
+- `Domain contract production wiring source guard`
+- `Domain contract outer-layer import coverage guard`
+- `Domain contract side-effect sink coverage guard`
+- `Domain contract proof action coverage guard`
+
+This aggregate guard prevents the innermost domain-contract boundary coverage
+from drifting into partial protection. Domain contracts must keep production
+wiring surfaces, outer-layer imports, side-effect sinks, and proof authority
+write or upgrade surfaces guarded as one complete pure-schema boundary.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter construction
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 ### Challenge board read-model sanitization baseline
 
 Status: neutral read-model sanitization guard added before any production path
