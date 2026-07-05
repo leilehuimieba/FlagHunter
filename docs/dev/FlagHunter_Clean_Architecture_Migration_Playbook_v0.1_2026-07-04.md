@@ -841,6 +841,37 @@ Boundary confirmation for this baseline:
 - no proof authority behavior changes
 - no P5 implementation
 
+### Task ingress production entrypoint pre-wiring guard baseline
+
+Status: production entrypoint pre-wiring guard added before production wiring.
+
+`tests/unit/test_task_ingress_production_wiring_guards.py` now guards
+interface, agents, tools, runtime, session, workspaces, and config production
+entrypoint packages against importing or constructing `TaskIngressAdapter`,
+`SubmitTaskIngress`, `TaskIngressPort`, task ingress adapters, task ingress
+application services, or task ingress port modules before explicit production
+wiring approval is recorded.
+
+Required gate: explicit production wiring approval.
+
+This guard keeps task ingress skeleton work from becoming accidental production
+entrypoint wiring through CLI, TUI, dispatcher, tool executor, runtime, session,
+workspace, or configuration paths.
+
+Boundary confirmation for this baseline:
+
+- no production entrypoint wiring
+- no MCP production wiring
+- no concrete adapter construction
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no composition root changes
+- no proof authority behavior changes
+- no P5 implementation
+
 ### Task ingress application service skeleton baseline
 
 Status: task ingress application service skeleton added before production wiring.

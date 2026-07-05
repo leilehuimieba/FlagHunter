@@ -1750,3 +1750,20 @@ def test_playbook_records_task_ingress_mcp_pre_wiring_guard_baseline() -> None:
     assert "no dispatcher loop changes" in text
     assert "no composition root changes" in text
     assert "no proof authority behavior changes" in text
+
+
+def test_playbook_records_task_ingress_production_entrypoint_guard_baseline() -> None:
+    text = _playbook_text()
+
+    assert "Task ingress production entrypoint pre-wiring guard baseline" in text
+    assert "tests/unit/test_task_ingress_production_wiring_guards.py" in text
+    assert "interface, agents, tools, runtime, session, workspaces, and config" in text
+    assert "TaskIngressAdapter" in text
+    assert "SubmitTaskIngress" in text
+    assert "TaskIngressPort" in text
+    assert "explicit production wiring approval" in text
+    assert "no production entrypoint wiring" in text
+    assert "no dispatcher loop changes" in text
+    assert "no ToolExecutor changes" in text
+    assert "no composition root changes" in text
+    assert "no proof authority behavior changes" in text
