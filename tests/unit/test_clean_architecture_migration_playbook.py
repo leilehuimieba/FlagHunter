@@ -1951,3 +1951,34 @@ def test_playbook_records_task_ingress_service_migration_landing_record_template
         "no P5 implementation",
     ):
         assert boundary in section
+
+
+def test_playbook_parses_task_ingress_service_rollback_placeholder_consistency_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Task ingress service rollback placeholder consistency guard",
+    )
+
+    assert "Status: rollback placeholder guard recorded, implementation not approved." in section
+    assert "placeholder only" in section
+    assert "not a currently executable rollback command" in section
+    assert "no service migration is authorized by this rollback guard" in section
+
+    rows = {
+        row["Scope"]: row
+        for row in _markdown_table_rows(section)
+    }
+    assert set(rows) == {"task ingress service migration"}
+
+    row = rows["task ingress service migration"]
+    assert row["Rollback command"] == "`git revert <single task ingress service migration commit>`"
+    assert row["Applies after"] == "service migration commit lands"
+    assert row["Current executable"] == "false"
+    assert not re.search(r"\b[0-9a-f]{7,40}\b", row["Rollback command"])
+
+    landing_template = _heading_section_text(
+        text,
+        "Task ingress service contract migration landing record template",
+    )
+    assert "Rollback command: git revert <sha>" in landing_template

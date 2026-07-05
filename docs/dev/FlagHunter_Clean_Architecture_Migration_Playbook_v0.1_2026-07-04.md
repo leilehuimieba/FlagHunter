@@ -1107,6 +1107,28 @@ Required boundary confirmation:
 This is a template only. It records the required evidence shape for a future
 approved implementation commit; no service migration is authorized by this template.
 
+#### Task ingress service rollback placeholder consistency guard
+
+Status: rollback placeholder guard recorded, implementation not approved.
+
+This guard keeps the rollback command for the future task ingress service
+migration as a placeholder only until the implementation commit lands. The
+placeholder is not a currently executable rollback command and must not contain
+a real commit SHA before the landing record is completed.
+
+| Scope | Rollback command | Applies after | Current executable |
+|-------|------------------|---------------|--------------------|
+| task ingress service migration | `git revert <single task ingress service migration commit>` | service migration commit lands | false |
+
+Required consistency:
+
+- placeholder only
+- not a currently executable rollback command
+- no real commit SHA before the service migration landing record exists
+- the landing record template remains the place that records `Rollback command:
+  git revert <sha>`
+- no service migration is authorized by this rollback guard
+
 ### Adapter substitution source guard baseline
 
 Status: source guard added for substitution fixtures.
