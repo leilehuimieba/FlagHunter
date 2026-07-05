@@ -452,10 +452,16 @@ def _latest_action_result(
 def _canonical_action_mapping(source: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
     result = dict(source)
     action = _action_name(source)
+    expected_action = _clean_text(
+        source.get("expectedAction") or source.get("expected_action")
+    )
     result.pop("taskAction", None)
     result.pop("task_action", None)
+    result.pop("expected_action", None)
     if action:
         result["action"] = action
+    if expected_action:
+        result["expectedAction"] = expected_action
     return result
 
 

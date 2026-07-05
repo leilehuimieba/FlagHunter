@@ -987,6 +987,37 @@ def test_task_board_projection_accepts_action_result_trigger_result_alias() -> N
     _assert_json_friendly(projection)
 
 
+def test_task_board_projection_accepts_action_result_expected_action_alias() -> None:
+    from flaghunter.application.challenge.board_read_model_service import (
+        build_task_board_projection,
+    )
+    from flaghunter.domain.challenge.contracts import ChallengeBoardReadModel
+
+    model = ChallengeBoardReadModel(
+        run_id="run-expected-action-alias",
+        challenge_id="challenge-expected-action-alias",
+        action_results=[
+            {
+                "action": "verify_runtime_signal",
+                "result": "ok",
+                "expected_action": "collect_initial_facts",
+            }
+        ],
+    )
+
+    projection = build_task_board_projection(model)
+
+    assert projection["action_results"] == [
+        {
+            "action": "verify_runtime_signal",
+            "result": "ok",
+            "expectedAction": "collect_initial_facts",
+        }
+    ]
+    assert "expected_action" not in repr(projection)
+    _assert_json_friendly(projection)
+
+
 def test_task_board_projection_accepts_task_action_aliases() -> None:
     from flaghunter.application.challenge.board_read_model_service import (
         build_task_board_projection,
