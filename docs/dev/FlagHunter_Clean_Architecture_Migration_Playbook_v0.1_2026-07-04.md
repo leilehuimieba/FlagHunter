@@ -460,6 +460,50 @@ Boundary confirmation for this guard:
 - no ToolExecutor changes
 - no proof authority behavior changes
 
+### Domain contract side-effect sink coverage guard
+
+Status: explicit side-effect sink coverage guard added for inner domain
+contracts.
+
+`tests/unit/test_domain_challenge_contracts.py` now requires the domain
+contract source guard to explicitly cover common filesystem, process, network,
+socket, browser/runtime, and tool-execution sinks:
+
+- `open(`
+- `Path.open`
+- `Path.read_text`
+- `Path.write_text`
+- `Path.read_bytes`
+- `Path.write_bytes`
+- `subprocess.run`
+- `subprocess.Popen`
+- `subprocess.call`
+- `asyncio.create_subprocess_exec`
+- `asyncio.create_subprocess_shell`
+- `requests.get`
+- `requests.post`
+- `requests.request`
+- `httpx.get`
+- `httpx.post`
+- `httpx.request`
+- `socket.socket`
+
+This guard keeps domain contracts as pure schema/read-model code and prevents
+future contract slices from becoming accidental filesystem readers/writers,
+process launchers, network clients, socket users, browser/runtime surfaces, or
+tool executors.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter construction
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 ### Challenge board read-model sanitization baseline
 
 Status: neutral read-model sanitization guard added before any production path

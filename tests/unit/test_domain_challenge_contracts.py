@@ -268,19 +268,57 @@ FORBIDDEN_IMPORT_PREFIXES = (
 )
 
 FORBIDDEN_SIDE_EFFECT_TOKENS = {
-    "subprocess",
-    "asyncio.subprocess",
     "open(",
+    "Path.open",
+    "Path.read_text",
+    "Path.write_text",
+    "Path.read_bytes",
+    "Path.write_bytes",
+    "subprocess",
+    "subprocess.run",
+    "subprocess.Popen",
+    "subprocess.call",
+    "asyncio.subprocess",
+    "asyncio.create_subprocess_exec",
+    "asyncio.create_subprocess_shell",
     "write_text",
     "requests",
+    "requests.get",
+    "requests.post",
+    "requests.request",
     "httpx",
+    "httpx.get",
+    "httpx.post",
+    "httpx.request",
     "socket",
+    "socket.socket",
     "Playwright",
     "browser",
     "Runtime",
     "ToolExecutor",
     "execute_tools",
     "_execute_tools",
+}
+
+REQUIRED_SIDE_EFFECT_SINK_TOKENS = {
+    "open(",
+    "Path.open",
+    "Path.read_text",
+    "Path.write_text",
+    "Path.read_bytes",
+    "Path.write_bytes",
+    "subprocess.run",
+    "subprocess.Popen",
+    "subprocess.call",
+    "asyncio.create_subprocess_exec",
+    "asyncio.create_subprocess_shell",
+    "requests.get",
+    "requests.post",
+    "requests.request",
+    "httpx.get",
+    "httpx.post",
+    "httpx.request",
+    "socket.socket",
 }
 
 FORBIDDEN_PROOF_ACTION_TOKENS = {
@@ -1515,6 +1553,15 @@ def test_contract_package_has_no_side_effect_surfaces() -> None:
         )
 
     assert offenders == []
+
+
+def test_contract_side_effect_guard_covers_explicit_sinks() -> None:
+    assert REQUIRED_SIDE_EFFECT_SINK_TOKENS <= FORBIDDEN_SIDE_EFFECT_TOKENS
+
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Domain contract side-effect sink coverage guard" in playbook
+    for token in sorted(REQUIRED_SIDE_EFFECT_SINK_TOKENS):
+        assert token in playbook
 
 
 def test_contract_package_has_no_proof_authority_actions() -> None:
