@@ -181,6 +181,19 @@ def test_playbook_records_candidate_a_neutral_candidate_enrichment_baseline() ->
     assert "no proof authority behavior changes" in text
 
 
+def test_playbook_records_candidate_a_neutral_candidate_ordering_baseline() -> None:
+    text = _playbook_text()
+
+    assert "Candidate A neutral candidate ordering baseline" in text
+    assert "priority" in text
+    assert "lastResult" in text
+    assert "latest matching action result" in text
+    assert "test_task_board_projection_orders_candidates_and_projects_last_result" in text
+    assert "tests/unit/test_application_board_read_model_service.py" in text
+    assert "no production path switch" in text
+    assert "no proof authority behavior changes" in text
+
+
 def test_playbook_records_next_approval_gate_after_phase4_skeletons() -> None:
     text = _playbook_text()
 
@@ -431,6 +444,7 @@ def test_playbook_records_candidate_a_implementation_readiness_checklist() -> No
         "neutral metadata projection baseline",
         "neutral metadata alias projection baseline",
         "neutral candidate enrichment baseline",
+        "neutral candidate ordering baseline",
         "neutral malformed board item projection baseline",
         "neutral recommended action projection baseline",
         "neutral explicit recommendation marker baseline",
@@ -443,6 +457,7 @@ def test_playbook_records_candidate_a_implementation_readiness_checklist() -> No
         "test_build_promotes_neutral_board_metadata_to_read_model_fields",
         "test_build_promotes_board_metadata_aliases_to_read_model_fields",
         "test_task_board_projection_enriches_selected_and_recommended_candidates",
+        "test_task_board_projection_orders_candidates_and_projects_last_result",
         "test_candidate_a_representative_fixture_locks_public_projection_shape",
         "test_candidate_a_missing_or_malformed_state_snapshot_baseline",
         "test_candidate_a_decision_ingress_action_result_baseline",

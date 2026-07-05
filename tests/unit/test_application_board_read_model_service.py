@@ -747,6 +747,83 @@ def test_task_board_projection_enriches_selected_and_recommended_candidates() ->
     _assert_json_friendly(projection)
 
 
+def test_task_board_projection_orders_candidates_and_projects_last_result() -> None:
+    from flaghunter.application.challenge.board_read_model_service import (
+        build_task_board_projection,
+    )
+    from flaghunter.domain.challenge.contracts import ChallengeBoardReadModel
+
+    model = ChallengeBoardReadModel(
+        run_id="run-candidate-ordering",
+        challenge_id="challenge-candidate-ordering",
+        candidates=[
+            {
+                "action": "probe_discovered_endpoint",
+                "priority": 11,
+                "recommended": False,
+            },
+            {
+                "action": "collect_initial_facts",
+                "priority": 20,
+                "recommended": False,
+                "lastResult": "stale",
+            },
+            {
+                "action": "verify_runtime_signal",
+                "priority": 2,
+                "recommended": False,
+            },
+        ],
+        action_results=[
+            {
+                "action": "collect_initial_facts",
+                "result": "failed",
+                "details": {"reason": "old failure"},
+                "t": "2026-06-03T10:00:01+00:00",
+            },
+            {
+                "action": "verify_runtime_signal",
+                "result": "ok",
+                "t": "2026-06-03T10:00:02+00:00",
+            },
+            {
+                "action": "collect_initial_facts",
+                "result": "skipped",
+                "details": {"reason": "latest result wins"},
+                "t": "2026-06-03T10:00:03+00:00",
+            },
+        ],
+    )
+
+    projection = build_task_board_projection(model)
+
+    assert [item["action"] for item in projection["candidates"]] == [
+        "verify_runtime_signal",
+        "probe_discovered_endpoint",
+        "collect_initial_facts",
+    ]
+    assert projection["candidates"] == [
+        {
+            "action": "verify_runtime_signal",
+            "priority": 2,
+            "recommended": False,
+            "lastResult": "ok",
+        },
+        {
+            "action": "probe_discovered_endpoint",
+            "priority": 11,
+            "recommended": False,
+        },
+        {
+            "action": "collect_initial_facts",
+            "priority": 20,
+            "recommended": False,
+            "lastResult": "skipped",
+        },
+    ]
+    _assert_json_friendly(projection)
+
+
 def test_task_board_projection_marks_explicit_recommended_candidate() -> None:
     from flaghunter.application.challenge.board_read_model_service import (
         build_task_board_projection,

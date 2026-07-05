@@ -71,8 +71,8 @@ def build_task_board_projection(
     board = _normalize_board(read_model)
     payload = board.to_dict()
     decisions = _mapping_list(payload.get("decisions"))
-    candidates = _candidate_list(payload.get("candidates"))
     action_results = _action_result_list(payload.get("actionResults"))
+    candidates = _candidate_list(payload.get("candidates"), action_results)
     active_decision = _first_mapping(payload.get("decisions"))
     evidence_items = [
         item
@@ -242,12 +242,28 @@ def _mapping_list(value: JsonValue) -> list[dict[str, JsonValue]]:
     ]
 
 
-def _candidate_list(value: JsonValue) -> list[dict[str, JsonValue]]:
-    return [
+def _candidate_list(
+    value: JsonValue,
+    action_results: list[dict[str, JsonValue]] | None = None,
+) -> list[dict[str, JsonValue]]:
+    candidates = [
         item
         for item in _mapping_list(value)
         if _clean_text(item.get("action"))
     ]
+    should_order = any("priority" in candidate for candidate in candidates)
+    if should_order and action_results:
+        for candidate in candidates:
+            latest_result = _latest_action_result(
+                action_results,
+                _clean_text(candidate.get("action")),
+            )
+            result = _clean_text(latest_result.get("result"))
+            if result:
+                candidate["lastResult"] = result
+    if should_order:
+        candidates.sort(key=_candidate_sort_key)
+    return candidates
 
 
 def _action_result_list(value: JsonValue) -> list[dict[str, JsonValue]]:
@@ -390,6 +406,20 @@ def _latest_action_result(
         if _clean_text(item.get("action")) == action:
             return item
     return {}
+
+
+def _candidate_sort_key(candidate: Mapping[str, JsonValue]) -> tuple[float, str]:
+    priority = candidate.get("priority")
+    if isinstance(priority, (int, float)):
+        priority_value = float(priority)
+    elif isinstance(priority, str):
+        try:
+            priority_value = float(priority)
+        except ValueError:
+            priority_value = 999.0
+    else:
+        priority_value = 999.0
+    return (priority_value, _clean_text(candidate.get("action")))
 
 
 def _copy_hypothesis_summary(
