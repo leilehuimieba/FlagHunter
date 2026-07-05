@@ -11,7 +11,12 @@ from .ledger_events import LedgerEventReadback, build_ledger_event_readback
 from .policies import PolicyCatalog, PolicyRef, PolicyReviewRef
 from .proof import ProofRecord, ReviewState
 from .progress import ChallengeProgressReadback, TaskProgressRef, WorkerTraceRef
-from .read_models import ChallengeRunSnapshot, ReadModelRef
+from .read_models import (
+    BoardItem,
+    ChallengeBoardReadModel,
+    ChallengeRunSnapshot,
+    ReadModelRef,
+)
 from .receipts import TaskReceipt
 from .sanitization import (
     is_sensitive_key,
@@ -59,7 +64,9 @@ __all__ = [
     "ArtifactManifest",
     "ArtifactRecord",
     "AuditEvidenceExport",
+    "BoardItem",
     "ChallengeClaim",
+    "ChallengeBoardReadModel",
     "CheckpointManifest",
     "CheckpointRecord",
     "ChallengeProgressReadback",

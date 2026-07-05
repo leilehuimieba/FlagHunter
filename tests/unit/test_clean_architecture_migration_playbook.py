@@ -34,6 +34,20 @@ def test_playbook_tracks_completed_phase4_application_services() -> None:
         assert service_name in text
 
 
+def test_playbook_records_board_read_model_skeleton_baseline() -> None:
+    text = _playbook_text()
+
+    assert "Challenge board read-model skeleton baseline" in text
+    assert "BuildChallengeBoardReadModel" in text
+    assert "ChallengeBoardReadModel" in text
+    assert "BoardItem" in text
+    assert "tests/unit/test_application_board_read_model_service.py" in text
+    assert "no production path switch" in text
+    assert "no dispatcher loop changes" in text
+    assert "no MCP production wiring" in text
+    assert "no proof authority behavior changes" in text
+
+
 def test_playbook_records_next_approval_gate_after_phase4_skeletons() -> None:
     text = _playbook_text()
 
