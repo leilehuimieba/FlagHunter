@@ -847,6 +847,82 @@ Boundary confirmation for this guard:
 - no ToolExecutor changes
 - no proof authority behavior changes
 
+### Core import-linter outer-layer coverage guard
+
+Status: import-linter outer-layer coverage guard added for neutral core layers.
+
+`tests/unit/test_import_layers.py` now requires `.importlinter` to keep these
+core clean-architecture contracts in sync with the source guards:
+
+- `domain-contract-independence`
+- `ports-contract-boundary`
+- `application-service-boundary`
+
+The domain contract forbids these outer layers:
+
+- `flaghunter.adapters`
+- `flaghunter.application`
+- `flaghunter.config`
+- `flaghunter.cpa_modules`
+- `flaghunter.interface`
+- `flaghunter.knowledge`
+- `flaghunter.llm`
+- `flaghunter.mcp.server`
+- `flaghunter.playbooks`
+- `flaghunter.ports`
+- `flaghunter.runtime`
+- `flaghunter.session`
+- `flaghunter.tools`
+- `flaghunter.workspaces`
+
+The ports contract forbids these outer layers:
+
+- `flaghunter.adapters`
+- `flaghunter.agents`
+- `flaghunter.application`
+- `flaghunter.config`
+- `flaghunter.cpa_modules`
+- `flaghunter.interface`
+- `flaghunter.knowledge`
+- `flaghunter.llm`
+- `flaghunter.mcp.server`
+- `flaghunter.playbooks`
+- `flaghunter.runtime`
+- `flaghunter.session`
+- `flaghunter.tools`
+- `flaghunter.workspaces`
+
+The application-service contract forbids these outer layers:
+
+- `flaghunter.adapters`
+- `flaghunter.agents`
+- `flaghunter.config`
+- `flaghunter.cpa_modules`
+- `flaghunter.interface`
+- `flaghunter.knowledge`
+- `flaghunter.llm`
+- `flaghunter.mcp.server`
+- `flaghunter.playbooks`
+- `flaghunter.runtime`
+- `flaghunter.session`
+- `flaghunter.tools`
+- `flaghunter.workspaces`
+
+This guard adds no production wiring. It only makes import-linter enforce the
+same neutral domain/ports/application dependency boundaries that the source
+guards already check.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter construction
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 ### Adapter port substitution fixture baseline
 
 Status: substitution fixture added before production wiring.

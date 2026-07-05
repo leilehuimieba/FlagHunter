@@ -35,6 +35,8 @@ type = forbidden
 source_modules =
     flaghunter.domain
 forbidden_modules =
+    flaghunter.adapters
+    flaghunter.application
     flaghunter.interface
     flaghunter.mcp.server
     flaghunter.session
@@ -45,6 +47,32 @@ forbidden_modules =
     flaghunter.runtime
     flaghunter.llm
     flaghunter.config
+    flaghunter.cpa_modules
+    flaghunter.playbooks
+    flaghunter.workspaces
+
+
+# --- CLEAN: PORTS import no concrete or outer layers -------------------------
+[importlinter:contract:ports-contract-boundary]
+name = PORTS import no concrete or outer layers
+type = forbidden
+source_modules =
+    flaghunter.ports
+forbidden_modules =
+    flaghunter.adapters
+    flaghunter.agents
+    flaghunter.application
+    flaghunter.interface
+    flaghunter.mcp.server
+    flaghunter.session
+    flaghunter.tools
+    flaghunter.knowledge
+    flaghunter.runtime
+    flaghunter.llm
+    flaghunter.config
+    flaghunter.cpa_modules
+    flaghunter.playbooks
+    flaghunter.workspaces
 
 
 # --- CLEAN: APPLICATION services import no concrete layers -------------------
@@ -65,6 +93,9 @@ forbidden_modules =
     flaghunter.runtime
     flaghunter.llm
     flaghunter.config
+    flaghunter.cpa_modules
+    flaghunter.playbooks
+    flaghunter.workspaces
 
 
 # --- CLEAN: FOUNDATION imports nothing higher --------------------------------

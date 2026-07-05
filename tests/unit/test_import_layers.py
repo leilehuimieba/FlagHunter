@@ -23,6 +23,26 @@ import pytest
 # Repo root = two levels up from this file (tests/unit/ -> repo root).
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CONFIG_PATH = os.path.join(REPO_ROOT, ".importlinter")
+PLAYBOOK_PATH = os.path.join(
+    REPO_ROOT,
+    "docs",
+    "dev",
+    "FlagHunter_Clean_Architecture_Migration_Playbook_v0.1_2026-07-04.md",
+)
+
+
+def _import_linter_config_text() -> str:
+    with open(CONFIG_PATH, encoding="utf-8") as handle:
+        return handle.read()
+
+
+def _contract_section(config_text: str, contract_name: str) -> str:
+    marker = f"[importlinter:contract:{contract_name}]"
+    start = config_text.index(marker)
+    next_contract = config_text.find("\n[importlinter:contract:", start + len(marker))
+    if next_contract == -1:
+        return config_text[start:]
+    return config_text[start:next_contract]
 
 
 def test_import_linter_contracts_all_kept() -> None:
@@ -58,7 +78,7 @@ def test_import_linter_contracts_all_kept() -> None:
 
 def test_domain_layer_has_import_linter_boundary() -> None:
     """The neutral domain layer must stay below ports and concrete layers."""
-    config_text = open(CONFIG_PATH, encoding="utf-8").read()
+    config_text = _import_linter_config_text()
 
     assert "[importlinter:contract:domain-contract-independence]" in config_text
     assert "flaghunter.domain" in config_text
@@ -66,7 +86,73 @@ def test_domain_layer_has_import_linter_boundary() -> None:
 
 def test_application_layer_has_import_linter_boundary() -> None:
     """Application services may use ports/contracts but not concrete layers."""
-    config_text = open(CONFIG_PATH, encoding="utf-8").read()
+    config_text = _import_linter_config_text()
 
     assert "[importlinter:contract:application-service-boundary]" in config_text
     assert "flaghunter.application" in config_text
+
+
+def test_core_clean_architecture_import_linter_boundaries_cover_outer_layers() -> None:
+    """Domain, ports, and application boundaries must include every outer layer."""
+    config_text = _import_linter_config_text()
+    with open(PLAYBOOK_PATH, encoding="utf-8") as handle:
+        playbook_text = handle.read()
+
+    assert "Core import-linter outer-layer coverage guard" in playbook_text
+
+    required_by_contract = {
+        "domain-contract-independence": {
+            "flaghunter.adapters",
+            "flaghunter.application",
+            "flaghunter.config",
+            "flaghunter.cpa_modules",
+            "flaghunter.interface",
+            "flaghunter.knowledge",
+            "flaghunter.llm",
+            "flaghunter.mcp.server",
+            "flaghunter.playbooks",
+            "flaghunter.ports",
+            "flaghunter.runtime",
+            "flaghunter.session",
+            "flaghunter.tools",
+            "flaghunter.workspaces",
+        },
+        "ports-contract-boundary": {
+            "flaghunter.adapters",
+            "flaghunter.agents",
+            "flaghunter.application",
+            "flaghunter.config",
+            "flaghunter.cpa_modules",
+            "flaghunter.interface",
+            "flaghunter.knowledge",
+            "flaghunter.llm",
+            "flaghunter.mcp.server",
+            "flaghunter.playbooks",
+            "flaghunter.runtime",
+            "flaghunter.session",
+            "flaghunter.tools",
+            "flaghunter.workspaces",
+        },
+        "application-service-boundary": {
+            "flaghunter.adapters",
+            "flaghunter.agents",
+            "flaghunter.config",
+            "flaghunter.cpa_modules",
+            "flaghunter.interface",
+            "flaghunter.knowledge",
+            "flaghunter.llm",
+            "flaghunter.mcp.server",
+            "flaghunter.playbooks",
+            "flaghunter.runtime",
+            "flaghunter.session",
+            "flaghunter.tools",
+            "flaghunter.workspaces",
+        },
+    }
+
+    for contract_name, required_modules in required_by_contract.items():
+        section = _contract_section(config_text, contract_name)
+        assert contract_name in playbook_text
+        for module_name in sorted(required_modules):
+            assert module_name in section
+            assert module_name in playbook_text
