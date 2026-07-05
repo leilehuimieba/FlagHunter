@@ -4393,6 +4393,38 @@ Rules:
   `Current landed` remains `false`
 - no production path switch is authorized by this landing status guard
 
+#### Read-path readiness-to-landing transition guard
+
+Status: readiness-to-landing guard recorded, no implementation landed.
+
+Readiness complete alone must not unlock landing. A future read-path
+implementation can move from readiness review to landed only when explicit
+approval evidence, implementation approval flags, landing evidence, executable
+rollback commands, and landing status all move together in the required
+governance or implementation commit.
+
+| Transition checkpoint | Required section | Current satisfied |
+|-----------------------|------------------|-------------------|
+| readiness indexes complete | `Read-path approval package evidence completeness guard` | true |
+| approval transition evidence complete | `Read-path approval package evidence completeness guard` | false |
+| implementation approval flags raised | `Read-path approval flag aggregate guard` | false |
+| landing evidence recorded | `Read-path implementation landed evidence guard` | false |
+| rollback commands executable | `Read-path rollback command index` | false |
+| landing status raised | `Read-path implementation landing status guard` | false |
+
+Rules:
+
+- readiness indexes may be complete while implementation approval remains false
+- approval transition evidence must be complete before any implementation
+  approval flag can move to true
+- implementation approval flags must be raised before any landing evidence can
+  move to true
+- landing evidence and executable rollback commands require the same real
+  implementation commit SHA
+- landing status remains false until landing evidence and rollback commands are
+  current for the candidate
+- no production path switch is authorized by this readiness-to-landing guard
+
 #### Candidate C split commit consistency guard
 
 Status: split commit consistency guard recorded, no implementation approved by this section.

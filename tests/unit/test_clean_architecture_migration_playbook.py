@@ -1721,6 +1721,76 @@ def test_playbook_parses_read_path_implementation_landing_status_guard() -> None
     assert "section." in landing_template
 
 
+def test_playbook_parses_read_path_readiness_to_landing_transition_guard() -> None:
+    text = _playbook_text()
+    section = _section_text(text, "Read-path readiness-to-landing transition guard")
+
+    assert "Status: readiness-to-landing guard recorded, no implementation landed." in section
+    assert "readiness complete alone must not unlock landing" in section.lower()
+    assert "no production path switch is authorized by this readiness-to-landing guard" in section
+
+    rows = {
+        row["Transition checkpoint"]: row
+        for row in _markdown_table_rows(section)
+    }
+    assert rows == {
+        "readiness indexes complete": {
+            "Transition checkpoint": "readiness indexes complete",
+            "Required section": "`Read-path approval package evidence completeness guard`",
+            "Current satisfied": "true",
+        },
+        "approval transition evidence complete": {
+            "Transition checkpoint": "approval transition evidence complete",
+            "Required section": "`Read-path approval package evidence completeness guard`",
+            "Current satisfied": "false",
+        },
+        "implementation approval flags raised": {
+            "Transition checkpoint": "implementation approval flags raised",
+            "Required section": "`Read-path approval flag aggregate guard`",
+            "Current satisfied": "false",
+        },
+        "landing evidence recorded": {
+            "Transition checkpoint": "landing evidence recorded",
+            "Required section": "`Read-path implementation landed evidence guard`",
+            "Current satisfied": "false",
+        },
+        "rollback commands executable": {
+            "Transition checkpoint": "rollback commands executable",
+            "Required section": "`Read-path rollback command index`",
+            "Current satisfied": "false",
+        },
+        "landing status raised": {
+            "Transition checkpoint": "landing status raised",
+            "Required section": "`Read-path implementation landing status guard`",
+            "Current satisfied": "false",
+        },
+    }
+
+    completeness_rows = {
+        row["Evidence group"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path approval package evidence completeness guard")
+        )
+    }
+    assert completeness_rows["candidate status ledger"]["Current complete"] == "true"
+    assert completeness_rows["readiness report"]["Current complete"] == "true"
+    assert completeness_rows["source-map coverage"]["Current complete"] == "true"
+    assert completeness_rows["approval transition evidence"]["Current complete"] == "false"
+    assert completeness_rows["landing evidence"]["Current complete"] == "false"
+
+    for row in _markdown_table_rows(
+        _section_text(text, "Read-path implementation landed evidence guard")
+    ):
+        assert row["Implementation landed"] == "false"
+        assert row["Landing evidence"] == "none"
+    for row in _markdown_table_rows(_section_text(text, "Read-path rollback command index")):
+        assert row["Current executable"] == "false"
+    for row in _markdown_table_rows(
+        _section_text(text, "Read-path implementation landing status guard")
+    ):
+        assert row["Current landed"] == "false"
+
+
 def test_playbook_parses_candidate_c_split_commit_consistency_guard() -> None:
     text = _playbook_text()
     section = _section_text(text, "Candidate C split commit consistency guard")
