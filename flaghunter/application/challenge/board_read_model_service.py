@@ -58,7 +58,8 @@ def build_task_board_projection(
         "facts": [
             _board_item_projection(item)
             for item in _mapping_list(payload.get("facts"))
-        ],
+        ]
+        + [_board_item_projection(item) for item in evidence_items],
         "hypotheses": _mapping_list(payload.get("metadata", {}).get("hypotheses")),
         "pending_verifications": [
             _board_item_projection(item) for item in pending_items

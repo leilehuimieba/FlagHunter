@@ -358,6 +358,53 @@ def test_task_board_projection_matches_candidate_a_public_shape() -> None:
     _assert_json_friendly(projection)
 
 
+def test_task_board_projection_promotes_non_pending_evidence_to_facts() -> None:
+    from flaghunter.application.challenge.board_read_model_service import (
+        build_task_board_projection,
+    )
+    from flaghunter.domain.challenge.contracts import (
+        BoardItem,
+        ChallengeBoardReadModel,
+    )
+
+    model = ChallengeBoardReadModel(
+        run_id="run-evidence",
+        challenge_id="challenge-evidence",
+        evidence=[
+            BoardItem(
+                item_id="evidence-fact",
+                item_type="discovered_endpoint",
+                value="http://challenge.test/admin",
+                source_ref="neutral-evidence",
+                confidence=0.8,
+                metadata={"rationale": "observed during read model build"},
+            ),
+            BoardItem(
+                item_id="pending-evidence",
+                item_type="runtime_flag",
+                value="candidate-answer",
+                metadata={"boardBucket": "pendingVerification"},
+            ),
+        ],
+    )
+
+    projection = build_task_board_projection(model)
+
+    assert projection["facts"] == [
+        {
+            "kind": "discovered_endpoint",
+            "value": "http://challenge.test/admin",
+            "source": "neutral-evidence",
+            "confidence": 0.8,
+            "rationale": "observed during read model build",
+        }
+    ]
+    assert projection["pending_verifications"] == [
+        {"kind": "runtime_flag", "value": "candidate-answer"}
+    ]
+    _assert_json_friendly(projection)
+
+
 def test_board_read_model_service_uses_only_inner_contracts() -> None:
     path = _board_service_source()
     tree = _parse(path)

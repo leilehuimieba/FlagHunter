@@ -442,6 +442,32 @@ Boundary confirmation for this baseline:
 - no MCP production wiring
 - no proof authority behavior changes
 
+### Candidate A neutral evidence projection baseline
+
+Status: neutral evidence projection fixture added before any production path
+switch.
+
+`build_task_board_projection` now preserves non-pending evidence by projecting
+it into the Candidate A-compatible `facts` list, while evidence explicitly
+marked for pending verification remains under `pending_verifications`. This
+keeps neutral evidence read models aligned with the current Web blackboard
+display semantics without connecting the new helper to `blackboard_lite.py`.
+
+`tests/unit/test_application_board_read_model_service.py` locks this behavior
+with a red/green fixture so future Candidate A implementation work can prove
+neutral evidence is not dropped during the projection step.
+
+Boundary confirmation for this baseline:
+
+- no production path switch
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no proof authority behavior changes
+
 ### Application service source guard baseline
 
 Status: source guard added before production wiring.
