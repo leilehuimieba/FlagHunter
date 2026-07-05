@@ -969,6 +969,57 @@ Required verification for the requested implementation slice:
 git diff --check
 ```
 
+#### Candidate A approved execution checklist
+
+Status: not approved; checklist only.
+
+If explicit Candidate A implementation approval is granted, execute the first
+read-path switch in this order:
+
+- confirm explicit Candidate A approval is recorded in the playbook before
+  editing production code
+- update the pre-approval guard in the same implementation commit that changes
+  the read path
+- edit only `flaghunter/interface/blackboard_lite.py` for the production
+  helper switch
+- preserve current public projection keys:
+  `facts`, `hypotheses`, `pending_verifications`, `decisions`, `candidates`,
+  `active_decision`, `action_results`, `recommended_action`, and
+  `attack_surfaces`
+- prove old/new output equivalence in `tests/unit/interface/test_blackboard_lite.py`
+- record implementation landing evidence using the read-path implementation
+  landing record template
+- rollback point: revert the single Candidate A implementation commit
+
+Forbidden companion edits for the approved Candidate A implementation:
+
+- do not modify `flaghunter/mcp/server/mcp_tools.py`
+- do not modify `flaghunter/interface/web_trace_timeline.py`
+- do not modify `flaghunter/interface/web_serialize_task.py`
+- do not modify `flaghunter/interface/web_control_decision.py`
+
+Boundary constraints for the approved Candidate A implementation:
+
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no composition root changes
+- no concrete adapter implementation
+- no proof authority behavior changes
+- no P5 implementation
+
+Required verification for the approved Candidate A implementation:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/interface/test_blackboard_lite.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_application_board_read_model_service.py tests/unit/test_clean_architecture_migration_playbook.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py -q
+git diff --check
+```
+
 #### Candidate A source guard baseline
 
 Status: source guard added before any production path switch.

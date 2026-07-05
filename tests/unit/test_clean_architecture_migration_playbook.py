@@ -385,6 +385,40 @@ def test_playbook_records_candidate_a_implementation_approval_request() -> None:
         assert command in text
 
 
+def test_playbook_records_candidate_a_approved_execution_checklist() -> None:
+    text = _playbook_text()
+    section = _section_text(text, "Candidate A approved execution checklist")
+
+    assert "Status: not approved; checklist only." in section
+    for required_item in (
+        "confirm explicit Candidate A approval",
+        "update the pre-approval guard in the same implementation commit",
+        "edit only `flaghunter/interface/blackboard_lite.py`",
+        "preserve current public projection keys",
+        "prove old/new output equivalence",
+        "record implementation landing evidence",
+        "rollback point: revert the single Candidate A implementation commit",
+    ):
+        assert required_item in section
+    for forbidden_scope in (
+        "do not modify `flaghunter/mcp/server/mcp_tools.py`",
+        "do not modify `flaghunter/interface/web_trace_timeline.py`",
+        "do not modify `flaghunter/interface/web_serialize_task.py`",
+        "do not modify `flaghunter/interface/web_control_decision.py`",
+        "no dispatcher loop changes",
+        "no ToolExecutor changes",
+        "no proof authority behavior changes",
+    ):
+        assert forbidden_scope in section
+    for command in (
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/interface/test_blackboard_lite.py -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_application_board_read_model_service.py tests/unit/test_clean_architecture_migration_playbook.py -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py -q",
+        "git diff --check",
+    ):
+        assert command in section
+
+
 def test_playbook_records_candidate_c_approval_plan() -> None:
     text = _playbook_text()
 
