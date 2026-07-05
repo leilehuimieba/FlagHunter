@@ -712,6 +712,28 @@ def test_playbook_records_read_path_approval_drift_guard() -> None:
     assert "No candidate may be marked `implementation landed` without a commit SHA" in text
 
 
+def test_playbook_records_read_path_approval_package_summary() -> None:
+    text = _playbook_text()
+
+    assert "Read-path approval package summary" in text
+    for candidate_status in (
+        "Candidate A | approval requested, not approved",
+        "Candidate B | ready for approval review, not approved",
+        "Candidate C | blocked on Candidate A approval, not approved",
+        "Deferred MCP | blocked on Web projection equivalence and explicit MCP approval, not approved",
+    ):
+        assert candidate_status in text
+    for required_phrase in (
+        "evidence present",
+        "remaining blocker",
+        "implementation not approved",
+        "no production path switch",
+        "no MCP production wiring",
+        "no proof authority behavior changes",
+    ):
+        assert required_phrase in text
+
+
 def test_playbook_records_application_service_source_guard_baseline() -> None:
     text = _playbook_text()
 

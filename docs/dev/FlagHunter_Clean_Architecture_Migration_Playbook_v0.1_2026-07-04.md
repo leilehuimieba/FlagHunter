@@ -1787,6 +1787,35 @@ No candidate may be marked `implementation landed` without a commit SHA, the
 focused regression result, the architecture/source-guard result, and the
 post-push branch status.
 
+#### Read-path approval package summary
+
+Status: consolidated approval package recorded, no implementation approved by
+this section.
+
+| Candidate | Current status | Target | evidence present | remaining blocker |
+|-----------|----------------|--------|------------------|-------------------|
+| Candidate A | approval requested, not approved | `flaghunter/interface/blackboard_lite.py::build_task_blackboard_snapshot` | neutral projection fixtures, Web blackboard fixtures, source guard, pre-approval guard | explicit Candidate A implementation approval |
+| Candidate B | ready for approval review, not approved | `flaghunter/interface/web_trace_timeline.py::_build_control_observation_timeline_events` | characterization fixture, read-only source guard, pre-approval guard | Candidate A equivalence lands and Candidate B implementation approval |
+| Candidate C | blocked on Candidate A approval, not approved | `flaghunter/interface/web_serialize_task.py::_serialize_task` and `flaghunter/interface/web_control_decision.py::_task_blackboard_snapshot_for_decision` | serialize-task fixture, control-decision merge fixture, source guard, pre-approval guard | Candidate A equivalence lands and Candidate C implementation approval |
+| Deferred MCP | blocked on Web projection equivalence and explicit MCP approval, not approved | `flaghunter/mcp/server/mcp_tools.py::_append_blackboard_snapshot_lines` | readback formatting fixture, empty/malformed fixture, source guard, pre-approval guard | Web projection equivalence lands and explicit MCP production wiring approval |
+
+This package records implementation not approved. Any production implementation
+still requires the candidate-specific approval state transition and a single
+implementation commit.
+
+Forbidden scope for this package:
+
+- no production path switch
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no composition root changes
+- no proof authority behavior changes
+- no P5 implementation
+
 #### Candidate A pre-approval production switch guard
 
 Status: source guard added before Candidate A implementation approval.
