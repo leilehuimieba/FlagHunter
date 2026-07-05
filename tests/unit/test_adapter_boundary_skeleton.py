@@ -106,6 +106,14 @@ def test_adapter_namespace_packages_are_importable() -> None:
         assert module.__name__ == module_name
 
 
+def test_mcp_adapter_namespace_exports_task_ingress_skeleton() -> None:
+    package = importlib.import_module("flaghunter.adapters.mcp")
+    module = importlib.import_module("flaghunter.adapters.mcp.task_ingress_adapter")
+
+    assert package.TaskIngressAdapter is module.TaskIngressAdapter
+    assert package.__all__ == ["TaskIngressAdapter"]
+
+
 def test_root_adapter_namespace_declares_managed_packages() -> None:
     module = importlib.import_module("flaghunter.adapters")
 

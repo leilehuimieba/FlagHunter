@@ -721,6 +721,33 @@ Boundary confirmation for this baseline:
 - no production wiring
 - no proof authority behavior changes
 
+### Task ingress adapter skeleton baseline
+
+Status: task ingress adapter skeleton added before MCP production wiring.
+
+`TaskIngressPort` now exists as a neutral protocol-only boundary under
+`flaghunter/ports/`. `TaskIngressAdapter` now exists under
+`flaghunter/adapters/mcp/` and delegates to injected task ingress ports without
+constructing or importing the production MCP server.
+
+`tests/unit/test_task_ingress_adapter.py` verifies the adapter delegates to an
+injected task ingress port, exports through `flaghunter.adapters.mcp`, and has
+no concrete/action/proof imports. `tests/unit/test_adapter_port_substitution.py`
+also covers substitutable injected task ingress ports.
+
+Boundary confirmation for this baseline:
+
+- no MCP production wiring
+- no `flaghunter/mcp/server` imports
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no composition root changes
+- no proof authority behavior changes
+- no P5 implementation
+
 ### Adapter substitution source guard baseline
 
 Status: source guard added for substitution fixtures.

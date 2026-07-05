@@ -1671,3 +1671,18 @@ def test_playbook_records_adapter_substitution_runway_completed() -> None:
     assert "substitution source guard" in text
     assert "next adapter work requires a short plan or explicit approval" in text
     assert "no production wiring has been approved by these fixtures" in text
+
+
+def test_playbook_records_task_ingress_adapter_skeleton_baseline() -> None:
+    text = _playbook_text()
+
+    assert "Task ingress adapter skeleton baseline" in text
+    assert "TaskIngressPort" in text
+    assert "TaskIngressAdapter" in text
+    assert "tests/unit/test_task_ingress_adapter.py" in text
+    assert "tests/unit/test_adapter_port_substitution.py" in text
+    assert "delegates to injected task ingress ports" in text
+    assert "no MCP production wiring" in text
+    assert "no `flaghunter/mcp/server` imports" in text
+    assert "no dispatcher loop changes" in text
+    assert "no proof authority behavior changes" in text

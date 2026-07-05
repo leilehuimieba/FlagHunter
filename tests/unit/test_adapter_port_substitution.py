@@ -9,6 +9,7 @@ from flaghunter.adapters.audit.audit_store_adapter import AuditStoreAdapter
 from flaghunter.adapters.crew.crew_bridge_adapter import CrewBridgeAdapter
 from flaghunter.adapters.crew.task_dag_runner_adapter import TaskDAGRunnerAdapter
 from flaghunter.adapters.proof.verifier_adapter import VerifierAdapter
+from flaghunter.adapters.mcp.task_ingress_adapter import TaskIngressAdapter
 from flaghunter.adapters.storage.checkpoint_store_adapter import CheckpointStoreAdapter
 from flaghunter.adapters.storage.claim_store_adapter import ClaimStoreAdapter
 from flaghunter.adapters.storage.read_model_store_adapter import ReadModelStoreAdapter
@@ -25,6 +26,7 @@ from flaghunter.ports import (
     RuntimeActionPort,
     StateStorePort,
     TaskDAGRunnerPort,
+    TaskIngressPort,
     ToolRunnerPort,
     VerifierPort,
 )
@@ -314,6 +316,22 @@ class SubstitutableVerifier:
         }
 
 
+class SubstitutableTaskIngress:
+    def __init__(self, label: str) -> None:
+        self.label = label
+        self.calls: list[dict[str, Any]] = []
+
+    async def submit_task(self, request: Mapping[str, Any]) -> Mapping[str, Any]:
+        payload = dict(request)
+        self.calls.append(payload)
+        return {
+            "schemaVersion": "challenge.task_ingress_receipt.v1",
+            "ingress": self.label,
+            "taskId": payload.get("taskId"),
+            "status": "accepted",
+        }
+
+
 async def test_tool_runner_adapter_substitutes_injected_ports_without_wiring() -> None:
     first_runner = FirstToolRunner()
     second_runner = SecondToolRunner()
@@ -556,4 +574,39 @@ async def test_verifier_adapter_substitutes_injected_reviewers_without_wiring() 
         "claimId": "claim-b",
         "outcome": "rejected",
         "evidence": second_evidence,
+    }
+
+
+async def test_task_ingress_adapter_substitutes_injected_ports_without_wiring() -> None:
+    first_ingress = SubstitutableTaskIngress("ingress-a")
+    second_ingress = SubstitutableTaskIngress("ingress-b")
+    first_adapter = TaskIngressAdapter(first_ingress)
+    second_adapter = TaskIngressAdapter(second_ingress)
+    first_request = {
+        "schemaVersion": "challenge.task_ingress_request.v1",
+        "taskId": "task-a",
+    }
+    second_request = {
+        "schemaVersion": "challenge.task_ingress_request.v1",
+        "taskId": "task-b",
+    }
+
+    first_receipt = await first_adapter.submit_task(first_request)
+    second_receipt = await second_adapter.submit_task(second_request)
+
+    assert isinstance(first_adapter, TaskIngressPort)
+    assert isinstance(second_adapter, TaskIngressPort)
+    assert first_ingress.calls == [first_request]
+    assert second_ingress.calls == [second_request]
+    assert first_receipt == {
+        "schemaVersion": "challenge.task_ingress_receipt.v1",
+        "ingress": "ingress-a",
+        "taskId": "task-a",
+        "status": "accepted",
+    }
+    assert second_receipt == {
+        "schemaVersion": "challenge.task_ingress_receipt.v1",
+        "ingress": "ingress-b",
+        "taskId": "task-b",
+        "status": "accepted",
     }

@@ -51,6 +51,9 @@ EXPECTED_PORTS = {
         "CrewBridgePort": {"dispatch_task"},
         "TaskDAGRunnerPort": {"run_ready_task"},
     },
+    "flaghunter.ports.task_ingress": {
+        "TaskIngressPort": {"submit_task"},
+    },
 }
 
 
