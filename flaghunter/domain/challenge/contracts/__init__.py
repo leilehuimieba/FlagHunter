@@ -27,7 +27,7 @@ from .sanitization import (
     sanitize_metadata,
 )
 from .strategies import StrategyCatalog, StrategyRef, StrategySelection
-from .task_ingress import TaskIngressReceipt, TaskIngressRequest
+from .task_ingress import TaskIngressReadback, TaskIngressReceipt, TaskIngressRequest
 from .task_execution import (
     TaskBrief,
     TaskExecutionEdge,
@@ -100,6 +100,7 @@ __all__ = [
     "TaskExecutionReadback",
     "TaskExecutionReceipt",
     "TaskGraphNode",
+    "TaskIngressReadback",
     "TaskIngressReceipt",
     "TaskIngressRequest",
     "TaskProgressRef",

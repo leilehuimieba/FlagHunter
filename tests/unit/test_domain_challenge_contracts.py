@@ -136,6 +136,9 @@ EXPECTED_CONTRACTS = {
             "task_id": "task-1",
             "status": "accepted",
         },
+        "TaskIngressReadback": {
+            "run_id": "run-1",
+        },
     },
     "flaghunter.domain.challenge.contracts.task_execution": {
         "TaskExecutionNode": {
@@ -233,6 +236,10 @@ EXPECTED_CLASS_SCHEMA_VERSIONS = {
         "flaghunter.domain.challenge.contracts.task_ingress",
         "TaskIngressReceipt",
     ): "challenge.task_ingress_receipt.v1",
+    (
+        "flaghunter.domain.challenge.contracts.task_ingress",
+        "TaskIngressReadback",
+    ): "challenge.task_ingress_readback.v1",
 }
 
 
@@ -372,6 +379,7 @@ def test_minimal_inputs_use_empty_json_friendly_defaults() -> None:
         ReadModelRef,
         TaskIngressReceipt,
         TaskIngressRequest,
+        TaskIngressReadback,
         TaskGraphNode,
         TaskReceipt,
     )
@@ -399,10 +407,12 @@ def test_minimal_inputs_use_empty_json_friendly_defaults() -> None:
             instructions="",
         ),
         TaskIngressReceipt(receipt_id="receipt-1", task_id="task-1", status=""),
+        TaskIngressReadback(run_id="run-1"),
     ]
     expected_versions = {
         "TaskIngressRequest": "challenge.task_ingress_request.v1",
         "TaskIngressReceipt": "challenge.task_ingress_receipt.v1",
+        "TaskIngressReadback": "challenge.task_ingress_readback.v1",
     }
 
     for instance in instances:
@@ -1174,6 +1184,72 @@ def test_task_ingress_contract_sanitizes_instructions_receipts_and_metadata() ->
     assert TaskIngressReceipt.from_dict(receipt_payload).to_dict() == receipt_payload
     _assert_json_friendly(request_payload)
     _assert_json_friendly(receipt_payload)
+
+
+def test_task_ingress_readback_summarizes_requests_and_receipts() -> None:
+    from flaghunter.domain.challenge.contracts import (
+        TaskIngressReadback,
+        TaskIngressReceipt,
+        TaskIngressRequest,
+    )
+
+    readback = TaskIngressReadback(
+        run_id="run-a",
+        ingress_items=[
+            TaskIngressRequest(
+                task_id="task-a",
+                task_type="review",
+                instructions="Review token=request-token",
+                metadata={"authorization": "Bearer request-metadata-token"},
+            ),
+            {
+                "taskId": "task-b",
+                "taskType": "dispatch",
+                "instructionsPreview": "Dispatch password=request-password",
+                "metadata": {"safe": "visible"},
+            },
+        ],
+        receipts=[
+            TaskIngressReceipt(
+                receipt_id="receipt-a",
+                task_id="task-a",
+                status="accepted",
+                summary_preview="accepted token=receipt-token",
+            ),
+            {
+                "receiptId": "receipt-b",
+                "taskId": "task-b",
+                "status": "queued",
+                "summaryPreview": "queued password=receipt-password",
+            },
+        ],
+        metadata={"session": "readback-session", "safe": "visible"},
+    )
+
+    payload = readback.to_dict()
+
+    assert payload["schemaVersion"] == "challenge.task_ingress_readback.v1"
+    assert payload["runId"] == "run-a"
+    assert payload["summary"] == {
+        "requestCount": 2,
+        "receiptCount": 2,
+        "taskTypeCounts": {"dispatch": 1, "review": 1},
+        "statusCounts": {"accepted": 1, "queued": 1},
+    }
+    assert payload["ingressItems"][0]["metadata"] == {"authorization": "<redacted>"}
+    assert payload["ingressItems"][1]["instructionsPreview"] == (
+        "Dispatch password=<redacted>"
+    )
+    assert payload["receipts"][0]["summaryPreview"] == "accepted token=<redacted>"
+    assert payload["receipts"][1]["summaryPreview"] == (
+        "queued password=<redacted>"
+    )
+    assert payload["metadata"] == {
+        "session": "<redacted>",
+        "safe": "visible",
+    }
+    assert TaskIngressReadback.from_dict(payload).to_dict() == payload
+    _assert_json_friendly(payload)
 
 
 def test_task_ingress_contract_uses_shared_sanitization_helpers() -> None:

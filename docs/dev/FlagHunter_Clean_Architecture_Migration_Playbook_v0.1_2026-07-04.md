@@ -781,6 +781,37 @@ Boundary confirmation for this baseline:
 - no proof authority behavior changes
 - no P5 implementation
 
+### Task ingress readback contract skeleton baseline
+
+Status: task ingress readback contract skeleton added before service migration
+or production wiring.
+
+`TaskIngressReadback` now exists under
+`flaghunter/domain/challenge/contracts/task_ingress.py` as a schema-versioned
+and JSON-friendly neutral read model. It aggregates already-neutral ingress
+requests and receipts, emits request and receipt summary counts, and records
+task type and status counts without reading runtime state or invoking
+production ingress paths.
+
+`tests/unit/test_domain_challenge_contracts.py` verifies import/re-export,
+round-trip serialization, empty-input behavior, request and receipt summary
+counts, task type and status counts, sanitization, domain-neutral names, and
+contract source guards.
+
+Boundary confirmation for this baseline:
+
+- no service migration
+- no MCP production wiring
+- no concrete adapter construction
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no composition root changes
+- no proof authority behavior changes
+- no P5 implementation
+
 ### Task ingress application service skeleton baseline
 
 Status: task ingress application service skeleton added before production wiring.

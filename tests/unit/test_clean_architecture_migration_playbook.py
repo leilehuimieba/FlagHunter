@@ -1719,3 +1719,19 @@ def test_playbook_records_task_ingress_domain_contract_baseline() -> None:
     assert "no concrete adapter construction" in text
     assert "no dispatcher loop changes" in text
     assert "no proof authority behavior changes" in text
+
+
+def test_playbook_records_task_ingress_readback_contract_baseline() -> None:
+    text = _playbook_text()
+
+    assert "Task ingress readback contract skeleton baseline" in text
+    assert "TaskIngressReadback" in text
+    assert "request and receipt summary counts" in text
+    assert "task type and status counts" in text
+    assert "flaghunter/domain/challenge/contracts/task_ingress.py" in text
+    assert "tests/unit/test_domain_challenge_contracts.py" in text
+    assert "no service migration" in text
+    assert "no MCP production wiring" in text
+    assert "no concrete adapter construction" in text
+    assert "no dispatcher loop changes" in text
+    assert "no proof authority behavior changes" in text
