@@ -898,6 +898,57 @@ Boundary confirmation for this baseline:
 - no proof authority behavior changes
 - no P5 implementation
 
+### Task ingress service contract migration plan
+
+Status: plan recorded, implementation not approved.
+
+This plan covers a future focused migration that may let
+`SubmitTaskIngress` use the neutral task ingress domain contracts internally
+while preserving its current external behavior and injected port payload
+compatibility.
+
+File list for the future implementation slice:
+
+- `flaghunter/application/challenge/task_ingress_service.py`
+- `tests/unit/test_application_task_ingress_service.py`
+- `tests/unit/test_application_service_source_guards.py`
+- `tests/unit/test_task_ingress_adapter.py`
+- `tests/unit/test_clean_architecture_migration_playbook.py`
+
+risk: low-medium, because service output shape and ingress port payload compatibility could change if the service switches from the current raw mapping payload to neutral contract serialization without a compatibility check.
+
+rollback point: revert the single service migration commit.
+
+Required behavior for the future implementation slice:
+
+- preserve current external response shape unless explicitly versioned
+- preserve raw `instructions` in the port request if downstream compatibility still expects it
+- optional neutral contract payloads may only be used internally or under a
+  compatible additive key
+- keep all serialized cross-module payloads schema-versioned and JSON-friendly
+
+Non-goals:
+
+- no production wiring
+- no MCP server changes
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no composition root changes
+- no proof authority behavior changes
+- no P5 implementation
+
+Required verification for the future implementation slice:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_application_task_ingress_service.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_task_ingress_adapter.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py tests/unit/test_task_ingress_production_wiring_guards.py -q
+git diff --check
+```
+
 ### Adapter substitution source guard baseline
 
 Status: source guard added for substitution fixtures.

@@ -1767,3 +1767,37 @@ def test_playbook_records_task_ingress_production_entrypoint_guard_baseline() ->
     assert "no ToolExecutor changes" in text
     assert "no composition root changes" in text
     assert "no proof authority behavior changes" in text
+
+
+def test_playbook_records_task_ingress_service_contract_migration_plan() -> None:
+    text = _playbook_text()
+
+    assert "Task ingress service contract migration plan" in text
+    assert "Status: plan recorded, implementation not approved." in text
+    for file_path in (
+        "flaghunter/application/challenge/task_ingress_service.py",
+        "tests/unit/test_application_task_ingress_service.py",
+        "tests/unit/test_application_service_source_guards.py",
+        "tests/unit/test_task_ingress_adapter.py",
+        "tests/unit/test_clean_architecture_migration_playbook.py",
+    ):
+        assert file_path in text
+    assert "risk: low-medium" in text
+    assert "service output shape and ingress port payload compatibility could change" in text
+    assert "rollback point: revert the single service migration commit" in text
+    assert "preserve current external response shape unless explicitly versioned" in text
+    assert "preserve raw `instructions` in the port request if downstream compatibility still expects it" in text
+    assert "no production wiring" in text
+    assert "no MCP server changes" in text
+    assert "no dispatcher loop changes" in text
+    assert "no ToolExecutor changes" in text
+    assert "no composition root changes" in text
+    assert "no proof authority behavior changes" in text
+    assert "no P5 implementation" in text
+    for command in (
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_application_task_ingress_service.py -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_task_ingress_adapter.py -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py tests/unit/test_task_ingress_production_wiring_guards.py -q",
+        "git diff --check",
+    ):
+        assert command in text
