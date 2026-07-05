@@ -47,17 +47,20 @@ def build_task_board_projection(
     evidence_items = [
         item
         for item in _mapping_list(payload.get("evidence"))
-        if _item_bucket(item) != "pendingVerification"
+        if _is_projectable_board_item(item)
+        and _item_bucket(item) != "pendingVerification"
     ]
     pending_items = [
         item
         for item in _mapping_list(payload.get("evidence"))
-        if _item_bucket(item) == "pendingVerification"
+        if _is_projectable_board_item(item)
+        and _item_bucket(item) == "pendingVerification"
     ]
     return {
         "facts": [
             _board_item_projection(item)
             for item in _mapping_list(payload.get("facts"))
+            if _is_projectable_board_item(item)
         ]
         + [_board_item_projection(item) for item in evidence_items],
         "hypotheses": _mapping_list(payload.get("metadata", {}).get("hypotheses")),
@@ -184,6 +187,10 @@ def _item_bucket(item: Mapping[str, Any]) -> str:
     metadata = coerce_json_dict(item.get("metadata"))
     bucket = metadata.get("boardBucket")
     return str(bucket or "")
+
+
+def _is_projectable_board_item(item: Mapping[str, Any]) -> bool:
+    return bool(str(item.get("itemType") or "").strip())
 
 
 def _board_item_projection(item: Mapping[str, Any]) -> dict[str, JsonValue]:
