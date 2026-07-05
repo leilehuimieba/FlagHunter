@@ -1845,6 +1845,38 @@ Boundary confirmation for this pre-approval guard:
 - no MCP production wiring
 - no proof authority behavior changes
 
+#### Candidate C serialize-task projection fixture baseline
+
+Status: serialize-task fixture added before any Candidate C implementation.
+
+`tests/unit/interface/test_web_server.py` now includes
+`test_candidate_c_serialize_task_fixture_preserves_snapshot_and_summaries_before_switch`
+as a representative fixture for
+`flaghunter/interface/web_serialize_task.py::_serialize_task`.
+
+The fixture locks the current task-detail serialization behavior that a future
+Candidate C serialize-task switch must prove equivalent:
+
+- preserve the existing `blackboardSnapshot` field in the returned task payload
+- compute `nextActionExplanation` from the current control decision
+- compute `activeDecisionSummary` from the merged read-side view
+- preserve task capability flags for a running task
+- do not write proof, infer proof authority decisions, or switch read paths
+
+This fixture is not a production implementation approval. Candidate C remains
+blocked on Candidate A approval, not approved.
+
+Boundary confirmation for this fixture baseline:
+
+- no production path switch
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no proof authority behavior changes
+
 First read-path switch approval plan must include:
 
 - file list

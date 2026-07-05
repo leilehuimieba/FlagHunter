@@ -476,6 +476,92 @@ def test_serialize_task_normalizes_dirty_collections():
     assert serialized["capabilities"]["stop"] is False
 
 
+def test_candidate_c_serialize_task_fixture_preserves_snapshot_and_summaries_before_switch() -> None:
+    playbook = _playbook_text()
+    assert "Candidate C serialize-task projection fixture baseline" in playbook
+
+    existing_snapshot = {
+        "facts": [
+            {
+                "kind": "derived_target",
+                "value": "http://127.0.0.1:3000",
+                "source": "runtime",
+            }
+        ],
+        "pendingVerifications": [
+            {
+                "kind": "runtime_answer",
+                "value": "answer{pending}",
+                "source": "runtime-http",
+                "rationale": "runtime answer pending review",
+            }
+        ],
+        "actionResults": [
+            {
+                "action": "collect_initial_facts",
+                "driver": "blackboard.derived_target",
+                "result": "failed",
+                "details": {"reason": "empty response"},
+            }
+        ],
+        "recommendedAction": {
+            "action": "verify_runtime_signal",
+            "driver": "blackboard.runtime_answer",
+            "reason": "pending runtime answer should be reviewed",
+        },
+        "activeDecision": {
+            "observedAction": "probe_endpoint",
+            "alignment": "mismatched",
+            "alignmentReason": "probe ran before collection",
+        },
+    }
+    task = {
+        "id": "task_candidate_c_serialize_fixture",
+        "status": "running",
+        "controlDecision": {
+            "shouldRun": True,
+            "decisionKind": "direct_execute",
+            "nextAction": "collect_initial_facts",
+            "driver": "blackboard.derived_target.runtime_derived",
+            "reason": "runtime target available for initial fact collection",
+        },
+        "blackboardSnapshot": existing_snapshot,
+    }
+
+    serialized = web_server._serialize_task(task)
+
+    assert serialized["blackboardSnapshot"] == existing_snapshot
+    assert serialized["nextActionExplanation"] == {
+        "decisionKind": "direct_execute",
+        "nextAction": "collect_initial_facts",
+        "driver": "blackboard.derived_target.runtime_derived",
+        "reason": "runtime target available for initial fact collection",
+        "sourceType": None,
+        "switchedFrom": None,
+        "triggerReason": None,
+        "summary": "direct_execute -> collect_initial_facts via blackboard.derived_target.runtime_derived",
+    }
+    assert serialized["activeDecisionSummary"] == {
+        "decisionKind": "direct_execute",
+        "nextAction": "collect_initial_facts",
+        "driver": "blackboard.derived_target.runtime_derived",
+        "reason": "runtime target available for initial fact collection",
+        "expectedAction": None,
+        "observedAction": "probe_endpoint",
+        "alignment": "mismatched",
+        "alignmentReason": "probe ran before collection",
+        "summary": "direct_execute -> collect_initial_facts via blackboard.derived_target.runtime_derived"
+        " · observed=probe_endpoint · alignment=mismatched",
+    }
+    assert serialized["capabilities"] == {
+        "hint": True,
+        "stop": True,
+        "continue": True,
+        "retry": False,
+        "attachments": True,
+    }
+
+
 def test_ctf_dispatcher_hint_and_context_include_resume_contract():
     task = {
         "hints": [{"text": "focus on the admin flow"}],
