@@ -1472,6 +1472,47 @@ unchanged while confirming:
 This baseline must stay in place until Web read-model projection equivalence is
 proven and a separate MCP production wiring approval is granted.
 
+#### Deferred MCP pre-approval production wiring guard
+
+Status: source guard added before any Deferred MCP implementation approval.
+
+`tests/unit/mcp/test_mcp_ingress_mode_contract.py` now guards
+`flaghunter/mcp/server/mcp_tools.py::_append_blackboard_snapshot_lines`
+against importing or calling neutral challenge board/read-model projection
+helpers while Deferred MCP remains blocked on Web projection equivalence and
+explicit MCP approval, not approved.
+
+Current approval fact:
+
+- Deferred MCP: blocked on Web projection equivalence and explicit MCP approval, not approved
+
+This guard must remain active until Web projection equivalence lands and
+explicit MCP production wiring approval is granted. Updating the guard is
+allowed only in the same Deferred MCP implementation commit that proves old/new
+MCP readback output equivalence.
+
+Forbidden before approval:
+
+- import `flaghunter.application.challenge`
+- import `flaghunter.domain.challenge.contracts`
+- call `build_task_board_projection`
+- construct `BuildChallengeBoardReadModel`
+- construct `ChallengeBoardReadModel`
+- mark Deferred MCP as `implementation landed`
+- modify Candidate A, Candidate B, or Candidate C production helpers
+
+Boundary confirmation for this pre-approval guard:
+
+- no MCP production wiring
+- no task execution or handler routing changes
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no composition root changes
+- no proof authority behavior changes
+
 #### Deferred MCP readback formatting fixture baseline
 
 Status: representative fixture added before any MCP readback implementation.
