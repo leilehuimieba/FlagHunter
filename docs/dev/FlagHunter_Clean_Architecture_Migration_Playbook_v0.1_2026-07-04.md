@@ -2109,6 +2109,41 @@ Boundary confirmation for this guard:
 - no ToolExecutor changes
 - no proof authority behavior changes
 
+#### Adapter substitution fixture production token coverage guard
+
+Status: explicit production runtime token coverage guard added for adapter
+substitution fixtures.
+
+`tests/unit/test_adapter_substitution_source_guards.py` now requires
+`tests/unit/test_adapter_port_substitution.py` to remain free of production
+dispatcher, verifier, tool executor, crew orchestration, and runtime
+construction surfaces:
+
+- `CTFTaskDispatcher`
+- `CTFVerifier`
+- `ToolExecutor`
+- `WorkerPool`
+- `CrewOrchestrator`
+- `LocalRuntime`
+- `DockerRuntime`
+- `SSHRuntime`
+
+This guard keeps adapter substitution fixtures as test-only replaceability
+checks over fake injected ports. They may verify that an adapter can be
+substituted, but they must not instantiate or reference production dispatcher,
+verifier, tool executor, crew, or runtime implementations.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter production wiring
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 #### Adapter production wiring source guard
 
 Status: production wiring source guard added for adapter skeletons.

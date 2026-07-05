@@ -92,6 +92,17 @@ FORBIDDEN_PRODUCTION_TOKENS = {
     "SSHRuntime",
 }
 
+REQUIRED_PRODUCTION_TOKENS = {
+    "CTFTaskDispatcher",
+    "CTFVerifier",
+    "ToolExecutor",
+    "WorkerPool",
+    "CrewOrchestrator",
+    "LocalRuntime",
+    "DockerRuntime",
+    "SSHRuntime",
+}
+
 FORBIDDEN_PROOF_AUTHORITY_TOKENS = {
     "ProofAuthorityPort",
     "ProofAuthorityAdapter",
@@ -223,6 +234,15 @@ def test_adapter_substitution_fixtures_have_no_proof_authority_write_surfaces() 
     )
 
     assert offenders == []
+
+
+def test_adapter_substitution_production_token_guard_covers_runtime_surfaces() -> None:
+    assert REQUIRED_PRODUCTION_TOKENS <= FORBIDDEN_PRODUCTION_TOKENS
+
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Adapter substitution fixture production token coverage guard" in playbook
+    for token in sorted(REQUIRED_PRODUCTION_TOKENS):
+        assert token in playbook
 
 
 def test_adapter_substitution_proof_authority_guard_covers_write_surfaces() -> None:
