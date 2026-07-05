@@ -345,7 +345,11 @@ def _recommended_action_projection(
         )
         if trigger_reason:
             recommended_action["triggerReason"] = trigger_reason
-        trigger_action_driver = _clean_text(latest_selected_result.get("driver"))
+        trigger_action_driver = _clean_text(
+            latest_selected_result.get("driver")
+            or latest_selected_result.get("triggerActionDriver")
+            or latest_selected_result.get("trigger_action_driver")
+        )
         if trigger_action_driver:
             recommended_action["triggerActionDriver"] = trigger_action_driver
         trigger_at = _clean_text(latest_selected_result.get("t"))
