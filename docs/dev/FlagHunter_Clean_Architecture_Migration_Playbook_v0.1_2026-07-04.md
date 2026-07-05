@@ -2128,6 +2128,32 @@ Rules:
   production wiring approval is explicit
 - no production path switch is authorized by this readiness report
 
+#### Read-path pre-approval source-map guard
+
+Status: source-map guard recorded, no implementation approved by this section.
+
+This source map lists the production source files that must remain free of
+neutral read-model projection wiring while the matching read-path candidate is
+not approved for implementation. It complements the candidate-specific source
+guards by keeping one parseable map in the playbook.
+
+| Candidate | Source path | Forbidden neutral wiring | Implementation approved |
+|-----------|-------------|--------------------------|-------------------------|
+| Candidate A | `flaghunter/interface/blackboard_lite.py` | `flaghunter.application.challenge`, `flaghunter.domain.challenge.contracts`, `build_task_board_projection`, `BuildChallengeBoardReadModel`, `ChallengeBoardReadModel` | false |
+| Candidate B | `flaghunter/interface/web_trace_timeline.py` | `flaghunter.application.challenge`, `flaghunter.domain.challenge.contracts`, `build_task_board_projection`, `BuildChallengeBoardReadModel`, `ChallengeBoardReadModel` | false |
+| Candidate C serialize-task | `flaghunter/interface/web_serialize_task.py` | `flaghunter.application.challenge`, `flaghunter.domain.challenge.contracts`, `build_task_board_projection`, `BuildChallengeBoardReadModel`, `ChallengeBoardReadModel` | false |
+| Candidate C control-decision | `flaghunter/interface/web_control_decision.py` | `flaghunter.application.challenge`, `flaghunter.domain.challenge.contracts`, `build_task_board_projection`, `BuildChallengeBoardReadModel`, `ChallengeBoardReadModel` | false |
+| Deferred MCP | `flaghunter/mcp/server/mcp_tools.py` | `flaghunter.application.challenge`, `flaghunter.domain.challenge.contracts`, `build_task_board_projection`, `BuildChallengeBoardReadModel`, `ChallengeBoardReadModel` | false |
+
+Rules:
+
+- every source path in this map must exist
+- forbidden neutral wiring must remain absent until explicit implementation
+  approval lands for that candidate
+- source-map rows must remain `Implementation approved` = `false` until the
+  matching implementation commit updates the pre-approval guard
+- no production path switch is authorized by this source-map guard
+
 #### Read-path approval status consistency guard
 
 Status: approval consistency guard recorded, no implementation approved by this
