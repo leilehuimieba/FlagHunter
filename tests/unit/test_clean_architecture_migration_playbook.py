@@ -254,6 +254,31 @@ def test_playbook_records_candidate_a_approval_plan() -> None:
     assert "no proof authority behavior changes" in text
 
 
+def test_playbook_records_candidate_a_implementation_readiness_checklist() -> None:
+    text = _playbook_text()
+
+    assert "Candidate A implementation readiness checklist" in text
+    for baseline in (
+        "neutral board projection fixture baseline",
+        "neutral evidence projection baseline",
+        "neutral degraded projection baseline",
+        "neutral malformed board item projection baseline",
+        "neutral recommended action projection baseline",
+        "neutral explicit recommendation marker baseline",
+        "neutral candidate/action-result degraded baseline",
+        "neutral suppressed recommendation baseline",
+    ):
+        assert baseline in text
+    assert "approval is still required before editing `flaghunter/interface/blackboard_lite.py`" in text
+    assert "one implementation commit only" in text
+    assert "old/new output equivalence must be proven in `tests/unit/interface/test_blackboard_lite.py`" in text
+    assert "do not modify `flaghunter/mcp/server/mcp_tools.py`" in text
+    assert "do not modify `flaghunter/interface/web_serialize_task.py`" in text
+    assert "do not modify `flaghunter/interface/web_control_decision.py`" in text
+    assert ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/interface/test_blackboard_lite.py -q" in text
+    assert ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_application_board_read_model_service.py tests/unit/test_clean_architecture_migration_playbook.py -q" in text
+
+
 def test_playbook_records_candidate_c_approval_plan() -> None:
     text = _playbook_text()
 

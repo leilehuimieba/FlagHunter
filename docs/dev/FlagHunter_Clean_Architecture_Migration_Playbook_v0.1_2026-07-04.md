@@ -864,6 +864,42 @@ Explicit non-goals for Candidate A:
 - no proof authority behavior changes
 - no P5 implementation
 
+#### Candidate A implementation readiness checklist
+
+Status: ready for approval review, not approved for implementation.
+
+The neutral projection runway for Candidate A now has these pre-switch
+baselines recorded:
+
+- neutral board projection fixture baseline
+- neutral evidence projection baseline
+- neutral degraded projection baseline
+- neutral malformed board item projection baseline
+- neutral recommended action projection baseline
+- neutral explicit recommendation marker baseline
+- neutral candidate/action-result degraded baseline
+- neutral suppressed recommendation baseline
+
+Implementation gate:
+
+- approval is still required before editing `flaghunter/interface/blackboard_lite.py`
+- one implementation commit only
+- old/new output equivalence must be proven in `tests/unit/interface/test_blackboard_lite.py`
+- do not modify `flaghunter/mcp/server/mcp_tools.py`
+- do not modify `flaghunter/interface/web_serialize_task.py`
+- do not modify `flaghunter/interface/web_control_decision.py`
+- do not change dispatcher, verifier, tool executor, crew, MCP production
+  wiring, composition root, or proof authority behavior
+
+Required verification for the future implementation slice:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/interface/test_blackboard_lite.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_application_board_read_model_service.py tests/unit/test_clean_architecture_migration_playbook.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py -q
+git diff --check
+```
+
 #### Candidate A source guard baseline
 
 Status: source guard added before any production path switch.
