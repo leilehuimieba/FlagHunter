@@ -1484,6 +1484,63 @@ Explicit non-goals for the requested Candidate C implementation slices:
 - no proof authority behavior changes
 - no P5 implementation
 
+#### Candidate C approved execution checklist
+
+Status: not approved; checklist only.
+
+If Candidate A output equivalence has landed and explicit Candidate C
+implementation approval is granted, execute Candidate C as two separate
+read-path switch commits:
+
+- confirm Candidate A output equivalence has landed before editing Candidate C
+  production code
+- confirm explicit Candidate C implementation approval is recorded in the
+  playbook
+- one call-site family per commit
+- serialize-task projection first
+- control-decision snapshot merge second
+- update the pre-approval guard in the same implementation commit that changes
+  the affected Candidate C read path
+- prove old/new output equivalence in `tests/unit/interface/test_web_server.py`
+- record implementation landing evidence using the read-path implementation
+  landing record template
+- rollback point: revert the single Candidate C implementation commit for the
+  affected call-site family
+
+Allowed production edit targets for approved Candidate C implementation:
+
+- edit only `flaghunter/interface/web_serialize_task.py` for the serialize-task commit
+- edit only `flaghunter/interface/web_control_decision.py` for the control-decision commit
+
+Forbidden companion edits for approved Candidate C implementation:
+
+- do not modify `flaghunter/interface/blackboard_lite.py`
+- do not modify `flaghunter/interface/web_trace_timeline.py`
+- do not modify `flaghunter/mcp/server/mcp_tools.py`
+- no bundled serialize-task and control-decision implementation
+
+Boundary constraints for approved Candidate C implementation:
+
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no composition root changes
+- no concrete adapter implementation
+- no proof authority behavior changes
+- no P5 implementation
+
+Required verification for approved Candidate C implementation:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/interface/test_blackboard_lite.py tests/unit/test_clean_architecture_migration_playbook.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/interface/test_web_server.py tests/unit/test_clean_architecture_migration_playbook.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py -q
+git diff --check
+```
+
 Deferred MCP readback candidate:
 
 - Current path:
