@@ -1458,6 +1458,42 @@ Boundary confirmation for this baseline:
 - no proof authority behavior changes
 - no P5 implementation
 
+#### Task ingress production entry root coverage guard
+
+Status: explicit production entry root coverage guard added before task
+ingress production wiring approval.
+
+`tests/unit/test_task_ingress_production_wiring_guards.py` now requires the
+production entrypoint pre-wiring guard to explicitly cover every production
+entry root where task ingress wiring would be high-risk before approval:
+
+- `flaghunter/agents`
+- `flaghunter/config`
+- `flaghunter/interface`
+- `flaghunter/mcp`
+- `flaghunter/runtime`
+- `flaghunter/session`
+- `flaghunter/tools`
+- `flaghunter/workspaces`
+
+This guard keeps future task ingress adapter/service/port wiring checks from
+silently narrowing the scan away from presentation, MCP, agent, tool,
+runtime, session, workspace, or configuration entrypoints.
+
+Boundary confirmation for this guard:
+
+- no production entrypoint wiring
+- no MCP production wiring
+- no concrete adapter construction
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no composition root changes
+- no proof authority behavior changes
+- no P5 implementation
+
 #### Task ingress production wiring token coverage guard
 
 Status: explicit production wiring token coverage guard added before task

@@ -24,6 +24,17 @@ PRODUCTION_ENTRY_ROOTS = (
     "flaghunter/config",
 )
 
+REQUIRED_PRODUCTION_ENTRY_ROOTS = {
+    "flaghunter/interface",
+    "flaghunter/mcp",
+    "flaghunter/agents",
+    "flaghunter/tools",
+    "flaghunter/runtime",
+    "flaghunter/session",
+    "flaghunter/workspaces",
+    "flaghunter/config",
+}
+
 FORBIDDEN_TASK_INGRESS_WIRING_TOKENS = {
     "TaskIngressAdapter",
     "TaskIngressPort",
@@ -92,3 +103,12 @@ def test_task_ingress_pre_wiring_guard_covers_explicit_wiring_tokens() -> None:
     assert "Task ingress production wiring token coverage guard" in playbook
     for token in sorted(REQUIRED_TASK_INGRESS_WIRING_TOKENS):
         assert token in playbook
+
+
+def test_task_ingress_pre_wiring_guard_covers_required_entry_roots() -> None:
+    assert REQUIRED_PRODUCTION_ENTRY_ROOTS <= set(PRODUCTION_ENTRY_ROOTS)
+
+    playbook = _playbook_text()
+    assert "Task ingress production entry root coverage guard" in playbook
+    for root in sorted(REQUIRED_PRODUCTION_ENTRY_ROOTS):
+        assert root in playbook
