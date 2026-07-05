@@ -1109,6 +1109,67 @@ def test_playbook_parses_approval_transition_candidate_coverage_guard() -> None:
         assert evidence_rows[candidate]["Implementation landed"] == "false"
 
 
+def test_playbook_parses_read_path_approval_transition_evidence_consistency_guard() -> None:
+    text = _playbook_text()
+    section = _section_text(text, "Read-path approval transition evidence consistency guard")
+
+    assert "Status: approval transition evidence consistency guard recorded, no implementation approved." in section
+    assert "approval evidence must be present before implementation approval changes" in section
+    assert "no production path switch is authorized by this evidence guard" in section
+
+    rows = {
+        row["Evidence item"]: row
+        for row in _markdown_table_rows(section)
+    }
+    assert rows == {
+        "acceptance matrix update": {
+            "Evidence item": "acceptance matrix update",
+            "Required location": "`Read-path switch acceptance matrix`",
+            "Current approval evidence present": "false",
+        },
+        "approval drift update": {
+            "Evidence item": "approval drift update",
+            "Required location": "`Read-path approval drift guard`",
+            "Current approval evidence present": "false",
+        },
+        "candidate status ledger update": {
+            "Evidence item": "candidate status ledger update",
+            "Required location": "`Read-path candidate status ledger`",
+            "Current approval evidence present": "false",
+        },
+        "readiness evidence update": {
+            "Evidence item": "readiness evidence update",
+            "Required location": "`Read-path implementation approval readiness report`",
+            "Current approval evidence present": "false",
+        },
+        "source-map approval update": {
+            "Evidence item": "source-map approval update",
+            "Required location": "`Read-path pre-approval source-map guard`",
+            "Current approval evidence present": "false",
+        },
+        "approved execution checklist update": {
+            "Evidence item": "approved execution checklist update",
+            "Required location": "`Read-path approved execution checklist index`",
+            "Current approval evidence present": "false",
+        },
+        "landing record placeholder": {
+            "Evidence item": "landing record placeholder",
+            "Required location": "`Read-path implementation landing record template`",
+            "Current approval evidence present": "false",
+        },
+    }
+
+    atomicity_rows = {
+        row["Atomic update"]: row["Required section"]
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path approval transition atomicity guard")
+        )
+    }
+    for row in rows.values():
+        assert row["Required location"] in atomicity_rows.values()
+        assert row["Current approval evidence present"] == "false"
+
+
 def test_playbook_records_machine_readable_read_path_candidate_status_ledger() -> None:
     text = _playbook_text()
     section = _section_text(text, "Read-path candidate status ledger")

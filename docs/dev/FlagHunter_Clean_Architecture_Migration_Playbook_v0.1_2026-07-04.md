@@ -4477,6 +4477,33 @@ Rules:
 - split Candidate C source-map rows must not create a second approval state
 - no production path switch is authorized by this candidate coverage guard
 
+#### Read-path approval transition evidence consistency guard
+
+Status: approval transition evidence consistency guard recorded, no implementation approved.
+
+Approval evidence must be present before any read-path implementation approval
+changes. The current state intentionally records no approval evidence because no
+read-path implementation has been approved.
+
+| Evidence item | Required location | Current approval evidence present |
+|---------------|-------------------|-----------------------------------|
+| acceptance matrix update | `Read-path switch acceptance matrix` | false |
+| approval drift update | `Read-path approval drift guard` | false |
+| candidate status ledger update | `Read-path candidate status ledger` | false |
+| readiness evidence update | `Read-path implementation approval readiness report` | false |
+| source-map approval update | `Read-path pre-approval source-map guard` | false |
+| approved execution checklist update | `Read-path approved execution checklist index` | false |
+| landing record placeholder | `Read-path implementation landing record template` | false |
+
+Rules:
+
+- approval evidence must be present before implementation approval changes
+- all approval evidence rows must move together in the approval-transition
+  governance commit
+- no row may claim current approval evidence while implementation remains
+  unapproved
+- no production path switch is authorized by this evidence guard
+
 #### Read-path implementation landing record template
 
 Status: landing evidence template recorded, no implementation approved by this
