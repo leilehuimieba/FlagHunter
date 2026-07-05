@@ -943,6 +943,42 @@ Boundary confirmation for this guard:
 - no ToolExecutor changes
 - no proof authority behavior changes
 
+#### Application service proof action coverage guard
+
+Status: explicit proof action coverage guard recorded for neutral application
+services.
+
+`tests/unit/test_application_service_source_guards.py` now requires the
+application service proof guard to explicitly cover proof authority write,
+upgrade, accepted-proof, and legacy accepted-proof sink names:
+
+- `append_proof_record`
+- `append_verification_record`
+- `confirm_claim`
+- `level="verified"`
+- `level='verified'`
+- `upgrade_claim_to_verified`
+- `verification_decision`
+- `verifiedFlags`
+- `verified_flags`
+
+This guard keeps application services as use-case orchestration over neutral
+contracts and ports. Application services may review or project claims through
+ports, but they must not become proof authorities, accepted-proof writers,
+claim confirmers, or proof upgrade decision makers before an approved
+proof-authority wiring slice.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter construction
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 #### Application service production wiring source guard
 
 Status: production wiring source guard added before composition-root approval.

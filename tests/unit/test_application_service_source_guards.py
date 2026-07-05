@@ -109,6 +109,18 @@ FORBIDDEN_PROOF_TOKENS = {
     "verifiedFlags",
 }
 
+REQUIRED_PROOF_ACTION_TOKENS = {
+    "verification_decision",
+    "upgrade_claim_to_verified",
+    "append_verification_record",
+    "append_proof_record",
+    "confirm_claim",
+    'level="verified"',
+    "level='verified'",
+    "verified_flags",
+    "verifiedFlags",
+}
+
 FORBIDDEN_PUBLIC_DOMAIN_TERMS = {
     "ctf",
     "pentest",
@@ -244,6 +256,15 @@ def test_application_services_have_no_proof_upgrade_or_runtime_surfaces() -> Non
         )
 
     assert offenders == []
+
+
+def test_application_proof_action_guard_covers_authority_sinks() -> None:
+    assert REQUIRED_PROOF_ACTION_TOKENS <= FORBIDDEN_PROOF_TOKENS
+
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Application service proof action coverage guard" in playbook
+    for token in sorted(REQUIRED_PROOF_ACTION_TOKENS):
+        assert token in playbook
 
 
 def test_application_services_have_no_production_wiring_surfaces() -> None:
