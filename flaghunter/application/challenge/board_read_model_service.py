@@ -338,7 +338,11 @@ def _recommended_action_projection(
             "switchedFrom": selected_action,
             "triggerResult": result,
         }
-        trigger_reason = _clean_text(detail_map.get("reason"))
+        trigger_reason = _clean_text(
+            detail_map.get("reason")
+            or latest_selected_result.get("triggerReason")
+            or latest_selected_result.get("trigger_reason")
+        )
         if trigger_reason:
             recommended_action["triggerReason"] = trigger_reason
         trigger_action_driver = _clean_text(latest_selected_result.get("driver"))
