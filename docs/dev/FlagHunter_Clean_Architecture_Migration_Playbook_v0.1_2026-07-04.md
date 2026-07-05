@@ -397,6 +397,34 @@ Boundary confirmation for this guard:
 - no ToolExecutor changes
 - no proof authority behavior changes
 
+### Legacy read-model shim outer-layer import coverage guard
+
+Status: explicit outer-layer import coverage guard added for Phase 2B
+compatibility shims.
+
+`tests/unit/agents/test_phase2b_compatibility_shims.py` now requires legacy
+read-model shim import guards to explicitly cover legacy evaluation and
+red-team helper packages:
+
+- `flaghunter.eval`
+- `flaghunter.redteam`
+
+This guard keeps legacy read-model compatibility shims as narrow re-export
+surfaces for neutral domain contracts. Shims may preserve old import paths, but
+they must not reach into evaluation harnesses, red-team legacy helpers,
+runtime, tools, MCP, presentation, session, or harness integration paths.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter construction
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 ### Challenge board read-model skeleton baseline
 
 Status: neutral read-model builder added before any production path switch.

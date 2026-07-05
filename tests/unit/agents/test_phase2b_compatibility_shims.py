@@ -42,10 +42,12 @@ SHIM_MODULES = {
 }
 
 FORBIDDEN_IMPORT_PREFIXES = (
+    "flaghunter.eval",
     "flaghunter.tools",
     "flaghunter.runtime",
     "flaghunter.interface",
     "flaghunter.mcp",
+    "flaghunter.redteam",
     "flaghunter.session",
     "flaghunter.harness",
 )
@@ -82,6 +84,11 @@ REQUIRED_PROOF_ACTION_TOKENS = {
     'level="verified"',
     "level='verified'",
     "verified_flags",
+}
+
+REQUIRED_OUTER_IMPORT_PREFIXES = {
+    "flaghunter.eval",
+    "flaghunter.redteam",
 }
 
 
@@ -166,3 +173,12 @@ def test_legacy_read_model_shim_proof_guard_covers_authority_sinks() -> None:
     assert "Legacy read-model shim proof action coverage guard" in playbook
     for token in sorted(REQUIRED_PROOF_ACTION_TOKENS):
         assert token in playbook
+
+
+def test_legacy_read_model_shim_import_guard_covers_outer_legacy_layers() -> None:
+    assert REQUIRED_OUTER_IMPORT_PREFIXES <= set(FORBIDDEN_IMPORT_PREFIXES)
+
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Legacy read-model shim outer-layer import coverage guard" in playbook
+    for prefix in sorted(REQUIRED_OUTER_IMPORT_PREFIXES):
+        assert prefix in playbook
