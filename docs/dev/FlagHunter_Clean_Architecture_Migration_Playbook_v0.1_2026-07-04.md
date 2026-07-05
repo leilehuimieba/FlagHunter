@@ -1315,6 +1315,10 @@ Current pre-switch baselines recorded:
 
 - Candidate C approval plan
 - Candidate C source guard baseline
+- Candidate C serialize-task projection fixture baseline:
+  `test_candidate_c_serialize_task_fixture_preserves_snapshot_and_summaries_before_switch`
+- Candidate C control-decision snapshot merge fixture baseline:
+  `test_candidate_c_control_decision_snapshot_merge_fixture_before_switch`
 - existing Candidate A fixtures in `tests/unit/interface/test_blackboard_lite.py`
 - Web projection/merge guards in `tests/unit/interface/test_web_server.py`
 

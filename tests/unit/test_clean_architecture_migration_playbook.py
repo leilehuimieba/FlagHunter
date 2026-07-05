@@ -18,6 +18,15 @@ def _playbook_text() -> str:
     return PLAYBOOK_PATH.read_text(encoding="utf-8")
 
 
+def _section_text(text: str, heading: str) -> str:
+    marker = f"#### {heading}"
+    start = text.index(marker)
+    next_heading = text.find("\n#### ", start + len(marker))
+    if next_heading == -1:
+        return text[start:]
+    return text[start:next_heading]
+
+
 def test_playbook_tracks_completed_phase4_application_services() -> None:
     text = _playbook_text()
 
@@ -391,12 +400,20 @@ def test_playbook_records_candidate_c_source_guard_baseline() -> None:
 
 def test_playbook_records_candidate_c_implementation_readiness_checklist() -> None:
     text = _playbook_text()
+    section = _section_text(text, "Candidate C implementation readiness checklist")
 
     assert "Candidate C implementation readiness checklist" in text
     assert "Status: blocked on Candidate A approval, not approved for implementation." in text
     assert "Candidate A output equivalence is proven" in text
     assert "Candidate C approval plan" in text
     assert "Candidate C source guard baseline" in text
+    assert "Candidate C serialize-task projection fixture baseline" in section
+    assert "Candidate C control-decision snapshot merge fixture baseline" in section
+    assert (
+        "test_candidate_c_serialize_task_fixture_preserves_snapshot_and_summaries_before_switch"
+        in section
+    )
+    assert "test_candidate_c_control_decision_snapshot_merge_fixture_before_switch" in section
     assert "flaghunter/interface/web_serialize_task.py::_serialize_task" in text
     assert "flaghunter/interface/web_control_decision.py::_task_blackboard_snapshot_for_decision" in text
     assert "tests/unit/interface/test_blackboard_lite.py" in text
