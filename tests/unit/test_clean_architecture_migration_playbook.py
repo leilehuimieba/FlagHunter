@@ -27,6 +27,20 @@ def _section_text(text: str, heading: str) -> str:
     return text[start:next_heading]
 
 
+def _markdown_table_rows(section: str) -> list[dict[str, str]]:
+    table_lines = [
+        line.strip()
+        for line in section.splitlines()
+        if line.strip().startswith("|") and line.strip().endswith("|")
+    ]
+    header = [cell.strip() for cell in table_lines[0].strip("|").split("|")]
+    rows: list[dict[str, str]] = []
+    for line in table_lines[2:]:
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        rows.append(dict(zip(header, cells)))
+    return rows
+
+
 def test_playbook_tracks_completed_phase4_application_services() -> None:
     text = _playbook_text()
 
@@ -949,6 +963,42 @@ def test_playbook_records_machine_readable_read_path_candidate_status_ledger() -
         "no production path switch",
     ):
         assert required_phrase in section
+
+
+def test_playbook_parses_read_path_candidate_status_consistently() -> None:
+    text = _playbook_text()
+    section = _section_text(text, "Read-path parsed status consistency guard")
+
+    assert "Status: parsed consistency guard recorded, no implementation approved by this section." in section
+    assert "parse `Read-path candidate status ledger`" in section
+    assert "compare it with `Read-path switch acceptance matrix`" in section
+    assert "compare it with `Read-path approval package summary`" in section
+
+    ledger_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path candidate status ledger")
+        )
+    }
+    acceptance_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path switch acceptance matrix")
+        )
+    }
+    package_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path approval package summary")
+        )
+    }
+
+    assert set(ledger_rows) == {"Candidate A", "Candidate B", "Candidate C", "Deferred MCP"}
+    assert set(ledger_rows) == set(acceptance_rows) == set(package_rows)
+    for candidate, ledger_row in ledger_rows.items():
+        assert ledger_row["approvedForImplementation"] == "false"
+        assert ledger_row["canonicalStatus"] == acceptance_rows[candidate]["Status"]
+        assert ledger_row["canonicalStatus"] == package_rows[candidate]["Current status"]
 
 
 def test_playbook_records_application_service_source_guard_baseline() -> None:

@@ -2049,6 +2049,24 @@ Rules:
 - no implementation approval by implication
 - no production path switch is authorized by this ledger
 
+#### Read-path parsed status consistency guard
+
+Status: parsed consistency guard recorded, no implementation approved by this section.
+
+The playbook test suite must parse `Read-path candidate status ledger`,
+compare it with `Read-path switch acceptance matrix`, and
+compare it with `Read-path approval package summary`. The parsed candidate
+names and canonical statuses must remain identical across all three sections
+before any implementation approval can land.
+
+Required parsed checks:
+
+- candidate sets match across the ledger, acceptance matrix, and approval package
+- ledger `canonicalStatus` matches the acceptance matrix `Status`
+- ledger `canonicalStatus` matches the approval package `Current status`
+- ledger `approvedForImplementation` remains `false` for every current row
+- no production path switch is authorized by this parsed consistency guard
+
 #### Read-path approval status consistency guard
 
 Status: approval consistency guard recorded, no implementation approved by this
