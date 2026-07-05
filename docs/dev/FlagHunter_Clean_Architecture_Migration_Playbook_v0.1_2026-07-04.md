@@ -1942,11 +1942,13 @@ and ports while explicitly forbidding every other FlagHunter layer:
 - `flaghunter.config`
 - `flaghunter.cpa_modules`
 - `flaghunter.domain`
+- `flaghunter.eval`
 - `flaghunter.interface`
 - `flaghunter.knowledge`
 - `flaghunter.llm`
 - `flaghunter.mcp`
 - `flaghunter.playbooks`
+- `flaghunter.redteam`
 - `flaghunter.runtime`
 - `flaghunter.session`
 - `flaghunter.tools`
@@ -1954,8 +1956,8 @@ and ports while explicitly forbidding every other FlagHunter layer:
 
 This guard keeps substitution fixtures focused on fake injected ports and
 prevents them from silently becoming a domain-contract, application-service,
-legacy feature-module, playbook, runtime, MCP, tool, session, or workspace
-integration path.
+legacy feature-module, evaluation harness, red-team legacy helper, playbook,
+runtime, MCP, tool, session, or workspace integration path.
 
 Boundary confirmation for this guard:
 
