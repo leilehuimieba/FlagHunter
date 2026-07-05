@@ -808,6 +808,47 @@ Boundary confirmation for this guard:
 - no ToolExecutor changes
 - no proof authority behavior changes
 
+### Ports action sink coverage guard
+
+Status: explicit action sink coverage guard added for protocol-only ports.
+
+`tests/unit/test_ports_contracts.py` now requires the ports action guard to
+explicitly cover common filesystem, process, network, and socket sinks:
+
+- `open(`
+- `Path.open`
+- `Path.read_text`
+- `Path.write_text`
+- `Path.read_bytes`
+- `Path.write_bytes`
+- `subprocess.run`
+- `subprocess.Popen`
+- `subprocess.call`
+- `asyncio.create_subprocess_exec`
+- `asyncio.create_subprocess_shell`
+- `requests.get`
+- `requests.post`
+- `requests.request`
+- `httpx.get`
+- `httpx.post`
+- `httpx.request`
+- `socket.socket`
+
+This guard keeps ports as protocol-only contracts and prevents future port
+slices from becoming accidental filesystem readers/writers, process launchers,
+network clients, socket users, runtime surfaces, or tool executors.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter construction
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 ### Application service source guard baseline
 
 Status: source guard added before production wiring.

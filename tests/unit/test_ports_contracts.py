@@ -81,8 +81,19 @@ FORBIDDEN_IMPORT_PREFIXES = (
 )
 
 FORBIDDEN_ACTION_TOKENS = {
+    "open(",
+    "Path.open",
+    "Path.read_text",
+    "Path.write_text",
+    "Path.read_bytes",
+    "Path.write_bytes",
     "subprocess",
+    "subprocess.run",
+    "subprocess.Popen",
+    "subprocess.call",
     "asyncio.subprocess",
+    "asyncio.create_subprocess_exec",
+    "asyncio.create_subprocess_shell",
     "execute_tools",
     "_execute_tools",
     "WorkerPool",
@@ -93,9 +104,36 @@ FORBIDDEN_ACTION_TOKENS = {
     "SSHRuntime",
     "Playwright",
     "write_text",
-    "open(",
     "requests",
+    "requests.get",
+    "requests.post",
+    "requests.request",
     "httpx",
+    "httpx.get",
+    "httpx.post",
+    "httpx.request",
+    "socket.socket",
+}
+
+REQUIRED_ACTION_SINK_TOKENS = {
+    "open(",
+    "Path.open",
+    "Path.read_text",
+    "Path.write_text",
+    "Path.read_bytes",
+    "Path.write_bytes",
+    "subprocess.run",
+    "subprocess.Popen",
+    "subprocess.call",
+    "asyncio.create_subprocess_exec",
+    "asyncio.create_subprocess_shell",
+    "requests.get",
+    "requests.post",
+    "requests.request",
+    "httpx.get",
+    "httpx.post",
+    "httpx.request",
+    "socket.socket",
 }
 
 FORBIDDEN_PRODUCTION_WIRING_TOKENS = {
@@ -244,6 +282,15 @@ def test_ports_package_contains_no_action_or_concrete_implementation_surfaces() 
         )
 
     assert offenders == []
+
+
+def test_ports_action_guard_covers_explicit_sinks() -> None:
+    assert REQUIRED_ACTION_SINK_TOKENS <= FORBIDDEN_ACTION_TOKENS
+
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Ports action sink coverage guard" in playbook
+    for token in sorted(REQUIRED_ACTION_SINK_TOKENS):
+        assert token in playbook
 
 
 def test_ports_package_contains_no_production_wiring_surfaces() -> None:
