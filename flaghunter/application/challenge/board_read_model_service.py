@@ -262,6 +262,9 @@ def _candidate_list(
             if result:
                 candidate["lastResult"] = result
     if should_order:
+        for candidate in candidates:
+            candidate.setdefault("recommended", False)
+    if should_order:
         candidates.sort(key=_candidate_sort_key)
     return candidates
 

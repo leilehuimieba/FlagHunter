@@ -824,6 +824,44 @@ def test_task_board_projection_orders_candidates_and_projects_last_result() -> N
     _assert_json_friendly(projection)
 
 
+def test_task_board_projection_adds_default_recommended_marker_for_ordered_candidates() -> None:
+    from flaghunter.application.challenge.board_read_model_service import (
+        build_task_board_projection,
+    )
+    from flaghunter.domain.challenge.contracts import ChallengeBoardReadModel
+
+    model = ChallengeBoardReadModel(
+        run_id="run-candidate-marker",
+        challenge_id="challenge-candidate-marker",
+        candidates=[
+            {
+                "action": "collect_initial_facts",
+                "priority": 20,
+            },
+            {
+                "action": "probe_discovered_endpoint",
+                "priority": 11,
+            },
+        ],
+    )
+
+    projection = build_task_board_projection(model)
+
+    assert projection["candidates"] == [
+        {
+            "action": "probe_discovered_endpoint",
+            "priority": 11,
+            "recommended": False,
+        },
+        {
+            "action": "collect_initial_facts",
+            "priority": 20,
+            "recommended": False,
+        },
+    ]
+    _assert_json_friendly(projection)
+
+
 def test_task_board_projection_marks_explicit_recommended_candidate() -> None:
     from flaghunter.application.challenge.board_read_model_service import (
         build_task_board_projection,

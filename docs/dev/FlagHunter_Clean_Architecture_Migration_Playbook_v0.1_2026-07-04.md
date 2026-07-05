@@ -954,6 +954,33 @@ Boundary confirmation for this baseline:
 - no MCP production wiring
 - no proof authority behavior changes
 
+### Candidate A neutral candidate marker baseline
+
+Status: candidate marker fixture added before any production path switch.
+
+`build_task_board_projection` now adds `recommended=False` to ordered neutral candidates
+when they do not already carry a recommendation marker. This mirrors
+the current Candidate A candidate display contract where candidates start as
+not recommended before explicit or derived recommendation logic marks one as
+recommended.
+
+`tests/unit/test_application_board_read_model_service.py` records this baseline
+with
+`test_task_board_projection_adds_default_recommended_marker_for_ordered_candidates`,
+so future Candidate A read-path equivalence work can compare ordered neutral
+candidates without synthesizing marker state in `blackboard_lite.py`.
+
+Boundary confirmation for this baseline:
+
+- no production path switch
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no proof authority behavior changes
+
 ### Candidate A neutral malformed board item projection baseline
 
 Status: malformed board item fixture added before any production path switch.
@@ -2968,6 +2995,7 @@ baselines recorded:
 - neutral metadata alias projection baseline
 - neutral candidate enrichment baseline
 - neutral candidate ordering baseline
+- neutral candidate marker baseline
 - neutral malformed board item projection baseline
 - neutral recommended action projection baseline
 - neutral explicit recommendation marker baseline
@@ -2979,6 +3007,7 @@ baselines recorded:
   `test_build_promotes_board_metadata_aliases_to_read_model_fields`
   `test_task_board_projection_enriches_selected_and_recommended_candidates`
   `test_task_board_projection_orders_candidates_and_projects_last_result`
+  `test_task_board_projection_adds_default_recommended_marker_for_ordered_candidates`
   `test_candidate_a_representative_fixture_locks_public_projection_shape`
   `test_candidate_a_missing_or_malformed_state_snapshot_baseline`
   `test_candidate_a_decision_ingress_action_result_baseline`
