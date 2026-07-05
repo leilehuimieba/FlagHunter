@@ -420,6 +420,43 @@ Boundary confirmation for this guard:
 - no ToolExecutor changes
 - no proof authority behavior changes
 
+### Domain contract outer-layer import coverage guard
+
+Status: outer-layer import coverage guard added for inner domain contracts.
+
+`tests/unit/test_domain_challenge_contracts.py` now requires the domain
+contract import guard to cover every outer FlagHunter layer:
+
+- `flaghunter.adapters`
+- `flaghunter.agents`
+- `flaghunter.application`
+- `flaghunter.config`
+- `flaghunter.interface`
+- `flaghunter.knowledge`
+- `flaghunter.llm`
+- `flaghunter.mcp`
+- `flaghunter.ports`
+- `flaghunter.runtime`
+- `flaghunter.session`
+- `flaghunter.tools`
+- `flaghunter.workspaces`
+
+This guard keeps `flaghunter/domain/challenge/contracts` as the innermost
+schema/read-model layer and prevents future contract slices from reaching
+outward into adapters, application services, production configuration,
+model/runtime code, presentation, MCP, tools, sessions, or workspace helpers.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter construction
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 ### Challenge board read-model sanitization baseline
 
 Status: neutral read-model sanitization guard added before any production path

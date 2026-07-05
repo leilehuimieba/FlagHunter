@@ -250,13 +250,19 @@ EXPECTED_CLASS_SCHEMA_VERSIONS = {
 
 
 FORBIDDEN_IMPORT_PREFIXES = (
+    "flaghunter.adapters",
     "flaghunter.agents",
-    "flaghunter.tools",
-    "flaghunter.runtime",
+    "flaghunter.application",
+    "flaghunter.config",
     "flaghunter.interface",
+    "flaghunter.knowledge",
+    "flaghunter.llm",
     "flaghunter.mcp",
-    "flaghunter.session",
     "flaghunter.ports",
+    "flaghunter.runtime",
+    "flaghunter.session",
+    "flaghunter.tools",
+    "flaghunter.workspaces",
 )
 
 FORBIDDEN_SIDE_EFFECT_TOKENS = {
@@ -1467,6 +1473,31 @@ def test_contract_package_does_not_import_concrete_or_outer_layers() -> None:
                 offenders.append((_relative(path), imported))
 
     assert offenders == []
+
+
+def test_contract_forbidden_import_prefixes_cover_all_outer_layers() -> None:
+    required_prefixes = {
+        "flaghunter.adapters",
+        "flaghunter.agents",
+        "flaghunter.application",
+        "flaghunter.config",
+        "flaghunter.interface",
+        "flaghunter.knowledge",
+        "flaghunter.llm",
+        "flaghunter.mcp",
+        "flaghunter.ports",
+        "flaghunter.runtime",
+        "flaghunter.session",
+        "flaghunter.tools",
+        "flaghunter.workspaces",
+    }
+
+    assert required_prefixes <= set(FORBIDDEN_IMPORT_PREFIXES)
+
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Domain contract outer-layer import coverage guard" in playbook
+    for prefix in sorted(required_prefixes):
+        assert prefix in playbook
 
 
 def test_contract_package_has_no_side_effect_surfaces() -> None:
