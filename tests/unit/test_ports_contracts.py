@@ -64,12 +64,20 @@ EXPECTED_PORTS = {
 
 
 FORBIDDEN_IMPORT_PREFIXES = (
+    "flaghunter.adapters",
     "flaghunter.agents",
-    "flaghunter.tools",
-    "flaghunter.runtime",
+    "flaghunter.application",
+    "flaghunter.config",
+    "flaghunter.cpa_modules",
     "flaghunter.interface",
+    "flaghunter.knowledge",
+    "flaghunter.llm",
     "flaghunter.mcp",
+    "flaghunter.playbooks",
+    "flaghunter.runtime",
     "flaghunter.session",
+    "flaghunter.tools",
+    "flaghunter.workspaces",
 )
 
 FORBIDDEN_ACTION_TOKENS = {
@@ -185,6 +193,32 @@ def test_ports_package_does_not_import_concrete_layers() -> None:
                 offenders.append((_relative(path), imported))
 
     assert offenders == []
+
+
+def test_ports_forbidden_import_prefixes_cover_all_outer_layers() -> None:
+    required_prefixes = {
+        "flaghunter.adapters",
+        "flaghunter.agents",
+        "flaghunter.application",
+        "flaghunter.config",
+        "flaghunter.cpa_modules",
+        "flaghunter.interface",
+        "flaghunter.knowledge",
+        "flaghunter.llm",
+        "flaghunter.mcp",
+        "flaghunter.playbooks",
+        "flaghunter.runtime",
+        "flaghunter.session",
+        "flaghunter.tools",
+        "flaghunter.workspaces",
+    }
+
+    assert required_prefixes <= set(FORBIDDEN_IMPORT_PREFIXES)
+
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Ports outer-layer import coverage guard" in playbook
+    for prefix in sorted(required_prefixes):
+        assert prefix in playbook
 
 
 def test_ports_package_contains_no_action_or_concrete_implementation_surfaces() -> None:

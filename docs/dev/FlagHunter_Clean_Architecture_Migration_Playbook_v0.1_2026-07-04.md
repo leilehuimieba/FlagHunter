@@ -723,6 +723,44 @@ Boundary confirmation for this guard:
 - no ToolExecutor changes
 - no proof authority behavior changes
 
+### Ports outer-layer import coverage guard
+
+Status: outer-layer import coverage guard added for protocol-only ports.
+
+`tests/unit/test_ports_contracts.py` now requires the ports import guard to
+cover every outer FlagHunter layer while ports remain protocol-only contracts:
+
+- `flaghunter.adapters`
+- `flaghunter.agents`
+- `flaghunter.application`
+- `flaghunter.config`
+- `flaghunter.cpa_modules`
+- `flaghunter.interface`
+- `flaghunter.knowledge`
+- `flaghunter.llm`
+- `flaghunter.mcp`
+- `flaghunter.playbooks`
+- `flaghunter.runtime`
+- `flaghunter.session`
+- `flaghunter.tools`
+- `flaghunter.workspaces`
+
+This guard keeps `flaghunter/ports` from reaching outward into adapters,
+application services, production configuration, legacy feature modules,
+playbooks, model/runtime code, presentation, MCP, tools, sessions, or workspace
+helpers before explicit production-wiring approval.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter construction
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 ### Application service source guard baseline
 
 Status: source guard added before production wiring.
