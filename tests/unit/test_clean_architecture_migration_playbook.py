@@ -1061,6 +1061,43 @@ def test_playbook_parses_read_path_approved_execution_checklist_index() -> None:
         assert "Status: not approved; checklist only." in checklist_section
 
 
+def test_playbook_parses_read_path_implementation_approval_readiness_report() -> None:
+    text = _playbook_text()
+    section = _section_text(text, "Read-path implementation approval readiness report")
+
+    assert "Status: readiness report recorded, no implementation approved by this section." in section
+    readiness_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(section)
+    }
+    ledger_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path candidate status ledger")
+        )
+    }
+    package_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path approval package summary")
+        )
+    }
+
+    expected_readiness = {
+        "Candidate A": "approval package ready; explicit implementation approval missing",
+        "Candidate B": "sequence blocked; Candidate A equivalence missing",
+        "Candidate C": "sequence blocked; Candidate A equivalence missing",
+        "Deferred MCP": "sequence blocked; Web projection equivalence and MCP approval missing",
+    }
+    assert set(readiness_rows) == set(ledger_rows) == set(package_rows)
+    for candidate, expected_state in expected_readiness.items():
+        row = readiness_rows[candidate]
+        assert row["Readiness state"] == expected_state
+        assert row["Current status"] == ledger_rows[candidate]["canonicalStatus"]
+        assert row["Missing approval"] == package_rows[candidate]["remaining blocker"]
+        assert row["Implementation approved"] == "false"
+
+
 def test_playbook_records_application_service_source_guard_baseline() -> None:
     text = _playbook_text()
 

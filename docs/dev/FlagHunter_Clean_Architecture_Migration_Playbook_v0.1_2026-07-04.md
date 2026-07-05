@@ -2103,6 +2103,31 @@ Rules:
 - the index is a readiness map, not implementation approval
 - no production path switch is authorized by this checklist index
 
+#### Read-path implementation approval readiness report
+
+Status: readiness report recorded, no implementation approved by this section.
+
+This report separates readiness evidence from approval. It identifies which
+candidates have enough recorded evidence to request implementation approval and
+which candidates remain sequence-blocked by an earlier read-path switch.
+
+| Candidate | Current status | Readiness state | Missing approval | Implementation approved |
+|-----------|----------------|-----------------|------------------|-------------------------|
+| Candidate A | approval requested, not approved | approval package ready; explicit implementation approval missing | explicit Candidate A implementation approval | false |
+| Candidate B | ready for approval review, not approved | sequence blocked; Candidate A equivalence missing | Candidate A equivalence lands and Candidate B implementation approval | false |
+| Candidate C | blocked on Candidate A approval, not approved | sequence blocked; Candidate A equivalence missing | Candidate A equivalence lands and Candidate C implementation approval | false |
+| Deferred MCP | blocked on Web projection equivalence and explicit MCP approval, not approved | sequence blocked; Web projection equivalence and MCP approval missing | Web projection equivalence lands plus explicit MCP production wiring approval | false |
+
+Rules:
+
+- readiness evidence is not implementation approval
+- Candidate A remains the only first read-path implementation candidate ready
+  to ask for explicit approval
+- Candidate B and Candidate C remain blocked until Candidate A equivalence lands
+- Deferred MCP remains blocked until Web projection equivalence lands and MCP
+  production wiring approval is explicit
+- no production path switch is authorized by this readiness report
+
 #### Read-path approval status consistency guard
 
 Status: approval consistency guard recorded, no implementation approved by this
