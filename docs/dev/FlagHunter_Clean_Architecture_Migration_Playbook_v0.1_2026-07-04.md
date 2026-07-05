@@ -2181,6 +2181,28 @@ Rules:
   matching implementation commit updates the pre-approval guard
 - no production path switch is authorized by this source-map guard
 
+#### Read-path source-map forbidden-token single-source guard
+
+Status: forbidden-token parser guard recorded, no implementation approved by this section.
+
+The `Forbidden neutral wiring` column in `Read-path pre-approval source-map
+guard` is the single source of truth for neutral read-model wiring tokens that
+must stay absent from each unapproved production source path. The playbook test
+suite must parse that table column directly, with no hardcoded duplicate token
+tuple in the test body.
+
+Rules:
+
+- no hardcoded duplicate token tuple may replace the playbook table as the
+  guard source
+- every forbidden token checked by the source-map guard must come from the
+  `Forbidden neutral wiring` table cell for that source row
+- updating the source-map token set requires changing the playbook table, not a
+  parallel hardcoded list
+- all listed tokens remain forbidden while the row's `Implementation approved`
+  value is `false`
+- no production path switch is authorized by this parser guard
+
 #### Read-path implementation landed evidence guard
 
 Status: landed evidence guard recorded, no implementation approved by this section.

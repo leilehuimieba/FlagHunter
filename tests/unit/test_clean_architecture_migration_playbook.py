@@ -42,6 +42,10 @@ def _markdown_table_rows(section: str) -> list[dict[str, str]]:
     return rows
 
 
+def _inline_code_values(value: str) -> list[str]:
+    return re.findall(r"`([^`]+)`", value)
+
+
 def test_playbook_tracks_completed_phase4_application_services() -> None:
     text = _playbook_text()
 
@@ -1145,21 +1149,34 @@ def test_playbook_parses_pre_approval_source_map_and_blocks_wiring() -> None:
         "flaghunter/interface/web_control_decision.py",
         "flaghunter/mcp/server/mcp_tools.py",
     }
-    forbidden_tokens = (
+    expected_tokens = {
         "flaghunter.application.challenge",
         "flaghunter.domain.challenge.contracts",
         "build_task_board_projection",
         "BuildChallengeBoardReadModel",
         "ChallengeBoardReadModel",
-    )
+    }
 
     assert {row["Source path"].strip("`") for row in source_rows} == expected_paths
     for row in source_rows:
         assert row["Implementation approved"] == "false"
+        forbidden_tokens = _inline_code_values(row["Forbidden neutral wiring"])
+        assert set(forbidden_tokens) == expected_tokens
         source_path = REPO_ROOT / row["Source path"].strip("`")
         source_text = source_path.read_text(encoding="utf-8")
         for token in forbidden_tokens:
             assert token not in source_text
+
+
+def test_playbook_records_source_map_forbidden_token_single_source_guard() -> None:
+    text = _playbook_text()
+    section = _section_text(text, "Read-path source-map forbidden-token single-source guard")
+
+    assert "Status: forbidden-token parser guard recorded, no implementation approved by this section." in section
+    assert "Forbidden neutral wiring" in section
+    assert "single source of truth" in section
+    assert "no hardcoded duplicate token tuple" in section
+    assert "no production path switch" in section
 
 
 def test_playbook_parses_implementation_landed_evidence_guard() -> None:
