@@ -134,6 +134,15 @@ FORBIDDEN_PUBLIC_DOMAIN_TERMS = {
     "redteam",
 }
 
+REQUIRED_APPLICATION_COVERAGE_GUARD_SECTIONS = {
+    "Application service side-effect sink coverage guard",
+    "Application service proof action coverage guard",
+    "Application service production wiring source guard",
+    "Application service outer-layer import coverage guard",
+    "Specific application service source guard import coverage consistency guard",
+    "Public surface domain-neutral naming coverage guard",
+}
+
 
 def _application_sources() -> list[Path]:
     assert APPLICATION_ROOT.is_dir(), "flaghunter.application package must exist"
@@ -377,3 +386,10 @@ def test_application_public_names_docstrings_and_paths_are_domain_neutral() -> N
                 )
 
     assert offenders == []
+
+
+def test_application_service_source_guard_coverage_completeness_records_all_guard_groups() -> None:
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Application service source guard coverage completeness guard" in playbook
+    for section_name in sorted(REQUIRED_APPLICATION_COVERAGE_GUARD_SECTIONS):
+        assert section_name in playbook

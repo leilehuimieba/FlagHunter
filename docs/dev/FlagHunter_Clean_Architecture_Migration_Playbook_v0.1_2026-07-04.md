@@ -1238,6 +1238,39 @@ Boundary confirmation for this guard:
 - no ToolExecutor changes
 - no proof authority behavior changes
 
+#### Application service source guard coverage completeness guard
+
+Status: aggregate coverage completeness guard added for neutral application
+services.
+
+`tests/unit/test_application_service_source_guards.py` now requires the
+application-service source guard record to keep all application boundary guard
+groups visible together:
+
+- `Application service side-effect sink coverage guard`
+- `Application service proof action coverage guard`
+- `Application service production wiring source guard`
+- `Application service outer-layer import coverage guard`
+- `Specific application service source guard import coverage consistency guard`
+- `Public surface domain-neutral naming coverage guard`
+
+This aggregate guard prevents application-service boundary coverage from
+drifting into partial protection. Application services must keep side-effect
+sinks, proof authority surfaces, production wiring names, outer-layer imports,
+focused service-test import coverage, and public neutral naming guarded as one
+complete use-case boundary.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter construction
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 ### Core import-linter outer-layer coverage guard
 
 Status: import-linter outer-layer coverage guard added for neutral core layers.
