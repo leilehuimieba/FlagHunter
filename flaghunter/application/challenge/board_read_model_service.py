@@ -30,11 +30,22 @@ class BuildChallengeBoardReadModel:
             evidence=_evidence_items(run_snapshot),
             receipts=_receipt_items(run_snapshot),
             tasks=_task_items(run_snapshot),
+            decisions=_mapping_list(metadata.get("decisions")),
+            candidates=_mapping_list(metadata.get("candidates")),
+            action_results=_mapping_list(metadata.get("actionResults")),
+            recommended_task=coerce_json_dict(metadata.get("recommendedTask")),
             surface_refs=_surface_refs(metadata.get("surfaceRefs")),
             metadata={
                 key: value
                 for key, value in metadata.items()
-                if key != "surfaceRefs"
+                if key
+                not in {
+                    "actionResults",
+                    "candidates",
+                    "decisions",
+                    "recommendedTask",
+                    "surfaceRefs",
+                }
             },
         )
 

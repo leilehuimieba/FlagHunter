@@ -287,6 +287,79 @@ def test_build_projects_neutral_snapshot_records_without_mutating_input() -> Non
     _assert_json_friendly(payload)
 
 
+def test_build_promotes_neutral_board_metadata_to_read_model_fields() -> None:
+    from flaghunter.application.challenge.board_read_model_service import (
+        BuildChallengeBoardReadModel,
+        build_task_board_projection,
+    )
+    from flaghunter.domain.challenge.contracts import ChallengeRunSnapshot
+
+    snapshot = ChallengeRunSnapshot(
+        run_id="run-board-metadata",
+        challenge_id="challenge-board-metadata",
+        metadata={
+            "decisions": [
+                {
+                    "nextAction": "collect_initial_facts",
+                    "strongestHypothesisKind": "generic_web_recon",
+                }
+            ],
+            "candidates": [
+                {"action": "collect_initial_facts", "selected": True},
+                {"action": "probe_discovered_endpoint", "selected": False},
+            ],
+            "actionResults": [
+                {"action": "collect_initial_facts", "result": "failed"}
+            ],
+            "recommendedTask": {
+                "action": "probe_discovered_endpoint",
+                "reason": "continue from neutral metadata",
+            },
+            "surfaceRefs": [{"endpoint": "http://challenge.test/admin"}],
+            "hypotheses": [{"kind": "generic_web_recon", "confidence": 0.5}],
+        },
+    )
+
+    model = BuildChallengeBoardReadModel().build(snapshot)
+    payload = model.to_dict()
+    projection = build_task_board_projection(model)
+
+    assert payload["decisions"] == [
+        {
+            "nextAction": "collect_initial_facts",
+            "strongestHypothesisKind": "generic_web_recon",
+        }
+    ]
+    assert payload["candidates"] == [
+        {"action": "collect_initial_facts", "selected": True},
+        {"action": "probe_discovered_endpoint", "selected": False},
+    ]
+    assert payload["actionResults"] == [
+        {"action": "collect_initial_facts", "result": "failed"}
+    ]
+    assert payload["recommendedTask"] == {
+        "action": "probe_discovered_endpoint",
+        "reason": "continue from neutral metadata",
+    }
+    assert payload["surfaceRefs"] == [{"endpoint": "http://challenge.test/admin"}]
+    assert payload["metadata"] == {
+        "hypotheses": [{"kind": "generic_web_recon", "confidence": 0.5}]
+    }
+    assert projection["active_decision"] == {
+        "nextAction": "collect_initial_facts",
+        "strongestHypothesisKind": "generic_web_recon",
+    }
+    assert projection["recommended_action"] == {
+        "action": "probe_discovered_endpoint",
+        "reason": "continue from neutral metadata",
+    }
+    assert projection["attack_surfaces"] == [
+        {"endpoint": "http://challenge.test/admin"}
+    ]
+    _assert_json_friendly(payload)
+    _assert_json_friendly(projection)
+
+
 def test_task_board_projection_matches_candidate_a_public_shape() -> None:
     from flaghunter.application.challenge.board_read_model_service import (
         build_task_board_projection,

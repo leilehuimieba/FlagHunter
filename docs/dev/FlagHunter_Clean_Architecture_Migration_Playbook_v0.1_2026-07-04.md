@@ -846,6 +846,34 @@ Boundary confirmation for this baseline:
 - no MCP production wiring
 - no proof authority behavior changes
 
+### Candidate A neutral metadata projection baseline
+
+Status: neutral metadata projection fixture added before any production path
+switch.
+
+`BuildChallengeBoardReadModel` now promotes neutral snapshot metadata fields
+`decisions`, `candidates`, `actionResults`, and `recommendedTask` into the
+first-class `ChallengeBoardReadModel` fields that
+`build_task_board_projection` already projects into Candidate A-compatible
+response keys. Promoted fields are removed from residual metadata, while
+read-side context such as `hypotheses` remains under metadata for projection.
+
+`tests/unit/test_application_board_read_model_service.py` records this baseline
+with `test_build_promotes_neutral_board_metadata_to_read_model_fields`, giving a
+future Candidate A implementation slice a fuller neutral board input without
+touching `flaghunter/interface/blackboard_lite.py`.
+
+Boundary confirmation for this baseline:
+
+- no production path switch
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no proof authority behavior changes
+
 ### Candidate A neutral malformed board item projection baseline
 
 Status: malformed board item fixture added before any production path switch.

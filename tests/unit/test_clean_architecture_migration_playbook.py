@@ -140,6 +140,21 @@ def test_playbook_records_candidate_a_neutral_degraded_projection_baseline() -> 
     assert "no proof authority behavior changes" in text
 
 
+def test_playbook_records_candidate_a_neutral_metadata_projection_baseline() -> None:
+    text = _playbook_text()
+
+    assert "Candidate A neutral metadata projection baseline" in text
+    assert "BuildChallengeBoardReadModel" in text
+    assert "decisions" in text
+    assert "candidates" in text
+    assert "actionResults" in text
+    assert "recommendedTask" in text
+    assert "test_build_promotes_neutral_board_metadata_to_read_model_fields" in text
+    assert "tests/unit/test_application_board_read_model_service.py" in text
+    assert "no production path switch" in text
+    assert "no proof authority behavior changes" in text
+
+
 def test_playbook_records_next_approval_gate_after_phase4_skeletons() -> None:
     text = _playbook_text()
 
