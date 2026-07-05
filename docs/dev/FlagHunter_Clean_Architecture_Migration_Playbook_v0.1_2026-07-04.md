@@ -1283,6 +1283,37 @@ Status: source guard added for substitution fixtures.
 This baseline keeps the adapter substitution fixtures focused on fake injected
 ports and prevents them from becoming an accidental production-wiring path.
 
+#### Adapter production wiring source guard
+
+Status: production wiring source guard added for adapter skeletons.
+
+`tests/unit/test_adapter_boundary_skeleton.py` now guards adapter sources
+against production assembly surfaces. Adapter skeletons may wrap injected ports
+or fake test ports, but they may not reference these production wiring names
+before an approved composition-root slice:
+
+- `FlagHunterAgent`
+- `AgentSession`
+- `MCPRouter`
+- `MCPServer`
+- `CompositionRoot`
+- `create_agent`
+- `run_task_async`
+
+This guard keeps `flaghunter/adapters` from becoming an accidental composition
+root, MCP task runner, or agent/session factory while adapter skeletons remain
+unwired.
+
+Boundary confirmation for this guard:
+
+- no concrete adapter production wiring
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 ### Adapter substitution runway completed
 
 Status: low-risk adapter substitution fixture runway completed.

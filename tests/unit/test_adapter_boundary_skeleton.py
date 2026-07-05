@@ -12,6 +12,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 ADAPTERS_ROOT = REPO_ROOT / "flaghunter" / "adapters"
 DOMAIN_ROOT = REPO_ROOT / "flaghunter" / "domain"
 PORTS_ROOT = REPO_ROOT / "flaghunter" / "ports"
+PLAYBOOK_PATH = (
+    REPO_ROOT
+    / "docs"
+    / "dev"
+    / "FlagHunter_Clean_Architecture_Migration_Playbook_v0.1_2026-07-04.md"
+)
 
 EXPECTED_ADAPTER_PACKAGES = (
     "flaghunter.adapters",
@@ -72,6 +78,16 @@ FORBIDDEN_PROOF_ACTION_TOKENS = {
     'level="verified"',
     "level='verified'",
     "verified_flags",
+}
+
+FORBIDDEN_PRODUCTION_WIRING_TOKENS = {
+    "FlagHunterAgent",
+    "AgentSession",
+    "MCPRouter",
+    "MCPServer",
+    "CompositionRoot",
+    "create_agent",
+    "run_task_async",
 }
 
 
@@ -181,6 +197,25 @@ def test_adapter_implementation_sources_do_not_wire_concrete_implementations() -
         offenders.extend(
             (_relative(path), token)
             for token in FORBIDDEN_PROOF_ACTION_TOKENS
+            if token in text
+        )
+
+    assert offenders == []
+
+
+def test_adapter_sources_do_not_reference_production_wiring_surfaces() -> None:
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Adapter production wiring source guard" in playbook
+    for token in sorted(FORBIDDEN_PRODUCTION_WIRING_TOKENS):
+        assert token in playbook
+
+    offenders: list[tuple[str, str]] = []
+
+    for path in _python_sources(ADAPTERS_ROOT):
+        text = path.read_text(encoding="utf-8")
+        offenders.extend(
+            (_relative(path), token)
+            for token in FORBIDDEN_PRODUCTION_WIRING_TOKENS
             if token in text
         )
 
