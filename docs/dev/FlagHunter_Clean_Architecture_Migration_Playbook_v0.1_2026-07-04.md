@@ -4234,6 +4234,36 @@ Required parsed checks:
   that candidate in `Read-path pre-approval source-map guard`
 - no production path switch is authorized by this source-map coverage guard
 
+#### Read-path approval package evidence completeness guard
+
+Status: evidence completeness guard recorded, no implementation approved by this section.
+
+The approval package records readiness evidence for each read-path candidate,
+but approval package readiness evidence is not implementation approval evidence.
+This guard separates currently complete readiness indexes from approval
+transition and landing evidence that must remain absent until explicit
+implementation approval and a future implementation commit exist.
+
+| Evidence group | Required section | Current complete |
+|----------------|------------------|------------------|
+| candidate status ledger | `Read-path candidate status ledger` | true |
+| readiness report | `Read-path implementation approval readiness report` | true |
+| source-map coverage | `Read-path approval package source-map consistency guard` | true |
+| approval transition evidence | `Read-path approval transition evidence consistency guard` | false |
+| landing evidence | `Read-path implementation landed evidence guard` | false |
+
+Rules:
+
+- every approval package row must keep source guard and pre-approval guard
+  evidence visible before an approval request can be reviewed
+- every approval package row must keep a remaining blocker while
+  implementation approval remains false
+- approval transition evidence remains incomplete until explicit approval
+  evidence lands in the same governance commit as the approval transition
+- landing evidence remains incomplete until a real implementation commit SHA
+  and rollback command are recorded
+- no production path switch is authorized by this evidence completeness guard
+
 #### Read-path implementation landed evidence guard
 
 Status: landed evidence guard recorded, no implementation approved by this section.

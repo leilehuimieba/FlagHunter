@@ -1468,6 +1468,67 @@ def test_playbook_parses_approval_package_source_map_consistency_guard() -> None
         assert target_paths == source_paths_by_candidate[candidate]
 
 
+def test_playbook_parses_read_path_approval_package_evidence_completeness_guard() -> None:
+    text = _playbook_text()
+    section = _section_text(
+        text,
+        "Read-path approval package evidence completeness guard",
+    )
+
+    assert "Status: evidence completeness guard recorded, no implementation approved by this section." in section
+    assert "approval package readiness evidence is not implementation approval evidence" in section
+    assert "no production path switch is authorized by this evidence completeness guard" in section
+
+    rows = {
+        row["Evidence group"]: row
+        for row in _markdown_table_rows(section)
+    }
+    assert rows == {
+        "candidate status ledger": {
+            "Evidence group": "candidate status ledger",
+            "Required section": "`Read-path candidate status ledger`",
+            "Current complete": "true",
+        },
+        "readiness report": {
+            "Evidence group": "readiness report",
+            "Required section": "`Read-path implementation approval readiness report`",
+            "Current complete": "true",
+        },
+        "source-map coverage": {
+            "Evidence group": "source-map coverage",
+            "Required section": "`Read-path approval package source-map consistency guard`",
+            "Current complete": "true",
+        },
+        "approval transition evidence": {
+            "Evidence group": "approval transition evidence",
+            "Required section": "`Read-path approval transition evidence consistency guard`",
+            "Current complete": "false",
+        },
+        "landing evidence": {
+            "Evidence group": "landing evidence",
+            "Required section": "`Read-path implementation landed evidence guard`",
+            "Current complete": "false",
+        },
+    }
+
+    package_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path approval package summary")
+        )
+    }
+    assert set(package_rows) == {"Candidate A", "Candidate B", "Candidate C", "Deferred MCP"}
+    for row in package_rows.values():
+        assert "source guard" in row["evidence present"]
+        assert "pre-approval guard" in row["evidence present"]
+        assert row["remaining blocker"]
+
+    for row in rows.values():
+        assert _section_text(text, row["Required section"].strip("`"))
+    assert rows["approval transition evidence"]["Current complete"] == "false"
+    assert rows["landing evidence"]["Current complete"] == "false"
+
+
 def test_playbook_parses_implementation_landed_evidence_guard() -> None:
     text = _playbook_text()
     section = _section_text(text, "Read-path implementation landed evidence guard")
