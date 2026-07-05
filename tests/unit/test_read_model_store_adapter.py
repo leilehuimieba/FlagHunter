@@ -16,8 +16,10 @@ ADAPTER_PATH = REPO_ROOT / "flaghunter" / "adapters" / "storage" / "read_model_s
 
 FORBIDDEN_IMPORT_PREFIXES = (
     "flaghunter.agents",
+    "flaghunter.eval",
     "flaghunter.interface",
     "flaghunter.mcp",
+    "flaghunter.redteam",
     "flaghunter.runtime",
     "flaghunter.session",
     "flaghunter.tools",

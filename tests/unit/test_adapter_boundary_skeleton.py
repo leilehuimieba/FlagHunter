@@ -12,6 +12,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 ADAPTERS_ROOT = REPO_ROOT / "flaghunter" / "adapters"
 DOMAIN_ROOT = REPO_ROOT / "flaghunter" / "domain"
 PORTS_ROOT = REPO_ROOT / "flaghunter" / "ports"
+UNIT_TEST_ROOT = REPO_ROOT / "tests" / "unit"
 PLAYBOOK_PATH = (
     REPO_ROOT
     / "docs"
@@ -282,6 +283,35 @@ def test_adapter_forbidden_import_prefixes_cover_outer_production_layers() -> No
 
     playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
     assert "Adapter outer-layer import coverage guard" in playbook
+    for prefix in sorted(required_prefixes):
+        assert prefix in playbook
+
+
+def test_specific_adapter_source_guards_cover_outer_legacy_layers() -> None:
+    required_prefixes = {
+        "flaghunter.eval",
+        "flaghunter.redteam",
+    }
+    adapter_test_paths = sorted(
+        path
+        for path in UNIT_TEST_ROOT.glob("test_*_adapter.py")
+        if path.name != "test_adapter_boundary_skeleton.py"
+    )
+    assert adapter_test_paths
+
+    missing: list[tuple[str, str]] = []
+    for path in adapter_test_paths:
+        text = path.read_text(encoding="utf-8")
+        missing.extend(
+            (_relative(path), prefix)
+            for prefix in sorted(required_prefixes)
+            if prefix not in text
+        )
+
+    assert missing == []
+
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Specific adapter source guard import coverage consistency guard" in playbook
     for prefix in sorted(required_prefixes):
         assert prefix in playbook
 

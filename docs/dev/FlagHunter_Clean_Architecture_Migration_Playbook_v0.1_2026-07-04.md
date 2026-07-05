@@ -2122,6 +2122,33 @@ Boundary confirmation for this guard:
 - no ToolExecutor changes
 - no proof authority behavior changes
 
+#### Specific adapter source guard import coverage consistency guard
+
+Status: focused adapter source guard import coverage consistency added for
+individual adapter tests.
+
+`tests/unit/test_adapter_boundary_skeleton.py` now requires every
+`tests/unit/test_*_adapter.py` focused source guard to cover the outer legacy
+evaluation and red-team helper packages:
+
+- `flaghunter.eval`
+- `flaghunter.redteam`
+
+This guard keeps single-adapter focused tests consistent with the package-level
+adapter boundary guard, so running an individual adapter test still blocks
+accidental imports from evaluation harnesses or red-team legacy helpers.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter production wiring
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 #### Adapter public surface domain-neutral naming guard
 
 Status: public naming guard added for adapter skeletons before production
