@@ -1816,6 +1816,34 @@ Forbidden scope for this package:
 - no proof authority behavior changes
 - no P5 implementation
 
+#### Read-path approval status consistency guard
+
+Status: approval consistency guard recorded, no implementation approved by this
+section.
+
+The read-path approval state has a single source of approval truth across the
+acceptance matrix, drift guard, approval package summary, and each
+candidate-specific implementation readiness checklist.
+
+| Candidate | Canonical status | Must match |
+|-----------|------------------|------------|
+| Candidate A | approval requested, not approved | acceptance matrix, drift guard, approval package summary, Candidate A readiness checklist |
+| Candidate B | ready for approval review, not approved | acceptance matrix, drift guard, approval package summary, Candidate B readiness checklist |
+| Candidate C | blocked on Candidate A approval, not approved | acceptance matrix, drift guard, approval package summary, Candidate C readiness checklist |
+| Deferred MCP | blocked on Web projection equivalence and explicit MCP approval, not approved | acceptance matrix, drift guard, approval package summary, Deferred MCP readiness checklist |
+
+Any approval status change must land in the same governance commit before
+implementation starts. The update must include:
+
+- acceptance matrix row
+- drift guard fact
+- approval package summary row
+- candidate-specific implementation readiness checklist
+- verification evidence for the status change
+
+There is no status-only implementation approval. The rule is: approval drift must fail review
+until all mirrored status locations and the relevant guard tests agree.
+
 #### Read-path implementation landing record template
 
 Status: landing evidence template recorded, no implementation approved by this

@@ -760,6 +760,29 @@ def test_playbook_records_read_path_implementation_landing_record_template() -> 
         assert required_boundary in text
 
 
+def test_playbook_records_read_path_approval_status_consistency_guard() -> None:
+    text = _playbook_text()
+
+    assert "Read-path approval status consistency guard" in text
+    expected_statuses = {
+        "Candidate A": "approval requested, not approved",
+        "Candidate B": "ready for approval review, not approved",
+        "Candidate C": "blocked on Candidate A approval, not approved",
+        "Deferred MCP": "blocked on Web projection equivalence and explicit MCP approval, not approved",
+    }
+    for candidate, status in expected_statuses.items():
+        assert f"{candidate}: {status}" in text
+        assert f"{candidate} | {status} |" in text
+    for required_phrase in (
+        "single source of approval truth",
+        "same governance commit",
+        "candidate-specific implementation readiness checklist",
+        "no status-only implementation approval",
+        "approval drift must fail review",
+    ):
+        assert required_phrase in text
+
+
 def test_playbook_records_application_service_source_guard_baseline() -> None:
     text = _playbook_text()
 
