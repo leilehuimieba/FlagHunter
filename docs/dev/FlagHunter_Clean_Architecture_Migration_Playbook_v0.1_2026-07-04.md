@@ -1741,6 +1741,50 @@ Boundary confirmation for this guard:
 - no ToolExecutor changes
 - no proof authority behavior changes
 
+#### Adapter action sink coverage guard
+
+Status: explicit action sink coverage guard added for adapter skeletons before
+production wiring.
+
+`tests/unit/test_adapter_boundary_skeleton.py` now requires the adapter action
+guard to explicitly cover common filesystem, process, network, and socket
+sinks:
+
+- `open(`
+- `Path.open`
+- `Path.read_text`
+- `Path.write_text`
+- `Path.read_bytes`
+- `Path.write_bytes`
+- `subprocess.run`
+- `subprocess.Popen`
+- `subprocess.call`
+- `asyncio.create_subprocess_exec`
+- `asyncio.create_subprocess_shell`
+- `requests.get`
+- `requests.post`
+- `requests.request`
+- `httpx.get`
+- `httpx.post`
+- `httpx.request`
+- `socket.socket`
+
+This guard keeps adapter skeletons unwired and prevents future adapter slices
+from becoming accidental filesystem readers/writers, process launchers, network
+clients, socket users, runtime surfaces, or tool executors before an approved
+adapter-wrapper or production-wiring slice.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter production wiring
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 #### Adapter outer-layer import coverage guard
 
 Status: outer-layer import coverage guard added for adapter skeletons.
