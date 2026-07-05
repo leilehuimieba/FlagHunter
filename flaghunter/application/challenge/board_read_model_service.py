@@ -455,13 +455,19 @@ def _canonical_action_mapping(source: Mapping[str, JsonValue]) -> dict[str, Json
     expected_action = _clean_text(
         source.get("expectedAction") or source.get("expected_action")
     )
+    observed_action = _clean_text(
+        source.get("observedAction") or source.get("observed_action")
+    )
     result.pop("taskAction", None)
     result.pop("task_action", None)
     result.pop("expected_action", None)
+    result.pop("observed_action", None)
     if action:
         result["action"] = action
     if expected_action:
         result["expectedAction"] = expected_action
+    if observed_action:
+        result["observedAction"] = observed_action
     return result
 
 
