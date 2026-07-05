@@ -472,6 +472,32 @@ read-only presentation projection. The guard allows the existing legacy
 This baseline keeps Candidate A stable until an approved neutral blackboard
 projection builder can prove output equivalence.
 
+#### Candidate A representative fixture baseline
+
+Status: representative fixture added before any production path switch.
+
+`tests/unit/interface/test_blackboard_lite.py` now includes
+`test_candidate_a_representative_fixture_locks_public_projection_shape` as the
+first broad Candidate A equivalence fixture. It locks the current public Web
+blackboard projection shape for representative existing `ctfStateSnapshot` inputs,
+including decision records, ingress handoff, session context action results,
+candidates and attack surfaces.
+
+This fixture is not a neutral read-model switch. It exists so a future neutral
+blackboard projection builder can prove old/new output equivalence before any
+Candidate A implementation changes are approved.
+
+Boundary confirmation for this baseline:
+
+- no production path switch
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no proof authority behavior changes
+
 Candidate B: Web control-observation trace timeline.
 
 - Current path:

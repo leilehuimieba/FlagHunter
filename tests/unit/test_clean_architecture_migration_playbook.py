@@ -136,6 +136,19 @@ def test_playbook_records_candidate_a_source_guard_baseline() -> None:
     assert "no production path switch" in text
 
 
+def test_playbook_records_candidate_a_representative_fixture_baseline() -> None:
+    text = _playbook_text()
+
+    assert "Candidate A representative fixture baseline" in text
+    assert "tests/unit/interface/test_blackboard_lite.py" in text
+    assert "test_candidate_a_representative_fixture_locks_public_projection_shape" in text
+    assert "representative existing `ctfStateSnapshot` inputs" in text
+    assert "decision records, ingress handoff, session context action results" in text
+    assert "candidates and attack surfaces" in text
+    assert "old/new output equivalence" in text
+    assert "no production path switch" in text
+
+
 def test_playbook_records_candidate_a_approval_plan() -> None:
     text = _playbook_text()
 

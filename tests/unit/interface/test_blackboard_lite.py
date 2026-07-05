@@ -34,6 +34,131 @@ def _function_source(tree: ast.Module, name: str) -> str:
     raise AssertionError(f"{name} was not found")
 
 
+def _candidate_a_representative_task_and_context() -> tuple[dict[str, object], dict[str, object]]:
+    state = CTFState(target="http://challenge.test", goal="collect accepted proof")
+    state.add_observation(
+        "derived_target",
+        "http://127.0.0.1:3000",
+        source="challenge_context",
+        metadata={"compose_path": r"D:\webstudy\CTF\easy_login\docker-compose.yml"},
+    )
+    state.add_observation(
+        "recon_url",
+        "http://challenge.test/admin",
+        source="recon",
+        metadata={"confidence": "high"},
+    )
+    state.add_observation(
+        "ssti_engine_identified",
+        "tornado",
+        source="ssti_identify",
+        metadata={"engine": "tornado"},
+    )
+    state.add_observation(
+        "cookie_secret_leaked",
+        "SECRET-123",
+        source="ssti_identify",
+        metadata={"method": "handler_settings_probe"},
+    )
+    state.add_observation(
+        "resume_bootstrap_hint",
+        "continue from saved recon state",
+        source="ingress_handoff",
+        metadata={
+            "decision_kind": "resume_execute",
+            "next_action": "resume_from_checkpoint",
+            "run_id": "run-prev-1",
+            "checkpoint_id": "checkpoint-prev-1",
+        },
+    )
+    state.add_flag(
+        "flag{runtime_pending}",
+        level="runtime",
+        evidence_source="collector",
+        rationale="runtime hit",
+    )
+    state.hypotheses = [
+        Hypothesis(
+            id="hyp-1",
+            kind="generic_web_recon",
+            description="admin endpoint and derived target are available",
+            confidence=0.52,
+            status="active",
+            supporting_observations=["derived_target:http://127.0.0.1:3000"],
+            next_experiments=["fetch /admin"],
+        )
+    ]
+    state.add_exploration_item(
+        "http://challenge.test/admin",
+        discovery_source="recon",
+        hint_strength=1,
+    )
+    task = {
+        "controlDecision": {
+            "shouldRun": True,
+            "decisionKind": "explore_first",
+            "reason": "derived target available",
+            "nextAction": "collect_initial_facts",
+            "driver": "blackboard.derived_target.runtime_derived",
+            "facts": [
+                "mode=ctf",
+                "strongestHypothesisKind=generic_web_recon",
+                "strongestHypothesisStatus=active",
+                "strongestHypothesisConfidence=0.52",
+            ],
+        },
+        "decisionRecords": [
+            {
+                "kind": "explore_first",
+                "source": "web_ingress",
+                "nextAction": "collect_initial_facts",
+                "reason": "derived target available",
+            }
+        ],
+        "ingressHandoff": {
+            "decisionKind": "resume_execute",
+            "nextAction": "resume_from_checkpoint",
+            "resumeBootstrap": {
+                "runId": "run-prev-1",
+                "checkpointId": "checkpoint-prev-1",
+                "summary": "continue from saved recon state",
+            },
+        },
+        "ctfStateSnapshot": state.to_snapshot(),
+    }
+    session_context = {
+        "recentEvents": [
+            {
+                "type": "control_action_started",
+                "t": "2026-06-03T10:00:01+00:00",
+                "payload": {
+                    "action": "collect_initial_facts",
+                    "expected_action": "collect_initial_facts",
+                    "alignment": "matched",
+                    "driver": "blackboard.derived_target.runtime_derived",
+                    "strongest_hypothesis_kind": "generic_web_recon",
+                    "strongest_hypothesis_status": "active",
+                    "strongest_hypothesis_confidence": 0.52,
+                },
+            },
+            {
+                "type": "control_action_completed",
+                "t": "2026-06-03T10:00:02+00:00",
+                "payload": {
+                    "action": "collect_initial_facts",
+                    "driver": "blackboard.derived_target.runtime_derived",
+                    "result": "failed",
+                    "details": {"reason": "no new facts"},
+                    "strongest_hypothesis_kind": "generic_web_recon",
+                    "strongest_hypothesis_status": "active",
+                    "strongest_hypothesis_confidence": 0.52,
+                },
+            },
+        ]
+    }
+    return task, session_context
+
+
 def test_build_task_blackboard_snapshot_source_stays_read_only_projection() -> None:
     tree = _parse_blackboard_lite()
     public_helper_source = _function_source(tree, "build_task_blackboard_snapshot")
@@ -225,6 +350,120 @@ def test_build_task_blackboard_snapshot_aggregates_ingress_decision_and_resume_f
     assert resume_candidates
     assert resume_candidates[0]["selected"] is True
     assert resume_candidates[0]["priority"] == 0
+
+
+def test_candidate_a_representative_fixture_locks_public_projection_shape() -> None:
+    task, session_context = _candidate_a_representative_task_and_context()
+
+    snapshot = build_task_blackboard_snapshot(task, session_context=session_context)
+    serialized = serialize_blackboard_snapshot(snapshot)
+    lines = format_blackboard_snapshot_lines(serialized)
+
+    assert set(serialized) == {
+        "facts",
+        "hypotheses",
+        "pendingVerifications",
+        "decisions",
+        "candidates",
+        "actionResults",
+        "recommendedAction",
+        "activeDecision",
+        "attackSurfaces",
+    }
+    fact_values = {(item["kind"], item.get("value")) for item in serialized["facts"]}
+    assert ("control_decision", "explore_first") in fact_values
+    assert ("next_action", "collect_initial_facts") in fact_values
+    assert ("derived_target", "http://127.0.0.1:3000") in fact_values
+    assert ("discovered_endpoint", "http://challenge.test/admin") in fact_values
+    assert ("identified_engine", "tornado") in fact_values
+    assert ("leaked_secret", "SECRET-123") in fact_values
+    assert ("resume_run_id", "run-prev-1") in fact_values
+
+    assert serialized["hypotheses"] == [
+        {
+            "id": "hyp-1",
+            "kind": "generic_web_recon",
+            "description": "admin endpoint and derived target are available",
+            "confidence": 0.52,
+            "status": "active",
+            "supportingObservations": ["derived_target:http://127.0.0.1:3000"],
+            "counterEvidence": [],
+            "nextExperiments": ["fetch /admin"],
+        }
+    ]
+    assert serialized["pendingVerifications"] == [
+        {
+            "kind": "runtime_flag",
+            "value": "flag{runtime_pending}",
+            "source": "collector",
+            "rationale": "runtime hit",
+        }
+    ]
+    assert serialized["decisions"] == [
+        {
+            "kind": "explore_first",
+            "source": "web_ingress",
+            "nextAction": "collect_initial_facts",
+            "reason": "derived target available",
+        }
+    ]
+    assert serialized["activeDecision"] == {
+        "decisionKind": "explore_first",
+        "nextAction": "collect_initial_facts",
+        "driver": "blackboard.derived_target.runtime_derived",
+        "reason": "derived target available",
+        "expectedAction": "collect_initial_facts",
+        "observedAction": "collect_initial_facts",
+        "alignment": "matched",
+        "strongestHypothesisKind": "generic_web_recon",
+        "strongestHypothesisStatus": "active",
+        "strongestHypothesisConfidence": 0.52,
+    }
+    assert [item["action"] for item in serialized["candidates"]] == [
+        "collect_initial_facts",
+        "verify_runtime_signal",
+        "resume_from_checkpoint",
+        "exploit_identified_engine",
+        "probe_discovered_endpoint",
+        "validate_leaked_secret",
+    ]
+    assert serialized["candidates"][0]["selected"] is True
+    assert serialized["candidates"][1]["recommended"] is True
+    assert serialized["recommendedAction"]["action"] == "verify_runtime_signal"
+    assert serialized["recommendedAction"]["sourceType"] == "verification"
+    assert serialized["recommendedAction"]["switchedFrom"] == "collect_initial_facts"
+    assert serialized["recommendedAction"]["triggerResult"] == "failed"
+    assert serialized["recommendedAction"]["triggerReason"] == "no new facts"
+    assert serialized["recommendedAction"]["triggerActionDriver"] == (
+        "blackboard.derived_target.runtime_derived"
+    )
+    assert serialized["actionResults"] == [
+        {
+            "action": "collect_initial_facts",
+            "driver": "blackboard.derived_target.runtime_derived",
+            "result": "failed",
+            "t": "2026-06-03T10:00:02+00:00",
+            "details": {"reason": "no new facts"},
+            "expectedAction": "collect_initial_facts",
+            "alignment": "matched",
+            "strongestHypothesisKind": "generic_web_recon",
+            "strongestHypothesisStatus": "active",
+            "strongestHypothesisConfidence": 0.52,
+        }
+    ]
+    assert [(item["kind"], item["value"]) for item in serialized["attackSurfaces"]] == [
+        ("engine", "tornado"),
+        ("secret", "SECRET-123"),
+        ("endpoint", "http://challenge.test/admin"),
+        ("vector", "admin endpoint and derived target are available"),
+    ]
+    assert "[blackboard_facts]" in lines
+    assert "[blackboard_hypotheses]" in lines
+    assert "[blackboard_pending_verifications]" in lines
+    assert "[blackboard_active_decision]" in lines
+    assert "[blackboard_recommended_action]" in lines
+    assert "[blackboard_action_results]" in lines
+    assert "[blackboard_attack_surfaces]" in lines
 
 
 def test_build_entry_blackboard_snapshot_matches_web_contract() -> None:
