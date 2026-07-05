@@ -388,6 +388,32 @@ Boundary confirmation for this baseline:
 - no MCP production wiring
 - no proof authority behavior changes
 
+### Challenge board read-model sanitization baseline
+
+Status: neutral read-model sanitization guard added before any production path
+switch.
+
+`BoardItem` and `ChallengeBoardReadModel` now reuse shared sanitization helpers
+for serialized value, source, metadata, decision, candidate, action-result,
+recommended-task, and surface-ref payloads. The behavior redacts raw body
+content and sensitive token/password/session-style values before the neutral
+board read model can become a presentation input.
+
+`tests/unit/test_application_board_read_model_service.py` records this baseline
+with a red/green fixture that verifies no raw body or sensitive token leaks from
+the new schema-versioned read model payload.
+
+Boundary confirmation for this baseline:
+
+- no production path switch
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no proof authority behavior changes
+
 ### Application service source guard baseline
 
 Status: source guard added before production wiring.

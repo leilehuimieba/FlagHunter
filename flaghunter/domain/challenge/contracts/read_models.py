@@ -12,8 +12,8 @@ from ._serialization import (
     JsonValue,
     coerce_json_dict,
     coerce_json_list,
-    coerce_json_value,
 )
+from .sanitization import preview_text, sanitize_json_value, sanitize_metadata
 
 
 SCHEMA_VERSION = 1
@@ -35,10 +35,14 @@ class BoardItem:
             "schemaVersion": BOARD_ITEM_SCHEMA_VERSION,
             "itemId": self.item_id,
             "itemType": self.item_type,
-            "value": coerce_json_value(self.value),
-            "sourceRef": self.source_ref,
+            "value": sanitize_json_value(self.value),
+            "sourceRef": (
+                preview_text(self.source_ref)
+                if self.source_ref is not None
+                else None
+            ),
             "confidence": self.confidence,
-            "metadata": coerce_json_dict(self.metadata),
+            "metadata": sanitize_metadata(coerce_json_dict(self.metadata)),
         }
 
     @classmethod
@@ -47,7 +51,7 @@ class BoardItem:
         return cls(
             item_id=str(payload.get("itemId", "")),
             item_type=str(payload.get("itemType", "")),
-            value=coerce_json_value(payload.get("value")),
+            value=sanitize_json_value(payload.get("value")),
             source_ref=(
                 str(payload["sourceRef"])
                 if payload.get("sourceRef") is not None
@@ -98,14 +102,23 @@ class ChallengeBoardReadModel:
             "evidence": [item.to_dict() for item in self.evidence],
             "receipts": [item.to_dict() for item in self.receipts],
             "tasks": [item.to_dict() for item in self.tasks],
-            "decisions": [coerce_json_dict(item) for item in self.decisions],
-            "candidates": [coerce_json_dict(item) for item in self.candidates],
-            "actionResults": [
-                coerce_json_dict(item) for item in self.action_results
+            "decisions": [
+                sanitize_metadata(coerce_json_dict(item)) for item in self.decisions
             ],
-            "recommendedTask": coerce_json_dict(self.recommended_task),
-            "surfaceRefs": [coerce_json_dict(item) for item in self.surface_refs],
-            "metadata": coerce_json_dict(self.metadata),
+            "candidates": [
+                sanitize_metadata(coerce_json_dict(item)) for item in self.candidates
+            ],
+            "actionResults": [
+                sanitize_metadata(coerce_json_dict(item))
+                for item in self.action_results
+            ],
+            "recommendedTask": sanitize_metadata(
+                coerce_json_dict(self.recommended_task)
+            ),
+            "surfaceRefs": [
+                sanitize_metadata(coerce_json_dict(item)) for item in self.surface_refs
+            ],
+            "metadata": sanitize_metadata(coerce_json_dict(self.metadata)),
         }
 
     @classmethod

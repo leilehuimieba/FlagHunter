@@ -48,6 +48,20 @@ def test_playbook_records_board_read_model_skeleton_baseline() -> None:
     assert "no proof authority behavior changes" in text
 
 
+def test_playbook_records_board_read_model_sanitization_baseline() -> None:
+    text = _playbook_text()
+
+    assert "Challenge board read-model sanitization baseline" in text
+    assert "BoardItem" in text
+    assert "ChallengeBoardReadModel" in text
+    assert "shared sanitization helpers" in text
+    assert "raw body" in text
+    assert "sensitive token" in text
+    assert "tests/unit/test_application_board_read_model_service.py" in text
+    assert "no production path switch" in text
+    assert "no proof authority behavior changes" in text
+
+
 def test_playbook_records_next_approval_gate_after_phase4_skeletons() -> None:
     text = _playbook_text()
 

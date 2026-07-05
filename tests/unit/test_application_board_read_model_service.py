@@ -135,6 +135,60 @@ def test_board_read_model_round_trips_with_schema_versioned_payloads() -> None:
     _assert_json_friendly(payload)
 
 
+def test_board_read_model_sanitizes_raw_values_and_metadata() -> None:
+    from flaghunter.domain.challenge.contracts import (
+        BoardItem,
+        ChallengeBoardReadModel,
+    )
+
+    item = BoardItem(
+        item_id="fact-raw",
+        item_type="evidence",
+        value="HTTP/1.1 200 OK\n<html>password=body-password</html>",
+        source_ref="Authorization: Bearer source-token",
+        metadata={
+            "authorization": "Bearer metadata-token",
+            "safe": "visible",
+            "raw_output": "HTTP/1.1 200 OK\n<html>token=raw-token</html>",
+            "nested": {"password": "nested-password"},
+        },
+    )
+    model = ChallengeBoardReadModel(
+        run_id="run-raw",
+        challenge_id="challenge-raw",
+        facts=[item],
+        decisions=[{"reason": "token=decision-token"}],
+        recommended_task={"summary": "password=task-password"},
+        metadata={"raw_body": "HTTP/1.1 200 OK\n<html>secret</html>"},
+    )
+
+    payload = model.to_dict()
+
+    assert payload["facts"][0]["value"] == "<redacted raw body>"
+    assert payload["facts"][0]["sourceRef"] == "<redacted>"
+    assert payload["facts"][0]["metadata"] == {
+        "authorization": "<redacted>",
+        "safe": "visible",
+        "raw_output": "<redacted raw body>",
+        "nested": {"password": "<redacted>"},
+    }
+    assert payload["decisions"] == [{"reason": "token=<redacted>"}]
+    assert payload["recommendedTask"] == {"summary": "password=<redacted>"}
+    assert payload["metadata"] == {"raw_body": "<redacted raw body>"}
+    for leaked in (
+        "body-password",
+        "source-token",
+        "metadata-token",
+        "raw-token",
+        "nested-password",
+        "decision-token",
+        "task-password",
+    ):
+        assert leaked not in repr(payload)
+    assert ChallengeBoardReadModel.from_dict(payload).to_dict() == payload
+    _assert_json_friendly(payload)
+
+
 def test_build_returns_empty_board_for_minimal_snapshot() -> None:
     from flaghunter.application.challenge.board_read_model_service import (
         BuildChallengeBoardReadModel,
