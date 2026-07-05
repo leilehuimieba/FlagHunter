@@ -97,6 +97,16 @@ FORBIDDEN_PRODUCTION_WIRING_TOKENS = {
     "run_task_async",
 }
 
+FORBIDDEN_PUBLIC_DOMAIN_TERMS = {
+    "ctf",
+    "pentest",
+    "exploit",
+    "vulnerability",
+    "hacking",
+    "attack",
+    "redteam",
+}
+
 
 def _parse(path: Path) -> ast.Module:
     with warnings.catch_warnings():
@@ -263,5 +273,51 @@ def test_inner_layers_do_not_import_adapter_package() -> None:
                 normalized = imported.lstrip(".")
                 if normalized.startswith("flaghunter.adapters"):
                     offenders.append((_relative(path), imported))
+
+    assert offenders == []
+
+
+def test_adapter_public_names_docstrings_and_paths_are_domain_neutral() -> None:
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Adapter public surface domain-neutral naming guard" in playbook
+    for term in sorted(FORBIDDEN_PUBLIC_DOMAIN_TERMS):
+        assert term in playbook
+
+    offenders: list[tuple[str, str, int]] = []
+    for path in _python_sources(ADAPTERS_ROOT):
+        tree = _parse(path)
+        path_parts = [part.lower() for part in path.relative_to(REPO_ROOT).parts[1:]]
+        for part in path_parts:
+            offenders.extend(
+                (_relative(path), f"path part {part} contains {term}", 1)
+                for term in FORBIDDEN_PUBLIC_DOMAIN_TERMS
+                if term in part
+            )
+
+        module_doc = (ast.get_docstring(tree) or "").lower()
+        offenders.extend(
+            (_relative(path), f"module docstring contains {term}", 1)
+            for term in FORBIDDEN_PUBLIC_DOMAIN_TERMS
+            if term in module_doc
+        )
+
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+                lowered_name = node.name.lower()
+                offenders.extend(
+                    (_relative(path), f"{node.name} contains {term}", node.lineno)
+                    for term in FORBIDDEN_PUBLIC_DOMAIN_TERMS
+                    if term in lowered_name
+                )
+                lowered_doc = (ast.get_docstring(node) or "").lower()
+                offenders.extend(
+                    (
+                        _relative(path),
+                        f"{node.name} docstring contains {term}",
+                        node.lineno,
+                    )
+                    for term in FORBIDDEN_PUBLIC_DOMAIN_TERMS
+                    if term in lowered_doc
+                )
 
     assert offenders == []

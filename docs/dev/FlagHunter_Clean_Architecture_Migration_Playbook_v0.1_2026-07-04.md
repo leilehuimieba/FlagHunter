@@ -1647,6 +1647,40 @@ Boundary confirmation for this guard:
 - no ToolExecutor changes
 - no proof authority behavior changes
 
+#### Adapter public surface domain-neutral naming guard
+
+Status: public naming guard added for adapter skeletons before production
+wiring.
+
+`tests/unit/test_adapter_boundary_skeleton.py` now guards adapter package
+paths, module docstrings, class names, function names, and class/function
+docstrings against introducing the public domain-specific terms reserved for
+legacy implementation details:
+
+- `ctf`
+- `pentest`
+- `exploit`
+- `vulnerability`
+- `hacking`
+- `attack`
+- `redteam`
+
+This keeps new adapter skeleton public surfaces aligned with the neutral
+architecture vocabulary while legacy/security terminology remains confined to
+existing implementation modules, compatibility details, fixtures, or historical
+docs until a focused migration explicitly changes them.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter production wiring
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 ### Adapter substitution runway completed
 
 Status: low-risk adapter substitution fixture runway completed.
