@@ -2085,20 +2085,23 @@ unwired:
 - `flaghunter.application`
 - `flaghunter.config`
 - `flaghunter.cpa_modules`
+- `flaghunter.eval`
 - `flaghunter.interface`
 - `flaghunter.knowledge`
 - `flaghunter.llm`
 - `flaghunter.mcp`
 - `flaghunter.playbooks`
+- `flaghunter.redteam`
 - `flaghunter.runtime`
 - `flaghunter.session`
 - `flaghunter.tools`
 - `flaghunter.workspaces`
 
 This guard keeps current adapter skeletons from reaching into application
-services, production configuration, legacy feature modules, playbooks,
-model/runtime code, presentation, MCP, tools, sessions, or workspace helpers
-before a focused adapter-wrapper or production-wiring slice is approved.
+services, production configuration, legacy feature modules, evaluation
+harnesses, red-team legacy helpers, playbooks, model/runtime code,
+presentation, MCP, tools, sessions, or workspace helpers before a focused
+adapter-wrapper or production-wiring slice is approved.
 
 Boundary confirmation for this guard:
 
