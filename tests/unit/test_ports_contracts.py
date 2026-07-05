@@ -116,11 +116,23 @@ FORBIDDEN_PROOF_CALLS = {
 }
 
 FORBIDDEN_PUBLIC_DOMAIN_TERMS = {
+    "attack",
     "ctf",
     "pentest",
     "exploit",
     "vulnerability",
     "hacking",
+    "redteam",
+}
+
+REQUIRED_PUBLIC_DOMAIN_TERMS = {
+    "ctf",
+    "pentest",
+    "exploit",
+    "vulnerability",
+    "hacking",
+    "attack",
+    "redteam",
 }
 
 
@@ -340,3 +352,12 @@ def test_new_ports_public_names_and_docstrings_are_domain_neutral() -> None:
                 )
 
     assert offenders == []
+
+
+def test_ports_domain_neutral_forbidden_terms_cover_policy() -> None:
+    assert REQUIRED_PUBLIC_DOMAIN_TERMS <= FORBIDDEN_PUBLIC_DOMAIN_TERMS
+
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Public surface domain-neutral naming coverage guard" in playbook
+    for term in sorted(REQUIRED_PUBLIC_DOMAIN_TERMS):
+        assert term in playbook

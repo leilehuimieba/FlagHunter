@@ -923,6 +923,41 @@ Boundary confirmation for this guard:
 - no ToolExecutor changes
 - no proof authority behavior changes
 
+### Public surface domain-neutral naming coverage guard
+
+Status: public naming coverage guard added for neutral ports and application
+services.
+
+`tests/unit/test_ports_contracts.py` and
+`tests/unit/test_application_service_source_guards.py` now require new public
+ports and application service surfaces to keep the full domain-neutral naming
+policy forbidden-term set:
+
+- `ctf`
+- `pentest`
+- `exploit`
+- `vulnerability`
+- `hacking`
+- `attack`
+- `redteam`
+
+The guard checks public module paths, module docstrings, class names, function
+names, and class/function docstrings for the neutral architecture layers. It
+does not scan legacy payload compatibility keys or historical documentation,
+because those remain compatibility details until an approved migration slice
+changes them.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter construction
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 ### Adapter port substitution fixture baseline
 
 Status: substitution fixture added before production wiring.
