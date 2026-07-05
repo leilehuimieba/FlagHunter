@@ -1072,6 +1072,68 @@ def test_playbook_parses_read_path_next_gate_consistently() -> None:
         assert ledger_row["nextGate"] == package_rows[candidate]["remaining blocker"]
 
 
+def test_playbook_parses_deferred_mcp_explicit_wiring_approval_guard() -> None:
+    text = _playbook_text()
+    section = _section_text(text, "Deferred MCP explicit wiring approval guard")
+
+    assert "Status: explicit MCP approval guard recorded, no implementation approved by this section." in section
+    assert "Web projection equivalence lands plus explicit MCP production wiring approval" in section
+    assert "confirm explicit MCP production wiring approval" in section
+    assert "no MCP production wiring without explicit approval" in section
+    assert "no production path switch" in section
+
+    expected_gate = "Web projection equivalence lands plus explicit MCP production wiring approval"
+    ledger_row = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path candidate status ledger")
+        )
+    }["Deferred MCP"]
+    readiness_row = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path implementation approval readiness report")
+        )
+    }["Deferred MCP"]
+    package_row = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path approval package summary")
+        )
+    }["Deferred MCP"]
+    source_row = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path pre-approval source-map guard")
+        )
+    }["Deferred MCP"]
+    evidence_row = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path implementation landed evidence guard")
+        )
+    }["Deferred MCP"]
+    rollback_row = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path rollback command index")
+        )
+    }["Deferred MCP"]
+    checklist = _section_text(text, "Deferred MCP approved execution checklist")
+
+    assert ledger_row["nextGate"] == expected_gate
+    assert readiness_row["Missing approval"] == expected_gate
+    assert package_row["remaining blocker"] == expected_gate
+    assert "explicit MCP approval, not approved" in ledger_row["canonicalStatus"]
+    assert readiness_row["Implementation approved"] == "false"
+    assert source_row["Source path"] == "`flaghunter/mcp/server/mcp_tools.py`"
+    assert source_row["Implementation approved"] == "false"
+    assert evidence_row["Implementation landed"] == "false"
+    assert rollback_row["Rollback command"] == "`git revert <single Deferred MCP implementation commit>`"
+    assert "confirm explicit MCP production wiring approval" in checklist
+    assert "no MCP production wiring without explicit approval" in text
+
+
 def test_playbook_parses_read_path_approved_execution_checklist_index() -> None:
     text = _playbook_text()
     section = _section_text(text, "Read-path approved execution checklist index")

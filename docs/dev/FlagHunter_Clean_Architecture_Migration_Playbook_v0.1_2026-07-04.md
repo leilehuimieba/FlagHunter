@@ -2107,6 +2107,35 @@ prove that each candidate has one canonical blocker before implementation:
 - Deferred MCP still requires explicit MCP production wiring approval
 - no production path switch is authorized by this nextGate consistency guard
 
+#### Deferred MCP explicit wiring approval guard
+
+Status: explicit MCP approval guard recorded, no implementation approved by this section.
+
+Deferred MCP is the only current read-path candidate whose future implementation
+would count as MCP production wiring. It remains blocked until Web projection
+equivalence lands plus explicit MCP production wiring approval is recorded.
+Web read-path equivalence alone must never authorize an MCP readback switch.
+
+Canonical Deferred MCP blocker: Web projection equivalence lands plus explicit MCP production wiring approval.
+
+Required parsed checks:
+
+- Deferred MCP ledger `nextGate` remains `Web projection equivalence lands plus
+  explicit MCP production wiring approval`
+- Deferred MCP readiness `Missing approval` remains `Web projection equivalence
+  lands plus explicit MCP production wiring approval`
+- Deferred MCP approval package `remaining blocker` remains `Web projection
+  equivalence lands plus explicit MCP production wiring approval`
+- Deferred MCP source-map row remains
+  `flaghunter/mcp/server/mcp_tools.py` with `Implementation approved` = `false`
+- Deferred MCP approved execution checklist must confirm explicit MCP production wiring approval
+- Deferred MCP approved execution checklist keeps `confirm explicit MCP
+  production wiring approval`
+- Deferred MCP non-goals must keep no MCP production wiring without explicit approval
+- Deferred MCP non-goals keep `no MCP production wiring without explicit
+  approval`
+- no production path switch is authorized by this explicit MCP approval guard
+
 #### Read-path approved execution checklist index
 
 Status: checklist index recorded, no implementation approved by this section.
