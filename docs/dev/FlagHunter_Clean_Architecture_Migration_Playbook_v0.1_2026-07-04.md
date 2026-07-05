@@ -2304,6 +2304,35 @@ Rules:
   has not landed
 - no production path switch is authorized by this rollback command index
 
+#### Candidate C split commit consistency guard
+
+Status: split commit consistency guard recorded, no implementation approved by this section.
+
+Candidate C has two future read-path call-site families and must remain split
+across the approval checklist, source map, and rollback index. If explicit
+Candidate C implementation approval is later granted, it still requires two
+separate read-path switch commits: serialize-task projection first and
+control-decision snapshot merge second.
+
+The required execution shape is two separate read-path switch commits with no
+bundled serialize-task and control-decision implementation.
+
+Required parsed checks:
+
+- `Read-path pre-approval source-map guard` keeps separate Candidate C rows for
+  `flaghunter/interface/web_serialize_task.py` and
+  `flaghunter/interface/web_control_decision.py`
+- `Read-path rollback command index` keeps separate Candidate C rollback
+  placeholders for serialize-task and control-decision
+- `Candidate C approved execution checklist` keeps `one call-site family per
+  commit`
+- `Candidate C approved execution checklist` keeps `serialize-task projection
+  first`
+- `Candidate C approved execution checklist` keeps `control-decision snapshot
+  merge second`
+- no bundled serialize-task and control-decision implementation is allowed
+- no production path switch is authorized by this split commit guard
+
 #### Read-path approval status consistency guard
 
 Status: approval consistency guard recorded, no implementation approved by this

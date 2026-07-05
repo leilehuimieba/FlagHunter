@@ -1333,6 +1333,49 @@ def test_playbook_parses_read_path_rollback_command_index() -> None:
         assert not re.search(r"\b[0-9a-f]{7,40}\b", row["Rollback command"])
 
 
+def test_playbook_parses_candidate_c_split_commit_consistency_guard() -> None:
+    text = _playbook_text()
+    section = _section_text(text, "Candidate C split commit consistency guard")
+
+    assert "Status: split commit consistency guard recorded, no implementation approved by this section." in section
+    assert "two separate read-path switch commits" in section
+    assert "serialize-task projection first" in section
+    assert "control-decision snapshot merge second" in section
+    assert "no bundled serialize-task and control-decision implementation" in section
+    assert "no production path switch" in section
+
+    source_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path pre-approval source-map guard")
+        )
+        if row["Candidate"].startswith("Candidate C")
+    }
+    rollback_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path rollback command index")
+        )
+        if row["Candidate"].startswith("Candidate C")
+    }
+    checklist = _section_text(text, "Candidate C approved execution checklist")
+
+    assert set(source_rows) == {"Candidate C serialize-task", "Candidate C control-decision"}
+    assert set(rollback_rows) == set(source_rows)
+    assert source_rows["Candidate C serialize-task"]["Source path"] == "`flaghunter/interface/web_serialize_task.py`"
+    assert source_rows["Candidate C control-decision"]["Source path"] == "`flaghunter/interface/web_control_decision.py`"
+    assert rollback_rows["Candidate C serialize-task"]["Rollback command"] == "`git revert <single Candidate C serialize-task implementation commit>`"
+    assert rollback_rows["Candidate C control-decision"]["Rollback command"] == "`git revert <single Candidate C control-decision implementation commit>`"
+    for required_phrase in (
+        "two separate",
+        "one call-site family per commit",
+        "serialize-task projection first",
+        "control-decision snapshot merge second",
+        "no bundled serialize-task and control-decision implementation",
+    ):
+        assert required_phrase in checklist
+
+
 def test_playbook_records_application_service_source_guard_baseline() -> None:
     text = _playbook_text()
 
