@@ -312,6 +312,7 @@ def test_playbook_records_candidate_a_approval_plan() -> None:
 
 def test_playbook_records_candidate_a_implementation_readiness_checklist() -> None:
     text = _playbook_text()
+    section = _section_text(text, "Candidate A implementation readiness checklist")
 
     assert "Candidate A implementation readiness checklist" in text
     for baseline in (
@@ -325,6 +326,13 @@ def test_playbook_records_candidate_a_implementation_readiness_checklist() -> No
         "neutral suppressed recommendation baseline",
     ):
         assert baseline in text
+    for evidence_test in (
+        "test_candidate_a_pre_approval_guard_blocks_neutral_builder_wiring",
+        "test_candidate_a_representative_fixture_locks_public_projection_shape",
+        "test_candidate_a_missing_or_malformed_state_snapshot_baseline",
+        "test_candidate_a_decision_ingress_action_result_baseline",
+    ):
+        assert evidence_test in section
     assert "approval is still required before editing `flaghunter/interface/blackboard_lite.py`" in text
     assert "one implementation commit only" in text
     assert "old/new output equivalence must be proven in `tests/unit/interface/test_blackboard_lite.py`" in text

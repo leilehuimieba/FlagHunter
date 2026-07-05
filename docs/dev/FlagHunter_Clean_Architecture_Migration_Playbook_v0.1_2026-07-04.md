@@ -879,6 +879,11 @@ baselines recorded:
 - neutral explicit recommendation marker baseline
 - neutral candidate/action-result degraded baseline
 - neutral suppressed recommendation baseline
+- Candidate A Web blackboard fixture evidence:
+  `test_candidate_a_pre_approval_guard_blocks_neutral_builder_wiring`
+  `test_candidate_a_representative_fixture_locks_public_projection_shape`
+  `test_candidate_a_missing_or_malformed_state_snapshot_baseline`
+  `test_candidate_a_decision_ingress_action_result_baseline`
 
 Implementation gate:
 
