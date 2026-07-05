@@ -30,19 +30,34 @@ class BuildChallengeBoardReadModel:
             evidence=_evidence_items(run_snapshot),
             receipts=_receipt_items(run_snapshot),
             tasks=_task_items(run_snapshot),
-            decisions=_mapping_list(metadata.get("decisions")),
+            decisions=_decision_items(metadata),
             candidates=_mapping_list(metadata.get("candidates")),
-            action_results=_mapping_list(metadata.get("actionResults")),
-            recommended_task=coerce_json_dict(metadata.get("recommendedTask")),
-            surface_refs=_surface_refs(metadata.get("surfaceRefs")),
+            action_results=_mapping_list(
+                metadata.get("actionResults") or metadata.get("action_results")
+            ),
+            recommended_task=_first_mapping_value(
+                metadata,
+                "recommendedTask",
+                "recommendedAction",
+                "recommended_action",
+            ),
+            surface_refs=_surface_refs(
+                metadata.get("surfaceRefs") or metadata.get("attack_surfaces")
+            ),
             metadata={
                 key: value
                 for key, value in metadata.items()
                 if key
                 not in {
                     "actionResults",
+                    "action_results",
+                    "activeDecision",
+                    "active_decision",
+                    "attack_surfaces",
                     "candidates",
                     "decisions",
+                    "recommendedAction",
+                    "recommended_action",
                     "recommendedTask",
                     "surfaceRefs",
                 }
@@ -188,6 +203,29 @@ def _surface_refs(value: JsonValue) -> list[dict[str, JsonValue]]:
         for item in coerce_json_list(value if isinstance(value, list) else None)
         if isinstance(item, Mapping)
     ]
+
+
+def _decision_items(metadata: Mapping[str, JsonValue]) -> list[dict[str, JsonValue]]:
+    decisions = _mapping_list(metadata.get("decisions"))
+    active_decision = _first_mapping_value(
+        metadata,
+        "activeDecision",
+        "active_decision",
+    )
+    if active_decision:
+        return [active_decision, *decisions]
+    return decisions
+
+
+def _first_mapping_value(
+    metadata: Mapping[str, JsonValue],
+    *keys: str,
+) -> dict[str, JsonValue]:
+    for key in keys:
+        value = metadata.get(key)
+        if isinstance(value, Mapping):
+            return coerce_json_dict(value)
+    return {}
 
 
 def _mapping_list(value: JsonValue) -> list[dict[str, JsonValue]]:

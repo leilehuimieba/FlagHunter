@@ -874,6 +874,34 @@ Boundary confirmation for this baseline:
 - no MCP production wiring
 - no proof authority behavior changes
 
+### Candidate A neutral metadata alias projection baseline
+
+Status: neutral metadata alias fixture added before any production path switch.
+
+`BuildChallengeBoardReadModel` now accepts legacy-compatible read-side metadata
+aliases and still projects them into neutral `ChallengeBoardReadModel` fields:
+`activeDecision` becomes the first decision row, `recommendedAction` becomes
+`recommendedTask`, `action_results` becomes `actionResults`, and
+`attack_surfaces` becomes `surfaceRefs`. The aliases are removed from residual
+metadata after promotion.
+
+`tests/unit/test_application_board_read_model_service.py` records this baseline
+with `test_build_promotes_board_metadata_aliases_to_read_model_fields`, giving
+future Candidate A equivalence work a neutral builder that can consume both
+fresh neutral metadata and compatibility-shaped read-side inputs before any
+production call site is switched.
+
+Boundary confirmation for this baseline:
+
+- no production path switch
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no proof authority behavior changes
+
 ### Candidate A neutral malformed board item projection baseline
 
 Status: malformed board item fixture added before any production path switch.
@@ -2885,6 +2913,7 @@ baselines recorded:
 - neutral evidence projection baseline
 - neutral degraded projection baseline
 - neutral metadata projection baseline
+- neutral metadata alias projection baseline
 - neutral malformed board item projection baseline
 - neutral recommended action projection baseline
 - neutral explicit recommendation marker baseline
@@ -2893,6 +2922,7 @@ baselines recorded:
 - Candidate A Web blackboard fixture evidence:
   `test_candidate_a_pre_approval_guard_blocks_neutral_builder_wiring`
   `test_build_promotes_neutral_board_metadata_to_read_model_fields`
+  `test_build_promotes_board_metadata_aliases_to_read_model_fields`
   `test_candidate_a_representative_fixture_locks_public_projection_shape`
   `test_candidate_a_missing_or_malformed_state_snapshot_baseline`
   `test_candidate_a_decision_ingress_action_result_baseline`

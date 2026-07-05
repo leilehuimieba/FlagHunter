@@ -360,6 +360,66 @@ def test_build_promotes_neutral_board_metadata_to_read_model_fields() -> None:
     _assert_json_friendly(projection)
 
 
+def test_build_promotes_board_metadata_aliases_to_read_model_fields() -> None:
+    from flaghunter.application.challenge.board_read_model_service import (
+        BuildChallengeBoardReadModel,
+        build_task_board_projection,
+    )
+    from flaghunter.domain.challenge.contracts import ChallengeRunSnapshot
+
+    snapshot = ChallengeRunSnapshot(
+        run_id="run-board-aliases",
+        challenge_id="challenge-board-aliases",
+        metadata={
+            "activeDecision": {
+                "nextAction": "verify_runtime_signal",
+                "driver": "board.proof_candidate",
+            },
+            "recommendedAction": {
+                "action": "collect_initial_facts",
+                "reason": "camel-case source",
+            },
+            "action_results": [
+                {"action": "verify_runtime_signal", "result": "skipped"}
+            ],
+            "attack_surfaces": [{"endpoint": "http://challenge.test/status"}],
+        },
+    )
+
+    model = BuildChallengeBoardReadModel().build(snapshot)
+    payload = model.to_dict()
+    projection = build_task_board_projection(model)
+
+    assert payload["decisions"] == [
+        {
+            "nextAction": "verify_runtime_signal",
+            "driver": "board.proof_candidate",
+        }
+    ]
+    assert payload["recommendedTask"] == {
+        "action": "collect_initial_facts",
+        "reason": "camel-case source",
+    }
+    assert payload["actionResults"] == [
+        {"action": "verify_runtime_signal", "result": "skipped"}
+    ]
+    assert payload["surfaceRefs"] == [{"endpoint": "http://challenge.test/status"}]
+    assert payload["metadata"] == {}
+    assert projection["active_decision"] == {
+        "nextAction": "verify_runtime_signal",
+        "driver": "board.proof_candidate",
+    }
+    assert projection["recommended_action"] == {
+        "action": "collect_initial_facts",
+        "reason": "camel-case source",
+    }
+    assert projection["attack_surfaces"] == [
+        {"endpoint": "http://challenge.test/status"}
+    ]
+    _assert_json_friendly(payload)
+    _assert_json_friendly(projection)
+
+
 def test_task_board_projection_matches_candidate_a_public_shape() -> None:
     from flaghunter.application.challenge.board_read_model_service import (
         build_task_board_projection,
