@@ -378,6 +378,22 @@ root change. It exists so later application-service slices cannot accidentally
 reach into concrete legacy implementations while clean architecture wiring is
 still pending approval.
 
+### Adapter port substitution fixture baseline
+
+Status: substitution fixture added before production wiring.
+
+`tests/unit/test_adapter_port_substitution.py` now proves injected ports can be substituted without production wiring for the tool runner and runtime action adapters.
+The fixture uses fake injected ports and confirms the adapters
+delegate to those injected objects rather than constructing concrete runtime or
+tool executor implementations.
+
+Boundary confirmation for this baseline:
+
+- no concrete runtime or tool executor construction
+- no dispatcher, MCP, crew, or proof authority wiring
+- no production wiring
+- no behavior changes in existing runtime paths
+
 ### Next approval gate
 
 The next material step is no longer another neutral skeleton by default; it is
