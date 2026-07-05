@@ -11,6 +11,11 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from flaghunter.application.challenge.board_read_model_service import (
+    build_task_board_projection,
+)
+from flaghunter.domain.challenge.contracts import BoardItem, ChallengeBoardReadModel
+
 from .web_leaf_utils import (
     _duration_ms_for_task,
     _friendly_tool_name,
@@ -98,16 +103,14 @@ def _build_control_decision_timeline_event(task: dict[str, Any]) -> dict[str, An
     }
 
 
-def _build_control_observation_timeline_events(task: dict[str, Any]) -> list[dict[str, Any]]:
+def _observation_board_from_task(task: dict[str, Any]) -> ChallengeBoardReadModel:
     snapshot = task.get("ctfStateSnapshot") if isinstance(task.get("ctfStateSnapshot"), dict) else {}
     observations = snapshot.get("observations") if isinstance(snapshot.get("observations"), list) else []
-    event_time = task.get("startedAt") or task.get("createdAt") or _now_iso()
-    events: list[dict[str, Any]] = []
     supported_kinds = {
         "initial_fact_collection_requested",
         "resume_bootstrap_hint",
     }
-
+    facts: list[BoardItem] = []
     for idx, raw in enumerate(observations, start=1):
         if not isinstance(raw, dict):
             continue
@@ -117,9 +120,50 @@ def _build_control_observation_timeline_events(task: dict[str, Any]) -> list[dic
         metadata = raw.get("metadata") if isinstance(raw.get("metadata"), dict) else {}
         if kind not in supported_kinds or not value:
             continue
+        facts.append(
+            BoardItem(
+                item_id=f"observation-{idx}",
+                item_type=kind,
+                value=value,
+                source_ref=source,
+                metadata={
+                    "driver": str(metadata.get("driver") or "").strip(),
+                    "reason": str(metadata.get("reason") or "").strip(),
+                    "nextAction": str(metadata.get("next_action") or "").strip(),
+                    "observationIndex": idx,
+                },
+            )
+        )
+    return ChallengeBoardReadModel(
+        run_id=str(task.get("id") or ""),
+        challenge_id=str(task.get("target") or ""),
+        facts=facts,
+    )
+
+
+def _build_control_observation_timeline_events(task: dict[str, Any]) -> list[dict[str, Any]]:
+    board = _observation_board_from_task(task)
+    projection = build_task_board_projection(board)
+    fact_metadata = [
+        item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+        for item in board.to_dict().get("facts", [])
+        if isinstance(item, dict)
+    ]
+    event_time = task.get("startedAt") or task.get("createdAt") or _now_iso()
+    events: list[dict[str, Any]] = []
+
+    for raw, metadata in zip(projection.get("facts") or [], fact_metadata):
+        if not isinstance(raw, dict):
+            continue
+        kind = str(raw.get("kind") or "").strip()
+        value = str(raw.get("value") or "").strip()
+        source = str(raw.get("source") or "").strip()
+        if not kind or not value:
+            continue
+        idx = int(metadata.get("observationIndex") or 0)
         driver = str(metadata.get("driver") or "").strip()
         reason = str(metadata.get("reason") or "").strip()
-        next_action = str(metadata.get("next_action") or "").strip()
+        next_action = str(metadata.get("nextAction") or "").strip()
         if kind == "resume_bootstrap_hint":
             driver = driver or "blackboard.resume_bootstrap_hint"
             reason = reason or "resume bootstrap hint present in blackboard"

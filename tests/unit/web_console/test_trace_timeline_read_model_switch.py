@@ -225,19 +225,16 @@ def test_control_observation_timeline_source_stays_read_only() -> None:
     assert offenders == []
 
 
-def test_candidate_b_pre_approval_guard_blocks_neutral_projection_wiring() -> None:
+def test_candidate_b_implementation_uses_neutral_board_projection() -> None:
     playbook = _playbook_text()
-    assert "Candidate B pre-approval production switch guard" in playbook
-    assert "Candidate B: ready for approval review, not approved" in playbook
+    assert "Candidate B implementation landing record" in playbook
+    assert "Candidate B: implementation landed" in playbook
 
     source = TRACE_TIMELINE_PATH.read_text(encoding="utf-8-sig")
-    forbidden_wiring_tokens = {
-        "flaghunter.application.challenge",
-        "flaghunter.domain.challenge.contracts",
+    required_wiring_tokens = {
         "board_read_model_service",
         "build_task_board_projection",
-        "BuildChallengeBoardReadModel",
         "ChallengeBoardReadModel",
     }
 
-    assert sorted(token for token in forbidden_wiring_tokens if token in source) == []
+    assert sorted(token for token in required_wiring_tokens if token not in source) == []
