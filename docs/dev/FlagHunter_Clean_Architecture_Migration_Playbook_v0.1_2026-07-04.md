@@ -458,6 +458,20 @@ Boundary confirmation for this baseline:
 - no production wiring
 - no proof authority behavior changes
 
+### Adapter substitution source guard baseline
+
+Status: source guard added for substitution fixtures.
+
+`tests/unit/test_adapter_substitution_source_guards.py` now guards
+`tests/unit/test_adapter_port_substitution.py` so substitution fixtures do not import concrete layers while proving adapter replaceability. The guard confirms:
+
+- no side-effect sinks
+- no proof authority write surfaces
+- no production wiring
+
+This baseline keeps the adapter substitution fixtures focused on fake injected
+ports and prevents them from becoming an accidental production-wiring path.
+
 ### Next approval gate
 
 The next material step is no longer another neutral skeleton by default; it is

@@ -338,3 +338,14 @@ def test_playbook_records_verifier_adapter_substitution_fixture_baseline() -> No
     assert "no proof authority writes" in text
     assert "no CTFVerifier construction" in text
     assert "no dispatcher, MCP, runtime, or crew wiring" in text
+
+
+def test_playbook_records_adapter_substitution_source_guard_baseline() -> None:
+    text = _playbook_text()
+
+    assert "Adapter substitution source guard baseline" in text
+    assert "tests/unit/test_adapter_substitution_source_guards.py" in text
+    assert "substitution fixtures do not import concrete layers" in text
+    assert "no side-effect sinks" in text
+    assert "no proof authority write surfaces" in text
+    assert "no production wiring" in text
