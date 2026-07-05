@@ -852,11 +852,13 @@ cover every outer FlagHunter layer while ports remain protocol-only contracts:
 - `flaghunter.application`
 - `flaghunter.config`
 - `flaghunter.cpa_modules`
+- `flaghunter.eval`
 - `flaghunter.interface`
 - `flaghunter.knowledge`
 - `flaghunter.llm`
 - `flaghunter.mcp`
 - `flaghunter.playbooks`
+- `flaghunter.redteam`
 - `flaghunter.runtime`
 - `flaghunter.session`
 - `flaghunter.tools`
@@ -864,8 +866,9 @@ cover every outer FlagHunter layer while ports remain protocol-only contracts:
 
 This guard keeps `flaghunter/ports` from reaching outward into adapters,
 application services, production configuration, legacy feature modules,
-playbooks, model/runtime code, presentation, MCP, tools, sessions, or workspace
-helpers before explicit production-wiring approval.
+evaluation harnesses, red-team legacy helpers, playbooks, model/runtime code,
+presentation, MCP, tools, sessions, or workspace helpers before explicit
+production-wiring approval.
 
 Boundary confirmation for this guard:
 
