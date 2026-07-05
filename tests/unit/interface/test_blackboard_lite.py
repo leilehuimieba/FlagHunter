@@ -159,6 +159,105 @@ def _candidate_a_representative_task_and_context() -> tuple[dict[str, object], d
     return task, session_context
 
 
+def _candidate_a_missing_or_malformed_task_cases() -> list[dict[str, object]]:
+    def _task(snapshot_marker: object = None, *, include_snapshot: bool) -> dict[str, object]:
+        task: dict[str, object] = {
+            "controlDecision": {
+                "shouldRun": True,
+                "decisionKind": "resume_execute",
+                "reason": "resume context available",
+                "nextAction": "resume_from_checkpoint",
+                "driver": "blackboard.resume_context",
+                "facts": ["mode=ctf"],
+            },
+            "decisionRecords": [
+                {
+                    "kind": "resume_execute",
+                    "source": "web_ingress",
+                    "nextAction": "resume_from_checkpoint",
+                    "reason": "resume context available",
+                }
+            ],
+            "ingressHandoff": {
+                "decisionKind": "resume_execute",
+                "nextAction": "resume_from_checkpoint",
+                "resumeBootstrap": {
+                    "runId": "run-prev-2",
+                    "checkpointId": "checkpoint-prev-2",
+                    "summary": "state snapshot unavailable",
+                },
+            },
+        }
+        if include_snapshot:
+            task["ctfStateSnapshot"] = snapshot_marker
+        return task
+
+    expected_snapshot = {
+        "facts": [
+            {"kind": "control_decision", "value": "resume_execute"},
+            {"kind": "next_action", "value": "resume_from_checkpoint"},
+            {"kind": "resume_run_id", "value": "run-prev-2"},
+            {"kind": "resume_checkpoint_id", "value": "checkpoint-prev-2"},
+        ],
+        "hypotheses": [],
+        "pendingVerifications": [],
+        "decisions": [
+            {
+                "kind": "resume_execute",
+                "source": "web_ingress",
+                "nextAction": "resume_from_checkpoint",
+                "reason": "resume context available",
+            }
+        ],
+        "candidates": [
+            {
+                "action": "resume_from_checkpoint",
+                "driver": "blackboard.resume_context",
+                "priority": 0,
+                "reason": "resume context available",
+                "selected": True,
+                "sourceType": "ingress",
+                "recommended": False,
+            }
+        ],
+        "actionResults": [],
+        "recommendedAction": {},
+        "activeDecision": {
+            "decisionKind": "resume_execute",
+            "nextAction": "resume_from_checkpoint",
+            "driver": "blackboard.resume_context",
+            "reason": "resume context available",
+        },
+        "attackSurfaces": [],
+    }
+    expected_lines = [
+        "[blackboard_facts]",
+        "control_decision=resume_execute",
+        "next_action=resume_from_checkpoint",
+        "resume_run_id=run-prev-2",
+        "resume_checkpoint_id=checkpoint-prev-2",
+        "[blackboard_active_decision]",
+        "decisionKind=resume_execute",
+        "nextAction=resume_from_checkpoint",
+        "driver=blackboard.resume_context",
+        "reason=resume context available",
+    ]
+    return [
+        {
+            "name": "missing",
+            "task": _task(include_snapshot=False),
+            "expectedSnapshot": expected_snapshot,
+            "expectedLines": expected_lines,
+        },
+        {
+            "name": "malformed",
+            "task": _task("not-a-state-snapshot", include_snapshot=True),
+            "expectedSnapshot": expected_snapshot,
+            "expectedLines": expected_lines,
+        },
+    ]
+
+
 def test_build_task_blackboard_snapshot_source_stays_read_only_projection() -> None:
     tree = _parse_blackboard_lite()
     public_helper_source = _function_source(tree, "build_task_blackboard_snapshot")
@@ -464,6 +563,19 @@ def test_candidate_a_representative_fixture_locks_public_projection_shape() -> N
     assert "[blackboard_recommended_action]" in lines
     assert "[blackboard_action_results]" in lines
     assert "[blackboard_attack_surfaces]" in lines
+
+
+def test_candidate_a_missing_or_malformed_state_snapshot_baseline() -> None:
+    cases = _candidate_a_missing_or_malformed_task_cases()
+
+    assert {case["name"] for case in cases} == {"missing", "malformed"}
+    for case in cases:
+        snapshot = serialize_blackboard_snapshot(
+            build_task_blackboard_snapshot(case["task"])  # type: ignore[arg-type]
+        )
+
+        assert snapshot == case["expectedSnapshot"]
+        assert format_blackboard_snapshot_lines(snapshot) == case["expectedLines"]
 
 
 def test_build_entry_blackboard_snapshot_matches_web_contract() -> None:

@@ -498,6 +498,30 @@ Boundary confirmation for this baseline:
 - no MCP production wiring
 - no proof authority behavior changes
 
+#### Candidate A missing/malformed fixture baseline
+
+Status: missing/malformed fixture added before any production path switch.
+
+`tests/unit/interface/test_blackboard_lite.py` now includes
+`test_candidate_a_missing_or_malformed_state_snapshot_baseline`. It locks the
+current public Web blackboard projection behavior for missing or malformed state
+snapshots, including resume facts and selected ingress candidate output.
+
+This fixture is not a neutral read-model switch. It exists so a future neutral
+blackboard projection builder can prove old/new output equivalence for degraded
+state inputs before any Candidate A implementation changes are approved.
+
+Boundary confirmation for this baseline:
+
+- no production path switch
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no proof authority behavior changes
+
 Candidate B: Web control-observation trace timeline.
 
 - Current path:
