@@ -8,6 +8,7 @@ from flaghunter.adapters.artifacts.artifact_store_adapter import ArtifactStoreAd
 from flaghunter.adapters.audit.audit_store_adapter import AuditStoreAdapter
 from flaghunter.adapters.crew.crew_bridge_adapter import CrewBridgeAdapter
 from flaghunter.adapters.crew.task_dag_runner_adapter import TaskDAGRunnerAdapter
+from flaghunter.adapters.proof.verifier_adapter import VerifierAdapter
 from flaghunter.adapters.storage.checkpoint_store_adapter import CheckpointStoreAdapter
 from flaghunter.adapters.storage.claim_store_adapter import ClaimStoreAdapter
 from flaghunter.adapters.storage.read_model_store_adapter import ReadModelStoreAdapter
@@ -25,6 +26,7 @@ from flaghunter.ports import (
     StateStorePort,
     TaskDAGRunnerPort,
     ToolRunnerPort,
+    VerifierPort,
 )
 
 
@@ -290,6 +292,28 @@ class SubstitutableTaskGraphRunner:
         }
 
 
+class SubstitutableVerifier:
+    def __init__(self, label: str, outcome: str) -> None:
+        self.label = label
+        self.outcome = outcome
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+
+    async def review_claim(
+        self,
+        claim_id: str,
+        evidence: Mapping[str, Any],
+    ) -> Mapping[str, Any]:
+        payload = dict(evidence)
+        self.calls.append((claim_id, payload))
+        return {
+            "schemaVersion": "challenge.claim_review.v1",
+            "reviewer": self.label,
+            "claimId": claim_id,
+            "outcome": self.outcome,
+            "evidence": payload,
+        }
+
+
 async def test_tool_runner_adapter_substitutes_injected_ports_without_wiring() -> None:
     first_runner = FirstToolRunner()
     second_runner = SecondToolRunner()
@@ -501,4 +525,35 @@ async def test_crew_adapters_substitute_injected_runners_without_wiring() -> Non
         "taskId": "task-1",
         "runId": "run-1",
         "outcome": "completed",
+    }
+
+
+async def test_verifier_adapter_substitutes_injected_reviewers_without_wiring() -> None:
+    first_verifier = SubstitutableVerifier("reviewer-a", "needs_more_evidence")
+    second_verifier = SubstitutableVerifier("reviewer-b", "rejected")
+    first_adapter = VerifierAdapter(first_verifier)
+    second_adapter = VerifierAdapter(second_verifier)
+    first_evidence = {"schemaVersion": 1, "evidenceId": "evidence-a"}
+    second_evidence = {"schemaVersion": 1, "evidenceId": "evidence-b"}
+
+    first_review = await first_adapter.review_claim("claim-a", first_evidence)
+    second_review = await second_adapter.review_claim("claim-b", second_evidence)
+
+    assert isinstance(first_adapter, VerifierPort)
+    assert isinstance(second_adapter, VerifierPort)
+    assert first_verifier.calls == [("claim-a", first_evidence)]
+    assert second_verifier.calls == [("claim-b", second_evidence)]
+    assert first_review == {
+        "schemaVersion": "challenge.claim_review.v1",
+        "reviewer": "reviewer-a",
+        "claimId": "claim-a",
+        "outcome": "needs_more_evidence",
+        "evidence": first_evidence,
+    }
+    assert second_review == {
+        "schemaVersion": "challenge.claim_review.v1",
+        "reviewer": "reviewer-b",
+        "claimId": "claim-b",
+        "outcome": "rejected",
+        "evidence": second_evidence,
     }

@@ -327,3 +327,14 @@ def test_playbook_records_crew_task_graph_adapter_substitution_fixture_baseline(
     assert "fake injected runners can be substituted without production wiring" in text
     assert "no WorkerPool or CrewOrchestrator construction" in text
     assert "no dispatcher, MCP, runtime, or proof authority wiring" in text
+
+
+def test_playbook_records_verifier_adapter_substitution_fixture_baseline() -> None:
+    text = _playbook_text()
+
+    assert "Verifier adapter substitution fixture baseline" in text
+    assert "tests/unit/test_adapter_port_substitution.py" in text
+    assert "fake injected reviewers can be substituted without production wiring" in text
+    assert "no proof authority writes" in text
+    assert "no CTFVerifier construction" in text
+    assert "no dispatcher, MCP, runtime, or crew wiring" in text

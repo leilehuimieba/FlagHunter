@@ -441,6 +441,23 @@ Boundary confirmation for this baseline:
 - no production wiring
 - no behavior changes in existing crew or task graph paths
 
+### Verifier adapter substitution fixture baseline
+
+Status: substitution fixture added before production wiring.
+
+`tests/unit/test_adapter_port_substitution.py` now proves fake injected reviewers can be substituted without production wiring for the verifier adapter.
+The fixture confirms verifier adapters delegate to injected reviewers rather
+than constructing `CTFVerifier`, invoking proof authority writes, or reaching
+into dispatcher, runtime, MCP, or crew wiring.
+
+Boundary confirmation for this baseline:
+
+- no proof authority writes
+- no CTFVerifier construction
+- no dispatcher, MCP, runtime, or crew wiring
+- no production wiring
+- no proof authority behavior changes
+
 ### Next approval gate
 
 The next material step is no longer another neutral skeleton by default; it is
