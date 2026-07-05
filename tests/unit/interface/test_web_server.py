@@ -20,6 +20,12 @@ import flaghunter.interface.initializer as initializer_module
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+PLAYBOOK_PATH = (
+    REPO_ROOT
+    / "docs"
+    / "dev"
+    / "FlagHunter_Clean_Architecture_Migration_Playbook_v0.1_2026-07-04.md"
+)
 WEB_SERIALIZE_TASK_PATH = REPO_ROOT / "flaghunter" / "interface" / "web_serialize_task.py"
 WEB_CONTROL_DECISION_PATH = REPO_ROOT / "flaghunter" / "interface" / "web_control_decision.py"
 
@@ -73,6 +79,10 @@ def _function_source(path: Path, tree: ast.Module, name: str) -> str:
         if isinstance(node, ast.FunctionDef) and node.name == name:
             return ast.get_source_segment(text, node) or ""
     raise AssertionError(f"{name} was not found in {path}")
+
+
+def _playbook_text() -> str:
+    return PLAYBOOK_PATH.read_text(encoding="utf-8")
 
 
 def test_candidate_c_read_paths_stay_read_only_projection_helpers():
@@ -154,6 +164,33 @@ def test_candidate_c_read_paths_stay_read_only_projection_helpers():
                 for token in forbidden_helper_tokens
                 if token in helper_source
             )
+
+    assert offenders == []
+
+
+def test_candidate_c_pre_approval_guard_blocks_neutral_projection_wiring() -> None:
+    playbook = _playbook_text()
+    assert "Candidate C pre-approval production switch guard" in playbook
+    assert "Candidate C: blocked on Candidate A approval, not approved" in playbook
+
+    forbidden_wiring_tokens = {
+        "flaghunter.application.challenge",
+        "flaghunter.domain.challenge.contracts",
+        "board_read_model_service",
+        "build_task_board_projection",
+        "BuildChallengeBoardReadModel",
+        "ChallengeBoardReadModel",
+    }
+    offenders: list[str] = []
+
+    for path in (WEB_SERIALIZE_TASK_PATH, WEB_CONTROL_DECISION_PATH):
+        source = path.read_text(encoding="utf-8-sig")
+        relative = path.relative_to(REPO_ROOT).as_posix()
+        offenders.extend(
+            f"{relative}:{token}"
+            for token in forbidden_wiring_tokens
+            if token in source
+        )
 
     assert offenders == []
 

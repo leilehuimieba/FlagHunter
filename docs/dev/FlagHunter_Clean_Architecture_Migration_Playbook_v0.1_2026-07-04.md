@@ -1805,6 +1805,46 @@ Boundary confirmation for this pre-approval guard:
 - no MCP production wiring
 - no proof authority behavior changes
 
+#### Candidate C pre-approval production switch guard
+
+Status: source guard added before Candidate C implementation approval.
+
+`tests/unit/interface/test_web_server.py` now guards
+`flaghunter/interface/web_serialize_task.py::_serialize_task` and
+`flaghunter/interface/web_control_decision.py::_task_blackboard_snapshot_for_decision`
+against importing or calling neutral challenge board/read-model projection
+helpers while Candidate C remains blocked on Candidate A approval, not approved.
+
+Current approval fact:
+
+- Candidate C: blocked on Candidate A approval, not approved
+
+This guard must remain active until Candidate A equivalence lands and Candidate
+C implementation approval is explicitly granted. Updating the guard is allowed
+only in the same Candidate C implementation commit for the affected call-site
+family that proves old/new output equivalence.
+
+Forbidden before approval:
+
+- import `flaghunter.application.challenge`
+- import `flaghunter.domain.challenge.contracts`
+- call `build_task_board_projection`
+- construct `BuildChallengeBoardReadModel`
+- construct `ChallengeBoardReadModel`
+- mark Candidate C as `implementation landed`
+- modify Candidate A, Candidate B, or Deferred MCP production helpers
+
+Boundary confirmation for this pre-approval guard:
+
+- no production path switch
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no proof authority behavior changes
+
 First read-path switch approval plan must include:
 
 - file list
