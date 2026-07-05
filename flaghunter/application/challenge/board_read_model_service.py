@@ -429,13 +429,16 @@ def _copy_hypothesis_summary(
     target: dict[str, JsonValue],
     source: Mapping[str, Any],
 ) -> None:
-    for key in (
-        "strongestHypothesisKind",
-        "strongestHypothesisStatus",
-        "strongestHypothesisConfidence",
+    for key, alias in (
+        ("strongestHypothesisKind", "strongest_hypothesis_kind"),
+        ("strongestHypothesisStatus", "strongest_hypothesis_status"),
+        ("strongestHypothesisConfidence", "strongest_hypothesis_confidence"),
     ):
-        if key not in target and source.get(key) is not None:
-            target[key] = source.get(key)
+        value = source.get(key)
+        if value is None:
+            value = source.get(alias)
+        if key not in target and value is not None:
+            target[key] = value
 
 
 def _clean_text(value: Any) -> str:

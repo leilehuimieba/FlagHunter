@@ -677,6 +677,62 @@ def test_task_board_projection_derives_recommended_action_from_candidate_results
     _assert_json_friendly(projection)
 
 
+def test_task_board_projection_accepts_hypothesis_summary_aliases() -> None:
+    from flaghunter.application.challenge.board_read_model_service import (
+        build_task_board_projection,
+    )
+    from flaghunter.domain.challenge.contracts import ChallengeBoardReadModel
+
+    model = ChallengeBoardReadModel(
+        run_id="run-hypothesis-aliases",
+        challenge_id="challenge-hypothesis-aliases",
+        decisions=[{"nextAction": "collect_initial_facts"}],
+        candidates=[
+            {
+                "action": "collect_initial_facts",
+                "priority": 20,
+                "selected": True,
+            },
+            {
+                "action": "probe_discovered_endpoint",
+                "priority": 11,
+            },
+        ],
+        action_results=[
+            {
+                "action": "collect_initial_facts",
+                "result": "failed",
+                "strongest_hypothesis_kind": "generic_web_recon",
+                "strongest_hypothesis_status": "active",
+                "strongest_hypothesis_confidence": 0.62,
+            }
+        ],
+    )
+
+    projection = build_task_board_projection(model)
+
+    assert projection["recommended_action"] == {
+        "action": "probe_discovered_endpoint",
+        "driver": "",
+        "sourceType": "",
+        "reason": "selected action failed; switch to next best candidate",
+        "switchedFrom": "collect_initial_facts",
+        "triggerResult": "failed",
+        "strongestHypothesisKind": "generic_web_recon",
+        "strongestHypothesisStatus": "active",
+        "strongestHypothesisConfidence": 0.62,
+    }
+    recommended = [
+        item
+        for item in projection["candidates"]
+        if item["action"] == "probe_discovered_endpoint"
+    ][0]
+    assert recommended["strongestHypothesisKind"] == "generic_web_recon"
+    assert recommended["strongestHypothesisStatus"] == "active"
+    assert recommended["strongestHypothesisConfidence"] == 0.62
+    _assert_json_friendly(projection)
+
+
 def test_task_board_projection_enriches_selected_and_recommended_candidates() -> None:
     from flaghunter.application.challenge.board_read_model_service import (
         build_task_board_projection,

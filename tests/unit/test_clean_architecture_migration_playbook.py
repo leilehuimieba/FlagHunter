@@ -206,6 +206,18 @@ def test_playbook_records_candidate_a_neutral_candidate_marker_baseline() -> Non
     assert "no proof authority behavior changes" in text
 
 
+def test_playbook_records_candidate_a_neutral_hypothesis_alias_baseline() -> None:
+    text = _playbook_text()
+
+    assert "Candidate A neutral hypothesis summary alias baseline" in text
+    assert "strongest_hypothesis_kind" in text
+    assert "strongestHypothesisKind" in text
+    assert "test_task_board_projection_accepts_hypothesis_summary_aliases" in text
+    assert "tests/unit/test_application_board_read_model_service.py" in text
+    assert "no production path switch" in text
+    assert "no proof authority behavior changes" in text
+
+
 def test_playbook_records_next_approval_gate_after_phase4_skeletons() -> None:
     text = _playbook_text()
 
@@ -458,6 +470,7 @@ def test_playbook_records_candidate_a_implementation_readiness_checklist() -> No
         "neutral candidate enrichment baseline",
         "neutral candidate ordering baseline",
         "neutral candidate marker baseline",
+        "neutral hypothesis summary alias baseline",
         "neutral malformed board item projection baseline",
         "neutral recommended action projection baseline",
         "neutral explicit recommendation marker baseline",
@@ -472,6 +485,7 @@ def test_playbook_records_candidate_a_implementation_readiness_checklist() -> No
         "test_task_board_projection_enriches_selected_and_recommended_candidates",
         "test_task_board_projection_orders_candidates_and_projects_last_result",
         "test_task_board_projection_adds_default_recommended_marker_for_ordered_candidates",
+        "test_task_board_projection_accepts_hypothesis_summary_aliases",
         "test_candidate_a_representative_fixture_locks_public_projection_shape",
         "test_candidate_a_missing_or_malformed_state_snapshot_baseline",
         "test_candidate_a_decision_ingress_action_result_baseline",
