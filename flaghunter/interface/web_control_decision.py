@@ -17,6 +17,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from flaghunter.application.challenge.board_read_model_service import (
+    build_task_board_projection,
+)
+from flaghunter.domain.challenge.contracts import BoardItem, ChallengeBoardReadModel
+
 from .blackboard_lite import build_task_blackboard_snapshot
 from .control_contract import build_decision_record, resolve_control_decision
 from .web_serialize_task import (
@@ -25,11 +30,116 @@ from .web_serialize_task import (
 )
 
 
+def _board_item_from_snapshot(
+    item: dict[str, Any],
+    *,
+    item_id: str,
+    board_bucket: str = "",
+) -> BoardItem | None:
+    kind = str(item.get("kind") or "").strip()
+    if not kind:
+        return None
+    metadata: dict[str, Any] = {}
+    if item.get("rationale") is not None:
+        metadata["rationale"] = item.get("rationale")
+    if board_bucket:
+        metadata["boardBucket"] = board_bucket
+    return BoardItem(
+        item_id=item_id,
+        item_type=kind,
+        value=item.get("value"),
+        source_ref=(
+            str(item.get("source"))
+            if item.get("source") is not None
+            else None
+        ),
+        confidence=item.get("confidence"),
+        metadata=metadata,
+    )
+
+
+def _board_items_from_snapshot(
+    items: list[Any],
+    *,
+    prefix: str,
+    board_bucket: str = "",
+) -> list[BoardItem]:
+    board_items: list[BoardItem] = []
+    for index, item in enumerate(items):
+        if not isinstance(item, dict):
+            continue
+        board_item = _board_item_from_snapshot(
+            item,
+            item_id=f"{prefix}-{index}",
+            board_bucket=board_bucket,
+        )
+        if board_item is not None:
+            board_items.append(board_item)
+    return board_items
+
+
+def _project_control_decision_board(snapshot: dict[str, Any]) -> dict[str, Any]:
+    normalized = _normalized_blackboard_snapshot(snapshot)
+    read_model = ChallengeBoardReadModel(
+        run_id="",
+        challenge_id="",
+        facts=_board_items_from_snapshot(
+            list(normalized.get("facts") or []),
+            prefix="fact",
+        ),
+        evidence=_board_items_from_snapshot(
+            list(normalized.get("pendingVerifications") or []),
+            prefix="pending",
+            board_bucket="pendingVerification",
+        ),
+        decisions=[
+            dict(item)
+            for item in list(normalized.get("decisions") or [])
+            if isinstance(item, dict)
+        ],
+        candidates=[
+            dict(item)
+            for item in list(normalized.get("candidates") or [])
+            if isinstance(item, dict)
+        ],
+        action_results=[
+            dict(item)
+            for item in list(normalized.get("actionResults") or [])
+            if isinstance(item, dict)
+        ],
+        recommended_task=(
+            dict(normalized.get("recommendedAction") or {})
+            if isinstance(normalized.get("recommendedAction"), dict)
+            else {}
+        ),
+        surface_refs=[
+            dict(item)
+            for item in list(normalized.get("attackSurfaces") or [])
+            if isinstance(item, dict)
+        ],
+        metadata={
+            "activeDecision": (
+                dict(normalized.get("activeDecision") or {})
+                if isinstance(normalized.get("activeDecision"), dict)
+                else {}
+            ),
+            "hypotheses": [
+                dict(item)
+                for item in list(normalized.get("hypotheses") or [])
+                if isinstance(item, dict)
+            ],
+        },
+    )
+    return build_task_board_projection(read_model)
+
+
 def _task_blackboard_snapshot_for_decision(
     task: dict[str, Any],
     explicit_snapshot: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    rebuilt_snapshot = _normalized_blackboard_snapshot(build_task_blackboard_snapshot(task))
+    rebuilt_snapshot = _normalized_blackboard_snapshot(
+        _project_control_decision_board(build_task_blackboard_snapshot(task))
+    )
     existing_snapshot = task.get("blackboardSnapshot")
     merged_snapshot = _merge_blackboard_snapshots(rebuilt_snapshot, existing_snapshot)
     if isinstance(explicit_snapshot, dict) and explicit_snapshot:

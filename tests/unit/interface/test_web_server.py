@@ -168,40 +168,29 @@ def test_candidate_c_read_paths_stay_read_only_projection_helpers():
     assert offenders == []
 
 
-def test_candidate_c1_implementation_uses_neutral_projection_and_keeps_c2_guarded() -> None:
+def test_candidate_c_read_paths_use_neutral_projection_after_c2_lands() -> None:
     playbook = _playbook_text()
     assert "Candidate C1 implementation landing record" in playbook
     assert "Candidate C serialize-task: implementation landed" in playbook
+    assert "Candidate C2 implementation landing record" in playbook
+    assert "Candidate C control-decision: implementation landed" in playbook
 
     required_wiring_tokens = {
         "board_read_model_service",
         "build_task_board_projection",
         "ChallengeBoardReadModel",
     }
-    serialize_source = WEB_SERIALIZE_TASK_PATH.read_text(encoding="utf-8-sig")
-    assert sorted(
-        token for token in required_wiring_tokens if token not in serialize_source
-    ) == []
+    missing: list[str] = []
+    for path in (WEB_SERIALIZE_TASK_PATH, WEB_CONTROL_DECISION_PATH):
+        source = path.read_text(encoding="utf-8-sig")
+        relative = path.relative_to(REPO_ROOT).as_posix()
+        missing.extend(
+            f"{relative}:{token}"
+            for token in required_wiring_tokens
+            if token not in source
+        )
 
-    forbidden_wiring_tokens = {
-        "flaghunter.application.challenge",
-        "flaghunter.domain.challenge.contracts",
-        "board_read_model_service",
-        "build_task_board_projection",
-        "BuildChallengeBoardReadModel",
-        "ChallengeBoardReadModel",
-    }
-    offenders: list[str] = []
-
-    control_source = WEB_CONTROL_DECISION_PATH.read_text(encoding="utf-8-sig")
-    relative = WEB_CONTROL_DECISION_PATH.relative_to(REPO_ROOT).as_posix()
-    offenders.extend(
-        f"{relative}:{token}"
-        for token in forbidden_wiring_tokens
-        if token in control_source
-    )
-
-    assert offenders == []
+    assert missing == []
 
 
 def test_web_event_bus_is_built_on_neutral_core():

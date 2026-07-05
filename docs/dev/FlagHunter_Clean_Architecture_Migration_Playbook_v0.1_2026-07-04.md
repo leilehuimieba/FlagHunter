@@ -3904,8 +3904,8 @@ approved.
 
 Status: ready for serialize-task approval review, not approved for implementation.
 
-Candidate C serialize-task has landed. Candidate C control-decision is next and
-may proceed only after the Candidate C1 commit has been pushed.
+Candidate C serialize-task and control-decision have landed as separate commits.
+Deferred MCP readback is the next review gate and remains unapproved.
 
 Current pre-switch baselines recorded:
 
@@ -4640,7 +4640,7 @@ Rules:
 
 #### Read-path pre-approval source-map guard
 
-Status: Candidates A, B, and C1 implementation landed; unapproved read paths remain guarded.
+Status: Web read paths A, B, C1, and C2 implementation landed; Deferred MCP remains guarded.
 
 This source map lists the production source files that must remain free of
 neutral read-model projection wiring while the matching read-path candidate is
@@ -4652,7 +4652,7 @@ guards by keeping one parseable map in the playbook.
 | Candidate A | `flaghunter/interface/blackboard_lite.py` | `flaghunter.application.challenge`, `flaghunter.domain.challenge.contracts`, `build_task_board_projection`, `BuildChallengeBoardReadModel`, `ChallengeBoardReadModel` | true |
 | Candidate B | `flaghunter/interface/web_trace_timeline.py` | `flaghunter.application.challenge`, `flaghunter.domain.challenge.contracts`, `build_task_board_projection`, `BuildChallengeBoardReadModel`, `ChallengeBoardReadModel` | true |
 | Candidate C serialize-task | `flaghunter/interface/web_serialize_task.py` | `flaghunter.application.challenge`, `flaghunter.domain.challenge.contracts`, `build_task_board_projection`, `BuildChallengeBoardReadModel`, `ChallengeBoardReadModel` | true |
-| Candidate C control-decision | `flaghunter/interface/web_control_decision.py` | `flaghunter.application.challenge`, `flaghunter.domain.challenge.contracts`, `build_task_board_projection`, `BuildChallengeBoardReadModel`, `ChallengeBoardReadModel` | false |
+| Candidate C control-decision | `flaghunter/interface/web_control_decision.py` | `flaghunter.application.challenge`, `flaghunter.domain.challenge.contracts`, `build_task_board_projection`, `BuildChallengeBoardReadModel`, `ChallengeBoardReadModel` | true |
 | Deferred MCP | `flaghunter/mcp/server/mcp_tools.py` | `flaghunter.application.challenge`, `flaghunter.domain.challenge.contracts`, `build_task_board_projection`, `BuildChallengeBoardReadModel`, `ChallengeBoardReadModel` | false |
 
 Rules:
@@ -4661,8 +4661,9 @@ Rules:
 - forbidden neutral wiring must remain absent until explicit implementation
   approval lands for that candidate
 - source-map rows must remain `Implementation approved` = `false` until the
-  matching implementation commit updates the pre-approval guard; Candidates A,
-  B, and C serialize-task are the landed exceptions in this table
+  matching implementation commit updates the pre-approval guard; Web read paths
+  A, B, C serialize-task, and C control-decision are the landed exceptions in
+  this table
 - no production path switch is authorized by this source-map guard
 
 #### Read-path source-map forbidden-token single-source guard
@@ -5308,33 +5309,79 @@ Boundary confirmation for this landing:
 - no proof authority behavior changes
 - no P5 implementation
 
+#### Candidate C2 implementation landing record
+
+Status: implementation landed for Candidate C control-decision.
+
+Current approval fact:
+
+- Candidate C control-decision: implementation landed
+
+Target:
+
+- `flaghunter/interface/web_control_decision.py::_task_blackboard_snapshot_for_decision`
+
+Implementation summary:
+
+- Candidate C2 now routes the Web control-decision blackboard snapshot rebuild
+  through neutral `ChallengeBoardReadModel` and `build_task_board_projection`
+  before merging task and explicit snapshots.
+- The existing control-decision snapshot merge semantics remain compatible with
+  the pre-switch output shape.
+- The implementation commit modifies only Candidate C2 production helper code,
+  Candidate C tests, and this playbook governance record.
+
+Equivalence evidence:
+
+- `tests/unit/interface/test_web_server.py::test_candidate_c_control_decision_snapshot_merge_fixture_before_switch`
+  preserves rebuilt snapshot priority, fallback list fills, active-decision
+  merge behavior, and recommended-action merge behavior.
+- `tests/unit/interface/test_web_server.py::test_candidate_c_read_paths_use_neutral_projection_after_c2_lands`
+  records both C1 and C2 landing state.
+- `tests/unit/test_clean_architecture_migration_playbook.py` records this
+  landing state and keeps Deferred MCP and core production wiring guarded.
+
+Rollback command:
+
+- `git revert <Candidate C2 implementation commit>`
+
+Boundary confirmation for this landing:
+
+- no bundled Web and MCP implementation
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no composition root changes
+- no proof authority behavior changes
+- no P5 implementation
+
 #### Candidate C pre-approval production switch guard
 
-Status: Candidate C1 landed; Candidate C2 remains guarded until its own implementation commit.
+Status: retired by Candidate C1 and C2 implementation landings.
 
 `tests/unit/interface/test_web_server.py` now guards
 `flaghunter/interface/web_serialize_task.py::_serialize_task` and
 `flaghunter/interface/web_control_decision.py::_task_blackboard_snapshot_for_decision`
 against importing or calling neutral challenge board/read-model projection
-helpers while Candidate C control-decision remains guarded.
+helpers before Candidate C implementation approval landed.
 
 Current approval fact:
 
 - Candidate C serialize-task: implementation landed
-- Candidate C control-decision: approved next, not landed
+- Candidate C control-decision: implementation landed
 
-This guard remains active for Candidate C control-decision until its own
-implementation commit proves old/new output equivalence.
+This guard changed across the C1 and C2 implementation commits that prove
+old/new output equivalence for each affected call-site family.
 
-Forbidden before approval:
+Required after landing:
 
-- import `flaghunter.application.challenge`
-- import `flaghunter.domain.challenge.contracts`
+- import `flaghunter.application.challenge.board_read_model_service`
 - call `build_task_board_projection`
-- construct `BuildChallengeBoardReadModel`
 - construct `ChallengeBoardReadModel`
-- mark Candidate C control-decision as `implementation landed`
-- modify Candidate A, Candidate B, C1, or Deferred MCP production helpers
+- keep Deferred MCP production helpers out of these implementation commits
 
 Boundary confirmation for this pre-approval guard:
 
@@ -5365,8 +5412,8 @@ Candidate C serialize-task switch must prove equivalent:
 - preserve task capability flags for a running task
 - do not write proof, infer proof authority decisions, or switch read paths
 
-This fixture is not a Candidate C2 production implementation approval.
-Candidate C serialize-task has landed; control-decision remains next.
+This fixture is not Deferred MCP approval. Candidate C serialize-task has
+landed.
 
 Boundary confirmation for this fixture baseline:
 
@@ -5400,8 +5447,8 @@ future Candidate C control-decision switch must prove equivalent:
 - recommended-action fields merge without overriding existing selected action
 - do not write proof, infer proof authority decisions, or switch read paths
 
-This fixture is not a Candidate C2 production implementation approval.
-Candidate C serialize-task has landed; control-decision remains next.
+This fixture is not Deferred MCP approval. Candidate C control-decision has
+landed.
 
 Boundary confirmation for this fixture baseline:
 
