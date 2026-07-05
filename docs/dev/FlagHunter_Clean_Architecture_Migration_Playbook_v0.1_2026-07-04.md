@@ -1619,6 +1619,36 @@ Explicit non-goals for this sequence gate:
 - no proof authority behavior changes
 - no P5 implementation
 
+#### Read-path switch acceptance matrix
+
+Status: acceptance matrix recorded, no implementation approved by this section.
+
+| Candidate | Status | Target path | Unblock condition |
+|-----------|--------|-------------|-------------------|
+| Candidate A | approval requested, not approved | `blackboard_lite.py` | explicit Candidate A approval |
+| Candidate B | ready for approval review, not approved | `web_trace_timeline.py` | Candidate A equivalence lands |
+| Candidate C | blocked on Candidate A approval, not approved | `web_serialize_task.py and web_control_decision.py` | Candidate A equivalence lands |
+| Deferred MCP | blocked on Web projection equivalence and explicit MCP approval, not approved | `mcp_tools.py` | Web projection equivalence lands plus explicit MCP approval |
+
+Required evidence before any row can move to implementation:
+
+- old/new output equivalence
+- source guard remains green
+- focused regression remains green
+- git diff --check remains green
+- rollback point is the single implementation commit for that row
+
+Forbidden scope for every row:
+
+- dispatcher loop
+- CTFState ownership
+- CTFVerifier proof behavior
+- ToolExecutor
+- WorkerPool/CrewOrchestrator
+- composition root
+- proof authority behavior
+- P5
+
 First read-path switch approval plan must include:
 
 - file list

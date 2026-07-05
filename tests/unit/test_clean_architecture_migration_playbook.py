@@ -557,6 +557,40 @@ def test_playbook_records_first_read_path_switch_sequence_gate() -> None:
         assert non_goal in text
 
 
+def test_playbook_records_read_path_switch_acceptance_matrix() -> None:
+    text = _playbook_text()
+
+    assert "Read-path switch acceptance matrix" in text
+    assert "Candidate A | approval requested, not approved |" in text
+    assert "Candidate B | ready for approval review, not approved |" in text
+    assert "Candidate C | blocked on Candidate A approval, not approved |" in text
+    assert "Deferred MCP | blocked on Web projection equivalence and explicit MCP approval, not approved |" in text
+    assert "blackboard_lite.py" in text
+    assert "web_trace_timeline.py" in text
+    assert "web_serialize_task.py and web_control_decision.py" in text
+    assert "mcp_tools.py" in text
+    assert "Candidate A equivalence lands" in text
+    assert "Web projection equivalence lands" in text
+    for required_evidence in (
+        "old/new output equivalence",
+        "source guard remains green",
+        "focused regression remains green",
+        "git diff --check remains green",
+    ):
+        assert required_evidence in text
+    for forbidden_scope in (
+        "dispatcher loop",
+        "CTFState ownership",
+        "CTFVerifier proof behavior",
+        "ToolExecutor",
+        "WorkerPool/CrewOrchestrator",
+        "composition root",
+        "proof authority behavior",
+        "P5",
+    ):
+        assert forbidden_scope in text
+
+
 def test_playbook_records_application_service_source_guard_baseline() -> None:
     text = _playbook_text()
 
