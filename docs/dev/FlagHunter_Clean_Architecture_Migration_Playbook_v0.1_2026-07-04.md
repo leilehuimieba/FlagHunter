@@ -1155,6 +1155,31 @@ Rules:
   governance commit
 - no service migration is authorized by this atomicity guard
 
+#### Task ingress service approval transition coverage guard
+
+Status: approval transition coverage guard recorded, implementation not approved.
+
+Every future task ingress service approval transition must keep the same
+canonical governance surface set across approval transition tables before any
+implementation commit starts.
+
+| Governance surface | Required before approval transition | Current implementation approved |
+|--------------------|-------------------------------------|---------------------------------|
+| plan approval status | true | false |
+| pre-approval guard status | true | false |
+| readiness approval status | true | false |
+| approval flag table | true | false |
+| landing evidence template | true | false |
+| rollback placeholder | true | false |
+| verification evidence | true | false |
+
+Rules:
+
+- every approval transition table must keep the same canonical governance surface set
+- missing governance surfaces must fail review before implementation starts
+- no surface listed here grants implementation approval by itself
+- no service migration is authorized by this coverage guard
+
 ### Adapter substitution source guard baseline
 
 Status: source guard added for substitution fixtures.

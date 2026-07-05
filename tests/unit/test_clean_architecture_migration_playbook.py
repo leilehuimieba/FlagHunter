@@ -2019,3 +2019,64 @@ def test_playbook_parses_task_ingress_service_approval_transition_atomicity_guar
         "Task ingress service rollback placeholder consistency guard",
     ):
         assert heading in text
+
+
+def test_playbook_parses_task_ingress_service_approval_transition_coverage_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Task ingress service approval transition coverage guard",
+    )
+
+    assert "Status: approval transition coverage guard recorded, implementation not approved." in section
+    assert "every approval transition table must keep the same canonical governance surface set" in section
+    assert "no service migration is authorized by this coverage guard" in section
+
+    rows = {
+        row["Governance surface"]: row
+        for row in _markdown_table_rows(section)
+    }
+    assert rows == {
+        "plan approval status": {
+            "Governance surface": "plan approval status",
+            "Required before approval transition": "true",
+            "Current implementation approved": "false",
+        },
+        "pre-approval guard status": {
+            "Governance surface": "pre-approval guard status",
+            "Required before approval transition": "true",
+            "Current implementation approved": "false",
+        },
+        "readiness approval status": {
+            "Governance surface": "readiness approval status",
+            "Required before approval transition": "true",
+            "Current implementation approved": "false",
+        },
+        "approval flag table": {
+            "Governance surface": "approval flag table",
+            "Required before approval transition": "true",
+            "Current implementation approved": "false",
+        },
+        "landing evidence template": {
+            "Governance surface": "landing evidence template",
+            "Required before approval transition": "true",
+            "Current implementation approved": "false",
+        },
+        "rollback placeholder": {
+            "Governance surface": "rollback placeholder",
+            "Required before approval transition": "true",
+            "Current implementation approved": "false",
+        },
+        "verification evidence": {
+            "Governance surface": "verification evidence",
+            "Required before approval transition": "true",
+            "Current implementation approved": "false",
+        },
+    }
+
+    atomicity_guard = _heading_section_text(
+        text,
+        "Task ingress service approval transition atomicity guard",
+    )
+    for surface in rows:
+        assert surface in atomicity_guard
