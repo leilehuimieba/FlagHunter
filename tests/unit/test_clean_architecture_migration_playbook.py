@@ -189,6 +189,45 @@ def test_playbook_records_candidate_b_source_guard_baseline() -> None:
     assert "no proof upgrade surfaces" in text
 
 
+def test_playbook_records_candidate_b_implementation_readiness_checklist() -> None:
+    text = _playbook_text()
+
+    assert "Candidate B implementation readiness checklist" in text
+    assert "Status: ready for approval review, not approved for implementation." in text
+    for baseline in (
+        "Candidate B approval plan",
+        "Candidate B characterization baseline",
+        "Candidate B source guard baseline",
+    ):
+        assert baseline in text
+    assert "flaghunter/interface/web_trace_timeline.py::_build_control_observation_timeline_events" in text
+    assert "tests/unit/web_console/test_trace_timeline_read_model_switch.py" in text
+    assert "old/new output equivalence" in text
+    assert "event IDs, timestamps, `kind`, `title`, `summary`, `driver`, and `input` fields" in text
+    assert "approval is still required before editing `flaghunter/interface/web_trace_timeline.py`" in text
+    assert "one implementation commit only" in text
+    assert "rollback point: revert the single Candidate B implementation commit" in text
+    for non_goal in (
+        "no dispatcher loop changes",
+        "no `CTFState` ownership split",
+        "no `CTFVerifier` proof behavior changes",
+        "no ToolExecutor changes",
+        "no WorkerPool/CrewOrchestrator changes",
+        "no MCP production wiring",
+        "no composition root changes",
+        "no concrete adapter implementation",
+        "no proof authority behavior changes",
+        "no P5 implementation",
+    ):
+        assert non_goal in text
+    for command in (
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/web_console/test_trace_timeline_read_model_switch.py -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py -q",
+        "git diff --check",
+    ):
+        assert command in text
+
+
 def test_playbook_records_candidate_a_source_guard_baseline() -> None:
     text = _playbook_text()
 

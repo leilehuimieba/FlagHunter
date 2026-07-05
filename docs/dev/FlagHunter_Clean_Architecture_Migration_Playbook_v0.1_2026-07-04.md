@@ -1163,6 +1163,55 @@ helper remains read-only while Candidate B is prepared. The guard confirms:
 
 These constraints must hold before the neutral read-model switch is approved.
 
+#### Candidate B implementation readiness checklist
+
+Status: ready for approval review, not approved for implementation.
+
+The control-observation trace timeline runway now has these pre-switch
+baselines recorded:
+
+- Candidate B approval plan
+- Candidate B characterization baseline
+- Candidate B source guard baseline
+
+Readiness scope for the future implementation slice:
+
+- target only
+  `flaghunter/interface/web_trace_timeline.py::_build_control_observation_timeline_events`
+- use `tests/unit/web_console/test_trace_timeline_read_model_switch.py` as the
+  required old/new output equivalence fixture home
+- preserve event IDs, timestamps, `kind`, `title`, `summary`, `driver`, and `input` fields
+- preserve empty, malformed, unsupported, and no-mutation behavior
+- no proof writes and no proof authority decisions
+
+Implementation gate:
+
+- approval is still required before editing `flaghunter/interface/web_trace_timeline.py`
+- one implementation commit only
+- rollback point: revert the single Candidate B implementation commit
+- no schema migration or production wiring in the implementation commit
+
+Required verification for the future implementation slice:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/web_console/test_trace_timeline_read_model_switch.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py -q
+git diff --check
+```
+
+Explicit non-goals for the requested Candidate B implementation slice:
+
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no composition root changes
+- no concrete adapter implementation
+- no proof authority behavior changes
+- no P5 implementation
+
 Candidate C: Web task serialization and control-decision snapshot merge.
 
 - Current paths:
