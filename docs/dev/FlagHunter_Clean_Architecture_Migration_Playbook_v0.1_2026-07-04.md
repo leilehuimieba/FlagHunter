@@ -2026,6 +2026,51 @@ Boundary confirmation for this guard:
 - no ToolExecutor changes
 - no proof authority behavior changes
 
+#### Adapter substitution fixture side-effect sink coverage guard
+
+Status: explicit side-effect sink coverage guard added for adapter substitution
+fixtures.
+
+`tests/unit/test_adapter_substitution_source_guards.py` now requires
+`tests/unit/test_adapter_port_substitution.py` to remain free of common
+filesystem, process, network, socket, browser/runtime, and tool-execution
+sinks:
+
+- `open`
+- `Path.open`
+- `Path.read_text`
+- `Path.write_text`
+- `Path.read_bytes`
+- `Path.write_bytes`
+- `subprocess.run`
+- `subprocess.Popen`
+- `subprocess.call`
+- `asyncio.create_subprocess_exec`
+- `asyncio.create_subprocess_shell`
+- `requests.get`
+- `requests.post`
+- `requests.request`
+- `httpx.get`
+- `httpx.post`
+- `httpx.request`
+- `socket.socket`
+
+This guard keeps adapter substitution fixtures as pure replaceability tests
+over injected fake ports. They may prove that adapter skeletons can be
+substituted, but they must not become filesystem readers or writers, process
+launchers, network clients, runtime bridges, or tool-execution paths.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter production wiring
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 #### Adapter production wiring source guard
 
 Status: production wiring source guard added for adapter skeletons.
