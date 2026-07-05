@@ -247,9 +247,9 @@ def _candidate_list(
     action_results: list[dict[str, JsonValue]] | None = None,
 ) -> list[dict[str, JsonValue]]:
     candidates = [
-        item
+        _canonical_action_mapping(item)
         for item in _mapping_list(value)
-        if _clean_text(item.get("action"))
+        if _action_name(item)
     ]
     should_order = any("priority" in candidate for candidate in candidates)
     if should_order and action_results:
@@ -271,9 +271,9 @@ def _candidate_list(
 
 def _action_result_list(value: JsonValue) -> list[dict[str, JsonValue]]:
     return [
-        item
+        _canonical_action_mapping(item)
         for item in _mapping_list(value)
-        if _clean_text(item.get("action")) and _action_result_status(item)
+        if _action_name(item) and _action_result_status(item)
     ]
 
 
@@ -419,9 +419,25 @@ def _latest_action_result(
     action: str,
 ) -> dict[str, JsonValue]:
     for item in reversed(action_results):
-        if _clean_text(item.get("action")) == action:
+        if _action_name(item) == action:
             return item
     return {}
+
+
+def _canonical_action_mapping(source: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
+    result = dict(source)
+    action = _action_name(source)
+    result.pop("taskAction", None)
+    result.pop("task_action", None)
+    if action:
+        result["action"] = action
+    return result
+
+
+def _action_name(source: Mapping[str, Any]) -> str:
+    return _clean_text(
+        source.get("action") or source.get("taskAction") or source.get("task_action")
+    )
 
 
 def _action_result_status(source: Mapping[str, Any]) -> str:
