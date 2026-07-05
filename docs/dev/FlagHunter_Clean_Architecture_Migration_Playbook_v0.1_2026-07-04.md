@@ -749,6 +749,38 @@ Boundary confirmation for this baseline:
 - no proof authority behavior changes
 - no P5 implementation
 
+### Task ingress domain contract skeleton baseline
+
+Status: task ingress domain contract skeleton added before service migration or
+production wiring.
+
+`TaskIngressRequest` and `TaskIngressReceipt` now exist under
+`flaghunter/domain/challenge/contracts/task_ingress.py` as schema-versioned and
+JSON-friendly neutral contracts. The contracts serialize only sanitized
+instructions and receipt summaries, artifact references, and metadata so raw
+task text is not promoted into a public domain payload.
+
+`tests/unit/test_domain_challenge_contracts.py` verifies import/re-export,
+schema versions, round-trip serialization, sanitized instructions and receipt
+summaries, empty-input behavior, domain-neutral names, and contract source
+guards.
+
+Verification focus: sanitized instructions and receipt summaries.
+
+Boundary confirmation for this baseline:
+
+- no service migration
+- no MCP production wiring
+- no concrete adapter construction
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no composition root changes
+- no proof authority behavior changes
+- no P5 implementation
+
 ### Task ingress application service skeleton baseline
 
 Status: task ingress application service skeleton added before production wiring.

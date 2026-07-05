@@ -125,6 +125,18 @@ EXPECTED_CONTRACTS = {
             "run_id": "run-1",
         },
     },
+    "flaghunter.domain.challenge.contracts.task_ingress": {
+        "TaskIngressRequest": {
+            "task_id": "task-1",
+            "task_type": "review",
+            "instructions": "Review current read model",
+        },
+        "TaskIngressReceipt": {
+            "receipt_id": "receipt-1",
+            "task_id": "task-1",
+            "status": "accepted",
+        },
+    },
     "flaghunter.domain.challenge.contracts.task_execution": {
         "TaskExecutionNode": {
             "node_id": "node-1",
@@ -155,6 +167,7 @@ EXPECTED_SCHEMA_VERSIONS = {
     "flaghunter.domain.challenge.contracts.policies": "challenge.policy_catalog.v1",
     "flaghunter.domain.challenge.contracts.progress": "challenge.progress.v1",
     "flaghunter.domain.challenge.contracts.strategies": "challenge.strategy_catalog.v1",
+    "flaghunter.domain.challenge.contracts.task_ingress": "challenge.task_ingress.v1",
     "flaghunter.domain.challenge.contracts.task_execution": "challenge.task_execution.v1",
 }
 
@@ -212,6 +225,14 @@ EXPECTED_CLASS_SCHEMA_VERSIONS = {
         "flaghunter.domain.challenge.contracts.task_execution",
         "TaskExecutionReceipt",
     ): "challenge.task_execution_receipt.v1",
+    (
+        "flaghunter.domain.challenge.contracts.task_ingress",
+        "TaskIngressRequest",
+    ): "challenge.task_ingress_request.v1",
+    (
+        "flaghunter.domain.challenge.contracts.task_ingress",
+        "TaskIngressReceipt",
+    ): "challenge.task_ingress_receipt.v1",
 }
 
 
@@ -349,6 +370,8 @@ def test_minimal_inputs_use_empty_json_friendly_defaults() -> None:
         EvidenceRecord,
         ProofRecord,
         ReadModelRef,
+        TaskIngressReceipt,
+        TaskIngressRequest,
         TaskGraphNode,
         TaskReceipt,
     )
@@ -370,11 +393,24 @@ def test_minimal_inputs_use_empty_json_friendly_defaults() -> None:
         ReadModelRef(model_id="model-1", model_type="challenge.summary"),
         ProofRecord(proof_id="proof-1", claim_id="claim-1"),
         ChallengeRunSnapshot(run_id="run-1", challenge_id="challenge-1"),
+        TaskIngressRequest(
+            task_id="task-1",
+            task_type="review",
+            instructions="",
+        ),
+        TaskIngressReceipt(receipt_id="receipt-1", task_id="task-1", status=""),
     ]
+    expected_versions = {
+        "TaskIngressRequest": "challenge.task_ingress_request.v1",
+        "TaskIngressReceipt": "challenge.task_ingress_receipt.v1",
+    }
 
     for instance in instances:
         payload = instance.to_dict()
-        assert payload["schemaVersion"] == 1
+        assert payload["schemaVersion"] == expected_versions.get(
+            type(instance).__name__,
+            1,
+        )
         _assert_json_friendly(payload)
 
 
@@ -1080,6 +1116,77 @@ def test_ledger_event_contract_uses_shared_sanitization_helpers() -> None:
 
     assert "redact_sensitive_text" in imported_helpers
     assert imports_control is False
+
+
+def test_task_ingress_contract_sanitizes_instructions_receipts_and_metadata() -> None:
+    from flaghunter.domain.challenge.contracts import (
+        TaskIngressReceipt,
+        TaskIngressRequest,
+    )
+
+    request = TaskIngressRequest(
+        task_id="task-a",
+        task_type="review",
+        instructions=(
+            "HTTP/1.1 200 OK\n"
+            "<html>password=instruction-password token=instruction-token</html>"
+        ),
+        run_id="run-a",
+        source_ref="Authorization: Bearer source-token",
+        artifact_refs=["Authorization: Bearer artifact-token"],
+        metadata={
+            "authorization": "Bearer metadata-token",
+            "safe": "visible",
+            "raw_body": "HTTP/1.1 200 OK\n<html>secret</html>",
+        },
+    )
+    receipt = TaskIngressReceipt(
+        receipt_id="receipt-a",
+        task_id="task-a",
+        status="accepted",
+        summary_preview="accepted password=receipt-password",
+        artifact_refs=["Authorization: Bearer receipt-token"],
+        metadata={"session": "receipt-session", "safe": "visible"},
+    )
+
+    request_payload = request.to_dict()
+    receipt_payload = receipt.to_dict()
+
+    assert request_payload["schemaVersion"] == "challenge.task_ingress_request.v1"
+    assert request_payload["instructionsPreview"] == "<redacted raw body>"
+    assert request_payload["sourceRef"] == "<redacted>"
+    assert request_payload["artifactRefs"] == ["<redacted>"]
+    assert request_payload["metadata"] == {
+        "authorization": "<redacted>",
+        "safe": "visible",
+        "raw_body": "<redacted raw body>",
+    }
+    assert receipt_payload["schemaVersion"] == "challenge.task_ingress_receipt.v1"
+    assert receipt_payload["summaryPreview"] == (
+        "accepted password=<redacted>"
+    )
+    assert receipt_payload["artifactRefs"] == ["<redacted>"]
+    assert receipt_payload["metadata"] == {
+        "session": "<redacted>",
+        "safe": "visible",
+    }
+    assert TaskIngressRequest.from_dict(request_payload).to_dict() == request_payload
+    assert TaskIngressReceipt.from_dict(receipt_payload).to_dict() == receipt_payload
+    _assert_json_friendly(request_payload)
+    _assert_json_friendly(receipt_payload)
+
+
+def test_task_ingress_contract_uses_shared_sanitization_helpers() -> None:
+    path = CONTRACTS_ROOT / "task_ingress.py"
+    tree = _parse(path)
+    imported_helpers: set[str] = set()
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            if node.module == "sanitization" and node.level == 1:
+                imported_helpers.update(alias.name for alias in node.names)
+
+    assert {"preview_text", "sanitize_metadata"} <= imported_helpers
 
 
 def test_audit_evidence_contract_builds_legacy_export_shape() -> None:
