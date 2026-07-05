@@ -314,6 +314,18 @@ def test_playbook_records_candidate_a_neutral_decision_driver_alias_baseline() -
     assert "no proof authority behavior changes" in text
 
 
+def test_playbook_records_candidate_a_neutral_decision_kind_alias_baseline() -> None:
+    text = _playbook_text()
+
+    assert "Candidate A neutral decision kind alias baseline" in text
+    assert "decision_kind" in text
+    assert "decisionKind" in text
+    assert "test_task_board_projection_accepts_active_decision_kind_alias" in text
+    assert "tests/unit/test_application_board_read_model_service.py" in text
+    assert "no production path switch" in text
+    assert "no proof authority behavior changes" in text
+
+
 def test_playbook_records_next_approval_gate_after_phase4_skeletons() -> None:
     text = _playbook_text()
 

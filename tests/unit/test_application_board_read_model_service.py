@@ -1145,6 +1145,53 @@ def test_task_board_projection_accepts_active_decision_driver_alias() -> None:
     _assert_json_friendly(projection)
 
 
+def test_task_board_projection_accepts_active_decision_kind_alias() -> None:
+    from flaghunter.application.challenge.board_read_model_service import (
+        build_task_board_projection,
+    )
+    from flaghunter.domain.challenge.contracts import ChallengeBoardReadModel
+
+    model = ChallengeBoardReadModel(
+        run_id="run-decision-kind-alias",
+        challenge_id="challenge-decision-kind-alias",
+        decisions=[
+            {
+                "decision_kind": "direct_execute",
+                "nextAction": "collect_initial_facts",
+            }
+        ],
+        candidates=[
+            {
+                "action": "collect_initial_facts",
+                "priority": 20,
+                "selected": True,
+            },
+            {
+                "action": "probe_discovered_endpoint",
+                "priority": 11,
+            },
+        ],
+        action_results=[
+            {
+                "action": "collect_initial_facts",
+                "result": "failed",
+            }
+        ],
+    )
+
+    projection = build_task_board_projection(model)
+
+    assert projection["decisions"] == [
+        {"decisionKind": "direct_execute", "nextAction": "collect_initial_facts"}
+    ]
+    assert projection["active_decision"] == {
+        "decisionKind": "direct_execute",
+        "nextAction": "collect_initial_facts",
+    }
+    assert "decision_kind" not in repr(projection)
+    _assert_json_friendly(projection)
+
+
 def test_task_board_projection_enriches_selected_and_recommended_candidates() -> None:
     from flaghunter.application.challenge.board_read_model_service import (
         build_task_board_projection,

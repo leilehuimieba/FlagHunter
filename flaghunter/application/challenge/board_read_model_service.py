@@ -288,12 +288,18 @@ def _decision_list(value: JsonValue) -> list[dict[str, JsonValue]]:
 
 def _canonical_decision_mapping(source: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
     result = dict(source)
+    decision_kind = _clean_text(
+        source.get("decisionKind") or source.get("decision_kind")
+    )
     next_action = _clean_text(
         source.get("nextAction") or source.get("next_action")
     )
     driver = _clean_text(source.get("driver") or source.get("decision_driver"))
+    result.pop("decision_kind", None)
     result.pop("next_action", None)
     result.pop("decision_driver", None)
+    if decision_kind:
+        result["decisionKind"] = decision_kind
     if next_action:
         result["nextAction"] = next_action
     if driver:
