@@ -668,6 +668,42 @@ def test_playbook_records_deferred_mcp_implementation_readiness_checklist() -> N
         assert command in text
 
 
+def test_playbook_records_deferred_mcp_approved_execution_checklist() -> None:
+    text = _playbook_text()
+    section = _section_text(text, "Deferred MCP approved execution checklist")
+
+    assert "Status: not approved; checklist only." in section
+    for required_item in (
+        "confirm Web projection equivalence has landed",
+        "confirm explicit MCP production wiring approval",
+        "update the pre-approval guard in the same implementation commit",
+        "edit only `flaghunter/mcp/server/mcp_tools.py::_append_blackboard_snapshot_lines`",
+        "consume the same approved read-model projection",
+        "must not become an independent projection shape",
+        "preserve readback line text, ordering, and omission behavior",
+        "prove old/new output equivalence",
+        "record implementation landing evidence",
+        "rollback point: revert the single Deferred MCP implementation commit",
+    ):
+        assert required_item in section
+    for forbidden_scope in (
+        "do not modify Candidate A, Candidate B, or Candidate C production helpers",
+        "no task execution or handler routing changes",
+        "no dispatcher loop changes",
+        "no ToolExecutor changes",
+        "no WorkerPool/CrewOrchestrator changes",
+        "no composition root changes",
+        "no proof authority behavior changes",
+    ):
+        assert forbidden_scope in section
+    for command in (
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/mcp/test_mcp_ingress_mode_contract.py tests/unit/test_clean_architecture_migration_playbook.py -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py -q",
+        "git diff --check",
+    ):
+        assert command in section
+
+
 def test_playbook_records_first_read_path_switch_sequence_gate() -> None:
     text = _playbook_text()
 

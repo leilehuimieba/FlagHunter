@@ -1795,6 +1795,54 @@ Explicit non-goals for the requested Deferred MCP implementation slice:
 - no proof authority behavior changes
 - no P5 implementation
 
+#### Deferred MCP approved execution checklist
+
+Status: not approved; checklist only.
+
+If Web projection equivalence has landed and explicit MCP production wiring
+approval is granted, execute the Deferred MCP readback switch in this order:
+
+- confirm Web projection equivalence has landed before editing MCP readback code
+- confirm explicit MCP production wiring approval is recorded in the playbook
+- update the pre-approval guard in the same implementation commit that changes
+  MCP readback
+- edit only `flaghunter/mcp/server/mcp_tools.py::_append_blackboard_snapshot_lines`
+- consume the same approved read-model projection used by the Web read path
+- must not become an independent projection shape
+- preserve readback line text, ordering, and omission behavior
+- prove old/new output equivalence in
+  `tests/unit/mcp/test_mcp_ingress_mode_contract.py`
+- record implementation landing evidence using the read-path implementation
+  landing record template
+- rollback point: revert the single Deferred MCP implementation commit
+
+Forbidden companion edits for the approved Deferred MCP implementation:
+
+- do not modify Candidate A, Candidate B, or Candidate C production helpers
+- do not modify task execution, task creation, async task handling, or router
+  dispatch logic
+
+Boundary constraints for the approved Deferred MCP implementation:
+
+- no task execution or handler routing changes
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no composition root changes
+- no concrete adapter implementation
+- no proof authority behavior changes
+- no P5 implementation
+
+Required verification for the approved Deferred MCP implementation:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/mcp/test_mcp_ingress_mode_contract.py tests/unit/test_clean_architecture_migration_playbook.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py -q
+git diff --check
+```
+
 #### First read-path switch sequence gate
 
 Status: sequence guard recorded, no implementation approved by this section.
