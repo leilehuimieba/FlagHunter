@@ -363,6 +363,40 @@ Focused Phase 4 regression should include:
 .\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/agents/test_p1_claim_invariants.py tests/unit/tools/test_finish_control_receipt.py tests/unit/agents/test_p2_audit_export.py tests/unit/agents/test_p2_evidence_snapshot.py tests/unit/agents/test_p2_ledger_event_readback.py tests/unit/agents/test_p4_task_dag_plan_schema.py tests/unit/agents/test_p4_task_dag_ready_selector.py tests/unit/agents/test_p4_task_dag_replay_audit_bundle.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py tests/unit/agents/test_phase2b_compatibility_shims.py tests/unit/test_adapter_boundary_skeleton.py tests/unit/test_tool_runner_adapter.py tests/unit/test_runtime_action_adapter.py tests/unit/test_read_model_store_adapter.py tests/unit/test_state_store_adapter.py tests/unit/test_audit_store_adapter.py tests/unit/test_artifact_store_adapter.py tests/unit/test_checkpoint_store_adapter.py tests/unit/test_claim_store_adapter.py tests/unit/test_verifier_adapter.py tests/unit/test_proof_authority_adapter.py tests/unit/test_crew_bridge_adapter.py tests/unit/test_task_dag_runner_adapter.py tests/unit/test_task_ingress_adapter.py tests/unit/test_application_challenge_snapshot_service.py tests/unit/test_application_task_receipt_service.py tests/unit/test_application_evidence_snapshot_service.py tests/unit/test_application_claim_review_service.py tests/unit/test_application_tool_receipt_service.py tests/unit/test_application_worker_task_service.py tests/unit/test_application_task_ingress_service.py tests/unit/test_application_board_read_model_service.py -q
 ```
 
+### Legacy read-model shim proof action coverage guard
+
+Status: explicit proof action coverage guard added for Phase 2B compatibility
+shims.
+
+`tests/unit/agents/test_phase2b_compatibility_shims.py` now requires legacy
+read-model shim proof guards to explicitly cover proof authority write, upgrade,
+and accepted-proof sink names:
+
+- `append_proof_record`
+- `append_verification_record`
+- `confirm_claim`
+- `level="verified"`
+- `level='verified'`
+- `upgrade_claim_to_verified`
+- `verification_decision`
+- `verified_flags`
+
+This guard keeps legacy read-model compatibility shims as re-export-only
+compatibility surfaces. Shims may preserve old import paths for neutral domain
+contracts, but they must not reintroduce proof authority actions, accepted-proof
+writes, claim confirmation, or proof upgrade decisions.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter construction
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 ### Challenge board read-model skeleton baseline
 
 Status: neutral read-model builder added before any production path switch.

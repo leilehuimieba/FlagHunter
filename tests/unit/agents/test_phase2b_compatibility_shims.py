@@ -9,6 +9,12 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+PLAYBOOK_PATH = (
+    REPO_ROOT
+    / "docs"
+    / "dev"
+    / "FlagHunter_Clean_Architecture_Migration_Playbook_v0.1_2026-07-04.md"
+)
 
 SHIM_MODULES = {
     "flaghunter.agents.pa_agent.ledger_event_views": {
@@ -57,6 +63,17 @@ FORBIDDEN_SIDE_EFFECT_TOKENS = {
 }
 
 FORBIDDEN_PROOF_ACTION_TOKENS = {
+    "verification_decision",
+    "upgrade_claim_to_verified",
+    "append_verification_record",
+    "append_proof_record",
+    "confirm_claim",
+    'level="verified"',
+    "level='verified'",
+    "verified_flags",
+}
+
+REQUIRED_PROOF_ACTION_TOKENS = {
     "verification_decision",
     "upgrade_claim_to_verified",
     "append_verification_record",
@@ -140,3 +157,12 @@ def test_legacy_read_model_shims_have_no_side_effect_or_proof_actions() -> None:
         )
 
     assert offenders == []
+
+
+def test_legacy_read_model_shim_proof_guard_covers_authority_sinks() -> None:
+    assert REQUIRED_PROOF_ACTION_TOKENS <= FORBIDDEN_PROOF_ACTION_TOKENS
+
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Legacy read-model shim proof action coverage guard" in playbook
+    for token in sorted(REQUIRED_PROOF_ACTION_TOKENS):
+        assert token in playbook
