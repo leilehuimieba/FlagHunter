@@ -24,13 +24,16 @@ FORBIDDEN_IMPORT_PREFIXES = (
     "flaghunter.adapters",
     "flaghunter.agents",
     "flaghunter.config",
+    "flaghunter.cpa_modules",
     "flaghunter.interface",
     "flaghunter.knowledge",
     "flaghunter.llm",
     "flaghunter.mcp",
+    "flaghunter.playbooks",
     "flaghunter.runtime",
     "flaghunter.session",
     "flaghunter.tools",
+    "flaghunter.workspaces",
 )
 
 FORBIDDEN_CALLS = {
@@ -147,6 +150,31 @@ def test_application_services_do_not_import_concrete_execution_layers() -> None:
                 offenders.append((_relative(path), imported))
 
     assert offenders == []
+
+
+def test_application_forbidden_import_prefixes_cover_all_outer_layers() -> None:
+    required_prefixes = {
+        "flaghunter.adapters",
+        "flaghunter.agents",
+        "flaghunter.config",
+        "flaghunter.cpa_modules",
+        "flaghunter.interface",
+        "flaghunter.knowledge",
+        "flaghunter.llm",
+        "flaghunter.mcp",
+        "flaghunter.playbooks",
+        "flaghunter.runtime",
+        "flaghunter.session",
+        "flaghunter.tools",
+        "flaghunter.workspaces",
+    }
+
+    assert required_prefixes <= set(FORBIDDEN_IMPORT_PREFIXES)
+
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Application service outer-layer import coverage guard" in playbook
+    for prefix in sorted(required_prefixes):
+        assert prefix in playbook
 
 
 def test_application_services_have_no_side_effect_sinks() -> None:

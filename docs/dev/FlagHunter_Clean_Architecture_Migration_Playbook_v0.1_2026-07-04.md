@@ -770,6 +770,45 @@ Boundary confirmation for this guard:
 - no ToolExecutor changes
 - no proof authority behavior changes
 
+#### Application service outer-layer import coverage guard
+
+Status: outer-layer import coverage guard added for neutral application services.
+
+`tests/unit/test_application_service_source_guards.py` now requires the
+application-service import guard to cover every outer FlagHunter layer while
+still allowing only `flaghunter.domain` and `flaghunter.ports` imports:
+
+- `flaghunter.adapters`
+- `flaghunter.agents`
+- `flaghunter.config`
+- `flaghunter.cpa_modules`
+- `flaghunter.interface`
+- `flaghunter.knowledge`
+- `flaghunter.llm`
+- `flaghunter.mcp`
+- `flaghunter.playbooks`
+- `flaghunter.runtime`
+- `flaghunter.session`
+- `flaghunter.tools`
+- `flaghunter.workspaces`
+
+This guard keeps `flaghunter/application/challenge` as a use-case layer that
+depends only on neutral contracts and ports, and prevents future service slices
+from reaching outward into adapters, legacy feature modules, playbooks,
+production configuration, model/runtime code, presentation, MCP, tools,
+sessions, or workspace helpers before explicit production-wiring approval.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter construction
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 ### Adapter port substitution fixture baseline
 
 Status: substitution fixture added before production wiring.
