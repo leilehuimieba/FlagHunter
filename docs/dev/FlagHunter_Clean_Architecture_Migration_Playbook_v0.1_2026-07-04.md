@@ -1173,6 +1173,11 @@ baselines recorded:
 - Candidate B approval plan
 - Candidate B characterization baseline
 - Candidate B source guard baseline
+- Candidate B trace timeline fixture evidence:
+  `test_control_observation_timeline_projects_supported_rows`
+  `test_control_observation_timeline_handles_empty_or_malformed_input`
+  `test_trace_timeline_includes_observations_without_mutating_task`
+  `test_control_observation_timeline_source_stays_read_only`
 
 Readiness scope for the future implementation slice:
 

@@ -200,6 +200,7 @@ def test_playbook_records_candidate_b_source_guard_baseline() -> None:
 
 def test_playbook_records_candidate_b_implementation_readiness_checklist() -> None:
     text = _playbook_text()
+    section = _section_text(text, "Candidate B implementation readiness checklist")
 
     assert "Candidate B implementation readiness checklist" in text
     assert "Status: ready for approval review, not approved for implementation." in text
@@ -209,6 +210,13 @@ def test_playbook_records_candidate_b_implementation_readiness_checklist() -> No
         "Candidate B source guard baseline",
     ):
         assert baseline in text
+    for evidence_test in (
+        "test_control_observation_timeline_projects_supported_rows",
+        "test_control_observation_timeline_handles_empty_or_malformed_input",
+        "test_trace_timeline_includes_observations_without_mutating_task",
+        "test_control_observation_timeline_source_stays_read_only",
+    ):
+        assert evidence_test in section
     assert "flaghunter/interface/web_trace_timeline.py::_build_control_observation_timeline_events" in text
     assert "tests/unit/web_console/test_trace_timeline_read_model_switch.py" in text
     assert "old/new output equivalence" in text
