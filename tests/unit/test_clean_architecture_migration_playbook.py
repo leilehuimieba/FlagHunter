@@ -980,6 +980,25 @@ def test_playbook_records_read_path_approval_status_consistency_guard() -> None:
         assert required_phrase in text
 
 
+def test_playbook_parses_approval_transition_atomicity_guard() -> None:
+    text = _playbook_text()
+    section = _section_text(text, "Read-path approval transition atomicity guard")
+
+    assert "Status: approval transition atomicity guard recorded, no implementation approved by this section." in section
+    for required_phrase in (
+        "same governance commit before implementation starts",
+        "acceptance matrix row",
+        "approval drift fact",
+        "candidate status ledger",
+        "readiness report",
+        "source-map approval flag",
+        "approved execution checklist",
+        "verification evidence",
+        "no production path switch",
+    ):
+        assert required_phrase in section
+
+
 def test_playbook_records_machine_readable_read_path_candidate_status_ledger() -> None:
     text = _playbook_text()
     section = _section_text(text, "Read-path candidate status ledger")

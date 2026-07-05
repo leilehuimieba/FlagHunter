@@ -2413,6 +2413,31 @@ implementation starts. The update must include:
 There is no status-only implementation approval. The rule is: approval drift must fail review
 until all mirrored status locations and the relevant guard tests agree.
 
+#### Read-path approval transition atomicity guard
+
+Status: approval transition atomicity guard recorded, no implementation approved by this section.
+
+Any future read-path approval transition must update every mirrored governance
+location in the same governance commit before implementation starts. This guard
+records atomicity requirements only; it does not approve implementation and does
+not authorize a production path switch.
+
+Required same-commit updates:
+
+- acceptance matrix row
+- approval drift fact
+- candidate status ledger
+- readiness report
+- source-map approval flag
+- approved execution checklist
+- verification evidence
+
+Rules:
+
+- approval transition evidence must land before any implementation commit
+- partial approval updates must fail review until all mirrored locations agree
+- no production path switch is authorized by this atomicity guard
+
 #### Read-path implementation landing record template
 
 Status: landing evidence template recorded, no implementation approved by this
