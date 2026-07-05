@@ -625,6 +625,36 @@ Boundary confirmation for this baseline:
 - no MCP production wiring
 - no proof authority behavior changes
 
+### Ports production wiring source guard
+
+Status: production wiring source guard added for protocol-only ports.
+
+`tests/unit/test_ports_contracts.py` now guards the ports package against
+production assembly surfaces. Ports must remain protocol-only boundary contracts
+and may not reference these production wiring names:
+
+- `FlagHunterAgent`
+- `AgentSession`
+- `MCPRouter`
+- `MCPServer`
+- `CompositionRoot`
+- `create_agent`
+- `run_task_async`
+
+This guard keeps `flaghunter/ports` from becoming an accidental composition
+root, MCP task runner, or agent/session factory while concrete production
+wiring remains explicitly out of scope.
+
+Boundary confirmation for this guard:
+
+- no concrete adapter construction
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 ### Application service source guard baseline
 
 Status: source guard added before production wiring.
