@@ -1704,6 +1704,32 @@ Rules:
 - old/new output equivalence must be recorded before implementation lands
 - source guard remains green before and after the implementation commit
 
+#### Read-path approval drift guard
+
+Status: approval drift guard recorded, no implementation approved by this
+section.
+
+Current approval facts must not drift silently:
+
+- Candidate A: approval requested, not approved
+- Candidate B: ready for approval review, not approved
+- Candidate C: blocked on Candidate A approval, not approved
+- Deferred MCP: blocked on Web projection equivalence and explicit MCP approval, not approved
+
+Any future approval status change must update all of these in the same
+governance commit before implementation starts:
+
+- the acceptance matrix row
+- the approval state transition section
+- the relevant implementation readiness checklist
+- the verification evidence for that candidate
+
+A status change alone is not implementation approval.
+
+No candidate may be marked `implementation landed` without a commit SHA, the
+focused regression result, the architecture/source-guard result, and the
+post-push branch status.
+
 First read-path switch approval plan must include:
 
 - file list

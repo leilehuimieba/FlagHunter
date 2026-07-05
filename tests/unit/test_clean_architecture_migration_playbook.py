@@ -653,6 +653,29 @@ def test_playbook_records_read_path_approval_state_transitions() -> None:
     assert "source guard remains green" in text
 
 
+def test_playbook_records_read_path_approval_drift_guard() -> None:
+    text = _playbook_text()
+
+    assert "Read-path approval drift guard" in text
+    assert "Current approval facts must not drift silently" in text
+    for candidate_status in (
+        "Candidate A: approval requested, not approved",
+        "Candidate B: ready for approval review, not approved",
+        "Candidate C: blocked on Candidate A approval, not approved",
+        "Deferred MCP: blocked on Web projection equivalence and explicit MCP approval, not approved",
+    ):
+        assert candidate_status in text
+    for required_update in (
+        "the acceptance matrix row",
+        "the approval state transition section",
+        "the relevant implementation readiness checklist",
+        "the verification evidence for that candidate",
+    ):
+        assert required_update in text
+    assert "A status change alone is not implementation approval" in text
+    assert "No candidate may be marked `implementation landed` without a commit SHA" in text
+
+
 def test_playbook_records_application_service_source_guard_baseline() -> None:
     text = _playbook_text()
 
