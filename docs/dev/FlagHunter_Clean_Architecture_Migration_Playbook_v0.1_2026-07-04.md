@@ -983,6 +983,35 @@ Boundary confirmation for this guard:
 - no ToolExecutor changes
 - no proof authority behavior changes
 
+### Ports source guard coverage completeness guard
+
+Status: aggregate coverage completeness guard added for protocol-only ports.
+
+`tests/unit/test_ports_contracts.py` now requires the ports source guard record
+to keep all ports boundary guard groups visible together:
+
+- `Ports production wiring source guard`
+- `Ports outer-layer import coverage guard`
+- `Ports action sink coverage guard`
+- `Ports proof action coverage guard`
+- `Public surface domain-neutral naming coverage guard`
+
+This aggregate guard prevents ports boundary coverage from drifting into
+partial protection. Ports must keep production wiring surfaces, outer-layer
+imports, action sinks, proof authority calls, and public neutral naming guarded
+as one complete protocol-only boundary.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter construction
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 ### Application service source guard baseline
 
 Status: source guard added before production wiring.

@@ -190,6 +190,14 @@ REQUIRED_PUBLIC_DOMAIN_TERMS = {
     "redteam",
 }
 
+REQUIRED_PORTS_COVERAGE_GUARD_SECTIONS = {
+    "Ports production wiring source guard",
+    "Ports outer-layer import coverage guard",
+    "Ports action sink coverage guard",
+    "Ports proof action coverage guard",
+    "Public surface domain-neutral naming coverage guard",
+}
+
 
 def _ports_sources() -> list[Path]:
     assert PORTS_ROOT.is_dir(), "flaghunter.ports package must exist"
@@ -436,3 +444,10 @@ def test_ports_domain_neutral_forbidden_terms_cover_policy() -> None:
     assert "Public surface domain-neutral naming coverage guard" in playbook
     for term in sorted(REQUIRED_PUBLIC_DOMAIN_TERMS):
         assert term in playbook
+
+
+def test_ports_source_guard_coverage_completeness_records_all_guard_groups() -> None:
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Ports source guard coverage completeness guard" in playbook
+    for section_name in sorted(REQUIRED_PORTS_COVERAGE_GUARD_SECTIONS):
+        assert section_name in playbook
