@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 
@@ -1203,6 +1204,46 @@ def test_playbook_parses_read_path_approval_flag_aggregate_guard() -> None:
         assert evidence_rows[candidate]["Implementation landed"] == "false"
     for row in source_rows:
         assert row["Implementation approved"] == "false"
+
+
+def test_playbook_parses_read_path_rollback_command_index() -> None:
+    text = _playbook_text()
+    section = _section_text(text, "Read-path rollback command index")
+
+    assert "Status: rollback command index recorded, no implementation approved by this section." in section
+    assert "placeholder only" in section
+    assert "not a currently executable rollback command" in section
+
+    rollback_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(section)
+    }
+    evidence_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path implementation landed evidence guard")
+        )
+    }
+    expected_commands = {
+        "Candidate A": "git revert <single Candidate A implementation commit>",
+        "Candidate B": "git revert <single Candidate B implementation commit>",
+        "Candidate C serialize-task": "git revert <single Candidate C serialize-task implementation commit>",
+        "Candidate C control-decision": "git revert <single Candidate C control-decision implementation commit>",
+        "Deferred MCP": "git revert <single Deferred MCP implementation commit>",
+    }
+
+    collapsed_candidates = {
+        candidate.replace(" serialize-task", "").replace(" control-decision", "")
+        for candidate in rollback_rows
+    }
+    assert collapsed_candidates == set(evidence_rows)
+    assert rollback_rows.keys() == expected_commands.keys()
+    for candidate, expected_command in expected_commands.items():
+        row = rollback_rows[candidate]
+        assert row["Rollback command"] == f"`{expected_command}`"
+        assert row["Current executable"] == "false"
+        assert row["Applies after"] == "candidate implementation commit lands"
+        assert not re.search(r"\b[0-9a-f]{7,40}\b", row["Rollback command"])
 
 
 def test_playbook_records_application_service_source_guard_baseline() -> None:

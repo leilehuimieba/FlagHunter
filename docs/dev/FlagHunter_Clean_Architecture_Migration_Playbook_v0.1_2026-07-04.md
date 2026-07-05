@@ -2206,6 +2206,35 @@ Required aggregate checks:
   Candidate C ledger row
 - no production path switch is authorized by this aggregate approval flag guard
 
+#### Read-path rollback command index
+
+Status: rollback command index recorded, no implementation approved by this section.
+
+This index records placeholder only rollback commands for future read-path
+implementation commits. Each command becomes valid only after the matching
+candidate implementation commit lands and its landing record captures the real
+commit SHA. A placeholder is not a currently executable rollback command and
+does not imply that any read-path implementation has landed.
+
+| Candidate | Rollback command | Applies after | Current executable |
+|-----------|------------------|---------------|--------------------|
+| Candidate A | `git revert <single Candidate A implementation commit>` | candidate implementation commit lands | false |
+| Candidate B | `git revert <single Candidate B implementation commit>` | candidate implementation commit lands | false |
+| Candidate C serialize-task | `git revert <single Candidate C serialize-task implementation commit>` | candidate implementation commit lands | false |
+| Candidate C control-decision | `git revert <single Candidate C control-decision implementation commit>` | candidate implementation commit lands | false |
+| Deferred MCP | `git revert <single Deferred MCP implementation commit>` | candidate implementation commit lands | false |
+
+Rules:
+
+- Candidate C remains split into separate rollback rows because its two
+  approved future call-site families must land as separate implementation
+  commits.
+- every rollback command remains a placeholder until the matching landing
+  record contains a real implementation commit SHA
+- `Current executable` remains `false` while the corresponding implementation
+  has not landed
+- no production path switch is authorized by this rollback command index
+
 #### Read-path approval status consistency guard
 
 Status: approval consistency guard recorded, no implementation approved by this
