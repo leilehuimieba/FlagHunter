@@ -210,6 +210,7 @@ def _recommended_action_projection(
     action_results: list[dict[str, JsonValue]],
 ) -> dict[str, JsonValue]:
     if explicit:
+        _mark_recommended_candidate(candidates, _clean_text(explicit.get("action")))
         return explicit
     selected_action = _clean_text(active_decision.get("nextAction"))
     if not selected_action:
@@ -258,6 +259,17 @@ def _recommended_action_projection(
         _copy_hypothesis_summary(recommended_action, active_decision)
         return recommended_action
     return {}
+
+
+def _mark_recommended_candidate(
+    candidates: list[dict[str, JsonValue]],
+    recommended_action: str,
+) -> None:
+    if not recommended_action:
+        return
+    for candidate in candidates:
+        if _clean_text(candidate.get("action")) == recommended_action:
+            candidate["recommended"] = True
 
 
 def _latest_action_result(

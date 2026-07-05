@@ -542,6 +542,63 @@ def test_task_board_projection_derives_recommended_action_from_candidate_results
     _assert_json_friendly(projection)
 
 
+def test_task_board_projection_marks_explicit_recommended_candidate() -> None:
+    from flaghunter.application.challenge.board_read_model_service import (
+        build_task_board_projection,
+    )
+    from flaghunter.domain.challenge.contracts import ChallengeBoardReadModel
+
+    model = ChallengeBoardReadModel(
+        run_id="run-explicit-recommendation",
+        challenge_id="challenge-explicit-recommendation",
+        decisions=[{"nextAction": "collect_initial_facts"}],
+        candidates=[
+            {
+                "action": "collect_initial_facts",
+                "selected": True,
+                "recommended": False,
+            },
+            {
+                "action": "probe_discovered_endpoint",
+                "selected": False,
+                "recommended": False,
+            },
+        ],
+        action_results=[
+            {
+                "action": "collect_initial_facts",
+                "result": "failed",
+                "details": {"reason": "derive would include this"},
+            }
+        ],
+        recommended_task={
+            "action": "probe_discovered_endpoint",
+            "reason": "explicit neutral planner hint",
+        },
+    )
+
+    projection = build_task_board_projection(model)
+
+    assert projection["recommended_action"] == {
+        "action": "probe_discovered_endpoint",
+        "reason": "explicit neutral planner hint",
+    }
+    assert projection["candidates"] == [
+        {
+            "action": "collect_initial_facts",
+            "selected": True,
+            "recommended": False,
+        },
+        {
+            "action": "probe_discovered_endpoint",
+            "selected": False,
+            "recommended": True,
+        },
+    ]
+    assert "derive would include this" not in repr(projection["recommended_action"])
+    _assert_json_friendly(projection)
+
+
 def test_board_read_model_service_uses_only_inner_contracts() -> None:
     path = _board_service_source()
     tree = _parse(path)
