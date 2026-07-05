@@ -479,6 +479,69 @@ def test_task_board_projection_omits_malformed_board_item_rows() -> None:
     _assert_json_friendly(projection)
 
 
+def test_task_board_projection_derives_recommended_action_from_candidate_results() -> None:
+    from flaghunter.application.challenge.board_read_model_service import (
+        build_task_board_projection,
+    )
+    from flaghunter.domain.challenge.contracts import ChallengeBoardReadModel
+
+    model = ChallengeBoardReadModel(
+        run_id="run-recommendation",
+        challenge_id="challenge-recommendation",
+        decisions=[
+            {
+                "nextAction": "collect_initial_facts",
+                "strongestHypothesisKind": "generic_web_recon",
+                "strongestHypothesisStatus": "active",
+                "strongestHypothesisConfidence": 0.52,
+            }
+        ],
+        candidates=[
+            {
+                "action": "collect_initial_facts",
+                "driver": "board.derived_target",
+                "sourceType": "observation",
+                "selected": True,
+                "recommended": False,
+            },
+            {
+                "action": "probe_discovered_endpoint",
+                "driver": "board.discovered_endpoint",
+                "sourceType": "observation",
+                "recommended": False,
+            },
+        ],
+        action_results=[
+            {
+                "action": "collect_initial_facts",
+                "driver": "board.derived_target",
+                "result": "failed",
+                "details": {"reason": "no new facts"},
+                "t": "2026-06-03T10:00:02+00:00",
+            }
+        ],
+    )
+
+    projection = build_task_board_projection(model)
+
+    assert projection["recommended_action"] == {
+        "action": "probe_discovered_endpoint",
+        "driver": "board.discovered_endpoint",
+        "sourceType": "observation",
+        "reason": "selected action failed; switch to next best candidate",
+        "switchedFrom": "collect_initial_facts",
+        "triggerResult": "failed",
+        "triggerReason": "no new facts",
+        "triggerActionDriver": "board.derived_target",
+        "triggerAt": "2026-06-03T10:00:02+00:00",
+        "strongestHypothesisKind": "generic_web_recon",
+        "strongestHypothesisStatus": "active",
+        "strongestHypothesisConfidence": 0.52,
+    }
+    assert projection["candidates"][1]["recommended"] is True
+    _assert_json_friendly(projection)
+
+
 def test_board_read_model_service_uses_only_inner_contracts() -> None:
     path = _board_service_source()
     tree = _parse(path)

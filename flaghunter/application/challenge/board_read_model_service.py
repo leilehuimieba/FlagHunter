@@ -44,6 +44,10 @@ def build_task_board_projection(
 ) -> dict[str, JsonValue]:
     board = _normalize_board(read_model)
     payload = board.to_dict()
+    decisions = _mapping_list(payload.get("decisions"))
+    candidates = _mapping_list(payload.get("candidates"))
+    action_results = _mapping_list(payload.get("actionResults"))
+    active_decision = _first_mapping(payload.get("decisions"))
     evidence_items = [
         item
         for item in _mapping_list(payload.get("evidence"))
@@ -67,11 +71,16 @@ def build_task_board_projection(
         "pending_verifications": [
             _board_item_projection(item) for item in pending_items
         ],
-        "decisions": _mapping_list(payload.get("decisions")),
-        "candidates": _mapping_list(payload.get("candidates")),
-        "active_decision": _first_mapping(payload.get("decisions")),
-        "action_results": _mapping_list(payload.get("actionResults")),
-        "recommended_action": coerce_json_dict(payload.get("recommendedTask")),
+        "decisions": decisions,
+        "candidates": candidates,
+        "active_decision": active_decision,
+        "action_results": action_results,
+        "recommended_action": _recommended_action_projection(
+            explicit=coerce_json_dict(payload.get("recommendedTask")),
+            candidates=candidates,
+            active_decision=active_decision,
+            action_results=action_results,
+        ),
         "attack_surfaces": _mapping_list(payload.get("surfaceRefs")),
     }
 
@@ -191,6 +200,91 @@ def _item_bucket(item: Mapping[str, Any]) -> str:
 
 def _is_projectable_board_item(item: Mapping[str, Any]) -> bool:
     return bool(str(item.get("itemType") or "").strip())
+
+
+def _recommended_action_projection(
+    *,
+    explicit: dict[str, JsonValue],
+    candidates: list[dict[str, JsonValue]],
+    active_decision: Mapping[str, Any],
+    action_results: list[dict[str, JsonValue]],
+) -> dict[str, JsonValue]:
+    if explicit:
+        return explicit
+    selected_action = _clean_text(active_decision.get("nextAction"))
+    if not selected_action:
+        return {}
+    selected_candidate = next(
+        (
+            item
+            for item in candidates
+            if _clean_text(item.get("action")) == selected_action
+        ),
+        None,
+    )
+    if not isinstance(selected_candidate, Mapping):
+        return {}
+    latest_selected_result = _latest_action_result(action_results, selected_action)
+    result = _clean_text(
+        latest_selected_result.get("result") or selected_candidate.get("lastResult")
+    ).lower()
+    if result not in {"failed", "skipped"}:
+        return {}
+    details = latest_selected_result.get("details")
+    detail_map = coerce_json_dict(details if isinstance(details, Mapping) else None)
+    for candidate in candidates:
+        action = _clean_text(candidate.get("action"))
+        if not action or action == selected_action:
+            continue
+        candidate["recommended"] = True
+        recommended_action: dict[str, JsonValue] = {
+            "action": action,
+            "driver": _clean_text(candidate.get("driver")),
+            "sourceType": _clean_text(candidate.get("sourceType")),
+            "reason": "selected action failed; switch to next best candidate",
+            "switchedFrom": selected_action,
+            "triggerResult": result,
+        }
+        trigger_reason = _clean_text(detail_map.get("reason"))
+        if trigger_reason:
+            recommended_action["triggerReason"] = trigger_reason
+        trigger_action_driver = _clean_text(latest_selected_result.get("driver"))
+        if trigger_action_driver:
+            recommended_action["triggerActionDriver"] = trigger_action_driver
+        trigger_at = _clean_text(latest_selected_result.get("t"))
+        if trigger_at:
+            recommended_action["triggerAt"] = trigger_at
+        _copy_hypothesis_summary(recommended_action, latest_selected_result)
+        _copy_hypothesis_summary(recommended_action, active_decision)
+        return recommended_action
+    return {}
+
+
+def _latest_action_result(
+    action_results: list[dict[str, JsonValue]],
+    action: str,
+) -> dict[str, JsonValue]:
+    for item in reversed(action_results):
+        if _clean_text(item.get("action")) == action:
+            return item
+    return {}
+
+
+def _copy_hypothesis_summary(
+    target: dict[str, JsonValue],
+    source: Mapping[str, Any],
+) -> None:
+    for key in (
+        "strongestHypothesisKind",
+        "strongestHypothesisStatus",
+        "strongestHypothesisConfidence",
+    ):
+        if key not in target and source.get(key) is not None:
+            target[key] = source.get(key)
+
+
+def _clean_text(value: Any) -> str:
+    return str(value or "").strip()
 
 
 def _board_item_projection(item: Mapping[str, Any]) -> dict[str, JsonValue]:
