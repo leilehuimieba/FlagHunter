@@ -148,8 +148,23 @@ FORBIDDEN_PRODUCTION_WIRING_TOKENS = {
 
 FORBIDDEN_PROOF_CALLS = {
     "add_flag",
+    "append_proof_record",
+    "append_verification_record",
     "create_claim",
+    "confirm_claim",
     "build_verification_decision_event",
+    "upgrade_claim_to_verified",
+    "verification_decision",
+}
+
+REQUIRED_PROOF_ACTION_CALLS = {
+    "add_flag",
+    "append_proof_record",
+    "append_verification_record",
+    "build_verification_decision_event",
+    "confirm_claim",
+    "create_claim",
+    "upgrade_claim_to_verified",
     "verification_decision",
 }
 
@@ -365,6 +380,15 @@ def test_proof_authority_port_does_not_emit_or_write_proof() -> None:
                 offenders.append((_relative(path), node.value, node.lineno))
 
     assert offenders == []
+
+
+def test_ports_proof_action_guard_covers_authority_sinks() -> None:
+    assert REQUIRED_PROOF_ACTION_CALLS <= FORBIDDEN_PROOF_CALLS
+
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Ports proof action coverage guard" in playbook
+    for token in sorted(REQUIRED_PROOF_ACTION_CALLS):
+        assert token in playbook
 
 
 def test_new_ports_public_names_and_docstrings_are_domain_neutral() -> None:

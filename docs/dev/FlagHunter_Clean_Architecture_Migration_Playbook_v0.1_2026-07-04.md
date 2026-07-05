@@ -882,6 +882,39 @@ Boundary confirmation for this guard:
 - no ToolExecutor changes
 - no proof authority behavior changes
 
+### Ports proof action coverage guard
+
+Status: explicit proof action coverage guard added for protocol-only ports.
+
+`tests/unit/test_ports_contracts.py` now requires the ports proof guard to
+explicitly cover proof authority write, upgrade, accepted-proof, and legacy
+accepted-proof call names:
+
+- `add_flag`
+- `append_proof_record`
+- `append_verification_record`
+- `build_verification_decision_event`
+- `confirm_claim`
+- `create_claim`
+- `upgrade_claim_to_verified`
+- `verification_decision`
+
+This guard keeps ports as Protocol-only contracts. Ports may declare neutral
+method shapes such as `append_proof_record` and `confirm_claim`, but ports must
+not call proof authority implementations, write accepted proof, create claims,
+or emit proof upgrade decisions.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter construction
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 ### Application service source guard baseline
 
 Status: source guard added before production wiring.
