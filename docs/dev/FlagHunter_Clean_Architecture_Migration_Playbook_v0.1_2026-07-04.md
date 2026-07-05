@@ -4338,6 +4338,31 @@ Required parsed checks:
   its rollback command can become executable
 - no production path switch is authorized by this landing rollback guard
 
+#### Read-path implementation landing status guard
+
+Status: landing status guard recorded, no implementation landed.
+
+No read-path implementation candidate has landed. The landed evidence rows,
+rollback index, and landing record template must continue to agree on that
+state until a future approved implementation commit supplies real landing
+evidence.
+
+| Landing surface | Required location | Current landed |
+|-----------------|-------------------|----------------|
+| landed evidence rows | `Read-path implementation landed evidence guard` | false |
+| rollback index | `Read-path rollback command index` | false |
+| landing record template | `Read-path implementation landing record template` | false |
+
+Rules:
+
+- no landing surface may move to `Current landed` = `true` without a real
+  candidate implementation commit SHA
+- landed evidence rows must keep `Implementation landed` = `false` and
+  `Landing evidence` = `none` while no implementation has landed
+- rollback commands remain placeholder-only and non-executable while
+  `Current landed` remains `false`
+- no production path switch is authorized by this landing status guard
+
 #### Candidate C split commit consistency guard
 
 Status: split commit consistency guard recorded, no implementation approved by this section.

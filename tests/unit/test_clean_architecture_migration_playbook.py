@@ -1553,6 +1553,52 @@ def test_playbook_parses_landing_rollback_consistency_guard() -> None:
         assert "commit SHA" in row["Required before landed"]
 
 
+def test_playbook_parses_read_path_implementation_landing_status_guard() -> None:
+    text = _playbook_text()
+    section = _section_text(text, "Read-path implementation landing status guard")
+
+    assert "Status: landing status guard recorded, no implementation landed." in section
+    assert "no production path switch is authorized by this landing status guard" in section
+
+    rows = {
+        row["Landing surface"]: row
+        for row in _markdown_table_rows(section)
+    }
+    assert rows == {
+        "landed evidence rows": {
+            "Landing surface": "landed evidence rows",
+            "Required location": "`Read-path implementation landed evidence guard`",
+            "Current landed": "false",
+        },
+        "rollback index": {
+            "Landing surface": "rollback index",
+            "Required location": "`Read-path rollback command index`",
+            "Current landed": "false",
+        },
+        "landing record template": {
+            "Landing surface": "landing record template",
+            "Required location": "`Read-path implementation landing record template`",
+            "Current landed": "false",
+        },
+    }
+
+    evidence_rows = _markdown_table_rows(
+        _section_text(text, "Read-path implementation landed evidence guard")
+    )
+    rollback_rows = _markdown_table_rows(
+        _section_text(text, "Read-path rollback command index")
+    )
+    landing_template = _section_text(text, "Read-path implementation landing record template")
+
+    for row in evidence_rows:
+        assert row["Implementation landed"] == "false"
+        assert row["Landing evidence"] == "none"
+    for row in rollback_rows:
+        assert row["Current executable"] == "false"
+    assert "Status: landing evidence template recorded, no implementation approved by this" in landing_template
+    assert "section." in landing_template
+
+
 def test_playbook_parses_candidate_c_split_commit_consistency_guard() -> None:
     text = _playbook_text()
     section = _section_text(text, "Candidate C split commit consistency guard")
