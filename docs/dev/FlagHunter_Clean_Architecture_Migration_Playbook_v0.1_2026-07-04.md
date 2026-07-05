@@ -949,6 +949,44 @@ Required verification for the future implementation slice:
 git diff --check
 ```
 
+### Task ingress service contract migration pre-approval guard
+
+Status: pre-approval guard active, implementation not approved.
+
+`tests/unit/test_application_task_ingress_service.py` now guards
+`flaghunter/application/challenge/task_ingress_service.py` against importing or
+constructing the neutral task ingress domain contract classes before the
+service contract migration is approved and implemented in a focused service
+migration commit.
+
+Forbidden before approval:
+
+- import `flaghunter.domain.challenge.contracts.task_ingress`
+- construct or reference `TaskIngressRequest`
+- construct or reference `TaskIngressReceipt`
+- construct or reference `TaskIngressReadback`
+- change the current injected port request payload shape
+- remove raw `instructions` from the injected port request payload
+
+Updating this guard is allowed only in the same service migration commit that
+preserves current external response shape, preserves injected port compatibility
+or explicitly versions the payload, and runs the verification commands recorded
+in the service contract migration plan.
+
+Boundary confirmation for this pre-approval guard:
+
+- no service migration
+- no production wiring
+- no MCP server changes
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no composition root changes
+- no proof authority behavior changes
+- no P5 implementation
+
 ### Adapter substitution source guard baseline
 
 Status: source guard added for substitution fixtures.

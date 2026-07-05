@@ -13,6 +13,12 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 APPLICATION_ROOT = REPO_ROOT / "flaghunter" / "application"
+PLAYBOOK_PATH = (
+    REPO_ROOT
+    / "docs"
+    / "dev"
+    / "FlagHunter_Clean_Architecture_Migration_Playbook_v0.1_2026-07-04.md"
+)
 
 FORBIDDEN_IMPORT_PREFIXES = (
     "flaghunter.adapters",
@@ -274,3 +280,23 @@ def test_task_ingress_service_is_small_and_has_no_private_runtime_hooks() -> Non
     }
 
     assert public_methods == {"submit"}
+
+
+def test_task_ingress_service_contract_migration_pre_approval_guard() -> None:
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    source_path = APPLICATION_ROOT / "challenge" / "task_ingress_service.py"
+    source = source_path.read_text(encoding="utf-8")
+
+    assert "Task ingress service contract migration pre-approval guard" in playbook
+    assert "Status: pre-approval guard active, implementation not approved." in playbook
+
+    forbidden_tokens = {
+        "from flaghunter.domain.challenge.contracts.task_ingress",
+        "TaskIngressRequest",
+        "TaskIngressReceipt",
+        "TaskIngressReadback",
+    }
+
+    offenders = sorted(token for token in forbidden_tokens if token in source)
+
+    assert offenders == []
