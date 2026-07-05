@@ -504,6 +504,39 @@ Boundary confirmation for this guard:
 - no ToolExecutor changes
 - no proof authority behavior changes
 
+### Domain contract proof action coverage guard
+
+Status: explicit proof action coverage guard added for inner domain contracts.
+
+`tests/unit/test_domain_challenge_contracts.py` now requires the domain contract
+proof guard to explicitly cover proof authority write, upgrade, and accepted
+proof sink names:
+
+- `append_proof_record`
+- `append_verification_record`
+- `confirm_claim`
+- `level="verified"`
+- `level='verified'`
+- `upgrade_claim_to_verified`
+- `verification_decision`
+- `verified_flags`
+
+This guard keeps `flaghunter/domain/challenge/contracts` as pure
+schema/read-model contracts. Domain contracts may describe proof records as
+data, but they must not become proof authorities, accepted-proof writers, claim
+confirmers, or proof upgrade decision makers.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter construction
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 ### Challenge board read-model sanitization baseline
 
 Status: neutral read-model sanitization guard added before any production path

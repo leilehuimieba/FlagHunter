@@ -332,6 +332,17 @@ FORBIDDEN_PROOF_ACTION_TOKENS = {
     "verified_flags",
 }
 
+REQUIRED_PROOF_ACTION_TOKENS = {
+    "verification_decision",
+    "upgrade_claim_to_verified",
+    "append_verification_record",
+    "append_proof_record",
+    "confirm_claim",
+    'level="verified"',
+    "level='verified'",
+    "verified_flags",
+}
+
 FORBIDDEN_PUBLIC_DOMAIN_TERMS = {
     "ctf",
     "pentest",
@@ -1575,6 +1586,15 @@ def test_contract_package_has_no_proof_authority_actions() -> None:
         )
 
     assert offenders == []
+
+
+def test_contract_proof_action_guard_covers_authority_sinks() -> None:
+    assert REQUIRED_PROOF_ACTION_TOKENS <= FORBIDDEN_PROOF_ACTION_TOKENS
+
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Domain contract proof action coverage guard" in playbook
+    for token in sorted(REQUIRED_PROOF_ACTION_TOKENS):
+        assert token in playbook
 
 
 def test_contract_package_has_no_production_wiring_surfaces() -> None:
