@@ -1048,6 +1048,50 @@ def test_task_board_projection_accepts_task_action_aliases() -> None:
     _assert_json_friendly(projection)
 
 
+def test_task_board_projection_accepts_active_decision_next_action_alias() -> None:
+    from flaghunter.application.challenge.board_read_model_service import (
+        build_task_board_projection,
+    )
+    from flaghunter.domain.challenge.contracts import ChallengeBoardReadModel
+
+    model = ChallengeBoardReadModel(
+        run_id="run-next-action-alias",
+        challenge_id="challenge-next-action-alias",
+        decisions=[{"next_action": "collect_initial_facts"}],
+        candidates=[
+            {
+                "action": "collect_initial_facts",
+                "priority": 20,
+                "selected": True,
+            },
+            {
+                "action": "probe_discovered_endpoint",
+                "priority": 11,
+            },
+        ],
+        action_results=[
+            {
+                "action": "collect_initial_facts",
+                "result": "failed",
+            }
+        ],
+    )
+
+    projection = build_task_board_projection(model)
+
+    assert projection["decisions"] == [{"nextAction": "collect_initial_facts"}]
+    assert projection["active_decision"] == {"nextAction": "collect_initial_facts"}
+    assert projection["recommended_action"] == {
+        "action": "probe_discovered_endpoint",
+        "driver": "",
+        "sourceType": "",
+        "reason": "selected action failed; switch to next best candidate",
+        "switchedFrom": "collect_initial_facts",
+        "triggerResult": "failed",
+    }
+    _assert_json_friendly(projection)
+
+
 def test_task_board_projection_enriches_selected_and_recommended_candidates() -> None:
     from flaghunter.application.challenge.board_read_model_service import (
         build_task_board_projection,

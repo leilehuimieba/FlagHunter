@@ -1164,6 +1164,32 @@ Boundary confirmation for this baseline:
 - no MCP production wiring
 - no proof authority behavior changes
 
+### Candidate A neutral next action alias baseline
+
+Status: active decision next-action alias fixture added before any production path switch.
+
+`build_task_board_projection` now accepts neutral active decision action
+metadata as `next_action` and normalizes it into the Candidate A-compatible
+`nextAction` field. Existing `nextAction` remains the first source, while the
+alias is removed from projected decision rows so neutral inputs do not change
+the public response key shape.
+
+`tests/unit/test_application_board_read_model_service.py` records this baseline
+with `test_task_board_projection_accepts_active_decision_next_action_alias`, so
+future Candidate A read-path equivalence work can compare active decision rows
+before touching `blackboard_lite.py`.
+
+Boundary confirmation for this baseline:
+
+- no production path switch
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no proof authority behavior changes
+
 ### Candidate A neutral malformed board item projection baseline
 
 Status: malformed board item fixture added before any production path switch.
@@ -3186,6 +3212,7 @@ baselines recorded:
 - neutral trigger time alias baseline
 - neutral trigger result alias baseline
 - neutral task action alias baseline
+- neutral next action alias baseline
 - neutral malformed board item projection baseline
 - neutral recommended action projection baseline
 - neutral explicit recommendation marker baseline
@@ -3205,6 +3232,7 @@ baselines recorded:
   `test_task_board_projection_accepts_action_result_trigger_time_alias`
   `test_task_board_projection_accepts_action_result_trigger_result_alias`
   `test_task_board_projection_accepts_task_action_aliases`
+  `test_task_board_projection_accepts_active_decision_next_action_alias`
   `test_candidate_a_representative_fixture_locks_public_projection_shape`
   `test_candidate_a_missing_or_malformed_state_snapshot_baseline`
   `test_candidate_a_decision_ingress_action_result_baseline`

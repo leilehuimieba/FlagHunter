@@ -70,10 +70,10 @@ def build_task_board_projection(
 ) -> dict[str, JsonValue]:
     board = _normalize_board(read_model)
     payload = board.to_dict()
-    decisions = _mapping_list(payload.get("decisions"))
+    decisions = _decision_list(payload.get("decisions"))
     action_results = _action_result_list(payload.get("actionResults"))
     candidates = _candidate_list(payload.get("candidates"), action_results)
-    active_decision = _first_mapping(payload.get("decisions"))
+    active_decision = decisions[0] if decisions else {}
     evidence_items = [
         item
         for item in _mapping_list(payload.get("evidence"))
@@ -280,6 +280,21 @@ def _action_result_list(value: JsonValue) -> list[dict[str, JsonValue]]:
 def _first_mapping(value: JsonValue) -> dict[str, JsonValue]:
     items = _mapping_list(value)
     return items[0] if items else {}
+
+
+def _decision_list(value: JsonValue) -> list[dict[str, JsonValue]]:
+    return [_canonical_decision_mapping(item) for item in _mapping_list(value)]
+
+
+def _canonical_decision_mapping(source: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
+    result = dict(source)
+    next_action = _clean_text(
+        source.get("nextAction") or source.get("next_action")
+    )
+    result.pop("next_action", None)
+    if next_action:
+        result["nextAction"] = next_action
+    return result
 
 
 def _item_bucket(item: Mapping[str, Any]) -> str:
