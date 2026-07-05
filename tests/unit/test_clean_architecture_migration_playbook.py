@@ -279,6 +279,48 @@ def test_playbook_records_candidate_a_implementation_readiness_checklist() -> No
     assert ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_application_board_read_model_service.py tests/unit/test_clean_architecture_migration_playbook.py -q" in text
 
 
+def test_playbook_records_candidate_a_implementation_approval_request() -> None:
+    text = _playbook_text()
+
+    assert "Candidate A implementation approval request" in text
+    assert "Status: approval requested, not approved" in text
+    assert "flaghunter/interface/blackboard_lite.py" in text
+    assert "tests/unit/interface/test_blackboard_lite.py" in text
+    assert "flaghunter/application/challenge/board_read_model_service.py" in text
+    assert "risk: medium" in text
+    assert "read-only Web task detail projection" in text
+    assert "API serialization/control-decision inputs" in text
+    assert "MCP readback formatting indirectly" in text
+    assert "rollback point: revert the single Candidate A implementation commit" in text
+    assert "old/new output equivalence" in text
+    for non_goal in (
+        "no dispatcher loop changes",
+        "no `CTFState` ownership split",
+        "no `CTFVerifier` proof behavior changes",
+        "no ToolExecutor changes",
+        "no WorkerPool/CrewOrchestrator changes",
+        "no MCP production wiring",
+        "no composition root changes",
+        "no concrete adapter implementation",
+        "no proof authority behavior changes",
+        "no P5 implementation",
+    ):
+        assert non_goal in text
+    for forbidden_edit in (
+        "do not modify `flaghunter/mcp/server/mcp_tools.py`",
+        "do not modify `flaghunter/interface/web_serialize_task.py`",
+        "do not modify `flaghunter/interface/web_control_decision.py`",
+    ):
+        assert forbidden_edit in text
+    for command in (
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/interface/test_blackboard_lite.py -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_application_board_read_model_service.py tests/unit/test_clean_architecture_migration_playbook.py -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py -q",
+        "git diff --check",
+    ):
+        assert command in text
+
+
 def test_playbook_records_candidate_c_approval_plan() -> None:
     text = _playbook_text()
 

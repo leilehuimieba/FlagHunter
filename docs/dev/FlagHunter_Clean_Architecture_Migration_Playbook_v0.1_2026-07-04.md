@@ -900,6 +900,70 @@ Required verification for the future implementation slice:
 git diff --check
 ```
 
+#### Candidate A implementation approval request
+
+Status: approval requested, not approved.
+
+This request asks for approval to run the first Candidate A implementation
+slice after the neutral projection runway and Web blackboard characterization
+fixtures are in place. The future change would switch only the read-only Web
+blackboard projection builder toward the neutral board projection helper while
+preserving the public response shape.
+
+File list for the future implementation slice:
+
+- `flaghunter/interface/blackboard_lite.py`
+- `tests/unit/interface/test_blackboard_lite.py`
+- `flaghunter/application/challenge/board_read_model_service.py` only if the
+  future implementation needs a small pure projection helper adjustment; no
+  production wiring should be added there.
+
+risk: medium. The target helper is a read-only Web task detail projection
+input, but it feeds API serialization/control-decision inputs and
+MCP readback formatting indirectly through existing callers. The implementation
+must prove old/new output equivalence before replacing any read-side projection
+path.
+
+rollback point: revert the single Candidate A implementation commit.
+
+Required fixture evidence:
+
+- old/new output equivalence for representative existing `ctfStateSnapshot`
+  task detail input
+- old/new output equivalence for missing or malformed state snapshots
+- old/new output equivalence for decision records, ingress handoff, session
+  context action results, candidates, and surface summaries
+- preserved selected/recommended candidate semantics
+- no proof writes and no proof authority decisions
+
+Forbidden companion edits:
+
+- do not modify `flaghunter/mcp/server/mcp_tools.py`
+- do not modify `flaghunter/interface/web_serialize_task.py`
+- do not modify `flaghunter/interface/web_control_decision.py`
+
+Explicit non-goals for the requested Candidate A implementation slice:
+
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no composition root changes
+- no concrete adapter implementation
+- no proof authority behavior changes
+- no P5 implementation
+
+Required verification for the requested implementation slice:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/interface/test_blackboard_lite.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_application_board_read_model_service.py tests/unit/test_clean_architecture_migration_playbook.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py -q
+git diff --check
+```
+
 #### Candidate A source guard baseline
 
 Status: source guard added before any production path switch.
