@@ -389,6 +389,46 @@ def test_playbook_records_candidate_c_source_guard_baseline() -> None:
     assert "no proof upgrade surfaces" in text
 
 
+def test_playbook_records_candidate_c_implementation_readiness_checklist() -> None:
+    text = _playbook_text()
+
+    assert "Candidate C implementation readiness checklist" in text
+    assert "Status: blocked on Candidate A approval, not approved for implementation." in text
+    assert "Candidate A output equivalence is proven" in text
+    assert "Candidate C approval plan" in text
+    assert "Candidate C source guard baseline" in text
+    assert "flaghunter/interface/web_serialize_task.py::_serialize_task" in text
+    assert "flaghunter/interface/web_control_decision.py::_task_blackboard_snapshot_for_decision" in text
+    assert "tests/unit/interface/test_blackboard_lite.py" in text
+    assert "tests/unit/interface/test_web_server.py" in text
+    assert "one call-site family per commit" in text
+    assert "serialize-task projection first" in text
+    assert "control-decision snapshot merge second" in text
+    assert "old/new output equivalence" in text
+    assert "preserved fallback merge behavior" in text
+    assert "rollback point: revert the single Candidate C implementation commit" in text
+    for non_goal in (
+        "no dispatcher loop changes",
+        "no `CTFState` ownership split",
+        "no `CTFVerifier` proof behavior changes",
+        "no ToolExecutor changes",
+        "no WorkerPool/CrewOrchestrator changes",
+        "no MCP production wiring",
+        "no composition root changes",
+        "no concrete adapter implementation",
+        "no proof authority behavior changes",
+        "no P5 implementation",
+    ):
+        assert non_goal in text
+    for command in (
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/interface/test_blackboard_lite.py tests/unit/test_clean_architecture_migration_playbook.py -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/interface/test_web_server.py tests/unit/test_clean_architecture_migration_playbook.py -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py -q",
+        "git diff --check",
+    ):
+        assert command in text
+
+
 def test_playbook_records_deferred_mcp_readback_approval_plan() -> None:
     text = _playbook_text()
 

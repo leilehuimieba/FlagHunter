@@ -1303,6 +1303,70 @@ as read-only projection/merge helpers. The guard confirms:
 These constraints must hold until Candidate A output equivalence is proven and
 Candidate C implementation is approved.
 
+#### Candidate C implementation readiness checklist
+
+Status: blocked on Candidate A approval, not approved for implementation.
+
+Candidate C remains downstream of Candidate A. It may proceed only after
+Candidate A output equivalence is proven and the neutral blackboard projection
+builder is approved for the first production read-path switch.
+
+Current pre-switch baselines recorded:
+
+- Candidate C approval plan
+- Candidate C source guard baseline
+- existing Candidate A fixtures in `tests/unit/interface/test_blackboard_lite.py`
+- Web projection/merge guards in `tests/unit/interface/test_web_server.py`
+
+Readiness scope for future implementation slices:
+
+- `flaghunter/interface/web_serialize_task.py::_serialize_task`
+- `flaghunter/interface/web_control_decision.py::_task_blackboard_snapshot_for_decision`
+- one call-site family per commit
+- serialize-task projection first
+- control-decision snapshot merge second
+- no MCP readback change in either Candidate C commit
+
+Required fixture evidence:
+
+- old/new output equivalence for serialized task detail output
+- old/new output equivalence for control-decision snapshot merge output
+- preserved fallback merge behavior between rebuilt and existing
+  `blackboardSnapshot`
+- preserved active decision summary and next-action explanation fields
+- no proof writes and no proof authority decisions
+
+Implementation gate:
+
+- Candidate A must be approved and implemented first
+- approval is still required before editing either Candidate C production helper
+- rollback point: revert the single Candidate C implementation commit for the
+  affected call-site family
+- no schema migration, MCP handler rewiring, composition-root change, or
+  production execution wiring in either Candidate C commit
+
+Required verification for future Candidate C implementation slices:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/interface/test_blackboard_lite.py tests/unit/test_clean_architecture_migration_playbook.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/interface/test_web_server.py tests/unit/test_clean_architecture_migration_playbook.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py -q
+git diff --check
+```
+
+Explicit non-goals for the requested Candidate C implementation slices:
+
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no composition root changes
+- no concrete adapter implementation
+- no proof authority behavior changes
+- no P5 implementation
+
 Deferred MCP readback candidate:
 
 - Current path:
