@@ -258,3 +258,16 @@ def test_playbook_records_deferred_mcp_readback_formatting_fixture_baseline() ->
     assert "no MCP production wiring" in text
     assert "no task execution or handler routing changes" in text
     assert "no proof authority behavior changes" in text
+
+
+def test_playbook_records_deferred_mcp_empty_malformed_fixture_baseline() -> None:
+    text = _playbook_text()
+
+    assert "Deferred MCP empty/malformed readback fixture baseline" in text
+    assert "tests/unit/mcp/test_mcp_ingress_mode_contract.py" in text
+    assert "test_mcp_blackboard_readback_empty_and_malformed_inputs_are_quiet" in text
+    assert "empty, missing, or malformed blackboard snapshot inputs" in text
+    assert "old/new output equivalence" in text
+    assert "no MCP production wiring" in text
+    assert "no task execution or handler routing changes" in text
+    assert "no proof authority behavior changes" in text

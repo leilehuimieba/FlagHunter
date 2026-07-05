@@ -241,6 +241,46 @@ def test_mcp_blackboard_readback_formatting_matches_candidate_a_projection() -> 
     assert lines == case["expectedLines"]
 
 
+def test_mcp_blackboard_readback_empty_and_malformed_inputs_are_quiet() -> None:
+    cases = [
+        (
+            mcp_tools.TaskEntry(
+                id="entry-mcp-readback-empty",
+                task="quiet challenge",
+                status="done",
+                created_at="2026-06-03T10:01:00+00:00",
+                agent=SimpleNamespace(runtime=None, tools=[]),
+            ),
+            {},
+        ),
+        (
+            mcp_tools.TaskEntry(
+                id="entry-mcp-readback-malformed",
+                task="quiet challenge",
+                status="done",
+                created_at="2026-06-03T10:02:00+00:00",
+                agent=SimpleNamespace(runtime=None, tools=[]),
+                controlDecision="not-a-dict",  # type: ignore[arg-type]
+                decisionRecords="not-a-list",  # type: ignore[arg-type]
+                ingressHandoff="not-a-dict",  # type: ignore[arg-type]
+                ctfStateSnapshot="not-a-dict",  # type: ignore[arg-type]
+            ),
+            {"recentEvents": "not-a-list"},
+        ),
+    ]
+
+    for entry, run_context in cases:
+        lines: list[str] = []
+
+        mcp_tools._append_blackboard_snapshot_lines(
+            lines,
+            entry,
+            run_context=run_context,  # type: ignore[arg-type]
+        )
+
+        assert lines == []
+
+
 @pytest.fixture(autouse=True)
 def _reset_mcp_task_state(monkeypatch: pytest.MonkeyPatch, tmp_path):
     (tmp_path / ".env").write_text(

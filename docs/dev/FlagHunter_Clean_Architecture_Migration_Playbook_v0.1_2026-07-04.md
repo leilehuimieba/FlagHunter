@@ -864,6 +864,31 @@ Boundary confirmation for this baseline:
 - no WorkerPool/CrewOrchestrator changes
 - no proof authority behavior changes
 
+#### Deferred MCP empty/malformed readback fixture baseline
+
+Status: degraded-input fixture added before any MCP readback implementation.
+
+`tests/unit/mcp/test_mcp_ingress_mode_contract.py` now includes
+`test_mcp_blackboard_readback_empty_and_malformed_inputs_are_quiet`. It locks
+the current `_append_blackboard_snapshot_lines` behavior for empty, missing, or malformed blackboard snapshot inputs:
+the helper emits no readback lines instead of synthesizing facts, actions, proof
+state, or fallback text.
+
+This fixture is not an MCP production wiring change. It exists so a future MCP
+readback switch can prove old/new output equivalence for degraded inputs before
+any MCP implementation change is approved.
+
+Boundary confirmation for this baseline:
+
+- no MCP production wiring
+- no task execution or handler routing changes
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no proof authority behavior changes
+
 First read-path switch approval plan must include:
 
 - file list
