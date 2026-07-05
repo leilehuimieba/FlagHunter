@@ -1578,6 +1578,47 @@ Explicit non-goals for the requested Deferred MCP implementation slice:
 - no proof authority behavior changes
 - no P5 implementation
 
+#### First read-path switch sequence gate
+
+Status: sequence guard recorded, no implementation approved by this section.
+
+Candidate A is the only eligible first production read-path switch. The
+Candidate A approval request must be accepted before implementation, and its
+old/new output equivalence must land before any downstream Web or MCP readback
+switch starts.
+
+Required implementation order:
+
+1. Candidate A: `flaghunter/interface/blackboard_lite.py`
+2. Candidate B: `flaghunter/interface/web_trace_timeline.py`
+3. Candidate C serialize-task family:
+   `flaghunter/interface/web_serialize_task.py`
+4. Candidate C control-decision family:
+   `flaghunter/interface/web_control_decision.py`
+5. Deferred MCP readback:
+   `flaghunter/mcp/server/mcp_tools.py`
+
+Sequence constraints:
+
+- Candidate B may not be implemented before Candidate A lands
+- Candidate C may not be implemented before Candidate A lands
+- Deferred MCP may not be implemented before Web projection equivalence lands
+- one production call-site family per commit
+- no bundled Web and MCP implementation commits
+- no parallel projection shapes
+- rollback point: revert the single implementation commit for the affected read path
+
+Explicit non-goals for this sequence gate:
+
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no composition root changes
+- no proof authority behavior changes
+- no P5 implementation
+
 First read-path switch approval plan must include:
 
 - file list

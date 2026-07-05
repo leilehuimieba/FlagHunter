@@ -523,6 +523,40 @@ def test_playbook_records_deferred_mcp_implementation_readiness_checklist() -> N
         assert command in text
 
 
+def test_playbook_records_first_read_path_switch_sequence_gate() -> None:
+    text = _playbook_text()
+
+    assert "First read-path switch sequence gate" in text
+    assert "Candidate A is the only eligible first production read-path switch" in text
+    assert "Candidate A approval request must be accepted before implementation" in text
+    assert "Candidate B may not be implemented before Candidate A lands" in text
+    assert "Candidate C may not be implemented before Candidate A lands" in text
+    assert "Deferred MCP may not be implemented before Web projection equivalence lands" in text
+    assert "one production call-site family per commit" in text
+    assert "no bundled Web and MCP implementation commits" in text
+    assert "no parallel projection shapes" in text
+    assert "rollback point: revert the single implementation commit for the affected read path" in text
+    for path in (
+        "flaghunter/interface/blackboard_lite.py",
+        "flaghunter/interface/web_trace_timeline.py",
+        "flaghunter/interface/web_serialize_task.py",
+        "flaghunter/interface/web_control_decision.py",
+        "flaghunter/mcp/server/mcp_tools.py",
+    ):
+        assert path in text
+    for non_goal in (
+        "no dispatcher loop changes",
+        "no `CTFState` ownership split",
+        "no `CTFVerifier` proof behavior changes",
+        "no ToolExecutor changes",
+        "no WorkerPool/CrewOrchestrator changes",
+        "no composition root changes",
+        "no proof authority behavior changes",
+        "no P5 implementation",
+    ):
+        assert non_goal in text
+
+
 def test_playbook_records_application_service_source_guard_baseline() -> None:
     text = _playbook_text()
 
