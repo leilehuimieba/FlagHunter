@@ -797,7 +797,7 @@ def test_playbook_records_candidate_c_implementation_readiness_checklist() -> No
 
     assert "Candidate C implementation readiness checklist" in text
     assert "Status: ready for serialize-task approval review, not approved for implementation." in text
-    assert "explicit Candidate C serialize-task approval is recorded" in text
+    assert "Candidate C serialize-task has landed" in text
     assert "Candidate C approval plan" in text
     assert "Candidate C source guard baseline" in text
     assert "Candidate C serialize-task projection fixture baseline" in section
@@ -1644,7 +1644,7 @@ def test_playbook_parses_pre_approval_source_map_and_blocks_wiring() -> None:
     text = _playbook_text()
     section = _section_text(text, "Read-path pre-approval source-map guard")
 
-    assert "Status: Candidates A and B implementation landed; unapproved read paths remain guarded." in section
+    assert "Status: Candidates A, B, and C1 implementation landed; unapproved read paths remain guarded." in section
     source_rows = _markdown_table_rows(section)
     expected_paths = {
         "flaghunter/interface/blackboard_lite.py",
@@ -1667,7 +1667,7 @@ def test_playbook_parses_pre_approval_source_map_and_blocks_wiring() -> None:
         assert set(forbidden_tokens) == expected_tokens
         source_path = REPO_ROOT / row["Source path"].strip("`")
         source_text = source_path.read_text(encoding="utf-8")
-        if row["Candidate"] in {"Candidate A", "Candidate B"}:
+        if row["Candidate"] in {"Candidate A", "Candidate B", "Candidate C serialize-task"}:
             assert row["Implementation approved"] == "true"
             assert any(token in source_text for token in forbidden_tokens)
         else:
@@ -1867,7 +1867,11 @@ def test_playbook_parses_read_path_approval_flag_aggregate_guard() -> None:
         assert readiness_rows[candidate]["Implementation approved"] == ledger_row["approvedForImplementation"]
         assert evidence_rows[candidate]["Implementation landed"] == expected_flag
     for row in source_rows:
-        expected_flag = "true" if row["Candidate"] in {"Candidate A", "Candidate B"} else "false"
+        expected_flag = (
+            "true"
+            if row["Candidate"] in {"Candidate A", "Candidate B", "Candidate C serialize-task"}
+            else "false"
+        )
         assert row["Implementation approved"] == expected_flag
 
 
