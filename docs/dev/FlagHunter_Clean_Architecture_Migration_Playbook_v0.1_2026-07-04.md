@@ -2080,6 +2080,29 @@ prove that each candidate has one canonical blocker before implementation:
 - Deferred MCP still requires explicit MCP production wiring approval
 - no production path switch is authorized by this nextGate consistency guard
 
+#### Read-path approved execution checklist index
+
+Status: checklist index recorded, no implementation approved by this section.
+
+This index keeps the candidate-specific execution checklists discoverable
+without granting implementation approval. Every row must remain
+`implementation not approved` until the matching approval state transition is
+recorded.
+
+| Candidate | Checklist section | Checklist status | Approval state |
+|-----------|-------------------|------------------|----------------|
+| Candidate A | `Candidate A approved execution checklist` | not approved; checklist only | implementation not approved |
+| Candidate B | `Candidate B approved execution checklist` | not approved; checklist only | implementation not approved |
+| Candidate C | `Candidate C approved execution checklist` | not approved; checklist only | implementation not approved |
+| Deferred MCP | `Deferred MCP approved execution checklist` | not approved; checklist only | implementation not approved |
+
+Rules:
+
+- each indexed checklist section must exist in this playbook
+- each indexed checklist must keep `Status: not approved; checklist only.`
+- the index is a readiness map, not implementation approval
+- no production path switch is authorized by this checklist index
+
 #### Read-path approval status consistency guard
 
 Status: approval consistency guard recorded, no implementation approved by this

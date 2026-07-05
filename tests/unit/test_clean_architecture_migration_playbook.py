@@ -1034,6 +1034,33 @@ def test_playbook_parses_read_path_next_gate_consistently() -> None:
         assert ledger_row["nextGate"] == package_rows[candidate]["remaining blocker"]
 
 
+def test_playbook_parses_read_path_approved_execution_checklist_index() -> None:
+    text = _playbook_text()
+    section = _section_text(text, "Read-path approved execution checklist index")
+
+    assert "Status: checklist index recorded, no implementation approved by this section." in section
+    checklist_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(section)
+    }
+
+    expected_sections = {
+        "Candidate A": "Candidate A approved execution checklist",
+        "Candidate B": "Candidate B approved execution checklist",
+        "Candidate C": "Candidate C approved execution checklist",
+        "Deferred MCP": "Deferred MCP approved execution checklist",
+    }
+    assert set(checklist_rows) == set(expected_sections)
+    for candidate, checklist_heading in expected_sections.items():
+        row = checklist_rows[candidate]
+        checklist_section = _section_text(text, checklist_heading)
+
+        assert row["Checklist section"] == f"`{checklist_heading}`"
+        assert row["Checklist status"] == "not approved; checklist only"
+        assert row["Approval state"] == "implementation not approved"
+        assert "Status: not approved; checklist only." in checklist_section
+
+
 def test_playbook_records_application_service_source_guard_baseline() -> None:
     text = _playbook_text()
 
