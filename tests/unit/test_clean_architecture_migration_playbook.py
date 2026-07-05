@@ -349,3 +349,17 @@ def test_playbook_records_adapter_substitution_source_guard_baseline() -> None:
     assert "no side-effect sinks" in text
     assert "no proof authority write surfaces" in text
     assert "no production wiring" in text
+
+
+def test_playbook_records_adapter_substitution_runway_completed() -> None:
+    text = _playbook_text()
+
+    assert "Adapter substitution runway completed" in text
+    assert "tool runner and runtime action adapters" in text
+    assert "state, read model, claim, and checkpoint store adapters" in text
+    assert "audit and artifact store adapters" in text
+    assert "crew bridge and task graph runner adapters" in text
+    assert "verifier adapter" in text
+    assert "substitution source guard" in text
+    assert "next adapter work requires a short plan or explicit approval" in text
+    assert "no production wiring has been approved by these fixtures" in text

@@ -472,6 +472,40 @@ Status: source guard added for substitution fixtures.
 This baseline keeps the adapter substitution fixtures focused on fake injected
 ports and prevents them from becoming an accidental production-wiring path.
 
+### Adapter substitution runway completed
+
+Status: low-risk adapter substitution fixture runway completed.
+
+The adapter substitution fixture baseline now covers:
+
+- tool runner and runtime action adapters
+- state, read model, claim, and checkpoint store adapters
+- audit and artifact store adapters
+- crew bridge and task graph runner adapters
+- verifier adapter
+- substitution source guard
+
+These fixtures prove adapter skeletons can delegate to injected fake ports
+without constructing concrete legacy implementations. They do not approve or
+perform production wiring.
+
+The next adapter work requires a short plan or explicit approval, depending on the target route:
+
+- adapter wrappers around concrete implementations require a short plan with
+  file list, risk, rollback point, and verification command
+- production wiring, composition root changes, dispatcher flow changes,
+  ToolExecutor changes, WorkerPool/CrewOrchestrator changes, MCP wiring, and
+  proof authority behavior changes require explicit approval
+
+Boundary confirmation for this runway:
+
+- no production wiring has been approved by these fixtures
+- no dispatcher loop changes
+- no MCP production wiring
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator construction
+- no proof authority behavior changes
+
 ### Next approval gate
 
 The next material step is no longer another neutral skeleton by default; it is
