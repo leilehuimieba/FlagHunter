@@ -333,7 +333,7 @@ def _recommended_action_projection(
         recommended_action: dict[str, JsonValue] = {
             "action": action,
             "driver": _clean_text(candidate.get("driver")),
-            "sourceType": _clean_text(candidate.get("sourceType")),
+            "sourceType": _source_type(candidate),
             "reason": "selected action failed; switch to next best candidate",
             "switchedFrom": selected_action,
             "triggerResult": result,
@@ -439,6 +439,10 @@ def _copy_hypothesis_summary(
             value = source.get(alias)
         if key not in target and value is not None:
             target[key] = value
+
+
+def _source_type(value: Mapping[str, Any]) -> str:
+    return _clean_text(value.get("sourceType") or value.get("source_type"))
 
 
 def _clean_text(value: Any) -> str:

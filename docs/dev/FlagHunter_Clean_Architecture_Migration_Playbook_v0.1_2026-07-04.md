@@ -1008,6 +1008,32 @@ Boundary confirmation for this baseline:
 - no MCP production wiring
 - no proof authority behavior changes
 
+### Candidate A neutral source type alias baseline
+
+Status: source type alias fixture added before any production path switch.
+
+`build_task_board_projection` now accepts neutral candidate `source_type`
+metadata and projects it into the Candidate A-compatible `sourceType` field
+when deriving a recommended action. The recommended candidate enrichment path
+also receives `sourceType` from the derived recommendation, keeping source
+classification display-compatible without reading legacy state.
+
+`tests/unit/test_application_board_read_model_service.py` records this baseline
+with `test_task_board_projection_accepts_candidate_source_type_alias`, so
+future Candidate A read-path equivalence work can compare candidate source
+classification before touching `blackboard_lite.py`.
+
+Boundary confirmation for this baseline:
+
+- no production path switch
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no proof authority behavior changes
+
 ### Candidate A neutral malformed board item projection baseline
 
 Status: malformed board item fixture added before any production path switch.
@@ -3024,6 +3050,7 @@ baselines recorded:
 - neutral candidate ordering baseline
 - neutral candidate marker baseline
 - neutral hypothesis summary alias baseline
+- neutral source type alias baseline
 - neutral malformed board item projection baseline
 - neutral recommended action projection baseline
 - neutral explicit recommendation marker baseline
@@ -3037,6 +3064,7 @@ baselines recorded:
   `test_task_board_projection_orders_candidates_and_projects_last_result`
   `test_task_board_projection_adds_default_recommended_marker_for_ordered_candidates`
   `test_task_board_projection_accepts_hypothesis_summary_aliases`
+  `test_task_board_projection_accepts_candidate_source_type_alias`
   `test_candidate_a_representative_fixture_locks_public_projection_shape`
   `test_candidate_a_missing_or_malformed_state_snapshot_baseline`
   `test_candidate_a_decision_ingress_action_result_baseline`
