@@ -48,7 +48,9 @@ forbidden_modules =
     flaghunter.llm
     flaghunter.config
     flaghunter.cpa_modules
+    flaghunter.eval
     flaghunter.playbooks
+    flaghunter.redteam
     flaghunter.workspaces
 
 
@@ -71,7 +73,9 @@ forbidden_modules =
     flaghunter.llm
     flaghunter.config
     flaghunter.cpa_modules
+    flaghunter.eval
     flaghunter.playbooks
+    flaghunter.redteam
     flaghunter.workspaces
 
 
@@ -94,7 +98,9 @@ forbidden_modules =
     flaghunter.llm
     flaghunter.config
     flaghunter.cpa_modules
+    flaghunter.eval
     flaghunter.playbooks
+    flaghunter.redteam
     flaghunter.workspaces
 
 
