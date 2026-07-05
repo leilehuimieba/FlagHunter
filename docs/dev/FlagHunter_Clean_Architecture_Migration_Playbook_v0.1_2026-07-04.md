@@ -468,6 +468,31 @@ Boundary confirmation for this baseline:
 - no MCP production wiring
 - no proof authority behavior changes
 
+### Candidate A neutral degraded projection baseline
+
+Status: degraded-input fixture added before any production path switch.
+
+`build_task_board_projection` now returns a quiet empty projection for missing
+read models and tolerates empty or malformed neutral board inputs by omitting
+bad rows instead of raising or synthesizing proof/action state. This mirrors the
+existing Candidate A degraded-input discipline before any Web blackboard
+presentation path is switched to the neutral helper.
+
+`tests/unit/test_application_board_read_model_service.py` records this baseline
+so future Candidate A implementation work can preserve empty/malformed behavior
+while proving old/new output equivalence.
+
+Boundary confirmation for this baseline:
+
+- no production path switch
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no proof authority behavior changes
+
 ### Application service source guard baseline
 
 Status: source guard added before production wiring.

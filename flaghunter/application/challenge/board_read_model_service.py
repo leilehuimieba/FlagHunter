@@ -40,7 +40,7 @@ class BuildChallengeBoardReadModel:
 
 
 def build_task_board_projection(
-    read_model: ChallengeBoardReadModel | Mapping[str, Any],
+    read_model: ChallengeBoardReadModel | Mapping[str, Any] | None,
 ) -> dict[str, JsonValue]:
     board = _normalize_board(read_model)
     payload = board.to_dict()
@@ -82,10 +82,12 @@ def _normalize_snapshot(
 
 
 def _normalize_board(
-    read_model: ChallengeBoardReadModel | Mapping[str, Any],
+    read_model: ChallengeBoardReadModel | Mapping[str, Any] | None,
 ) -> ChallengeBoardReadModel:
     if isinstance(read_model, ChallengeBoardReadModel):
         return read_model
+    if not isinstance(read_model, Mapping):
+        return ChallengeBoardReadModel(run_id="", challenge_id="")
     return ChallengeBoardReadModel.from_dict(read_model)
 
 

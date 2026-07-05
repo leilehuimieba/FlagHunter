@@ -405,6 +405,41 @@ def test_task_board_projection_promotes_non_pending_evidence_to_facts() -> None:
     _assert_json_friendly(projection)
 
 
+def test_task_board_projection_is_quiet_for_empty_or_malformed_inputs() -> None:
+    from flaghunter.application.challenge.board_read_model_service import (
+        build_task_board_projection,
+    )
+
+    expected_empty = {
+        "facts": [],
+        "hypotheses": [],
+        "pending_verifications": [],
+        "decisions": [],
+        "candidates": [],
+        "active_decision": {},
+        "action_results": [],
+        "recommended_action": {},
+        "attack_surfaces": [],
+    }
+
+    assert build_task_board_projection(None) == expected_empty
+    assert build_task_board_projection(
+        {
+            "facts": ["ignored"],
+            "evidence": "not-a-list",
+            "decisions": [{"nextAction": "collect_initial_facts"}, "ignored"],
+            "recommendedTask": "not-a-mapping",
+            "surfaceRefs": [{"endpoint": "http://challenge.test/admin"}, "ignored"],
+            "metadata": {"hypotheses": "not-a-list"},
+        }
+    ) == {
+        **expected_empty,
+        "decisions": [{"nextAction": "collect_initial_facts"}],
+        "active_decision": {"nextAction": "collect_initial_facts"},
+        "attack_surfaces": [{"endpoint": "http://challenge.test/admin"}],
+    }
+
+
 def test_board_read_model_service_uses_only_inner_contracts() -> None:
     path = _board_service_source()
     tree = _parse(path)
