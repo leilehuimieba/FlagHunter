@@ -518,11 +518,14 @@ def test_playbook_records_deferred_mcp_empty_malformed_fixture_baseline() -> Non
 
 def test_playbook_records_deferred_mcp_implementation_readiness_checklist() -> None:
     text = _playbook_text()
+    section = _section_text(text, "Deferred MCP implementation readiness checklist")
 
     assert "Deferred MCP implementation readiness checklist" in text
     assert "Status: blocked on Web projection equivalence and explicit MCP approval, not approved for implementation." in text
     assert "Deferred MCP readback approval plan" in text
     assert "Deferred MCP source guard baseline" in text
+    assert "Deferred MCP pre-approval production wiring guard" in section
+    assert "test_deferred_mcp_pre_approval_guard_blocks_neutral_projection_wiring" in section
     assert "Deferred MCP readback formatting fixture baseline" in text
     assert "Deferred MCP empty/malformed readback fixture baseline" in text
     assert "flaghunter/mcp/server/mcp_tools.py::_append_blackboard_snapshot_lines" in text

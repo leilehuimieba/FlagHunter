@@ -1577,6 +1577,8 @@ Current pre-switch baselines recorded:
 
 - Deferred MCP readback approval plan
 - Deferred MCP source guard baseline
+- Deferred MCP pre-approval production wiring guard:
+  `test_deferred_mcp_pre_approval_guard_blocks_neutral_projection_wiring`
 - Deferred MCP readback formatting fixture baseline
 - Deferred MCP empty/malformed readback fixture baseline
 
