@@ -14,10 +14,12 @@ APPLICATION_ROOT = REPO_ROOT / "flaghunter" / "application"
 
 FORBIDDEN_IMPORT_PREFIXES = (
     "flaghunter.agents",
+    "flaghunter.eval",
     "flaghunter.tools",
     "flaghunter.runtime",
     "flaghunter.interface",
     "flaghunter.mcp",
+    "flaghunter.redteam",
     "flaghunter.session",
     "flaghunter.adapters",
 )

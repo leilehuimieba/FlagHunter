@@ -8,6 +8,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 APPLICATION_ROOT = REPO_ROOT / "flaghunter" / "application"
+UNIT_TEST_ROOT = REPO_ROOT / "tests" / "unit"
 PLAYBOOK_PATH = (
     REPO_ROOT
     / "docs"
@@ -220,6 +221,38 @@ def test_application_forbidden_import_prefixes_cover_all_outer_layers() -> None:
 
     playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
     assert "Application service outer-layer import coverage guard" in playbook
+    for prefix in sorted(required_prefixes):
+        assert prefix in playbook
+
+
+def test_specific_application_service_guards_cover_outer_legacy_layers() -> None:
+    required_prefixes = {
+        "flaghunter.eval",
+        "flaghunter.redteam",
+    }
+    service_test_paths = sorted(
+        path
+        for path in UNIT_TEST_ROOT.glob("test_application_*_service.py")
+        if path.name != "test_application_service_source_guards.py"
+    )
+    assert service_test_paths
+
+    missing: list[tuple[str, str]] = []
+    for path in service_test_paths:
+        text = path.read_text(encoding="utf-8")
+        missing.extend(
+            (_relative(path), prefix)
+            for prefix in sorted(required_prefixes)
+            if prefix not in text
+        )
+
+    assert missing == []
+
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert (
+        "Specific application service source guard import coverage consistency guard"
+        in playbook
+    )
     for prefix in sorted(required_prefixes):
         assert prefix in playbook
 

@@ -1124,6 +1124,34 @@ Boundary confirmation for this guard:
 - no ToolExecutor changes
 - no proof authority behavior changes
 
+#### Specific application service source guard import coverage consistency guard
+
+Status: focused application-service source guard import coverage consistency
+added for individual application service tests.
+
+`tests/unit/test_application_service_source_guards.py` now requires every
+`tests/unit/test_application_*_service.py` focused source guard to cover the
+outer legacy evaluation and red-team helper packages:
+
+- `flaghunter.eval`
+- `flaghunter.redteam`
+
+This guard keeps single-service focused tests consistent with the package-level
+application service boundary guard, so running an individual application
+service test still blocks accidental imports from evaluation harnesses or
+red-team legacy helpers.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter construction
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 ### Core import-linter outer-layer coverage guard
 
 Status: import-linter outer-layer coverage guard added for neutral core layers.
