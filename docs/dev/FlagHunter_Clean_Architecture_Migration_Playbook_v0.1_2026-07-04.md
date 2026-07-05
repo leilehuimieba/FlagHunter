@@ -2154,6 +2154,34 @@ Rules:
   matching implementation commit updates the pre-approval guard
 - no production path switch is authorized by this source-map guard
 
+#### Read-path implementation landed evidence guard
+
+Status: landed evidence guard recorded, no implementation approved by this section.
+
+This guard prevents a candidate from being marked `implementation landed`
+without the landing record required by the template below. Current rows have no
+landing evidence because no read-path implementation has been approved or
+landed.
+
+| Candidate | Implementation landed | Landing evidence | Required before landed |
+|-----------|-----------------------|------------------|------------------------|
+| Candidate A | false | none | landing record, commit SHA, regression results |
+| Candidate B | false | none | landing record, commit SHA, regression results |
+| Candidate C | false | none | landing record, commit SHA, regression results |
+| Deferred MCP | false | none | landing record, commit SHA, regression results |
+
+Rules:
+
+- no row may move to `Implementation landed` = `true` without a
+  candidate-specific landing record
+- the landing record must include the implementation commit SHA, old/new
+  equivalence evidence, pre-approval guard update, focused regression,
+  architecture/source-guard result, `git diff --check`, post-push status, and
+  rollback command
+- a status change to `implementation landed` must be in the same commit as the
+  landing evidence update
+- no production path switch is authorized by this landed evidence guard
+
 #### Read-path approval status consistency guard
 
 Status: approval consistency guard recorded, no implementation approved by this

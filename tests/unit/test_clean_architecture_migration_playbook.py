@@ -1128,6 +1128,37 @@ def test_playbook_parses_pre_approval_source_map_and_blocks_wiring() -> None:
             assert token not in source_text
 
 
+def test_playbook_parses_implementation_landed_evidence_guard() -> None:
+    text = _playbook_text()
+    section = _section_text(text, "Read-path implementation landed evidence guard")
+
+    assert "Status: landed evidence guard recorded, no implementation approved by this section." in section
+    evidence_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(section)
+    }
+    ledger_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path candidate status ledger")
+        )
+    }
+    readiness_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path implementation approval readiness report")
+        )
+    }
+
+    assert set(evidence_rows) == set(ledger_rows) == set(readiness_rows)
+    for candidate, row in evidence_rows.items():
+        assert row["Implementation landed"] == "false"
+        assert row["Landing evidence"] == "none"
+        assert row["Required before landed"] == "landing record, commit SHA, regression results"
+        assert "implementation landed" not in ledger_rows[candidate]["canonicalStatus"]
+        assert readiness_rows[candidate]["Implementation approved"] == "false"
+
+
 def test_playbook_records_application_service_source_guard_baseline() -> None:
     text = _playbook_text()
 
