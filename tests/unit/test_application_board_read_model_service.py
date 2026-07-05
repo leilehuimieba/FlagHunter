@@ -599,6 +599,37 @@ def test_task_board_projection_marks_explicit_recommended_candidate() -> None:
     _assert_json_friendly(projection)
 
 
+def test_task_board_projection_omits_malformed_candidate_and_action_rows() -> None:
+    from flaghunter.application.challenge.board_read_model_service import (
+        build_task_board_projection,
+    )
+
+    projection = build_task_board_projection(
+        {
+            "candidates": [
+                {},
+                {"action": "", "selected": True},
+                {"action": "collect_initial_facts", "selected": True},
+            ],
+            "actionResults": [
+                {},
+                {"action": "", "result": "failed"},
+                {"action": "collect_initial_facts"},
+                {"result": "failed"},
+                {"action": "collect_initial_facts", "result": "failed"},
+            ],
+        }
+    )
+
+    assert projection["candidates"] == [
+        {"action": "collect_initial_facts", "selected": True}
+    ]
+    assert projection["action_results"] == [
+        {"action": "collect_initial_facts", "result": "failed"}
+    ]
+    _assert_json_friendly(projection)
+
+
 def test_board_read_model_service_uses_only_inner_contracts() -> None:
     path = _board_service_source()
     tree = _parse(path)

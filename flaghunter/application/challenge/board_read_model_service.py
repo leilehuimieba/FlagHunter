@@ -45,8 +45,8 @@ def build_task_board_projection(
     board = _normalize_board(read_model)
     payload = board.to_dict()
     decisions = _mapping_list(payload.get("decisions"))
-    candidates = _mapping_list(payload.get("candidates"))
-    action_results = _mapping_list(payload.get("actionResults"))
+    candidates = _candidate_list(payload.get("candidates"))
+    action_results = _action_result_list(payload.get("actionResults"))
     active_decision = _first_mapping(payload.get("decisions"))
     evidence_items = [
         item
@@ -184,6 +184,22 @@ def _mapping_list(value: JsonValue) -> list[dict[str, JsonValue]]:
         coerce_json_dict(item)
         for item in coerce_json_list(value if isinstance(value, list) else None)
         if isinstance(item, Mapping)
+    ]
+
+
+def _candidate_list(value: JsonValue) -> list[dict[str, JsonValue]]:
+    return [
+        item
+        for item in _mapping_list(value)
+        if _clean_text(item.get("action"))
+    ]
+
+
+def _action_result_list(value: JsonValue) -> list[dict[str, JsonValue]]:
+    return [
+        item
+        for item in _mapping_list(value)
+        if _clean_text(item.get("action")) and _clean_text(item.get("result"))
     ]
 
 

@@ -572,6 +572,32 @@ Boundary confirmation for this baseline:
 - no MCP production wiring
 - no proof authority behavior changes
 
+### Candidate A neutral candidate/action-result degraded baseline
+
+Status: malformed candidate/action-result fixture added before any production
+path switch.
+
+`build_task_board_projection` now omits malformed neutral candidate rows
+without a usable `action` and action-result rows without both `action` and
+`result`. This prevents empty candidate/action records from becoming part of
+the Candidate A-compatible projection before any presentation path consumes the
+neutral helper.
+
+`tests/unit/test_application_board_read_model_service.py` records this baseline
+with a red/green fixture so future Web blackboard read-path work can preserve
+degraded-input behavior while still proving old/new output equivalence.
+
+Boundary confirmation for this baseline:
+
+- no production path switch
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no proof authority behavior changes
+
 ### Application service source guard baseline
 
 Status: source guard added before production wiring.
