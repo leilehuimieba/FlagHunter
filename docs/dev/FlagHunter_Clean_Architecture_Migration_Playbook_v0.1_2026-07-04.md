@@ -2024,6 +2024,31 @@ Forbidden scope for this package:
 - no proof authority behavior changes
 - no P5 implementation
 
+#### Read-path candidate status ledger
+
+Status: machine-readable status ledger recorded, no implementation approved by this section.
+
+This machine-readable approval ledger is the compact index for the current
+read-path candidate state. It is intentionally repetitive with the narrative
+sections so guard tests can detect drift before implementation starts.
+
+| Candidate | canonicalStatus | approvedForImplementation | nextGate |
+|-----------|-----------------|---------------------------|----------|
+| Candidate A | approval requested, not approved | false | explicit Candidate A implementation approval |
+| Candidate B | ready for approval review, not approved | false | Candidate A equivalence lands and Candidate B implementation approval |
+| Candidate C | blocked on Candidate A approval, not approved | false | Candidate A equivalence lands and Candidate C implementation approval |
+| Deferred MCP | blocked on Web projection equivalence and explicit MCP approval, not approved | false | Web projection equivalence lands plus explicit MCP production wiring approval |
+
+Rules:
+
+- `approvedForImplementation` must remain `false` until explicit approval is
+  recorded for that candidate
+- any row status change must be updated in the same governance commit as the
+  acceptance matrix, drift guard, approval package summary, and candidate
+  readiness checklist
+- no implementation approval by implication
+- no production path switch is authorized by this ledger
+
 #### Read-path approval status consistency guard
 
 Status: approval consistency guard recorded, no implementation approved by this

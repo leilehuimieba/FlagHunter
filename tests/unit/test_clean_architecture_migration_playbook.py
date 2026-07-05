@@ -928,6 +928,29 @@ def test_playbook_records_read_path_approval_status_consistency_guard() -> None:
         assert required_phrase in text
 
 
+def test_playbook_records_machine_readable_read_path_candidate_status_ledger() -> None:
+    text = _playbook_text()
+    section = _section_text(text, "Read-path candidate status ledger")
+
+    assert "Status: machine-readable status ledger recorded, no implementation approved by this section." in section
+    expected_rows = (
+        "| Candidate A | approval requested, not approved | false | explicit Candidate A implementation approval |",
+        "| Candidate B | ready for approval review, not approved | false | Candidate A equivalence lands and Candidate B implementation approval |",
+        "| Candidate C | blocked on Candidate A approval, not approved | false | Candidate A equivalence lands and Candidate C implementation approval |",
+        "| Deferred MCP | blocked on Web projection equivalence and explicit MCP approval, not approved | false | Web projection equivalence lands plus explicit MCP production wiring approval |",
+    )
+    for row in expected_rows:
+        assert row in section
+    for required_phrase in (
+        "approvedForImplementation",
+        "machine-readable approval ledger",
+        "must be updated in the same governance commit",
+        "no implementation approval by implication",
+        "no production path switch",
+    ):
+        assert required_phrase in section
+
+
 def test_playbook_records_application_service_source_guard_baseline() -> None:
     text = _playbook_text()
 
