@@ -2333,6 +2333,29 @@ Rules:
   has not landed
 - no production path switch is authorized by this rollback command index
 
+#### Read-path landing rollback consistency guard
+
+Status: landing rollback consistency guard recorded, no implementation approved by this section.
+
+The rollback index and landing record template serve different stages. The
+rollback index keeps placeholder rollback commands non-executable before
+implementation. A future landing record must replace the placeholder with the
+real implementation commit SHA by recording `Rollback command: git revert
+<sha>`.
+
+Required parsed checks:
+
+- placeholder rollback commands remain non-executable while
+  `Current executable` is `false`
+- placeholder rollback commands must not contain a real commit SHA before a
+  landing record exists
+- the landing record template keeps `Rollback command: git revert <sha>`
+- every current landed evidence row remains `Implementation landed` = `false`
+  with `Landing evidence` = `none`
+- every future landed row must include a real implementation commit SHA before
+  its rollback command can become executable
+- no production path switch is authorized by this landing rollback guard
+
 #### Candidate C split commit consistency guard
 
 Status: split commit consistency guard recorded, no implementation approved by this section.

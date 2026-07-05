@@ -1395,6 +1395,35 @@ def test_playbook_parses_read_path_rollback_command_index() -> None:
         assert not re.search(r"\b[0-9a-f]{7,40}\b", row["Rollback command"])
 
 
+def test_playbook_parses_landing_rollback_consistency_guard() -> None:
+    text = _playbook_text()
+    section = _section_text(text, "Read-path landing rollback consistency guard")
+
+    assert "Status: landing rollback consistency guard recorded, no implementation approved by this section." in section
+    assert "Rollback command: git revert <sha>" in section
+    assert "placeholder rollback commands remain non-executable" in section
+    assert "real implementation commit SHA" in section
+    assert "no production path switch" in section
+
+    landing_template = _section_text(text, "Read-path implementation landing record template")
+    rollback_rows = _markdown_table_rows(
+        _section_text(text, "Read-path rollback command index")
+    )
+    evidence_rows = _markdown_table_rows(
+        _section_text(text, "Read-path implementation landed evidence guard")
+    )
+
+    assert "Rollback command: git revert <sha>" in landing_template
+    for row in rollback_rows:
+        assert row["Current executable"] == "false"
+        assert "<single " in row["Rollback command"]
+        assert not re.search(r"\b[0-9a-f]{7,40}\b", row["Rollback command"])
+    for row in evidence_rows:
+        assert row["Implementation landed"] == "false"
+        assert row["Landing evidence"] == "none"
+        assert "commit SHA" in row["Required before landed"]
+
+
 def test_playbook_parses_candidate_c_split_commit_consistency_guard() -> None:
     text = _playbook_text()
     section = _section_text(text, "Candidate C split commit consistency guard")
