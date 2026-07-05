@@ -602,6 +602,48 @@ Boundary confirmation for this guard:
 - no ToolExecutor changes
 - no proof authority behavior changes
 
+### Domain contract public surface domain-neutral naming guard
+
+Status: public naming guard recorded for inner domain contracts.
+
+`tests/unit/test_domain_challenge_contracts.py` now requires the domain
+contract public surface guard to keep module path parts, public class names,
+public function names, docstrings, and core dataclass field names aligned with
+the domain-neutral naming policy.
+
+Forbidden public-domain terms for new domain contracts:
+
+- `ctf`
+- `pentest`
+- `exploit`
+- `vulnerability`
+- `hacking`
+- `attack`
+- `redteam`
+
+Forbidden core proof field names:
+
+- `flag`
+- `verified_flag`
+- `verified_flags`
+
+This guard keeps new `flaghunter/domain/challenge/contracts` surfaces in the
+neutral challenge/task/claim/evidence/proof vocabulary. Legacy security terms
+remain confined to legacy implementation, adapters, compatibility shims,
+fixtures, or historical documentation until a focused migration explicitly
+moves or removes them.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter construction
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 ### Domain contract source guard coverage completeness guard
 
 Status: aggregate coverage completeness guard added for inner domain contracts.
@@ -614,11 +656,13 @@ together:
 - `Domain contract outer-layer import coverage guard`
 - `Domain contract side-effect sink coverage guard`
 - `Domain contract proof action coverage guard`
+- `Domain contract public surface domain-neutral naming guard`
 
 This aggregate guard prevents the innermost domain-contract boundary coverage
 from drifting into partial protection. Domain contracts must keep production
-wiring surfaces, outer-layer imports, side-effect sinks, and proof authority
-write or upgrade surfaces guarded as one complete pure-schema boundary.
+wiring surfaces, outer-layer imports, side-effect sinks, proof authority write
+or upgrade surfaces, and public neutral naming guarded as one complete
+pure-schema boundary.
 
 Boundary confirmation for this guard:
 

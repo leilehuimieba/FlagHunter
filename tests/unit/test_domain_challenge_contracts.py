@@ -376,6 +376,7 @@ REQUIRED_DOMAIN_COVERAGE_GUARD_SECTIONS = {
     "Domain contract outer-layer import coverage guard",
     "Domain contract side-effect sink coverage guard",
     "Domain contract proof action coverage guard",
+    "Domain contract public surface domain-neutral naming guard",
 }
 
 
@@ -1678,6 +1679,15 @@ def test_public_names_docstrings_and_fields_are_domain_neutral() -> None:
                 )
 
     assert offenders == []
+
+
+def test_domain_contract_public_naming_guard_is_recorded_in_playbook() -> None:
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Domain contract public surface domain-neutral naming guard" in playbook
+    for term in sorted(FORBIDDEN_PUBLIC_DOMAIN_TERMS):
+        assert f"`{term}`" in playbook
+    for field_name in sorted(FORBIDDEN_CORE_FIELD_NAMES):
+        assert f"`{field_name}`" in playbook
 
 
 def test_domain_contract_source_guard_coverage_completeness_records_all_guard_groups() -> None:
