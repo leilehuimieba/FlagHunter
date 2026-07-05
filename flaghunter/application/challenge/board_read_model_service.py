@@ -258,7 +258,7 @@ def _candidate_list(
                 action_results,
                 _clean_text(candidate.get("action")),
             )
-            result = _clean_text(latest_result.get("result"))
+            result = _action_result_status(latest_result)
             if result:
                 candidate["lastResult"] = result
     if should_order:
@@ -273,7 +273,7 @@ def _action_result_list(value: JsonValue) -> list[dict[str, JsonValue]]:
     return [
         item
         for item in _mapping_list(value)
-        if _clean_text(item.get("action")) and _clean_text(item.get("result"))
+        if _clean_text(item.get("action")) and _action_result_status(item)
     ]
 
 
@@ -319,7 +319,8 @@ def _recommended_action_projection(
         return {}
     latest_selected_result = _latest_action_result(action_results, selected_action)
     result = _clean_text(
-        latest_selected_result.get("result") or selected_candidate.get("lastResult")
+        _action_result_status(latest_selected_result)
+        or selected_candidate.get("lastResult")
     ).lower()
     if result not in {"failed", "skipped"}:
         return {}
@@ -421,6 +422,14 @@ def _latest_action_result(
         if _clean_text(item.get("action")) == action:
             return item
     return {}
+
+
+def _action_result_status(source: Mapping[str, Any]) -> str:
+    return _clean_text(
+        source.get("result")
+        or source.get("triggerResult")
+        or source.get("trigger_result")
+    )
 
 
 def _candidate_sort_key(candidate: Mapping[str, JsonValue]) -> tuple[float, str]:

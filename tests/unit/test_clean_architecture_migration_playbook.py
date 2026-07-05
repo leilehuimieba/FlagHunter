@@ -266,6 +266,18 @@ def test_playbook_records_candidate_a_neutral_trigger_time_alias_baseline() -> N
     assert "no proof authority behavior changes" in text
 
 
+def test_playbook_records_candidate_a_neutral_trigger_result_alias_baseline() -> None:
+    text = _playbook_text()
+
+    assert "Candidate A neutral trigger result alias baseline" in text
+    assert "trigger_result" in text
+    assert "triggerResult" in text
+    assert "test_task_board_projection_accepts_action_result_trigger_result_alias" in text
+    assert "tests/unit/test_application_board_read_model_service.py" in text
+    assert "no production path switch" in text
+    assert "no proof authority behavior changes" in text
+
+
 def test_playbook_records_next_approval_gate_after_phase4_skeletons() -> None:
     text = _playbook_text()
 
@@ -523,6 +535,7 @@ def test_playbook_records_candidate_a_implementation_readiness_checklist() -> No
         "neutral trigger reason alias baseline",
         "neutral trigger action driver alias baseline",
         "neutral trigger time alias baseline",
+        "neutral trigger result alias baseline",
         "neutral malformed board item projection baseline",
         "neutral recommended action projection baseline",
         "neutral explicit recommendation marker baseline",
@@ -542,6 +555,7 @@ def test_playbook_records_candidate_a_implementation_readiness_checklist() -> No
         "test_task_board_projection_accepts_action_result_trigger_reason_alias",
         "test_task_board_projection_accepts_action_result_trigger_driver_alias",
         "test_task_board_projection_accepts_action_result_trigger_time_alias",
+        "test_task_board_projection_accepts_action_result_trigger_result_alias",
         "test_candidate_a_representative_fixture_locks_public_projection_shape",
         "test_candidate_a_missing_or_malformed_state_snapshot_baseline",
         "test_candidate_a_decision_ingress_action_result_baseline",
