@@ -1459,6 +1459,44 @@ Boundary confirmation for this guard:
 - no ToolExecutor changes
 - no proof authority behavior changes
 
+#### Adapter outer-layer import coverage guard
+
+Status: outer-layer import coverage guard added for adapter skeletons.
+
+`tests/unit/test_adapter_boundary_skeleton.py` now requires the adapter source
+guard to cover every outer production layer while adapter skeletons remain
+unwired:
+
+- `flaghunter.agents`
+- `flaghunter.application`
+- `flaghunter.config`
+- `flaghunter.cpa_modules`
+- `flaghunter.interface`
+- `flaghunter.knowledge`
+- `flaghunter.llm`
+- `flaghunter.mcp`
+- `flaghunter.playbooks`
+- `flaghunter.runtime`
+- `flaghunter.session`
+- `flaghunter.tools`
+- `flaghunter.workspaces`
+
+This guard keeps current adapter skeletons from reaching into application
+services, production configuration, legacy feature modules, playbooks,
+model/runtime code, presentation, MCP, tools, sessions, or workspace helpers
+before a focused adapter-wrapper or production-wiring slice is approved.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter production wiring
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 ### Adapter substitution runway completed
 
 Status: low-risk adapter substitution fixture runway completed.

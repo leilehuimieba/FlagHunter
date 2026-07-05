@@ -44,11 +44,18 @@ EXPECTED_ADAPTER_NAMESPACE_EXPORTS = (
 
 FORBIDDEN_INIT_IMPORT_PREFIXES = (
     "flaghunter.agents",
+    "flaghunter.application",
+    "flaghunter.config",
+    "flaghunter.cpa_modules",
     "flaghunter.interface",
+    "flaghunter.knowledge",
+    "flaghunter.llm",
     "flaghunter.mcp",
+    "flaghunter.playbooks",
     "flaghunter.runtime",
     "flaghunter.session",
     "flaghunter.tools",
+    "flaghunter.workspaces",
 )
 
 FORBIDDEN_ACTION_TOKENS = {
@@ -173,6 +180,31 @@ def test_adapter_package_initializers_do_not_wire_concrete_implementations() -> 
         )
 
     assert offenders == []
+
+
+def test_adapter_forbidden_import_prefixes_cover_outer_production_layers() -> None:
+    required_prefixes = {
+        "flaghunter.agents",
+        "flaghunter.application",
+        "flaghunter.config",
+        "flaghunter.cpa_modules",
+        "flaghunter.interface",
+        "flaghunter.knowledge",
+        "flaghunter.llm",
+        "flaghunter.mcp",
+        "flaghunter.playbooks",
+        "flaghunter.runtime",
+        "flaghunter.session",
+        "flaghunter.tools",
+        "flaghunter.workspaces",
+    }
+
+    assert required_prefixes <= set(FORBIDDEN_INIT_IMPORT_PREFIXES)
+
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Adapter outer-layer import coverage guard" in playbook
+    for prefix in sorted(required_prefixes):
+        assert prefix in playbook
 
 
 def test_adapter_implementation_sources_do_not_wire_concrete_implementations() -> None:
