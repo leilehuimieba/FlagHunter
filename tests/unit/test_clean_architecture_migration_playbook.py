@@ -402,6 +402,7 @@ def test_playbook_records_candidate_a_implementation_readiness_checklist() -> No
         "neutral board projection fixture baseline",
         "neutral evidence projection baseline",
         "neutral degraded projection baseline",
+        "neutral metadata projection baseline",
         "neutral malformed board item projection baseline",
         "neutral recommended action projection baseline",
         "neutral explicit recommendation marker baseline",
@@ -411,6 +412,7 @@ def test_playbook_records_candidate_a_implementation_readiness_checklist() -> No
         assert baseline in text
     for evidence_test in (
         "test_candidate_a_pre_approval_guard_blocks_neutral_builder_wiring",
+        "test_build_promotes_neutral_board_metadata_to_read_model_fields",
         "test_candidate_a_representative_fixture_locks_public_projection_shape",
         "test_candidate_a_missing_or_malformed_state_snapshot_baseline",
         "test_candidate_a_decision_ingress_action_result_baseline",
