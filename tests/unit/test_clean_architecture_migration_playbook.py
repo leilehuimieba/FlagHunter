@@ -294,3 +294,14 @@ def test_playbook_records_adapter_port_substitution_fixture_baseline() -> None:
     assert "tool runner and runtime action adapters" in text
     assert "no concrete runtime or tool executor construction" in text
     assert "no dispatcher, MCP, crew, or proof authority wiring" in text
+
+
+def test_playbook_records_storage_adapter_substitution_fixture_baseline() -> None:
+    text = _playbook_text()
+
+    assert "Storage adapter substitution fixture baseline" in text
+    assert "tests/unit/test_adapter_port_substitution.py" in text
+    assert "state, read model, claim, and checkpoint store adapters" in text
+    assert "fake injected stores can be substituted without production wiring" in text
+    assert "no file-backed store construction" in text
+    assert "no dispatcher, MCP, crew, or proof authority wiring" in text

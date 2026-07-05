@@ -394,6 +394,21 @@ Boundary confirmation for this baseline:
 - no production wiring
 - no behavior changes in existing runtime paths
 
+### Storage adapter substitution fixture baseline
+
+Status: substitution fixture added before production wiring.
+
+`tests/unit/test_adapter_port_substitution.py` now proves fake injected stores can be substituted without production wiring for the state, read model, claim, and checkpoint store adapters.
+The fixture confirms storage adapters delegate to injected stores rather than
+constructing file-backed stores or reaching into runtime task state.
+
+Boundary confirmation for this baseline:
+
+- no file-backed store construction
+- no dispatcher, MCP, crew, or proof authority wiring
+- no production wiring
+- no behavior changes in existing storage paths
+
 ### Next approval gate
 
 The next material step is no longer another neutral skeleton by default; it is
