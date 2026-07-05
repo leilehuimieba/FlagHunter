@@ -1890,10 +1890,10 @@ Status: acceptance matrix recorded, no implementation approved by this section.
 
 | Candidate | Status | Target path | Unblock condition |
 |-----------|--------|-------------|-------------------|
-| Candidate A | approval requested, not approved | `blackboard_lite.py` | explicit Candidate A approval |
-| Candidate B | ready for approval review, not approved | `web_trace_timeline.py` | Candidate A equivalence lands |
-| Candidate C | blocked on Candidate A approval, not approved | `web_serialize_task.py and web_control_decision.py` | Candidate A equivalence lands |
-| Deferred MCP | blocked on Web projection equivalence and explicit MCP approval, not approved | `mcp_tools.py` | Web projection equivalence lands plus explicit MCP approval |
+| Candidate A | approval requested, not approved | `blackboard_lite.py` | explicit Candidate A implementation approval |
+| Candidate B | ready for approval review, not approved | `web_trace_timeline.py` | Candidate A equivalence lands and Candidate B implementation approval |
+| Candidate C | blocked on Candidate A approval, not approved | `web_serialize_task.py and web_control_decision.py` | Candidate A equivalence lands and Candidate C implementation approval |
+| Deferred MCP | blocked on Web projection equivalence and explicit MCP approval, not approved | `mcp_tools.py` | Web projection equivalence lands plus explicit MCP production wiring approval |
 
 Required evidence before any row can move to implementation:
 
@@ -2005,7 +2005,7 @@ this section.
 | Candidate A | approval requested, not approved | `flaghunter/interface/blackboard_lite.py::build_task_blackboard_snapshot` | neutral projection fixtures, Web blackboard fixtures, source guard, pre-approval guard | explicit Candidate A implementation approval |
 | Candidate B | ready for approval review, not approved | `flaghunter/interface/web_trace_timeline.py::_build_control_observation_timeline_events` | characterization fixture, read-only source guard, pre-approval guard | Candidate A equivalence lands and Candidate B implementation approval |
 | Candidate C | blocked on Candidate A approval, not approved | `flaghunter/interface/web_serialize_task.py::_serialize_task` and `flaghunter/interface/web_control_decision.py::_task_blackboard_snapshot_for_decision` | serialize-task fixture, control-decision merge fixture, source guard, pre-approval guard | Candidate A equivalence lands and Candidate C implementation approval |
-| Deferred MCP | blocked on Web projection equivalence and explicit MCP approval, not approved | `flaghunter/mcp/server/mcp_tools.py::_append_blackboard_snapshot_lines` | readback formatting fixture, empty/malformed fixture, source guard, pre-approval guard | Web projection equivalence lands and explicit MCP production wiring approval |
+| Deferred MCP | blocked on Web projection equivalence and explicit MCP approval, not approved | `flaghunter/mcp/server/mcp_tools.py::_append_blackboard_snapshot_lines` | readback formatting fixture, empty/malformed fixture, source guard, pre-approval guard | Web projection equivalence lands plus explicit MCP production wiring approval |
 
 This package records implementation not approved. Any production implementation
 still requires the candidate-specific approval state transition and a single
@@ -2066,6 +2066,19 @@ Required parsed checks:
 - ledger `canonicalStatus` matches the approval package `Current status`
 - ledger `approvedForImplementation` remains `false` for every current row
 - no production path switch is authorized by this parsed consistency guard
+
+#### Read-path nextGate consistency guard
+
+Status: nextGate consistency guard recorded, no implementation approved by this section.
+
+The playbook test suite must parse the same three read-path approval tables and
+prove that each candidate has one canonical blocker before implementation:
+
+- ledger `nextGate` matches the acceptance matrix `Unblock condition`
+- ledger `nextGate` matches the approval package `remaining blocker`
+- every current `nextGate` still requires explicit candidate-specific approval
+- Deferred MCP still requires explicit MCP production wiring approval
+- no production path switch is authorized by this nextGate consistency guard
 
 #### Read-path approval status consistency guard
 

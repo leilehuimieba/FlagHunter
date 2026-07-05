@@ -1001,6 +1001,39 @@ def test_playbook_parses_read_path_candidate_status_consistently() -> None:
         assert ledger_row["canonicalStatus"] == package_rows[candidate]["Current status"]
 
 
+def test_playbook_parses_read_path_next_gate_consistently() -> None:
+    text = _playbook_text()
+    section = _section_text(text, "Read-path nextGate consistency guard")
+
+    assert "Status: nextGate consistency guard recorded, no implementation approved by this section." in section
+    assert "ledger `nextGate` matches the acceptance matrix `Unblock condition`" in section
+    assert "ledger `nextGate` matches the approval package `remaining blocker`" in section
+
+    ledger_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path candidate status ledger")
+        )
+    }
+    acceptance_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path switch acceptance matrix")
+        )
+    }
+    package_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(
+            _section_text(text, "Read-path approval package summary")
+        )
+    }
+
+    assert set(ledger_rows) == set(acceptance_rows) == set(package_rows)
+    for candidate, ledger_row in ledger_rows.items():
+        assert ledger_row["nextGate"] == acceptance_rows[candidate]["Unblock condition"]
+        assert ledger_row["nextGate"] == package_rows[candidate]["remaining blocker"]
+
+
 def test_playbook_records_application_service_source_guard_baseline() -> None:
     text = _playbook_text()
 
