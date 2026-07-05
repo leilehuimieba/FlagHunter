@@ -1086,6 +1086,32 @@ Boundary confirmation for this baseline:
 - no MCP production wiring
 - no proof authority behavior changes
 
+### Candidate A neutral trigger time alias baseline
+
+Status: trigger time alias fixture added before any production path switch.
+
+`build_task_board_projection` now accepts direct action-result trigger time
+metadata as `triggerAt` or `trigger_at` when deriving a recommended action. The
+existing action-result `t` timestamp remains the first source, while the aliases
+keep neutral read-side event payloads display-compatible with Candidate A's
+`triggerAt` field.
+
+`tests/unit/test_application_board_read_model_service.py` records this baseline
+with `test_task_board_projection_accepts_action_result_trigger_time_alias`, so
+future Candidate A read-path equivalence work can compare trigger timestamp
+display fields before touching `blackboard_lite.py`.
+
+Boundary confirmation for this baseline:
+
+- no production path switch
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no proof authority behavior changes
+
 ### Candidate A neutral malformed board item projection baseline
 
 Status: malformed board item fixture added before any production path switch.
@@ -3105,6 +3131,7 @@ baselines recorded:
 - neutral source type alias baseline
 - neutral trigger reason alias baseline
 - neutral trigger action driver alias baseline
+- neutral trigger time alias baseline
 - neutral malformed board item projection baseline
 - neutral recommended action projection baseline
 - neutral explicit recommendation marker baseline
@@ -3121,6 +3148,7 @@ baselines recorded:
   `test_task_board_projection_accepts_candidate_source_type_alias`
   `test_task_board_projection_accepts_action_result_trigger_reason_alias`
   `test_task_board_projection_accepts_action_result_trigger_driver_alias`
+  `test_task_board_projection_accepts_action_result_trigger_time_alias`
   `test_candidate_a_representative_fixture_locks_public_projection_shape`
   `test_candidate_a_missing_or_malformed_state_snapshot_baseline`
   `test_candidate_a_decision_ingress_action_result_baseline`

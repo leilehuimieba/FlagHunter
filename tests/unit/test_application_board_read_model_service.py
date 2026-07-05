@@ -883,6 +883,56 @@ def test_task_board_projection_accepts_action_result_trigger_driver_alias() -> N
     _assert_json_friendly(projection)
 
 
+def test_task_board_projection_accepts_action_result_trigger_time_alias() -> None:
+    from flaghunter.application.challenge.board_read_model_service import (
+        build_task_board_projection,
+    )
+    from flaghunter.domain.challenge.contracts import ChallengeBoardReadModel
+
+    model = ChallengeBoardReadModel(
+        run_id="run-trigger-time-alias",
+        challenge_id="challenge-trigger-time-alias",
+        decisions=[{"nextAction": "collect_initial_facts"}],
+        candidates=[
+            {
+                "action": "collect_initial_facts",
+                "priority": 20,
+                "selected": True,
+            },
+            {
+                "action": "probe_discovered_endpoint",
+                "priority": 11,
+            },
+        ],
+        action_results=[
+            {
+                "action": "collect_initial_facts",
+                "result": "failed",
+                "trigger_at": "2026-06-03T10:00:04+00:00",
+            }
+        ],
+    )
+
+    projection = build_task_board_projection(model)
+
+    assert projection["recommended_action"] == {
+        "action": "probe_discovered_endpoint",
+        "driver": "",
+        "sourceType": "",
+        "reason": "selected action failed; switch to next best candidate",
+        "switchedFrom": "collect_initial_facts",
+        "triggerResult": "failed",
+        "triggerAt": "2026-06-03T10:00:04+00:00",
+    }
+    recommended = [
+        item
+        for item in projection["candidates"]
+        if item["action"] == "probe_discovered_endpoint"
+    ][0]
+    assert recommended["triggerAt"] == "2026-06-03T10:00:04+00:00"
+    _assert_json_friendly(projection)
+
+
 def test_task_board_projection_enriches_selected_and_recommended_candidates() -> None:
     from flaghunter.application.challenge.board_read_model_service import (
         build_task_board_projection,

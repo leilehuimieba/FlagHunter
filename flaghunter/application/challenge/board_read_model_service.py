@@ -352,7 +352,11 @@ def _recommended_action_projection(
         )
         if trigger_action_driver:
             recommended_action["triggerActionDriver"] = trigger_action_driver
-        trigger_at = _clean_text(latest_selected_result.get("t"))
+        trigger_at = _clean_text(
+            latest_selected_result.get("t")
+            or latest_selected_result.get("triggerAt")
+            or latest_selected_result.get("trigger_at")
+        )
         if trigger_at:
             recommended_action["triggerAt"] = trigger_at
         _copy_hypothesis_summary(recommended_action, latest_selected_result)
