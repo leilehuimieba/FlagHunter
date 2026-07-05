@@ -1428,6 +1428,45 @@ Status: source guard added for substitution fixtures.
 This baseline keeps the adapter substitution fixtures focused on fake injected
 ports and prevents them from becoming an accidental production-wiring path.
 
+#### Adapter substitution fixture import coverage guard
+
+Status: import coverage guard added for adapter substitution fixtures.
+
+`tests/unit/test_adapter_substitution_source_guards.py` now requires
+`tests/unit/test_adapter_port_substitution.py` to import only adapter skeletons
+and ports while explicitly forbidding every other FlagHunter layer:
+
+- `flaghunter.agents`
+- `flaghunter.application`
+- `flaghunter.config`
+- `flaghunter.cpa_modules`
+- `flaghunter.domain`
+- `flaghunter.interface`
+- `flaghunter.knowledge`
+- `flaghunter.llm`
+- `flaghunter.mcp`
+- `flaghunter.playbooks`
+- `flaghunter.runtime`
+- `flaghunter.session`
+- `flaghunter.tools`
+- `flaghunter.workspaces`
+
+This guard keeps substitution fixtures focused on fake injected ports and
+prevents them from silently becoming a domain-contract, application-service,
+legacy feature-module, playbook, runtime, MCP, tool, session, or workspace
+integration path.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter production wiring
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 #### Adapter production wiring source guard
 
 Status: production wiring source guard added for adapter skeletons.

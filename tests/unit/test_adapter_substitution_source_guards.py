@@ -8,6 +8,12 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SUBSTITUTION_TEST_PATH = REPO_ROOT / "tests" / "unit" / "test_adapter_port_substitution.py"
+PLAYBOOK_PATH = (
+    REPO_ROOT
+    / "docs"
+    / "dev"
+    / "FlagHunter_Clean_Architecture_Migration_Playbook_v0.1_2026-07-04.md"
+)
 
 ALLOWED_FLAGHUNTER_IMPORT_PREFIXES = (
     "flaghunter.adapters",
@@ -16,14 +22,19 @@ ALLOWED_FLAGHUNTER_IMPORT_PREFIXES = (
 
 FORBIDDEN_IMPORT_PREFIXES = (
     "flaghunter.agents",
+    "flaghunter.application",
     "flaghunter.config",
+    "flaghunter.cpa_modules",
+    "flaghunter.domain",
     "flaghunter.interface",
     "flaghunter.knowledge",
     "flaghunter.llm",
     "flaghunter.mcp",
+    "flaghunter.playbooks",
     "flaghunter.runtime",
     "flaghunter.session",
     "flaghunter.tools",
+    "flaghunter.workspaces",
 )
 
 FORBIDDEN_SIDE_EFFECT_CALLS = {
@@ -114,6 +125,32 @@ def test_adapter_substitution_fixtures_do_not_import_concrete_layers() -> None:
         offenders.append(imported)
 
     assert offenders == []
+
+
+def test_adapter_substitution_forbidden_import_prefixes_cover_all_other_layers() -> None:
+    required_prefixes = {
+        "flaghunter.agents",
+        "flaghunter.application",
+        "flaghunter.config",
+        "flaghunter.cpa_modules",
+        "flaghunter.domain",
+        "flaghunter.interface",
+        "flaghunter.knowledge",
+        "flaghunter.llm",
+        "flaghunter.mcp",
+        "flaghunter.playbooks",
+        "flaghunter.runtime",
+        "flaghunter.session",
+        "flaghunter.tools",
+        "flaghunter.workspaces",
+    }
+
+    assert required_prefixes <= set(FORBIDDEN_IMPORT_PREFIXES)
+
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Adapter substitution fixture import coverage guard" in playbook
+    for prefix in sorted(required_prefixes):
+        assert prefix in playbook
 
 
 def test_adapter_substitution_fixtures_have_no_side_effect_sinks() -> None:
