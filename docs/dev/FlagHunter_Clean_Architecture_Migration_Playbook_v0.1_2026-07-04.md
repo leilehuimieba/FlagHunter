@@ -1816,6 +1816,57 @@ Forbidden scope for this package:
 - no proof authority behavior changes
 - no P5 implementation
 
+#### Read-path implementation landing record template
+
+Status: landing evidence template recorded, no implementation approved by this
+section.
+
+Any future read-path implementation commit must add a candidate-specific landing
+record with these fields before the candidate can move to `implementation
+landed`:
+
+- candidate
+- implementation commit SHA
+- target helper or call-site family
+- old/new output equivalence evidence and fixture name
+- pre-approval guard update made in the same implementation commit
+- focused regression result
+- architecture/source-guard result
+- `git diff --check` result
+- post-push branch status
+- rollback command
+
+The landing record must keep these boundaries explicit:
+
+- one production call-site family per commit
+- no bundled Web and MCP implementation
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring unless the candidate is Deferred MCP and explicit
+  MCP approval is recorded
+- no composition root changes
+- no proof authority behavior changes
+- no P5 implementation
+
+Example landing record shape for a future approved implementation:
+
+```text
+Candidate: <Candidate A | Candidate B | Candidate C | Deferred MCP>
+Implementation commit SHA: <sha>
+Target: <helper or call-site family>
+Equivalence evidence: <test name and result>
+Pre-approval guard update: <guard test name and result>
+Focused regression result: <command and exact result>
+Architecture/source-guard result: <command and exact result>
+git diff --check result: <exact result>
+Post-push branch status: <git status --short --branch>
+Rollback command: git revert <sha>
+Boundary confirmation: <unchanged high-risk areas>
+```
+
 #### Candidate A pre-approval production switch guard
 
 Status: source guard added before Candidate A implementation approval.

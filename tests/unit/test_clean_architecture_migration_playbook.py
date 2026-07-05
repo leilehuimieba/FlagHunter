@@ -734,6 +734,32 @@ def test_playbook_records_read_path_approval_package_summary() -> None:
         assert required_phrase in text
 
 
+def test_playbook_records_read_path_implementation_landing_record_template() -> None:
+    text = _playbook_text()
+
+    assert "Read-path implementation landing record template" in text
+    for required_field in (
+        "candidate",
+        "implementation commit SHA",
+        "old/new output equivalence",
+        "pre-approval guard update",
+        "focused regression result",
+        "architecture/source-guard result",
+        "post-push branch status",
+        "rollback command",
+    ):
+        assert required_field in text
+    for required_boundary in (
+        "no bundled Web and MCP implementation",
+        "no dispatcher loop changes",
+        "no ToolExecutor changes",
+        "no WorkerPool/CrewOrchestrator changes",
+        "no composition root changes",
+        "no proof authority behavior changes",
+    ):
+        assert required_boundary in text
+
+
 def test_playbook_records_application_service_source_guard_baseline() -> None:
     text = _playbook_text()
 
