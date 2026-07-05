@@ -245,6 +245,40 @@ def test_playbook_records_candidate_b_implementation_readiness_checklist() -> No
         assert command in text
 
 
+def test_playbook_records_candidate_b_approved_execution_checklist() -> None:
+    text = _playbook_text()
+    section = _section_text(text, "Candidate B approved execution checklist")
+
+    assert "Status: not approved; checklist only." in section
+    for required_item in (
+        "confirm Candidate A output equivalence has landed",
+        "confirm explicit Candidate B implementation approval",
+        "update the pre-approval guard in the same implementation commit",
+        "edit only `flaghunter/interface/web_trace_timeline.py`",
+        "preserve event IDs, timestamps, `kind`, `title`, `summary`, `driver`, and `input` fields",
+        "prove old/new output equivalence",
+        "record implementation landing evidence",
+        "rollback point: revert the single Candidate B implementation commit",
+    ):
+        assert required_item in section
+    for forbidden_scope in (
+        "do not modify `flaghunter/interface/blackboard_lite.py`",
+        "do not modify `flaghunter/mcp/server/mcp_tools.py`",
+        "do not modify `flaghunter/interface/web_serialize_task.py`",
+        "do not modify `flaghunter/interface/web_control_decision.py`",
+        "no dispatcher loop changes",
+        "no ToolExecutor changes",
+        "no proof authority behavior changes",
+    ):
+        assert forbidden_scope in section
+    for command in (
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/web_console/test_trace_timeline_read_model_switch.py -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py -q",
+        "git diff --check",
+    ):
+        assert command in section
+
+
 def test_playbook_records_candidate_a_source_guard_baseline() -> None:
     text = _playbook_text()
 

@@ -1273,6 +1273,58 @@ Explicit non-goals for the requested Candidate B implementation slice:
 - no proof authority behavior changes
 - no P5 implementation
 
+#### Candidate B approved execution checklist
+
+Status: not approved; checklist only.
+
+If Candidate A output equivalence has landed and explicit Candidate B
+implementation approval is granted, execute the trace timeline read-path switch
+in this order:
+
+- confirm Candidate A output equivalence has landed before editing Candidate B
+  production code
+- confirm explicit Candidate B implementation approval is recorded in the
+  playbook
+- update the pre-approval guard in the same implementation commit that changes
+  the trace timeline read path
+- edit only `flaghunter/interface/web_trace_timeline.py` for the production
+  helper switch
+- preserve event IDs, timestamps, `kind`, `title`, `summary`, `driver`, and `input` fields
+- preserve empty, malformed, unsupported, and no-mutation behavior
+- prove old/new output equivalence in
+  `tests/unit/web_console/test_trace_timeline_read_model_switch.py`
+- record implementation landing evidence using the read-path implementation
+  landing record template
+- rollback point: revert the single Candidate B implementation commit
+
+Forbidden companion edits for the approved Candidate B implementation:
+
+- do not modify `flaghunter/interface/blackboard_lite.py`
+- do not modify `flaghunter/mcp/server/mcp_tools.py`
+- do not modify `flaghunter/interface/web_serialize_task.py`
+- do not modify `flaghunter/interface/web_control_decision.py`
+
+Boundary constraints for the approved Candidate B implementation:
+
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no MCP production wiring
+- no composition root changes
+- no concrete adapter implementation
+- no proof authority behavior changes
+- no P5 implementation
+
+Required verification for the approved Candidate B implementation:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/web_console/test_trace_timeline_read_model_switch.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py -q
+git diff --check
+```
+
 Candidate C: Web task serialization and control-decision snapshot merge.
 
 - Current paths:
