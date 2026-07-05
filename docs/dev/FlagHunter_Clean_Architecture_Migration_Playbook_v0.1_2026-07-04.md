@@ -409,6 +409,22 @@ Boundary confirmation for this baseline:
 - no production wiring
 - no behavior changes in existing storage paths
 
+### Audit/artifact adapter substitution fixture baseline
+
+Status: substitution fixture added before production wiring.
+
+`tests/unit/test_adapter_port_substitution.py` now proves fake injected stores can be substituted without production wiring for the audit and artifact store adapters.
+The fixture confirms audit and artifact adapters delegate to injected stores
+rather than constructing audit logs, artifact files, runtime stores, or
+production persistence paths.
+
+Boundary confirmation for this baseline:
+
+- no audit log or artifact file construction
+- no dispatcher, MCP, crew, or proof authority wiring
+- no production wiring
+- no behavior changes in existing audit or artifact paths
+
 ### Next approval gate
 
 The next material step is no longer another neutral skeleton by default; it is

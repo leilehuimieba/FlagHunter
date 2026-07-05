@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
+from flaghunter.adapters.artifacts.artifact_store_adapter import ArtifactStoreAdapter
+from flaghunter.adapters.audit.audit_store_adapter import AuditStoreAdapter
 from flaghunter.adapters.storage.checkpoint_store_adapter import CheckpointStoreAdapter
 from flaghunter.adapters.storage.claim_store_adapter import ClaimStoreAdapter
 from flaghunter.adapters.storage.read_model_store_adapter import ReadModelStoreAdapter
@@ -11,6 +13,8 @@ from flaghunter.adapters.storage.state_store_adapter import StateStoreAdapter
 from flaghunter.adapters.runtime.runtime_action_adapter import RuntimeActionAdapter
 from flaghunter.adapters.tools.tool_runner_adapter import ToolRunnerAdapter
 from flaghunter.ports import (
+    ArtifactStorePort,
+    AuditStorePort,
     CheckpointStorePort,
     ClaimStorePort,
     ReadModelStorePort,
@@ -197,6 +201,53 @@ class SubstitutableCheckpointStore:
         return {"store": self.label, "checkpointId": checkpoint_id, "snapshot": payload}
 
 
+class SubstitutableAuditStore:
+    def __init__(self, label: str) -> None:
+        self.label = label
+        self.events: list[dict[str, Any]] = []
+        self.append_calls: list[dict[str, Any]] = []
+        self.query_calls: list[Mapping[str, Any] | None] = []
+
+    def append_event(self, event: Mapping[str, Any]) -> Mapping[str, Any]:
+        payload = dict(event)
+        self.append_calls.append(payload)
+        self.events.append(payload)
+        return {"store": self.label, "eventId": f"{self.label}-event", **payload}
+
+    def query_events(
+        self,
+        filters: Mapping[str, Any] | None = None,
+    ) -> list[Mapping[str, Any]]:
+        self.query_calls.append(filters)
+        return [
+            {"store": self.label, **event}
+            for event in self.events
+            if not filters or all(event.get(key) == value for key, value in filters.items())
+        ]
+
+
+class SubstitutableArtifactStore:
+    def __init__(self, label: str) -> None:
+        self.label = label
+        self.artifacts: dict[str, dict[str, Any]] = {}
+        self.register_calls: list[dict[str, Any]] = []
+        self.get_calls: list[str] = []
+
+    def register_artifact(self, artifact: Mapping[str, Any]) -> Mapping[str, Any]:
+        payload = dict(artifact)
+        artifact_id = str(payload.get("artifactId") or f"{self.label}-artifact")
+        self.register_calls.append(payload)
+        self.artifacts[artifact_id] = payload
+        return {"store": self.label, "artifactId": artifact_id, **payload}
+
+    def get_artifact(self, artifact_id: str) -> Mapping[str, Any] | None:
+        self.get_calls.append(artifact_id)
+        artifact = self.artifacts.get(artifact_id)
+        if artifact is None:
+            return None
+        return {"store": self.label, **artifact}
+
+
 async def test_tool_runner_adapter_substitutes_injected_ports_without_wiring() -> None:
     first_runner = FirstToolRunner()
     second_runner = SecondToolRunner()
@@ -309,3 +360,61 @@ def test_storage_adapters_substitute_injected_stores_without_wiring() -> None:
         "checkpointId": "checkpoint-a-checkpoint",
         "snapshot": {"step": "ready"},
     }
+
+
+def test_audit_and_artifact_adapters_substitute_injected_stores_without_wiring() -> None:
+    audit_store = SubstitutableAuditStore("audit-a")
+    artifact_store = SubstitutableArtifactStore("artifact-a")
+    audit_adapter = AuditStoreAdapter(audit_store)
+    artifact_adapter = ArtifactStoreAdapter(artifact_store)
+
+    audit_event = audit_adapter.append_event(
+        {"schemaVersion": 1, "eventType": "taskReceiptRecorded", "runId": "run-1"}
+    )
+    matching_events = list(audit_adapter.query_events({"runId": "run-1"}))
+    missing_events = list(audit_adapter.query_events({"runId": "run-missing"}))
+    artifact = artifact_adapter.register_artifact(
+        {"artifactId": "artifact-1", "kind": "note", "runId": "run-1"}
+    )
+    loaded_artifact = artifact_adapter.get_artifact("artifact-1")
+    missing_artifact = artifact_adapter.get_artifact("missing-artifact")
+
+    assert isinstance(audit_adapter, AuditStorePort)
+    assert isinstance(artifact_adapter, ArtifactStorePort)
+    assert audit_store.append_calls == [
+        {"schemaVersion": 1, "eventType": "taskReceiptRecorded", "runId": "run-1"}
+    ]
+    assert audit_store.query_calls == [{"runId": "run-1"}, {"runId": "run-missing"}]
+    assert audit_event == {
+        "store": "audit-a",
+        "eventId": "audit-a-event",
+        "schemaVersion": 1,
+        "eventType": "taskReceiptRecorded",
+        "runId": "run-1",
+    }
+    assert matching_events == [
+        {
+            "store": "audit-a",
+            "schemaVersion": 1,
+            "eventType": "taskReceiptRecorded",
+            "runId": "run-1",
+        }
+    ]
+    assert missing_events == []
+    assert artifact_store.register_calls == [
+        {"artifactId": "artifact-1", "kind": "note", "runId": "run-1"}
+    ]
+    assert artifact_store.get_calls == ["artifact-1", "missing-artifact"]
+    assert artifact == {
+        "store": "artifact-a",
+        "artifactId": "artifact-1",
+        "kind": "note",
+        "runId": "run-1",
+    }
+    assert loaded_artifact == {
+        "store": "artifact-a",
+        "artifactId": "artifact-1",
+        "kind": "note",
+        "runId": "run-1",
+    }
+    assert missing_artifact is None
