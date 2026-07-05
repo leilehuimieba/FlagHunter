@@ -1913,3 +1913,41 @@ def test_playbook_parses_task_ingress_service_migration_approval_flag_consistenc
     ):
         assert forbidden_phrase not in plan.lower()
         assert forbidden_phrase not in pre_approval.lower()
+
+
+def test_playbook_records_task_ingress_service_migration_landing_record_template() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Task ingress service contract migration landing record template",
+    )
+
+    assert "Status: landing evidence template recorded, implementation not approved." in section
+    for required_field in (
+        "Implementation commit SHA",
+        "Target",
+        "Behavior equivalence evidence",
+        "Port payload compatibility evidence",
+        "Pre-approval guard update",
+        "Focused regression result",
+        "Architecture/source-guard result",
+        "git diff --check result",
+        "Post-push branch status",
+        "Rollback command",
+        "Boundary confirmation",
+    ):
+        assert required_field in section
+    assert "Rollback command: git revert <sha>" in section
+    assert "old/new output equivalence" in section
+    assert "raw `instructions` in the injected port request payload" in section
+    assert "no service migration is authorized by this template" in section
+    for boundary in (
+        "no production wiring",
+        "no MCP server changes",
+        "no dispatcher loop changes",
+        "no ToolExecutor changes",
+        "no composition root changes",
+        "no proof authority behavior changes",
+        "no P5 implementation",
+    ):
+        assert boundary in section

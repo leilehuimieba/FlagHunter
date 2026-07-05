@@ -1066,6 +1066,47 @@ Required consistency:
 - no status-only approval without an explicit approval section and matching
   implementation commit
 
+#### Task ingress service contract migration landing record template
+
+Status: landing evidence template recorded, implementation not approved.
+
+Any future approved task ingress service migration commit must add a completed
+landing record before the service migration can be treated as landed.
+
+Required landing record fields:
+
+- Implementation commit SHA: `<sha>`
+- Target: `flaghunter/application/challenge/task_ingress_service.py`
+- Behavior equivalence evidence: old/new output equivalence test name and
+  result
+- Port payload compatibility evidence: proof that the injected port request
+  still preserves raw `instructions` in the injected port request payload unless
+  an explicitly versioned payload is approved
+- Pre-approval guard update: guard test name and result from the same
+  implementation commit
+- Focused regression result: exact command and result
+- Architecture/source-guard result: exact command and result
+- git diff --check result: exact result
+- Post-push branch status: exact `git status --short --branch`
+- Rollback command: git revert <sha>
+- Boundary confirmation: unchanged high-risk areas
+
+Required boundary confirmation:
+
+- no production wiring
+- no MCP server changes
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no composition root changes
+- no proof authority behavior changes
+- no P5 implementation
+
+This is a template only. It records the required evidence shape for a future
+approved implementation commit; no service migration is authorized by this template.
+
 ### Adapter substitution source guard baseline
 
 Status: source guard added for substitution fixtures.
