@@ -105,6 +105,19 @@ FORBIDDEN_PROOF_AUTHORITY_TOKENS = {
     "verifiedFlags",
 }
 
+REQUIRED_PROOF_AUTHORITY_TOKENS = {
+    "ProofAuthorityPort",
+    "ProofAuthorityAdapter",
+    "append_proof_record",
+    "append_verification_record",
+    "confirm_claim",
+    "upgrade_claim_to_verified",
+    'level="verified"',
+    "level='verified'",
+    "verified_flags",
+    "verifiedFlags",
+}
+
 
 def _parse_substitution_test() -> ast.Module:
     assert SUBSTITUTION_TEST_PATH.is_file(), "adapter substitution fixture must exist"
@@ -210,3 +223,12 @@ def test_adapter_substitution_fixtures_have_no_proof_authority_write_surfaces() 
     )
 
     assert offenders == []
+
+
+def test_adapter_substitution_proof_authority_guard_covers_write_surfaces() -> None:
+    assert REQUIRED_PROOF_AUTHORITY_TOKENS <= FORBIDDEN_PROOF_AUTHORITY_TOKENS
+
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    assert "Adapter substitution fixture proof authority coverage guard" in playbook
+    for token in sorted(REQUIRED_PROOF_AUTHORITY_TOKENS):
+        assert token in playbook

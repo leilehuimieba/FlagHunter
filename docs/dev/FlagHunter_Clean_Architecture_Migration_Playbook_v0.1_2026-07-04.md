@@ -2071,6 +2071,44 @@ Boundary confirmation for this guard:
 - no ToolExecutor changes
 - no proof authority behavior changes
 
+#### Adapter substitution fixture proof authority coverage guard
+
+Status: explicit proof authority write-surface coverage guard added for adapter
+substitution fixtures.
+
+`tests/unit/test_adapter_substitution_source_guards.py` now requires
+`tests/unit/test_adapter_port_substitution.py` to remain free of proof
+authority port construction, proof authority adapter construction, proof record
+writes, verification record writes, claim confirmation, proof upgrade calls,
+accepted-proof literals, and legacy verified buckets:
+
+- `ProofAuthorityPort`
+- `ProofAuthorityAdapter`
+- `append_proof_record`
+- `append_verification_record`
+- `confirm_claim`
+- `upgrade_claim_to_verified`
+- `level="verified"`
+- `level='verified'`
+- `verified_flags`
+- `verifiedFlags`
+
+This guard keeps adapter substitution fixtures focused on replaceability over
+fake injected ports. They may prove adapters can be swapped, but they must not
+construct proof authority surfaces, write accepted proof, confirm claims, or
+simulate proof upgrades.
+
+Boundary confirmation for this guard:
+
+- no production behavior changes
+- no concrete adapter production wiring
+- no composition root changes
+- no MCP production wiring
+- no dispatcher loop changes
+- no runtime construction
+- no ToolExecutor changes
+- no proof authority behavior changes
+
 #### Adapter production wiring source guard
 
 Status: production wiring source guard added for adapter skeletons.
