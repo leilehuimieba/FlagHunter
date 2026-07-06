@@ -2826,6 +2826,43 @@ def test_playbook_records_state_ownership_characterization_readiness_aggregate()
         assert boundary in section
 
 
+def test_playbook_records_ctf_state_snapshot_ownership_characterization_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "CTFState snapshot ownership characterization guard",
+    )
+
+    assert "Status: characterization guard recorded, no State ownership migration." in section
+    assert "test_p1_ctf_state_snapshot_ownership_stays_in_legacy_state_only" in section
+    for guarded_surface in (
+        "`flaghunter/agents/pa_agent/ctf_state.py`",
+        "`CTFState.to_snapshot`",
+        "`CTFState.from_snapshot`",
+    ):
+        assert guarded_surface in section
+    for invariant in (
+        "CTFState remains the only production snapshot owner before explicit State approval",
+        "snapshot ownership characterization does not approve state-store production wiring",
+        "future State implementation approval must update this guard in the same functional slice",
+    ):
+        assert invariant in section
+    for boundary in (
+        "no `CTFState` ownership migration",
+        "no state-store production wiring",
+        "no claim-store production wiring",
+        "no proof-authority behavior changes",
+        "no verifier decision behavior changes",
+        "no ToolExecutor changes",
+        "no Dispatcher changes",
+        "no MCP/Web/CLI/TUI changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_tool_executor_side_effect_split_approval_plan() -> None:
     text = _playbook_text()
     section = _heading_section_text(

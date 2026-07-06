@@ -2893,6 +2893,41 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### CTFState snapshot ownership characterization guard
+
+Status: characterization guard recorded, no State ownership migration.
+
+`tests/unit/agents/test_p1_source_guards.py::test_p1_ctf_state_snapshot_ownership_stays_in_legacy_state_only`
+now locks the current legacy snapshot ownership definitions before any
+state-store ownership split, snapshot adapter substitution, dispatcher
+rewiring, or composition-root migration.
+
+Guarded snapshot owner:
+
+- `flaghunter/agents/pa_agent/ctf_state.py`
+- `CTFState.to_snapshot`
+- `CTFState.from_snapshot`
+
+Required invariants:
+
+- CTFState remains the only production snapshot owner before explicit State approval
+- snapshot ownership characterization does not approve state-store production wiring
+- future State implementation approval must update this guard in the same functional slice
+
+Boundary confirmation for this guard:
+
+- no `CTFState` ownership migration
+- no state-store production wiring
+- no claim-store production wiring
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no ToolExecutor changes
+- no Dispatcher changes
+- no MCP/Web/CLI/TUI changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### State store adapter import unwired guard
 
 Status: source guard recorded, no production wiring approved.
