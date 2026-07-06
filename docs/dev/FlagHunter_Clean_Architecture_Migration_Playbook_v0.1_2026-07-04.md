@@ -3221,6 +3221,54 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### State ownership approval transition coverage guard
+
+Status: coverage guard recorded, State implementation not approved.
+
+Every future State ownership approval transition must keep the same canonical
+governance surface set across approval transition tables before any State
+implementation commit can follow.
+
+| Governance surface | Required before approval transition | Current implementation approved |
+|--------------------|-------------------------------------|---------------------------------|
+| approval package | true | false |
+| approval plan | true | false |
+| readiness aggregate | true | false |
+| approval text template | true | false |
+| proof completion prerequisite | true | false |
+| sequence gate | true | false |
+| landing evidence matrix | true | false |
+| landing evidence | true | false |
+
+Required invariants:
+
+- every State approval transition table must keep the same canonical governance surface set
+- State approval transition coverage must include proof completion prerequisite evidence
+- State approval transition coverage must include landing evidence before implementation
+- coverage evidence must not be treated as State implementation approval
+
+Required verification for this guard:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this guard:
+
+- no `CTFState` ownership migration
+- no state-store production wiring
+- no claim-store production wiring
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### State ownership first slice characterization landing record
 
 Status: first slice characterization landed; no ownership migration.
