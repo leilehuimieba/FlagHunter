@@ -2737,6 +2737,66 @@ Boundary confirmation for this approval plan:
 - no P5 implementation
 - no crew/recovery changes
 
+#### State ownership split approval plan
+
+Status: approval plan recorded, implementation not approved.
+
+Purpose:
+
+- Prepare the first high-risk state ownership review package after read-side,
+  task-ingress, and proof-authority approval planning.
+- Keep state ownership stays in legacy CTFState until explicitly migrated
+  behind neutral state, claim, evidence, proof, artifact, checkpoint, or read
+  model contracts.
+- Make state-store adapter substitution evidence concrete without granting
+  production state split approval by implication.
+
+Candidate scope for a future approved implementation:
+
+- `flaghunter/agents/pa_agent/ctf_state.py`
+- `flaghunter/adapters/state/state_store_adapter.py`
+- `tests/unit/test_state_store_adapter.py`
+- `tests/unit/agents/test_p1_claim_invariants.py`
+- `tests/unit/agents/test_p4_task_dag_replay_audit_bundle.py`
+- playbook governance records for the single approved state ownership slice
+
+Current state ownership surfaces that require explicit review:
+
+- `claims_by_id`
+- `verification_records_by_id`
+- `execution_traces_by_id`
+- `to_snapshot`
+- `from_snapshot`
+- `add_flag`
+- `create_claim`
+
+Required approval:
+
+- explicit state ownership split approval required before implementation
+- one state ownership functional point per commit
+- no status-only approval without matching implementation evidence
+- rollback point: revert the single approved state ownership implementation commit
+
+Required verification for a future approved implementation:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_state_store_adapter.py tests/unit/agents/test_p1_claim_invariants.py tests/unit/agents/test_p4_task_dag_replay_audit_bundle.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py tests/unit/test_adapter_boundary_skeleton.py -q
+git diff --check
+```
+
+Boundary confirmation for this approval plan:
+
+- no implementation approval by this section
+- no proof-authority behavior changes
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Task ingress service contract migration approval flag consistency guard
 
 Status: approval consistency guard updated, implementation landed.

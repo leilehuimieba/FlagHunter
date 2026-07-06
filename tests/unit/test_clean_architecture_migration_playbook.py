@@ -2498,6 +2498,51 @@ def test_playbook_records_verifier_proof_authority_approval_plan() -> None:
         assert command in section
 
 
+def test_playbook_records_state_ownership_split_approval_plan() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "State ownership split approval plan",
+    )
+
+    assert "Status: approval plan recorded, implementation not approved." in section
+    assert "flaghunter/agents/pa_agent/ctf_state.py" in section
+    assert "flaghunter/adapters/state/state_store_adapter.py" in section
+    assert "tests/unit/test_state_store_adapter.py" in section
+    assert "tests/unit/agents/test_p1_claim_invariants.py" in section
+    assert "tests/unit/agents/test_p4_task_dag_replay_audit_bundle.py" in section
+    assert "state ownership stays in legacy CTFState until explicitly migrated" in section
+    assert "rollback point: revert the single approved state ownership implementation commit" in section
+    assert "explicit state ownership split approval required before implementation" in section
+    for required_surface in (
+        "claims_by_id",
+        "verification_records_by_id",
+        "execution_traces_by_id",
+        "to_snapshot",
+        "from_snapshot",
+        "add_flag",
+        "create_claim",
+    ):
+        assert required_surface in section
+    for non_goal in (
+        "no proof-authority behavior changes",
+        "no ToolExecutor changes",
+        "no `CTFTaskDispatcher` flow changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert non_goal in section
+    for command in (
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_state_store_adapter.py tests/unit/agents/test_p1_claim_invariants.py tests/unit/agents/test_p4_task_dag_replay_audit_bundle.py -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py tests/unit/test_adapter_boundary_skeleton.py -q",
+        "git diff --check",
+    ):
+        assert command in section
+
+
 def test_playbook_records_task_ingress_production_wiring_a_landing() -> None:
     text = _playbook_text()
     section = _heading_section_text(
