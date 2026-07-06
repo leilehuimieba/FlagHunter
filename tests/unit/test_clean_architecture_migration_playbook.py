@@ -2779,6 +2779,38 @@ def test_playbook_records_core_implementation_landing_evidence_template() -> Non
         assert command in section
 
 
+def test_playbook_records_core_first_slice_recommendation_gate() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Core first implementation slice recommendation",
+    )
+
+    assert "Status: recommendation recorded, implementation not approved by this section." in section
+    assert "Recommended first approval review: Verifier/proof authority boundary" in section
+    assert "Dispatcher/composition root production wiring remains last" in section
+    rows = _markdown_table_rows(section)
+    assert [row["Order"] for row in rows] == ["1", "2", "3", "4"]
+    assert [row["Core candidate"] for row in rows] == [
+        "Verifier/proof authority boundary",
+        "State ownership split",
+        "ToolExecutor side-effect split",
+        "Dispatcher/composition root production wiring",
+    ]
+    for row in rows:
+        assert row["Implementation approved"] == "false"
+        assert row["First approved slice to request"]
+        assert row["Why this order"]
+    assert rows[0]["First approved slice to request"] == "proof-authority boundary characterization or adapter wrapper with no decision behavior change"
+    assert rows[3]["First approved slice to request"] == "composition-root wiring only after proof, state, and executor seams land"
+    for invariant in (
+        "recommendation does not approve implementation",
+        "human approval must name exactly one core candidate and one first slice",
+        "dispatcher/composition root work must stay last until narrower core seams land",
+    ):
+        assert invariant in section
+
+
 def test_playbook_records_task_ingress_production_wiring_a_landing() -> None:
     text = _playbook_text()
     section = _heading_section_text(

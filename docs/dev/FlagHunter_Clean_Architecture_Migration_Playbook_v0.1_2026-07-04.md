@@ -3047,6 +3047,29 @@ Boundary confirmation for this landing template:
 - no bundled proof, state, executor, dispatcher, composition-root, MCP, and entrypoint changes
 - rollback command must use the real implementation commit SHA
 
+#### Core first implementation slice recommendation
+
+Status: recommendation recorded, implementation not approved by this section.
+
+Recommended first approval review: Verifier/proof authority boundary.
+
+Dispatcher/composition root production wiring remains last because it can
+transitively touch entrypoints, dispatcher flow, state ownership, proof
+authority, executor side effects, and MCP/Web/CLI/TUI behavior at once.
+
+| Order | Core candidate | First approved slice to request | Why this order | Implementation approved |
+|-------|----------------|---------------------------------|----------------|-------------------------|
+| 1 | Verifier/proof authority boundary | proof-authority boundary characterization or adapter wrapper with no decision behavior change | it owns the accepted-proof authority rule and has focused invariants already present | false |
+| 2 | State ownership split | one state snapshot or claim-store ownership seam after proof authority review | state ownership should not move before proof upgrade authority is pinned | false |
+| 3 | ToolExecutor side-effect split | one tool receipt or tool-runner side-effect seam after proof and state seams land | tool execution emits artifacts and receipts that should target stable proof/state boundaries | false |
+| 4 | Dispatcher/composition root production wiring | composition-root wiring only after proof, state, and executor seams land | dispatcher and entrypoint wiring has the widest blast radius and should remain last | false |
+
+Required recommendation invariants:
+
+- recommendation does not approve implementation
+- human approval must name exactly one core candidate and one first slice
+- dispatcher/composition root work must stay last until narrower core seams land
+
 #### Task ingress service contract migration approval flag consistency guard
 
 Status: approval consistency guard updated, implementation landed.
