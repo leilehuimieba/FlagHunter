@@ -3755,7 +3755,7 @@ The four core production approval packages are now recorded, but approval packag
 | Verifier/proof authority boundary | `Verifier/proof authority boundary approval plan` | `Proof authority characterization readiness aggregate` | false | not approved |
 | State ownership split | `State ownership split approval plan` | `State ownership characterization readiness aggregate` | false | not approved |
 | ToolExecutor side-effect split | `ToolExecutor side-effect split approval plan` | `ToolExecutor side-effect characterization readiness aggregate` | false | not approved |
-| Dispatcher/composition root production wiring | `Dispatcher/composition root production wiring approval plan` | `Dispatcher composition root readiness characterization guard` | false | not approved |
+| Dispatcher/composition root production wiring | `Dispatcher/composition root production wiring approval plan` | `Dispatcher composition root characterization readiness aggregate` | false | not approved |
 
 Required aggregate invariants:
 
@@ -4137,6 +4137,62 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Dispatcher composition root characterization readiness aggregate
+
+Status: aggregate guard recorded, production wiring not approved.
+
+This aggregate keeps the dispatcher/composition-root production wiring runway
+visible as approval package evidence, not production wiring approval.
+
+Required characterization guards:
+
+- Dispatcher composition root readiness characterization guard
+- CTFTaskDispatcher legacy construction characterization guard
+- Session composition root characterization guard
+- Entrypoint composition root usage characterization guard
+- MCP task execution composition-root wiring landing record
+- MCP task execution behavior equivalence hardening record
+- MCP task execution post-wiring source guard
+
+Focused guard tests:
+
+- `test_p1_composition_root_readiness_stays_unwired_from_new_public_surfaces`
+- `test_p1_ctf_task_dispatcher_construction_stays_in_current_legacy_entrypoints`
+- `test_session_composition_root_characterizes_current_assembly_owner`
+- `test_presentation_entrypoints_currently_use_agent_session_create`
+- `test_mcp_task_execution_routes_construction_through_agent_session_after_approval`
+- `test_mcp_make_agent_routes_task_construction_through_agent_session`
+- `test_mcp_task_execution_behavior_equivalence_survives_session_construction`
+- `test_mcp_task_execution_session_wiring_stays_inside_mcp_tools`
+
+Retained compatibility surfaces:
+
+- `CTFTaskDispatcher` legacy construction surfaces
+- `AgentSession.create` entrypoint usage
+- MCP task execution `_make_agent` session construction
+- MCP external response shape and TaskEntry lifecycle
+- MCP router, transport, and bootstrap stay unwired from task construction
+
+Dispatcher/composition root production wiring remains unapproved. These guards
+only prove the current dispatcher construction surface, current session and
+entrypoint composition-root usage, approved MCP task construction slice,
+post-wiring MCP behavior equivalence, and source boundary are characterized
+before a future explicit production wiring approval.
+
+Boundary confirmation for this aggregate:
+
+- no `CTFTaskDispatcher` flow changes
+- no composition root production wiring
+- no MCP router changes
+- no MCP server bootstrap changes
+- no unapproved MCP task execution wiring changes
+- no Web/CLI/TUI task wiring changes
+- no ToolExecutor changes
+- no `CTFState` ownership split
+- no proof-authority behavior changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Dispatcher production wiring approval package consistency guard
 
 Status: approval package consistency guard recorded, no production wiring.
@@ -4148,7 +4204,7 @@ aligned before any future approval transition or implementation commit.
 | Governance surface | Required heading | Required before approval transition | Current implementation approved |
 |--------------------|------------------|-------------------------------------|---------------------------------|
 | approval plan | `Dispatcher/composition root production wiring approval plan` | true | false |
-| readiness guard | `Dispatcher composition root readiness characterization guard` | true | false |
+| readiness aggregate | `Dispatcher composition root characterization readiness aggregate` | true | false |
 | approval text template | `Dispatcher composition root first slice approval text template` | true | false |
 | aggregate row | `Core production approval package aggregate guard` | true | false |
 | landing evidence template | `Core implementation landing evidence template` | true | false |
@@ -4156,7 +4212,7 @@ aligned before any future approval transition or implementation commit.
 Required invariants:
 
 - dispatcher production wiring approval requires every governance surface to agree
-- readiness guard evidence must match the aggregate row and approval text template
+- readiness aggregate evidence must match the aggregate row and approval text template
 - landing evidence remains template-only until a real implementation commit exists
 - no dispatcher/composition-root production wiring may be inferred from this consistency guard
 

@@ -3025,7 +3025,7 @@ def test_playbook_records_core_approval_package_aggregate_guard() -> None:
         "Verifier/proof authority boundary": "Proof authority characterization readiness aggregate",
         "State ownership split": "State ownership characterization readiness aggregate",
         "ToolExecutor side-effect split": "ToolExecutor side-effect characterization readiness aggregate",
-        "Dispatcher/composition root production wiring": "Dispatcher composition root readiness characterization guard",
+        "Dispatcher/composition root production wiring": "Dispatcher composition root characterization readiness aggregate",
     }
     for candidate, plan_heading in expected_plans.items():
         assert rows[candidate]["Approval package"] == f"`{plan_heading}`"
@@ -3152,7 +3152,7 @@ def test_playbook_records_dispatcher_production_wiring_approval_package_consiste
     }
     expected_rows = {
         "approval plan": "Dispatcher/composition root production wiring approval plan",
-        "readiness guard": "Dispatcher composition root readiness characterization guard",
+        "readiness aggregate": "Dispatcher composition root characterization readiness aggregate",
         "approval text template": "Dispatcher composition root first slice approval text template",
         "aggregate row": "Core production approval package aggregate guard",
         "landing evidence template": "Core implementation landing evidence template",
@@ -3165,7 +3165,7 @@ def test_playbook_records_dispatcher_production_wiring_approval_package_consiste
         assert heading in text
     for invariant in (
         "dispatcher production wiring approval requires every governance surface to agree",
-        "readiness guard evidence must match the aggregate row and approval text template",
+        "readiness aggregate evidence must match the aggregate row and approval text template",
         "landing evidence remains template-only until a real implementation commit exists",
         "no dispatcher/composition-root production wiring may be inferred from this consistency guard",
     ):
@@ -3437,6 +3437,61 @@ def test_playbook_records_mcp_task_execution_post_wiring_source_guard() -> None:
         "no crew/recovery changes",
     ):
         assert forbidden in section
+
+
+def test_playbook_records_dispatcher_composition_root_characterization_readiness_aggregate() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Dispatcher composition root characterization readiness aggregate",
+    )
+
+    assert "Status: aggregate guard recorded, production wiring not approved." in section
+    for required_guard in (
+        "Dispatcher composition root readiness characterization guard",
+        "CTFTaskDispatcher legacy construction characterization guard",
+        "Session composition root characterization guard",
+        "Entrypoint composition root usage characterization guard",
+        "MCP task execution composition-root wiring landing record",
+        "MCP task execution behavior equivalence hardening record",
+        "MCP task execution post-wiring source guard",
+    ):
+        assert required_guard in section
+    for focused_test in (
+        "test_p1_composition_root_readiness_stays_unwired_from_new_public_surfaces",
+        "test_p1_ctf_task_dispatcher_construction_stays_in_current_legacy_entrypoints",
+        "test_session_composition_root_characterizes_current_assembly_owner",
+        "test_presentation_entrypoints_currently_use_agent_session_create",
+        "test_mcp_task_execution_routes_construction_through_agent_session_after_approval",
+        "test_mcp_make_agent_routes_task_construction_through_agent_session",
+        "test_mcp_task_execution_behavior_equivalence_survives_session_construction",
+        "test_mcp_task_execution_session_wiring_stays_inside_mcp_tools",
+    ):
+        assert focused_test in section
+    for retained_surface in (
+        "`CTFTaskDispatcher` legacy construction surfaces",
+        "`AgentSession.create` entrypoint usage",
+        "MCP task execution `_make_agent` session construction",
+        "MCP external response shape and TaskEntry lifecycle",
+        "MCP router, transport, and bootstrap stay unwired from task construction",
+    ):
+        assert retained_surface in section
+    assert "Dispatcher/composition root production wiring remains unapproved" in section
+    assert "approval package evidence, not production wiring approval" in section
+    for boundary in (
+        "no `CTFTaskDispatcher` flow changes",
+        "no composition root production wiring",
+        "no MCP router changes",
+        "no MCP server bootstrap changes",
+        "no unapproved MCP task execution wiring changes",
+        "no Web/CLI/TUI task wiring changes",
+        "no ToolExecutor changes",
+        "no `CTFState` ownership split",
+        "no proof-authority behavior changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
 
 
 def test_playbook_records_state_ownership_first_slice_approval_text_template() -> None:
