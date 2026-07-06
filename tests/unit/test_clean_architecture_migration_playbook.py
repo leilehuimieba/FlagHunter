@@ -2517,7 +2517,8 @@ def test_playbook_records_state_ownership_split_approval_plan() -> None:
 
     assert "Status: approval plan recorded, implementation not approved." in section
     assert "flaghunter/agents/pa_agent/ctf_state.py" in section
-    assert "flaghunter/adapters/state/state_store_adapter.py" in section
+    assert "flaghunter/adapters/storage/state_store_adapter.py" in section
+    assert "flaghunter/adapters/state/state_store_adapter.py" not in section
     assert "tests/unit/test_state_store_adapter.py" in section
     assert "tests/unit/agents/test_p1_claim_invariants.py" in section
     assert "tests/unit/agents/test_p4_task_dag_replay_audit_bundle.py" in section
@@ -2589,6 +2590,31 @@ def test_playbook_records_ctf_state_legacy_construction_characterization_guard()
         "no composition root changes",
         "no P5 implementation",
         "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
+def test_playbook_records_state_store_adapter_import_unwired_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "State store adapter import unwired guard",
+    )
+
+    assert "Status: source guard recorded, no production wiring approved." in section
+    assert "test_p1_state_store_adapter_stays_unwired_from_production_imports" in section
+    for expected in (
+        "`flaghunter/adapters/storage/__init__.py`",
+        "`flaghunter/adapters/storage/state_store_adapter.py`",
+        "`StateStoreAdapter`",
+    ):
+        assert expected in section
+    for boundary in (
+        "no state-store production wiring",
+        "no `CTFState` ownership split",
+        "no dispatcher flow changes",
+        "no composition root changes",
+        "no proof-authority behavior changes",
     ):
         assert boundary in section
 

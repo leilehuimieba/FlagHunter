@@ -2808,7 +2808,7 @@ Purpose:
 Candidate scope for a future approved implementation:
 
 - `flaghunter/agents/pa_agent/ctf_state.py`
-- `flaghunter/adapters/state/state_store_adapter.py`
+- `flaghunter/adapters/storage/state_store_adapter.py`
 - `tests/unit/test_state_store_adapter.py`
 - `tests/unit/agents/test_p1_claim_invariants.py`
 - `tests/unit/agents/test_p4_task_dag_replay_audit_bundle.py`
@@ -2888,6 +2888,42 @@ Boundary confirmation for this guard:
 - no MCP production wiring
 - no Web/CLI/TUI task wiring changes
 - no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
+#### State store adapter import unwired guard
+
+Status: source guard recorded, no production wiring approved.
+
+`tests/unit/agents/test_p1_source_guards.py::test_p1_state_store_adapter_stays_unwired_from_production_imports`
+now locks the state-store adapter as an unwired production surface before any
+state ownership split, state-store production wiring, dispatcher rewiring, or
+composition-root migration.
+
+Current allowed adapter skeleton files:
+
+- `flaghunter/adapters/storage/__init__.py`
+- `flaghunter/adapters/storage/state_store_adapter.py`
+
+Guarded adapter name:
+
+- `StateStoreAdapter`
+
+This keeps the state-store adapter skeleton importable for its adapter tests
+and package re-export, while preventing presentation, application services,
+entrypoints, dispatcher, state, runtime, MCP, or composition-root-adjacent
+modules from importing or wiring it before explicit state ownership approval.
+
+Boundary confirmation for this guard:
+
+- no state-store production wiring
+- no `CTFState` ownership split
+- no dispatcher flow changes
+- no composition root changes
+- no proof-authority behavior changes
+- no ToolExecutor changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
 - no P5 implementation
 - no crew/recovery changes
 
