@@ -5940,6 +5940,23 @@ def test_playbook_records_verifier_proof_authority_completion_approval_package_a
         assert boundary in section
 
 
+def test_playbook_records_verifier_proof_authority_completion_finalization_surfaces() -> None:
+    text = _playbook_text()
+    required_sections = (
+        "Verifier proof authority core landing completion approval checklist",
+        "Verifier proof authority completion approval package aggregate guard",
+        "Core implementation landing evidence completeness matrix",
+        "Core implementation sequence gate",
+        "State ownership unlock blocked until proof completion guard",
+    )
+
+    for heading in required_sections:
+        section = _heading_section_text(text, heading)
+        assert "proof boundary core landing finalization: same-commit governance transition" in section
+        assert "no proof-authority behavior changes" in section
+        assert "no verifier decision behavior changes" in section
+
+
 def test_playbook_records_verifier_proof_authority_completion_approval_text_template() -> None:
     text = _playbook_text()
     section = _heading_section_text(

@@ -5445,6 +5445,8 @@ Boundary confirmation for this landing template:
 
 Status: landing evidence matrix recorded; proof completion transitioned without production behavior approval.
 
+proof boundary core landing finalization: same-commit governance transition.
+
 This matrix keeps the future landing evidence requirement explicit for every
 high-risk core candidate. The verifier/proof-authority row is complete only as
 a governance-only proof completion transition. The remaining rows stay
@@ -5484,6 +5486,7 @@ Required invariants:
 Boundary confirmation for this matrix:
 
 - no proof-authority behavior changes
+- no verifier decision behavior changes
 - no `CTFState` ownership split
 - no ToolExecutor changes
 - no `CTFTaskDispatcher` flow changes
@@ -5562,6 +5565,8 @@ Required recommendation invariants:
 
 Status: sequence gate recorded; proof completion landed, State is next approvable.
 
+proof boundary core landing finalization: same-commit governance transition.
+
 This gate records which high-risk core candidate may be reviewed next and which
 candidates remain blocked by earlier landing evidence. It prevents later,
 wider-impact implementation work from skipping narrower unresolved seams.
@@ -5583,6 +5588,7 @@ Required invariants:
 Boundary confirmation for this gate:
 
 - no proof-authority behavior changes
+- no verifier decision behavior changes
 - no `CTFState` ownership split
 - no ToolExecutor changes
 - no `CTFTaskDispatcher` flow changes
@@ -5900,6 +5906,8 @@ Boundary confirmation for this transition:
 
 Status: governance-only completion approved and transitioned.
 
+proof boundary core landing finalization: same-commit governance transition.
+
 This checklist records the exact review surfaces that must be reconciled
 before the verifier/proof-authority boundary can be marked complete enough to
 unblock State ownership split review.
@@ -6045,6 +6053,8 @@ Boundary confirmation for this guard:
 
 Status: aggregate complete for governance-only proof completion.
 
+proof boundary core landing finalization: same-commit governance transition.
+
 This aggregate keeps the proof completion approval package visible as one
 review unit. It does not approve implementation, completion, production
 wiring, behavior changes, or State unlock by itself.
@@ -6142,6 +6152,8 @@ Boundary confirmation for this template:
 #### State ownership unlock blocked until proof completion guard
 
 Status: proof completion landed; State ownership review is next approvable.
+
+proof boundary core landing finalization: same-commit governance transition.
 
 This guard keeps State ownership split review tied to proof-boundary completion
 rather than to partial characterization landings. State characterization work
