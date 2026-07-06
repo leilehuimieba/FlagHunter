@@ -3076,6 +3076,7 @@ Required characterization guards:
 
 - CTFState legacy construction characterization guard
 - State store adapter import unwired guard
+- Claim store adapter import unwired guard
 - State store adapter delegate-only guard hardening
 - Claim store adapter delegate-only guard hardening
 - Storage adapter namespace re-export guard
@@ -3084,6 +3085,7 @@ Focused guard tests:
 
 - `test_p1_ctf_state_construction_stays_in_current_legacy_surfaces`
 - `test_p1_state_store_adapter_stays_unwired_from_production_imports`
+- `test_p1_claim_store_adapter_stays_unwired_from_production_imports`
 - `test_state_store_adapter_action_bodies_remain_direct_delegate_only`
 - `test_claim_store_adapter_action_bodies_remain_direct_delegate_only`
 - `test_storage_adapter_namespace_is_reexport_only`
