@@ -4386,6 +4386,38 @@ def test_playbook_records_ctf_state_unwired_store_ports_guard() -> None:
         assert boundary in section
 
 
+def test_playbook_records_ctf_state_store_name_reference_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "CTFState store name reference source guard",
+    )
+
+    assert "Status: source guard hardened, no State ownership migration." in section
+    assert "test_p1_ctf_state_stays_unwired_from_state_and_claim_store_ports" in section
+    for guarded_reference in (
+        "imports",
+        "imported names",
+        "name references",
+        "attribute references",
+        "constructor calls",
+    ):
+        assert guarded_reference in section
+    for forbidden_name in (
+        "`StateStoreAdapter`",
+        "`ClaimStoreAdapter`",
+        "`StateStorePort`",
+        "`ClaimStorePort`",
+    ):
+        assert forbidden_name in section
+    for invariant in (
+        "CTFState must not reference store ports or adapters before explicit State implementation approval",
+        "store name absence is stronger than import absence",
+        "future State implementation approval must update this guard in the same functional slice",
+    ):
+        assert invariant in section
+
+
 def test_playbook_records_state_characterization_landing_evidence_aggregate_guard() -> None:
     text = _playbook_text()
     section = _heading_section_text(

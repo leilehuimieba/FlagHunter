@@ -743,6 +743,26 @@ def test_p1_ctf_state_stays_unwired_from_state_and_claim_store_ports() -> None:
                     offenders.append((path, imported_name, node.lineno))
             self.generic_visit(node)
 
+        def visit_Name(self, node: ast.Name) -> None:
+            if node.id in forbidden_names:
+                offenders.append((path, node.id, node.lineno))
+            self.generic_visit(node)
+
+        def visit_Attribute(self, node: ast.Attribute) -> None:
+            if node.attr in forbidden_names:
+                offenders.append((path, node.attr, node.lineno))
+            self.generic_visit(node)
+
+        def visit_Call(self, node: ast.Call) -> None:
+            call_name = ""
+            if isinstance(node.func, ast.Name):
+                call_name = node.func.id
+            elif isinstance(node.func, ast.Attribute):
+                call_name = node.func.attr
+            if call_name in forbidden_names:
+                offenders.append((path, call_name, node.lineno))
+            self.generic_visit(node)
+
     StateWiringImportVisitor().visit(_parse_source(path))
 
     assert offenders == []
