@@ -3034,6 +3034,46 @@ def test_playbook_records_proof_adapter_wrapper_delegate_only_preapproval_guard(
         assert command in section
 
 
+def test_playbook_records_verifier_proof_authority_first_slice_landing() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Verifier proof authority boundary first slice landing record",
+    )
+
+    assert "Status: first slice landed after explicit approval." in section
+    assert "Verifier/proof authority boundary: first slice landed" in section
+    for approved_scope in (
+        "proof-authority boundary characterization",
+        "adapter wrappers remain delegate-only",
+        "VerifierAdapter.review_claim",
+        "ProofAuthorityAdapter.append_proof_record",
+        "ProofAuthorityAdapter.confirm_claim",
+    ):
+        assert approved_scope in section
+    for forbidden_scope in (
+        "no proof authority production wiring",
+        "no verifier production wiring",
+        "no verifier decision behavior changes",
+        "no proof-authority behavior changes",
+        "no `CTFState` ownership split",
+        "no ToolExecutor changes",
+        "no `CTFTaskDispatcher` flow changes",
+        "no composition root changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert forbidden_scope in section
+    for required_evidence in (
+        "Proof authority characterization readiness aggregate reviewed",
+        "Proof adapter wrapper delegate-only pre-approval guard reviewed",
+        "Rollback command: git revert <Verifier proof authority first slice commit>",
+    ):
+        assert required_evidence in section
+
+
 def test_playbook_records_task_ingress_production_wiring_a_landing() -> None:
     text = _playbook_text()
     section = _heading_section_text(

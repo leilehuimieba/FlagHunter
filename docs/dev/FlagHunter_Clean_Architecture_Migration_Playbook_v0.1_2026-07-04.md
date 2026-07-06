@@ -3323,6 +3323,69 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Verifier proof authority boundary first slice landing record
+
+Status: first slice landed after explicit approval.
+
+Current approval fact:
+
+- Verifier/proof authority boundary: first slice landed
+
+Approved scope:
+
+- proof-authority boundary characterization
+- adapter wrappers remain delegate-only
+- `VerifierAdapter.review_claim`
+- `ProofAuthorityAdapter.append_proof_record`
+- `ProofAuthorityAdapter.confirm_claim`
+
+Readiness evidence reviewed:
+
+- Proof authority characterization readiness aggregate reviewed
+- Proof adapter wrapper delegate-only pre-approval guard reviewed
+
+Implementation summary:
+
+- The first slice records the approved verifier/proof-authority boundary
+  characterization landing without changing production proof behavior.
+- Existing proof adapter wrappers remain delegate-only skeletons over injected
+  ports and do not construct `CTFVerifier`, call `CTFState`, or wire
+  production proof authority.
+- This landing confirms the next proof-boundary step still needs a separate
+  approval before any production wiring, verifier decision behavior, or state
+  ownership migration.
+
+Red test evidence:
+
+- `tests/unit/test_clean_architecture_migration_playbook.py::test_playbook_records_verifier_proof_authority_first_slice_landing`
+  failed before this record existed with:
+  `AssertionError: missing heading: Verifier proof authority boundary first slice landing record`
+
+Required verification for this landing:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_verifier_adapter.py tests/unit/test_proof_authority_adapter.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/agents/test_p1_source_guards.py tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Rollback command: git revert <Verifier proof authority first slice commit>
+
+Boundary confirmation for this landing:
+
+- no proof authority production wiring
+- no verifier production wiring
+- no verifier decision behavior changes
+- no proof-authority behavior changes
+- no `CTFState` ownership split
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no composition root changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Task ingress service contract migration approval flag consistency guard
 
 Status: approval consistency guard updated, implementation landed.
