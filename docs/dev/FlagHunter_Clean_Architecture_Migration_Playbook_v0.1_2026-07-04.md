@@ -4838,6 +4838,59 @@ Boundary confirmation for this checklist:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Verifier proof authority completion transition atomicity guard
+
+Status: transition atomicity guard recorded, completion not approved.
+
+Any future verifier/proof-authority completion transition must update every
+listed governance surface in the same functional commit. This prevents a
+partial checklist-only update from being mistaken for proof completion or from
+unlocking State ownership review before the matrix and sequence gate agree.
+
+Required reference surfaces:
+
+- Verifier proof authority core landing completion approval checklist
+- Verifier proof authority partial landing reconciliation guard
+- Core implementation landing evidence completeness matrix
+- Core implementation sequence gate
+- State ownership unlock blocked until proof completion guard
+
+| Transition surface | Required update in same commit | Current transition complete |
+|--------------------|--------------------------------|-----------------------------|
+| proof completion approval | explicit approval state recorded | false |
+| proof landing matrix row | proof row complete | false |
+| sequence gate proof row | proof row landed | false |
+| State unlock guard | State impact reconciled | false |
+
+Required invariants:
+
+- proof completion cannot be marked complete by updating only the checklist
+- proof completion transition must update matrix, sequence gate, and State unlock guard together
+- partial completion transitions must fail review
+- State remains blocked until the proof completion transition commit is complete
+
+Required verification for this guard:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this guard:
+
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no proof authority production wiring
+- no verifier production wiring
+- no `CTFState` ownership split
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### State ownership unlock blocked until proof completion guard
 
 Status: unlock guard recorded, State ownership remains blocked.

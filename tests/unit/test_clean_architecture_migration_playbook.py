@@ -4492,6 +4492,72 @@ def test_playbook_records_verifier_proof_authority_core_landing_completion_appro
         assert boundary in section
 
 
+def test_playbook_records_verifier_proof_authority_completion_transition_atomicity_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Verifier proof authority completion transition atomicity guard",
+    )
+
+    assert "Status: transition atomicity guard recorded, completion not approved." in section
+    for required_heading in (
+        "Verifier proof authority core landing completion approval checklist",
+        "Verifier proof authority partial landing reconciliation guard",
+        "Core implementation landing evidence completeness matrix",
+        "Core implementation sequence gate",
+        "State ownership unlock blocked until proof completion guard",
+    ):
+        assert required_heading in section
+    rows = {
+        row["Transition surface"]: row
+        for row in _markdown_table_rows(section)
+    }
+    expected = {
+        "proof completion approval": {
+            "Required update in same commit": "explicit approval state recorded",
+            "Current transition complete": "false",
+        },
+        "proof landing matrix row": {
+            "Required update in same commit": "proof row complete",
+            "Current transition complete": "false",
+        },
+        "sequence gate proof row": {
+            "Required update in same commit": "proof row landed",
+            "Current transition complete": "false",
+        },
+        "State unlock guard": {
+            "Required update in same commit": "State impact reconciled",
+            "Current transition complete": "false",
+        },
+    }
+    assert set(rows) == set(expected)
+    for surface, expected_values in expected.items():
+        for column, value in expected_values.items():
+            assert rows[surface][column] == value
+    for invariant in (
+        "proof completion cannot be marked complete by updating only the checklist",
+        "proof completion transition must update matrix, sequence gate, and State unlock guard together",
+        "partial completion transitions must fail review",
+        "State remains blocked until the proof completion transition commit is complete",
+    ):
+        assert invariant in section
+    for boundary in (
+        "no proof-authority behavior changes",
+        "no verifier decision behavior changes",
+        "no proof authority production wiring",
+        "no verifier production wiring",
+        "no `CTFState` ownership split",
+        "no ToolExecutor changes",
+        "no `CTFTaskDispatcher` flow changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_state_unlock_blocked_until_proof_completion_guard() -> None:
     text = _playbook_text()
     section = _heading_section_text(
