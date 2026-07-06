@@ -2963,6 +2963,49 @@ Boundary confirmation for this aggregate guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Core approval queue aggregate consistency guard
+
+Status: queue aggregate consistency guard recorded, implementation not approved by this section.
+
+The post read-side core decoupling approval queue and the core production
+approval package aggregate guard describe the same four high-risk candidates.
+Their queue rows and aggregate rows must stay aligned before any core
+implementation approval can land.
+
+Required approval text copied from the queue:
+
+- explicit proof-authority approval
+- explicit state ownership split approval
+- explicit ToolExecutor side-effect split approval
+- explicit dispatcher and composition-root approval
+
+Required verification families copied from the queue:
+
+- verifier fixture, proof authority invariants, P1 claim invariants, source guards, `git diff --check`
+- state snapshot fixtures, replay/readback fixtures, import/source guards, `git diff --check`
+- tool receipt fixtures, executor guard fixtures, finish control receipt, architecture/source guards, `git diff --check`
+- dispatcher focused, entrypoint focused, MCP/web/CLI smoke guards, architecture/source guards, `git diff --check`
+
+Required aggregate invariants:
+
+- queue rows and aggregate rows must stay aligned
+- required approval text must remain visible before implementation
+- required verification text must remain visible before implementation
+- no core implementation approval may be inferred from either table alone
+
+Boundary confirmation for this consistency guard:
+
+- no implementation approval by this section
+- no proof-authority behavior changes
+- no `CTFState` ownership split
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Task ingress service contract migration approval flag consistency guard
 
 Status: approval consistency guard updated, implementation landed.

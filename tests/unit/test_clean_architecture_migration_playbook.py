@@ -2685,6 +2685,55 @@ def test_playbook_records_core_approval_package_aggregate_guard() -> None:
         assert command in section
 
 
+def test_playbook_core_approval_queue_matches_aggregate_guard() -> None:
+    text = _playbook_text()
+    queue_section = _heading_section_text(
+        text,
+        "Post read-side core decoupling approval queue",
+    )
+    aggregate_section = _heading_section_text(
+        text,
+        "Core approval queue aggregate consistency guard",
+    )
+
+    assert "Status: queue aggregate consistency guard recorded, implementation not approved by this section." in aggregate_section
+    assert "queue rows and aggregate rows must stay aligned" in aggregate_section
+
+    queue_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(queue_section.split("Queue rules:", 1)[0])
+    }
+    aggregate_rows = {
+        row["Core candidate"]: row
+        for row in _markdown_table_rows(
+            _heading_section_text(
+                text,
+                "Core production approval package aggregate guard",
+            )
+        )
+    }
+
+    core_candidates = [
+        "Verifier/proof authority boundary",
+        "State ownership split",
+        "ToolExecutor side-effect split",
+        "Dispatcher/composition root production wiring",
+    ]
+    assert list(aggregate_rows) == core_candidates
+    for candidate in core_candidates:
+        assert queue_rows[candidate]["Current status"] == aggregate_rows[candidate]["Current implementation state"]
+        assert queue_rows[candidate]["Implementation approved"] == aggregate_rows[candidate]["Implementation approved"]
+        assert queue_rows[candidate]["Required approval"] in aggregate_section
+
+    for invariant in (
+        "queue rows and aggregate rows must stay aligned",
+        "required approval text must remain visible before implementation",
+        "required verification text must remain visible before implementation",
+        "no core implementation approval may be inferred from either table alone",
+    ):
+        assert invariant in aggregate_section
+
+
 def test_playbook_records_task_ingress_production_wiring_a_landing() -> None:
     text = _playbook_text()
     section = _heading_section_text(
