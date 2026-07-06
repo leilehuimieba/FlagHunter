@@ -3795,6 +3795,47 @@ Boundary confirmation for this landing template:
 - readiness evidence must match the core aggregate row for the approved candidate
 - rollback command must use the real implementation commit SHA
 
+#### Dispatcher landing evidence rollback guard
+
+Status: rollback guard recorded, no production wiring approved.
+
+Future dispatcher/composition-root production wiring landing evidence must
+record an executable rollback path tied to the same real implementation commit.
+Placeholders are planning aids only and do not count as rollback evidence.
+
+| Landing field | Required value | Current complete |
+|---------------|----------------|------------------|
+| implementation commit SHA | real full commit SHA | false |
+| rollback command | `git revert <dispatcher production wiring implementation commit>` | false |
+| post-push branch status | `git status --short --branch` after push | false |
+| scope confirmation | one dispatcher/composition-root functional point | false |
+
+Required invariants:
+
+- placeholder rollback commands are not executable rollback evidence
+- rollback command must point at the same real implementation commit SHA
+- dispatcher landing evidence cannot be recorded before explicit production wiring approval
+- landing evidence must remain incomplete until implementation is pushed
+
+Required verification for this rollback guard:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this rollback guard:
+
+- no `CTFTaskDispatcher` flow changes
+- no composition root production wiring
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no ToolExecutor changes
+- no `CTFState` ownership split
+- no proof-authority behavior changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Core first implementation slice recommendation
 
 Status: recommendation recorded, implementation not approved by this section.

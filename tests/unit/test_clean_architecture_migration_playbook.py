@@ -3384,6 +3384,49 @@ def test_playbook_records_core_implementation_landing_evidence_template() -> Non
         assert command in section
 
 
+def test_playbook_records_dispatcher_landing_evidence_rollback_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Dispatcher landing evidence rollback guard",
+    )
+
+    assert "Status: rollback guard recorded, no production wiring approved." in section
+    rows = {
+        row["Landing field"]: row
+        for row in _markdown_table_rows(section)
+    }
+    expected_rows = {
+        "implementation commit SHA": "real full commit SHA",
+        "rollback command": "`git revert <dispatcher production wiring implementation commit>`",
+        "post-push branch status": "`git status --short --branch` after push",
+        "scope confirmation": "one dispatcher/composition-root functional point",
+    }
+    assert set(rows) == set(expected_rows)
+    for field, requirement in expected_rows.items():
+        assert rows[field]["Required value"] == requirement
+        assert rows[field]["Current complete"] == "false"
+    for invariant in (
+        "placeholder rollback commands are not executable rollback evidence",
+        "rollback command must point at the same real implementation commit SHA",
+        "dispatcher landing evidence cannot be recorded before explicit production wiring approval",
+        "landing evidence must remain incomplete until implementation is pushed",
+    ):
+        assert invariant in section
+    for boundary in (
+        "no `CTFTaskDispatcher` flow changes",
+        "no composition root production wiring",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no ToolExecutor changes",
+        "no `CTFState` ownership split",
+        "no proof-authority behavior changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_core_first_slice_recommendation_gate() -> None:
     text = _playbook_text()
     section = _heading_section_text(
