@@ -5174,11 +5174,18 @@ def test_playbook_records_core_first_slice_recommendation_gate() -> None:
         "ToolExecutor side-effect split",
         "Dispatcher/composition root production wiring",
     ]
+    expected_roles = {
+        "Verifier/proof authority boundary": "completed prerequisite",
+        "State ownership split": "next approvable review",
+        "ToolExecutor side-effect split": "sequence-blocked future review",
+        "Dispatcher/composition root production wiring": "sequence-blocked final review",
+    }
     for row in rows:
         if row["Core candidate"] == "Verifier/proof authority boundary":
             assert row["Implementation approved"] == "governance-only completion"
         else:
             assert row["Implementation approved"] == "false"
+        assert row["Recommendation role"] == expected_roles[row["Core candidate"]]
         assert row["First approved slice to request"]
         assert row["Why this order"]
     assert rows[0]["Implementation approved"] == "governance-only completion"
@@ -5186,6 +5193,7 @@ def test_playbook_records_core_first_slice_recommendation_gate() -> None:
     assert rows[3]["First approved slice to request"] == "composition-root wiring only after proof, state, and executor seams land"
     for invariant in (
         "recommendation does not approve implementation",
+        "recommendation role must match the core implementation sequence gate",
         "human approval must name exactly one core candidate and one first slice",
         "dispatcher/composition root work must stay last until narrower core seams land",
     ):

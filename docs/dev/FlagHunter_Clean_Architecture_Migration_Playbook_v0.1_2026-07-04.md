@@ -5347,16 +5347,17 @@ Dispatcher/composition root production wiring remains last because it can
 transitively touch entrypoints, dispatcher flow, state ownership, proof
 authority, executor side effects, and MCP/Web/CLI/TUI behavior at once.
 
-| Order | Core candidate | First approved slice to request | Why this order | Implementation approved |
-|-------|----------------|---------------------------------|----------------|-------------------------|
-| 1 | Verifier/proof authority boundary | proof-authority boundary characterization or adapter wrapper with no decision behavior change | it owns the accepted-proof authority rule and has focused invariants already present | governance-only completion |
-| 2 | State ownership split | one state snapshot or claim-store ownership seam after proof authority completion | state ownership should not move before proof upgrade authority is pinned | false |
-| 3 | ToolExecutor side-effect split | one tool receipt or tool-runner side-effect seam after proof and state seams land | tool execution emits artifacts and receipts that should target stable proof/state boundaries | false |
-| 4 | Dispatcher/composition root production wiring | composition-root wiring only after proof, state, and executor seams land | dispatcher and entrypoint wiring has the widest blast radius and should remain last | false |
+| Order | Core candidate | Recommendation role | First approved slice to request | Why this order | Implementation approved |
+|-------|----------------|---------------------|---------------------------------|----------------|-------------------------|
+| 1 | Verifier/proof authority boundary | completed prerequisite | proof-authority boundary characterization or adapter wrapper with no decision behavior change | it owns the accepted-proof authority rule and has focused invariants already present | governance-only completion |
+| 2 | State ownership split | next approvable review | one state snapshot or claim-store ownership seam after proof authority completion | state ownership should not move before proof upgrade authority is pinned | false |
+| 3 | ToolExecutor side-effect split | sequence-blocked future review | one tool receipt or tool-runner side-effect seam after proof and state seams land | tool execution emits artifacts and receipts that should target stable proof/state boundaries | false |
+| 4 | Dispatcher/composition root production wiring | sequence-blocked final review | composition-root wiring only after proof, state, and executor seams land | dispatcher and entrypoint wiring has the widest blast radius and should remain last | false |
 
 Required recommendation invariants:
 
 - recommendation does not approve implementation
+- recommendation role must match the core implementation sequence gate
 - human approval must name exactly one core candidate and one first slice
 - dispatcher/composition root work must stay last until narrower core seams land
 
