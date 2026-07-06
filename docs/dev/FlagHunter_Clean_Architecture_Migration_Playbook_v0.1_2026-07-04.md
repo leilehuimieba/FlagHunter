@@ -3128,6 +3128,52 @@ Boundary confirmation for this template:
 - no P5 implementation
 - no crew/recovery changes
 
+#### State ownership first implementation review handoff package
+
+Status: review handoff recorded, implementation not approved by this section.
+
+Recommended next human approval: State ownership split 第一刀 implementation review.
+
+This handoff package narrows the next high-risk review to one State ownership
+implementation slice. It exists so approval can be explicit about files,
+rollback, verification, and landing evidence before any production edit.
+
+| Review item | Required value | Approved now |
+|-------------|----------------|--------------|
+| candidate | State ownership split | false |
+| recommended first slice | state snapshot ownership seam or claim-store ownership seam | false |
+| allowed production files | `flaghunter/agents/pa_agent/ctf_state.py` only after explicit approval | false |
+| allowed tests | `tests/unit/agents/test_p1_source_guards.py`; `tests/unit/agents/test_p1_claim_invariants.py`; `tests/unit/test_state_store_adapter.py`; `tests/unit/test_claim_store_adapter.py` | false |
+| allowed governance | `docs/dev/FlagHunter_Clean_Architecture_Migration_Playbook_v0.1_2026-07-04.md`; `tests/unit/test_clean_architecture_migration_playbook.py` | false |
+| rollback point | revert the single approved State implementation commit | false |
+| landing evidence | `State ownership split implementation landing record` | false |
+
+Required invariants:
+
+- handoff package is not implementation approval
+- human approval must name the exact State slice before production edits
+- first implementation review must not bundle claim-store and snapshot ownership migration together
+- landing evidence must include red test evidence, green regression, rollback command, and post-push status
+
+Required verification for this handoff package:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this handoff:
+
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no ToolExecutor changes
+- no Dispatcher changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### State ownership implementation approval package aggregate guard
 
 Status: aggregate guard recorded, State implementation not approved.

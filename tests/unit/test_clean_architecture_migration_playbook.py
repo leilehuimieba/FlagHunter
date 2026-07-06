@@ -3666,6 +3666,53 @@ def test_playbook_records_state_ownership_first_slice_approval_text_template() -
         assert invariant in section
 
 
+def test_playbook_records_state_ownership_first_implementation_review_handoff_package() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "State ownership first implementation review handoff package",
+    )
+
+    assert "Status: review handoff recorded, implementation not approved by this section." in section
+    assert "Recommended next human approval: State ownership split 第一刀 implementation review." in section
+    rows = {
+        row["Review item"]: row
+        for row in _markdown_table_rows(section)
+    }
+    expected_rows = {
+        "candidate": "State ownership split",
+        "recommended first slice": "state snapshot ownership seam or claim-store ownership seam",
+        "allowed production files": "`flaghunter/agents/pa_agent/ctf_state.py` only after explicit approval",
+        "allowed tests": "`tests/unit/agents/test_p1_source_guards.py`; `tests/unit/agents/test_p1_claim_invariants.py`; `tests/unit/test_state_store_adapter.py`; `tests/unit/test_claim_store_adapter.py`",
+        "allowed governance": "`docs/dev/FlagHunter_Clean_Architecture_Migration_Playbook_v0.1_2026-07-04.md`; `tests/unit/test_clean_architecture_migration_playbook.py`",
+        "rollback point": "revert the single approved State implementation commit",
+        "landing evidence": "`State ownership split implementation landing record`",
+    }
+    assert set(rows) == set(expected_rows)
+    for item, required_value in expected_rows.items():
+        assert rows[item]["Required value"] == required_value
+        assert rows[item]["Approved now"] == "false"
+    for forbidden in (
+        "no proof-authority behavior changes",
+        "no verifier decision behavior changes",
+        "no ToolExecutor changes",
+        "no Dispatcher changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert forbidden in section
+    for invariant in (
+        "handoff package is not implementation approval",
+        "human approval must name the exact State slice before production edits",
+        "first implementation review must not bundle claim-store and snapshot ownership migration together",
+        "landing evidence must include red test evidence, green regression, rollback command, and post-push status",
+    ):
+        assert invariant in section
+
+
 def test_playbook_records_state_ownership_implementation_approval_package_aggregate_guard() -> None:
     text = _playbook_text()
     section = _heading_section_text(
