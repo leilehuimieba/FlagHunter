@@ -3306,6 +3306,38 @@ Boundary confirmation for this landing:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Tool runner adapter delegate-only guard hardening
+
+Status: delegate-only guard recorded, no production wiring.
+
+`tests/unit/test_tool_runner_adapter.py::test_tool_runner_adapter_run_tool_body_remains_direct_delegate_only`
+now locks the tool-runner adapter wrapper method as a direct delegate over the
+injected tool runner port:
+
+- `ToolRunnerAdapter.run_tool` remains a single awaited delegate call to
+  `self._runner.run_tool`
+
+This hardening keeps the adapter skeleton from becoming an accidental
+ToolExecutor wrapper, runtime constructor, side-effect owner, proof authority,
+or composition-root substitute before explicit production wiring approval.
+
+ToolExecutor production path remains unwired from `ToolRunnerAdapter`.
+
+Boundary confirmation for this guard:
+
+- no ToolExecutor production behavior changes
+- no tool-runner production wiring
+- no runtime construction changes
+- no `CTFState` ownership migration
+- no `CTFVerifier` decision behavior changes
+- no proof-authority behavior changes
+- no Dispatcher changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Dispatcher/composition root production wiring approval plan
 
 Status: approval plan recorded, implementation not approved.

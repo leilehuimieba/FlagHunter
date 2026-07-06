@@ -3105,6 +3105,38 @@ def test_playbook_records_tool_executor_first_slice_characterization_landing() -
         assert boundary in section
 
 
+def test_playbook_records_tool_runner_adapter_delegate_only_guard_hardening() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Tool runner adapter delegate-only guard hardening",
+    )
+
+    assert "Status: delegate-only guard recorded, no production wiring." in section
+    assert "test_tool_runner_adapter_run_tool_body_remains_direct_delegate_only" in section
+    for expected in (
+        "`ToolRunnerAdapter.run_tool` remains a single awaited delegate call",
+        "`self._runner.run_tool`",
+        "ToolExecutor production path remains unwired from `ToolRunnerAdapter`",
+    ):
+        assert expected in section
+    for boundary in (
+        "no ToolExecutor production behavior changes",
+        "no tool-runner production wiring",
+        "no runtime construction changes",
+        "no `CTFState` ownership migration",
+        "no `CTFVerifier` decision behavior changes",
+        "no proof-authority behavior changes",
+        "no Dispatcher changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_dispatcher_composition_root_first_slice_approval_text_template() -> None:
     text = _playbook_text()
     section = _heading_section_text(

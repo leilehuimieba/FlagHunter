@@ -84,6 +84,23 @@ def _imported_module_names(tree: ast.Module) -> list[str]:
     return modules
 
 
+def _class_method(
+    tree: ast.Module,
+    class_name: str,
+    method_name: str,
+) -> ast.FunctionDef | ast.AsyncFunctionDef:
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef) or node.name != class_name:
+            continue
+        for item in node.body:
+            if (
+                isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and item.name == method_name
+            ):
+                return item
+    raise AssertionError(f"{class_name}.{method_name} was not found")
+
+
 async def test_tool_runner_adapter_delegates_to_injected_port() -> None:
     module = importlib.import_module("flaghunter.adapters.tools.tool_runner_adapter")
     package = importlib.import_module("flaghunter.adapters.tools")
@@ -124,4 +141,42 @@ def test_tool_runner_adapter_has_no_concrete_or_action_imports() -> None:
         if token in text
     )
 
+    assert offenders == []
+
+
+def test_tool_runner_adapter_run_tool_body_remains_direct_delegate_only() -> None:
+    tree = _parse(ADAPTER_PATH)
+    method = _class_method(tree, "ToolRunnerAdapter", "run_tool")
+    assert len(method.body) == 1
+    assert isinstance(method.body[0], ast.Return)
+    assert isinstance(method.body[0].value, ast.Await)
+    call = method.body[0].value.value
+    assert isinstance(call, ast.Call)
+    assert isinstance(call.func, ast.Attribute)
+    assert call.func.attr == "run_tool"
+    assert isinstance(call.func.value, ast.Attribute)
+    assert call.func.value.attr == "_runner"
+    assert isinstance(call.func.value.value, ast.Name)
+    assert call.func.value.value.id == "self"
+    assert [arg.id for arg in call.args if isinstance(arg, ast.Name)] == [
+        "name",
+        "arguments",
+    ]
+    assert call.keywords == []
+
+    forbidden_nodes = (
+        ast.Assign,
+        ast.AugAssign,
+        ast.If,
+        ast.For,
+        ast.While,
+        ast.Try,
+        ast.With,
+        ast.Raise,
+    )
+    offenders = [
+        type(node).__name__
+        for node in ast.walk(method)
+        if isinstance(node, forbidden_nodes)
+    ]
     assert offenders == []
