@@ -2927,6 +2927,36 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### State store adapter delegate-only guard hardening
+
+Status: delegate-only guard recorded, no state ownership changed.
+
+`tests/unit/test_state_store_adapter.py::test_state_store_adapter_action_bodies_remain_direct_delegate_only`
+now locks the state-store adapter wrapper methods as direct delegates over the
+injected state store port:
+
+- `StateStoreAdapter.load_snapshot` remains a single delegate call to
+  `self._store.load_snapshot`
+- `StateStoreAdapter.save_snapshot` remains a single delegate call to
+  `self._store.save_snapshot`
+
+This hardening keeps the adapter skeleton from becoming an accidental state
+owner, persistence implementation, proof writer, dispatcher bridge, or
+composition-root substitute before explicit state ownership approval.
+
+Boundary confirmation for this guard:
+
+- no state-store production wiring
+- no `CTFState` ownership split
+- no dispatcher flow changes
+- no composition root changes
+- no proof-authority behavior changes
+- no ToolExecutor changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### State ownership first slice approval text template
 
 Status: approval text template recorded, implementation not approved by this section.

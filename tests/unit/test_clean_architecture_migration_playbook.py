@@ -2619,6 +2619,37 @@ def test_playbook_records_state_store_adapter_import_unwired_guard() -> None:
         assert boundary in section
 
 
+def test_playbook_records_state_store_adapter_delegate_only_guard_hardening() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "State store adapter delegate-only guard hardening",
+    )
+
+    assert "Status: delegate-only guard recorded, no state ownership changed." in section
+    assert "test_state_store_adapter_action_bodies_remain_direct_delegate_only" in section
+    for expected in (
+        "`StateStoreAdapter.load_snapshot` remains a single delegate call",
+        "`StateStoreAdapter.save_snapshot` remains a single delegate call",
+        "`self._store.load_snapshot`",
+        "`self._store.save_snapshot`",
+    ):
+        assert expected in section
+    for boundary in (
+        "no state-store production wiring",
+        "no `CTFState` ownership split",
+        "no dispatcher flow changes",
+        "no composition root changes",
+        "no proof-authority behavior changes",
+        "no ToolExecutor changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_tool_executor_side_effect_split_approval_plan() -> None:
     text = _playbook_text()
     section = _heading_section_text(
