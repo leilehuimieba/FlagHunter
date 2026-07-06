@@ -6116,6 +6116,43 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Verified decision reference characterization guard
+
+Status: characterization guard recorded, no proof behavior changed.
+
+`tests/unit/agents/test_p1_source_guards.py::test_p1_verified_decision_references_stay_in_verifier_and_state_only`
+now locks the current `VerificationDecision.VERIFIED` production reference
+surface before any proof-authority implementation split.
+
+Current allowed `VerificationDecision.VERIFIED` references:
+
+- `CTFVerifier._append_flag_verification_record`
+- `CTFVerifier._record_decision_for_result`
+- `CTFState._has_sufficient_verified_record`
+
+The characterization intentionally keeps the current implementation files
+visible:
+
+- `flaghunter/agents/pa_agent/verifier.py`
+- `flaghunter/agents/pa_agent/ctf_state.py`
+
+This guard allows verifier/state code to map and consume already-authoritative
+verified decisions, but blocks presentation, dispatcher, task ingress, MCP,
+tool execution, replay, and readback paths from introducing new direct
+`VerificationDecision.VERIFIED` references.
+
+Boundary confirmation for this guard:
+
+- no proof-authority behavior changes
+- no `CTFState` ownership split
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Web provenance/trace payload test debt characterization landing record
 
 Status: characterization debt fixed for Web provenance and trace payload read paths.

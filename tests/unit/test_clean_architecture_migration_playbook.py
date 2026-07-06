@@ -3267,6 +3267,41 @@ def test_playbook_records_proof_authority_write_surface_characterization_guard()
         assert boundary in section
 
 
+def test_playbook_records_verified_decision_reference_characterization_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Verified decision reference characterization guard",
+    )
+
+    assert "Status: characterization guard recorded, no proof behavior changed." in section
+    assert (
+        "tests/unit/agents/test_p1_source_guards.py::"
+        "test_p1_verified_decision_references_stay_in_verifier_and_state_only"
+    ) in section
+    for allowed_surface in (
+        "`CTFVerifier._append_flag_verification_record`",
+        "`CTFVerifier._record_decision_for_result`",
+        "`CTFState._has_sufficient_verified_record`",
+        "`VerificationDecision.VERIFIED`",
+        "`flaghunter/agents/pa_agent/verifier.py`",
+        "`flaghunter/agents/pa_agent/ctf_state.py`",
+    ):
+        assert allowed_surface in section
+    for boundary in (
+        "no proof-authority behavior changes",
+        "no `CTFState` ownership split",
+        "no ToolExecutor changes",
+        "no `CTFTaskDispatcher` flow changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_web_provenance_trace_payload_debt_characterization() -> None:
     text = _playbook_text()
     section = _heading_section_text(

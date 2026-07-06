@@ -242,6 +242,62 @@ def test_p1_proof_authority_write_calls_stay_in_verifier_and_state_only() -> Non
     assert offenders == []
 
 
+def test_p1_verified_decision_references_stay_in_verifier_and_state_only() -> None:
+    allowed: set[tuple[str, str]] = {
+        (
+            "flaghunter/agents/pa_agent/verifier.py",
+            "CTFVerifier._append_flag_verification_record",
+        ),
+        (
+            "flaghunter/agents/pa_agent/verifier.py",
+            "CTFVerifier._record_decision_for_result",
+        ),
+        (
+            "flaghunter/agents/pa_agent/ctf_state.py",
+            "CTFState._has_sufficient_verified_record",
+        ),
+    }
+    offenders: list[tuple[str, str, int]] = []
+
+    class VerifiedDecisionVisitor(ast.NodeVisitor):
+        def __init__(self, relative_path: str):
+            self.relative_path = relative_path
+            self.scope: list[str] = []
+
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            self.scope.append(node.name)
+            self.generic_visit(node)
+            self.scope.pop()
+
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            self.scope.append(node.name)
+            self.generic_visit(node)
+            self.scope.pop()
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            self.scope.append(node.name)
+            self.generic_visit(node)
+            self.scope.pop()
+
+        def visit_Attribute(self, node: ast.Attribute) -> None:
+            if (
+                node.attr == "VERIFIED"
+                and isinstance(node.value, ast.Name)
+                and node.value.id == "VerificationDecision"
+            ):
+                scope_name = ".".join(self.scope) or "<module>"
+                key = (self.relative_path, scope_name)
+                if key not in allowed:
+                    offenders.append((self.relative_path, scope_name, node.lineno))
+            self.generic_visit(node)
+
+    for path in _python_sources(PRODUCTION_ROOT):
+        visitor = VerifiedDecisionVisitor(_relative(path))
+        visitor.visit(_parse_source(_relative(path)))
+
+    assert offenders == []
+
+
 def test_p1_control_and_ingress_paths_do_not_emit_verification_decisions() -> None:
     guarded_paths = [
         "flaghunter/agents/pa_agent/coordinator.py",
