@@ -3653,13 +3653,13 @@ Status: reconciliation guard recorded, State core landing remains incomplete.
 This guard reconciles the approved State ownership first slice with the core
 implementation sequence gate. The first slice characterized current legacy
 snapshot ownership and construction surfaces only. It does not complete the
-State core implementation landing row, move storage ownership, or unlock later
-State implementation work while proof completion remains pending.
+State core implementation landing row, move storage ownership, or approve later
+State implementation work after proof completion unlocked review.
 
 | Evidence surface | Required heading | Counts as State core landing complete |
 |------------------|------------------|---------------------------------------|
 | first slice characterization | `State ownership first slice characterization landing record` | false |
-| unlock blocked guard | `State ownership unlock blocked until proof completion guard` | false |
+| proof completion unlock guard | `State ownership unlock blocked until proof completion guard` | false |
 | core landing matrix row | `Core implementation landing evidence completeness matrix` | false |
 | sequence gate row | `Core implementation sequence gate` | false |
 
@@ -3668,7 +3668,7 @@ Required invariants:
 - State characterization landing does not complete the State core implementation landing row
 - State implementation landing requires explicit approval after proof completion unlocks the sequence gate
 - State snapshot ownership characterization is readiness evidence, not storage ownership migration
-- State unlock blocked guard remains authoritative while proof completion is pending
+- State proof completion unlock guard authorizes review only, not storage ownership migration
 
 Required verification for this guard:
 

@@ -4265,7 +4265,7 @@ def test_playbook_records_state_ownership_characterization_landing_reconciliatio
             "Required heading": "`State ownership first slice characterization landing record`",
             "Counts as State core landing complete": "false",
         },
-        "unlock blocked guard": {
+        "proof completion unlock guard": {
             "Required heading": "`State ownership unlock blocked until proof completion guard`",
             "Counts as State core landing complete": "false",
         },
@@ -4286,7 +4286,7 @@ def test_playbook_records_state_ownership_characterization_landing_reconciliatio
         "State characterization landing does not complete the State core implementation landing row",
         "State implementation landing requires explicit approval after proof completion unlocks the sequence gate",
         "State snapshot ownership characterization is readiness evidence, not storage ownership migration",
-        "State unlock blocked guard remains authoritative while proof completion is pending",
+        "State proof completion unlock guard authorizes review only, not storage ownership migration",
     ):
         assert invariant in section
     for boundary in (
