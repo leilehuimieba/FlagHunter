@@ -4988,6 +4988,58 @@ Boundary confirmation for this aggregate:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Verifier proof authority completion approval text template
+
+Status: approval text template recorded, completion approval not granted by this section.
+
+Copyable approval text for a future governance-only proof completion transition:
+
+```text
+批准 Verifier/proof authority boundary core landing completion：
+candidate: Verifier/proof authority boundary
+approval type: governance-only completion transition
+scope: mark proof boundary core landing complete only if the aggregate package is complete
+required same-commit updates: completion checklist, completion aggregate, landing matrix, sequence gate, State unlock guard
+rollback: revert the single proof completion transition commit
+verification: playbook tests, proof/source guards, adapter tests, git diff --check
+独立 TDD、独立 commit/push。
+禁止 proof-authority behavior changes。
+禁止 verifier decision behavior changes。
+禁止 proof authority production wiring。
+禁止 verifier production wiring。
+禁止 CTFState ownership split。
+禁止 ToolExecutor、Dispatcher、MCP/Web/CLI/TUI、composition root、P5、crew/recovery。
+```
+
+Required invariants:
+
+- this template is not approval by itself
+- completion transition is governance-only unless the user separately approves implementation work
+- State remains blocked unless the same commit updates the matrix and sequence gate
+- approval must not bundle a next implementation slice
+
+Required verification for this template:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this template:
+
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no proof authority production wiring
+- no verifier production wiring
+- no `CTFState` ownership split
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### State ownership unlock blocked until proof completion guard
 
 Status: unlock guard recorded, State ownership remains blocked.

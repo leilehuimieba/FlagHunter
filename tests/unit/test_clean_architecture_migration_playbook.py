@@ -4670,6 +4670,42 @@ def test_playbook_records_verifier_proof_authority_completion_approval_package_a
         assert boundary in section
 
 
+def test_playbook_records_verifier_proof_authority_completion_approval_text_template() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Verifier proof authority completion approval text template",
+    )
+
+    assert "Status: approval text template recorded, completion approval not granted by this section." in section
+    for required_phrase in (
+        "批准 Verifier/proof authority boundary core landing completion",
+        "candidate: Verifier/proof authority boundary",
+        "approval type: governance-only completion transition",
+        "scope: mark proof boundary core landing complete only if the aggregate package is complete",
+        "required same-commit updates: completion checklist, completion aggregate, landing matrix, sequence gate, State unlock guard",
+        "rollback: revert the single proof completion transition commit",
+        "verification: playbook tests, proof/source guards, adapter tests, git diff --check",
+    ):
+        assert required_phrase in section
+    for forbidden_clause in (
+        "禁止 proof-authority behavior changes",
+        "禁止 verifier decision behavior changes",
+        "禁止 proof authority production wiring",
+        "禁止 verifier production wiring",
+        "禁止 CTFState ownership split",
+        "禁止 ToolExecutor、Dispatcher、MCP/Web/CLI/TUI、composition root、P5、crew/recovery",
+    ):
+        assert forbidden_clause in section
+    for invariant in (
+        "this template is not approval by itself",
+        "completion transition is governance-only unless the user separately approves implementation work",
+        "State remains blocked unless the same commit updates the matrix and sequence gate",
+        "approval must not bundle a next implementation slice",
+    ):
+        assert invariant in section
+
+
 def test_playbook_records_state_unlock_blocked_until_proof_completion_guard() -> None:
     text = _playbook_text()
     section = _heading_section_text(
