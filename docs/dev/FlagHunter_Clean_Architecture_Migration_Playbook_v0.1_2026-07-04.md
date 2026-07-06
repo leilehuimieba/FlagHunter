@@ -3124,7 +3124,7 @@ candidate: State ownership split
 first slice: state snapshot or claim-store ownership characterization with no storage ownership migration
 scope: state boundary characterization only
 rollback: revert the single implementation commit
-readiness evidence: CTFState legacy construction characterization guard reviewed
+readiness evidence: State ownership characterization readiness aggregate reviewed
 landing evidence: required
 独立 TDD、独立 commit/push。
 禁止 CTFState ownership migration。

@@ -3727,7 +3727,7 @@ def test_playbook_records_state_ownership_first_slice_approval_text_template() -
         "first slice: state snapshot or claim-store ownership characterization with no storage ownership migration",
         "scope: state boundary characterization only",
         "rollback: revert the single implementation commit",
-        "readiness evidence: CTFState legacy construction characterization guard reviewed",
+        "readiness evidence: State ownership characterization readiness aggregate reviewed",
         "landing evidence: required",
     ):
         assert required_clause in section
