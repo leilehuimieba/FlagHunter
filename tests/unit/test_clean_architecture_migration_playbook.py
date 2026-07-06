@@ -4017,6 +4017,7 @@ def test_playbook_records_state_ownership_implementation_landing_status_guard() 
         "landing evidence matrix": "`Core implementation landing evidence completeness matrix` State row",
         "sequence gate": "`Core implementation sequence gate` State row",
         "approval evidence": "`State ownership approval transition evidence consistency guard`",
+        "decision checklist": "`State ownership first implementation decision checklist`",
     }
     assert set(rows) == set(expected)
     for surface, location in expected.items():
@@ -4026,6 +4027,7 @@ def test_playbook_records_state_ownership_implementation_landing_status_guard() 
         assert location.split("`")[1] in text
     for invariant in (
         "State landing status must remain false until explicit approval and implementation evidence land",
+        "State landing status must include the exact decision checklist option before landing",
         "State landing status must not be raised by approval package readiness alone",
         "State landing status must move together with the matrix and sequence gate in the implementation commit",
         "State landing status must not authorize proof authority or verifier behavior changes",

@@ -3427,10 +3427,12 @@ verification evidence, rollback point, and post-push status.
 | landing evidence matrix | `Core implementation landing evidence completeness matrix` State row | false | false |
 | sequence gate | `Core implementation sequence gate` State row | false | false |
 | approval evidence | `State ownership approval transition evidence consistency guard` | false | false |
+| decision checklist | `State ownership first implementation decision checklist` | false | false |
 
 Required invariants:
 
 - State landing status must remain false until explicit approval and implementation evidence land
+- State landing status must include the exact decision checklist option before landing
 - State landing status must not be raised by approval package readiness alone
 - State landing status must move together with the matrix and sequence gate in the implementation commit
 - State landing status must not authorize proof authority or verifier behavior changes
