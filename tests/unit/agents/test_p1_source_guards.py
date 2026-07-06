@@ -810,6 +810,48 @@ def test_p1_state_store_adapter_stays_unwired_from_production_imports() -> None:
     assert offenders == []
 
 
+def test_p1_claim_store_adapter_stays_unwired_from_production_imports() -> None:
+    allowed_paths = {
+        "flaghunter/adapters/storage/__init__.py",
+        "flaghunter/adapters/storage/claim_store_adapter.py",
+    }
+    offenders: list[tuple[str, str, int]] = []
+
+    class ClaimStoreAdapterImportVisitor(ast.NodeVisitor):
+        def __init__(self, relative_path: str):
+            self.relative_path = relative_path
+
+        def _allow_current_path(self) -> bool:
+            return self.relative_path in allowed_paths
+
+        def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+            module_name = node.module or ""
+            imported_names = {alias.name for alias in node.names}
+            if (
+                not self._allow_current_path()
+                and module_name.startswith("flaghunter.adapters.storage")
+                and "ClaimStoreAdapter" in imported_names
+            ):
+                offenders.append((self.relative_path, "ClaimStoreAdapter import", node.lineno))
+            self.generic_visit(node)
+
+        def visit_Attribute(self, node: ast.Attribute) -> None:
+            if not self._allow_current_path() and node.attr == "ClaimStoreAdapter":
+                offenders.append((self.relative_path, "attribute ClaimStoreAdapter", node.lineno))
+            self.generic_visit(node)
+
+        def visit_Name(self, node: ast.Name) -> None:
+            if not self._allow_current_path() and node.id == "ClaimStoreAdapter":
+                offenders.append((self.relative_path, "name ClaimStoreAdapter", node.lineno))
+            self.generic_visit(node)
+
+    for path in _python_sources(PRODUCTION_ROOT):
+        visitor = ClaimStoreAdapterImportVisitor(_relative(path))
+        visitor.visit(_parse_source(_relative(path)))
+
+    assert offenders == []
+
+
 def test_p1_tool_executor_construction_stays_in_base_agent_only() -> None:
     allowed_imports: set[tuple[str, str]] = {
         ("flaghunter/agents/base_agent.py", "ToolExecutor"),

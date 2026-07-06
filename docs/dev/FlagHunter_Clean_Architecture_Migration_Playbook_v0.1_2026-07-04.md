@@ -2927,6 +2927,44 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Claim store adapter import unwired guard
+
+Status: source guard recorded, no production wiring approved.
+
+`tests/unit/agents/test_p1_source_guards.py::test_p1_claim_store_adapter_stays_unwired_from_production_imports`
+now locks the claim-store adapter as an unwired production surface before any
+State ownership split, claim-store production wiring, dispatcher rewiring, or
+composition-root migration.
+
+Current allowed adapter skeleton files:
+
+- `flaghunter/adapters/storage/__init__.py`
+- `flaghunter/adapters/storage/claim_store_adapter.py`
+
+Guarded adapter name:
+
+- `ClaimStoreAdapter`
+
+Required invariants:
+
+- claim-store adapter skeleton remains importable for adapter tests
+- production code must not import ClaimStoreAdapter before explicit State approval
+- claim-store adapter readiness does not approve claim ownership migration
+
+Boundary confirmation for this guard:
+
+- no production wiring
+- no `CTFState` ownership split
+- no claim-store production wiring
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no ToolExecutor changes
+- no Dispatcher changes
+- no MCP/Web/CLI/TUI changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### State store adapter delegate-only guard hardening
 
 Status: delegate-only guard recorded, no state ownership changed.

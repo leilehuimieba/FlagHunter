@@ -2636,6 +2636,42 @@ def test_playbook_records_state_store_adapter_import_unwired_guard() -> None:
         assert boundary in section
 
 
+def test_playbook_records_claim_store_adapter_import_unwired_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Claim store adapter import unwired guard",
+    )
+
+    assert "Status: source guard recorded, no production wiring approved." in section
+    assert "test_p1_claim_store_adapter_stays_unwired_from_production_imports" in section
+    for locked_surface in (
+        "`flaghunter/adapters/storage/claim_store_adapter.py`",
+        "`ClaimStoreAdapter`",
+    ):
+        assert locked_surface in section
+    for invariant in (
+        "claim-store adapter skeleton remains importable for adapter tests",
+        "production code must not import ClaimStoreAdapter before explicit State approval",
+        "claim-store adapter readiness does not approve claim ownership migration",
+    ):
+        assert invariant in section
+    for boundary in (
+        "no production wiring",
+        "no `CTFState` ownership split",
+        "no claim-store production wiring",
+        "no proof-authority behavior changes",
+        "no verifier decision behavior changes",
+        "no ToolExecutor changes",
+        "no Dispatcher changes",
+        "no MCP/Web/CLI/TUI changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_state_store_adapter_delegate_only_guard_hardening() -> None:
     text = _playbook_text()
     section = _heading_section_text(
