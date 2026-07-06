@@ -6075,6 +6075,47 @@ Boundary confirmation for this fixture baseline:
 - no MCP production wiring
 - no proof authority behavior changes
 
+#### Proof authority write surface characterization guard
+
+Status: characterization guard recorded, no proof behavior changed.
+
+`tests/unit/agents/test_p1_source_guards.py::test_p1_proof_authority_write_calls_stay_in_verifier_and_state_only`
+now locks the current proof-authority write surface before any verifier,
+state, dispatcher, or composition-root implementation split.
+
+Current allowed proof-authority calls:
+
+- `CTFVerifier._sync_flag_claim` -> `CTFState.upgrade_claim_to_verified`
+- `CTFVerifier._append_flag_verification_record` -> `CTFState.append_verification_record`
+- `CTFVerifier._ensure_result_trace` -> `CTFState.record_verification_receipt`
+
+Current allowed proof-authority definitions:
+
+- `flaghunter/agents/pa_agent/ctf_state.py` defines `upgrade_claim_to_verified`
+- `flaghunter/agents/pa_agent/ctf_state.py` defines `append_verification_record`
+- `flaghunter/agents/pa_agent/ctf_state.py` defines `record_verification_receipt`
+
+The characterization intentionally keeps the current implementation locations
+visible:
+
+- `flaghunter/agents/pa_agent/verifier.py`
+- `flaghunter/agents/pa_agent/ctf_state.py`
+
+This is a source guard only. It does not approve moving proof ownership,
+changing verifier decisions, or splitting state storage.
+
+Boundary confirmation for this guard:
+
+- no proof-authority behavior changes
+- no `CTFState` ownership split
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Web provenance/trace payload test debt characterization landing record
 
 Status: characterization debt fixed for Web provenance and trace payload read paths.

@@ -157,6 +157,91 @@ def test_p1_verified_legacy_bucket_writes_stay_verifier_only() -> None:
     assert unexpected == []
 
 
+def test_p1_proof_authority_write_calls_stay_in_verifier_and_state_only() -> None:
+    allowed_calls: set[tuple[str, str, str]] = {
+        (
+            "flaghunter/agents/pa_agent/verifier.py",
+            "CTFVerifier._sync_flag_claim",
+            "upgrade_claim_to_verified",
+        ),
+        (
+            "flaghunter/agents/pa_agent/verifier.py",
+            "CTFVerifier._append_flag_verification_record",
+            "append_verification_record",
+        ),
+        (
+            "flaghunter/agents/pa_agent/verifier.py",
+            "CTFVerifier._ensure_result_trace",
+            "record_verification_receipt",
+        ),
+    }
+    allowed_definitions: set[tuple[str, str, str]] = {
+        (
+            "flaghunter/agents/pa_agent/ctf_state.py",
+            "CTFState.upgrade_claim_to_verified",
+            "upgrade_claim_to_verified",
+        ),
+        (
+            "flaghunter/agents/pa_agent/ctf_state.py",
+            "CTFState.append_verification_record",
+            "append_verification_record",
+        ),
+        (
+            "flaghunter/agents/pa_agent/ctf_state.py",
+            "CTFState.record_verification_receipt",
+            "record_verification_receipt",
+        ),
+    }
+    guarded_names = {
+        "upgrade_claim_to_verified",
+        "append_verification_record",
+        "record_verification_receipt",
+    }
+    offenders: list[tuple[str, str, str, int]] = []
+
+    class ProofAuthorityVisitor(ast.NodeVisitor):
+        def __init__(self, relative_path: str):
+            self.relative_path = relative_path
+            self.scope: list[str] = []
+
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            self.scope.append(node.name)
+            self.generic_visit(node)
+            self.scope.pop()
+
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            self.scope.append(node.name)
+            scope_name = ".".join(self.scope)
+            if node.name in guarded_names:
+                key = (self.relative_path, scope_name, node.name)
+                if key not in allowed_definitions:
+                    offenders.append((self.relative_path, scope_name, node.name, node.lineno))
+            self.generic_visit(node)
+            self.scope.pop()
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            self.visit_FunctionDef(node)  # type: ignore[arg-type]
+
+        def visit_Call(self, node: ast.Call) -> None:
+            call_name = ""
+            if isinstance(node.func, ast.Attribute):
+                call_name = node.func.attr
+            elif isinstance(node.func, ast.Name):
+                call_name = node.func.id
+            if call_name in guarded_names:
+                scope_name = ".".join(self.scope)
+                key = (self.relative_path, scope_name, call_name)
+                if key not in allowed_calls:
+                    offenders.append((self.relative_path, scope_name, call_name, node.lineno))
+            self.generic_visit(node)
+
+    for path in _python_sources(PRODUCTION_ROOT):
+        visitor = ProofAuthorityVisitor(_relative(path))
+        visitor.visit(_parse_source(_relative(path)))
+
+    assert offenders == []
+
+
 def test_p1_control_and_ingress_paths_do_not_emit_verification_decisions() -> None:
     guarded_paths = [
         "flaghunter/agents/pa_agent/coordinator.py",
