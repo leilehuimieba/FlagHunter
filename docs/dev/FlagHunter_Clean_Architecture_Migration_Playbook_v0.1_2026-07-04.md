@@ -2705,8 +2705,8 @@ high-risk core surfaces separated.
 |-----------|-----------|----------------|-------------------------|-------------------|-----------------------|
 | Task ingress service contract migration | low-medium | implementation landed | true | explicit service migration approval granted | application service focused, adapter focused, architecture/source guards, production pre-wiring guards, `git diff --check` |
 | Task ingress production wiring | high | A and B landed; remaining entrypoints not approved | partial | explicit production wiring approval per entrypoint family | MCP/entrypoint wiring focused, task ingress guards, architecture/source guards, `git diff --check` |
-| Verifier/proof authority boundary | high | not approved | false | explicit proof-authority approval | verifier fixture, proof authority invariants, P1 claim invariants, source guards, `git diff --check` |
-| State ownership split | high | not approved | false | explicit state ownership split approval | state snapshot fixtures, replay/readback fixtures, import/source guards, `git diff --check` |
+| Verifier/proof authority boundary | high | governance-only completion landed; future implementation not approved | governance-only completion | explicit proof-authority implementation approval for future behavior or wiring | verifier fixture, proof authority invariants, P1 claim invariants, source guards, `git diff --check` |
+| State ownership split | high | next approvable implementation review; implementation not approved | false | explicit state ownership split approval | state snapshot fixtures, replay/readback fixtures, import/source guards, `git diff --check` |
 | ToolExecutor side-effect split | high | not approved | false | explicit ToolExecutor side-effect split approval | tool receipt fixtures, executor guard fixtures, finish control receipt, architecture/source guards, `git diff --check` |
 | Dispatcher/composition root production wiring | maximum | not approved | false | explicit dispatcher and composition-root approval | dispatcher focused, entrypoint focused, MCP/web/CLI smoke guards, architecture/source guards, `git diff --check` |
 
@@ -4641,14 +4641,14 @@ The four core production approval packages are now recorded, but approval packag
 
 | Core candidate | Approval package | Readiness evidence | Implementation approved | Current implementation state |
 |----------------|------------------|--------------------|-------------------------|------------------------------|
-| Verifier/proof authority boundary | `Verifier/proof authority boundary approval plan` | `Proof authority characterization readiness aggregate` | false | not approved |
-| State ownership split | `State ownership split approval plan` | `State ownership characterization readiness aggregate` | false | not approved |
+| Verifier/proof authority boundary | `Verifier/proof authority boundary approval plan` | `Proof authority characterization readiness aggregate` | governance-only completion | governance-only completion landed; future implementation not approved |
+| State ownership split | `State ownership split approval plan` | `State ownership characterization readiness aggregate` | false | next approvable implementation review; implementation not approved |
 | ToolExecutor side-effect split | `ToolExecutor side-effect split approval plan` | `ToolExecutor side-effect characterization readiness aggregate` | false | not approved |
 | Dispatcher/composition root production wiring | `Dispatcher/composition root production wiring approval plan` | `Dispatcher composition root characterization readiness aggregate` | false | not approved |
 
 Required aggregate invariants:
 
-- every core package must remain implementation approved = false until explicit human approval lands
+- future production implementation must remain unapproved until explicit human approval lands
 - approval package status must not be used as implementation approval
 - readiness evidence must not be used as implementation approval
 - each future implementation must update exactly one package and add a landing record
@@ -4719,7 +4719,7 @@ implementation approval can land.
 
 Required approval text copied from the queue:
 
-- explicit proof-authority approval
+- explicit proof-authority implementation approval for future behavior or wiring
 - explicit state ownership split approval
 - explicit ToolExecutor side-effect split approval
 - explicit dispatcher and composition-root approval
