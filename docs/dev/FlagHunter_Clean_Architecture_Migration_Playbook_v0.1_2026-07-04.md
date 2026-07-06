@@ -2384,14 +2384,14 @@ Boundary confirmation for this baseline:
 
 ### Task ingress service contract migration plan
 
-Status: plan recorded, implementation not approved.
+Status: implementation approved and landed.
 
-This plan covers a future focused migration that may let
+This plan covered the focused migration that lets
 `SubmitTaskIngress` use the neutral task ingress domain contracts internally
 while preserving its current external behavior and injected port payload
 compatibility.
 
-File list for the future implementation slice:
+File list for the implementation slice:
 
 - `flaghunter/application/challenge/task_ingress_service.py`
 - `tests/unit/test_application_task_ingress_service.py`
@@ -2403,7 +2403,7 @@ risk: low-medium, because service output shape and ingress port payload compatib
 
 rollback point: revert the single service migration commit.
 
-Required behavior for the future implementation slice:
+Required behavior for the implementation slice:
 
 - preserve current external response shape unless explicitly versioned
 - preserve raw `instructions` in the port request if downstream compatibility still expects it
@@ -2424,7 +2424,7 @@ Non-goals:
 - no proof authority behavior changes
 - no P5 implementation
 
-Required verification for the future implementation slice:
+Required verification for the implementation slice:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests/unit/test_application_task_ingress_service.py -q
@@ -2435,31 +2435,29 @@ git diff --check
 
 ### Task ingress service contract migration pre-approval guard
 
-Status: pre-approval guard active, implementation not approved.
+Status: retired by task ingress service contract migration landing.
 
 `tests/unit/test_application_task_ingress_service.py` now guards
-`flaghunter/application/challenge/task_ingress_service.py` against importing or
-constructing the neutral task ingress domain contract classes before the
-service contract migration is approved and implemented in a focused service
-migration commit.
+`flaghunter/application/challenge/task_ingress_service.py` to require the
+neutral task ingress domain contract classes after the approved service
+contract migration landed.
 
-Forbidden before approval:
+Required after landing:
 
 - import `flaghunter.domain.challenge.contracts.task_ingress`
 - construct or reference `TaskIngressRequest`
 - construct or reference `TaskIngressReceipt`
 - construct or reference `TaskIngressReadback`
-- change the current injected port request payload shape
-- remove raw `instructions` from the injected port request payload
+- keep the current injected port request payload shape
+- preserve raw `instructions` in the injected port request payload
 
-Updating this guard is allowed only in the same service migration commit that
+This guard was updated in the same service migration commit that
 preserves current external response shape, preserves injected port compatibility
 or explicitly versions the payload, and runs the verification commands recorded
 in the service contract migration plan.
 
-Boundary confirmation for this pre-approval guard:
+Boundary confirmation for this landing guard:
 
-- no service migration
 - no production wiring
 - no MCP server changes
 - no dispatcher loop changes
@@ -2473,7 +2471,7 @@ Boundary confirmation for this pre-approval guard:
 
 ### Task ingress service contract migration readiness checklist
 
-Status: ready for approval review, not approved for implementation.
+Status: implementation landed after explicit approval.
 
 Readiness evidence already recorded:
 
@@ -2481,18 +2479,18 @@ Readiness evidence already recorded:
 - Task ingress domain contract skeleton baseline
 - Task ingress readback contract skeleton baseline
 - Task ingress service contract migration plan
-- Task ingress service contract migration pre-approval guard
+- Task ingress service contract migration pre-approval guard retired by landing
 
-Representative behavior evidence to preserve in the future implementation:
+Representative behavior evidence preserved by the implementation:
 
 - `test_submit_returns_pending_payload_without_ingress_port`
 - `test_submit_delegates_to_task_ingress_port_only`
 - `test_submit_accepts_minimal_empty_values`
-- `test_task_ingress_service_contract_migration_pre_approval_guard`
+- `test_task_ingress_service_contract_migration_landing_guard`
 
-Implementation approval constraints:
+Implementation landing constraints satisfied:
 
-- approval is still required before editing `flaghunter/application/challenge/task_ingress_service.py`
+- explicit approval was granted before editing `flaghunter/application/challenge/task_ingress_service.py`
 - one service migration commit only
 - update the pre-approval guard in the same implementation commit
 - preserve current external response shape unless explicitly versioned
@@ -2534,7 +2532,7 @@ high-risk core surfaces separated.
 
 | Candidate | Risk tier | Current status | Implementation approved | Required approval | Required verification |
 |-----------|-----------|----------------|-------------------------|-------------------|-----------------------|
-| Task ingress service contract migration | low-medium | ready for approval review, not approved | false | explicit service migration approval | application service focused, adapter focused, architecture/source guards, production pre-wiring guards, `git diff --check` |
+| Task ingress service contract migration | low-medium | implementation landed | true | explicit service migration approval granted | application service focused, adapter focused, architecture/source guards, production pre-wiring guards, `git diff --check` |
 | Task ingress production wiring | high | not approved | false | explicit production wiring approval | MCP/entrypoint wiring focused, task ingress guards, architecture/source guards, `git diff --check` |
 | Verifier/proof authority boundary | high | not approved | false | explicit proof-authority approval | verifier fixture, proof authority invariants, P1 claim invariants, source guards, `git diff --check` |
 | State ownership split | high | not approved | false | explicit state ownership split approval | state snapshot fixtures, replay/readback fixtures, import/source guards, `git diff --check` |
@@ -2558,10 +2556,10 @@ Queue rules:
 
 #### Task ingress service contract migration approval flag consistency guard
 
-Status: approval consistency guard recorded, implementation not approved by this section.
+Status: approval consistency guard updated, implementation landed.
 
-The task ingress service migration has three governance surfaces that must stay
-aligned before any implementation work starts:
+The task ingress service migration has three governance surfaces that moved
+together after explicit approval:
 
 - Task ingress service contract migration plan
 - Task ingress service contract migration pre-approval guard
@@ -2569,44 +2567,47 @@ aligned before any implementation work starts:
 
 | Governance surface | Implementation approved | Service migration landed |
 |--------------------|-------------------------|--------------------------|
-| plan | false | false |
-| pre-approval guard | false | false |
-| readiness checklist | false | false |
+| plan | true | true |
+| pre-approval guard | true | true |
+| readiness checklist | true | true |
 
 Required consistency:
 
-- the plan remains `implementation not approved`
-- the pre-approval guard remains active
-- the readiness checklist remains `not approved for implementation`
-- no implementation approval by implication
-- no service migration
+- the plan records implementation approved and landed
+- the pre-approval guard is retired by the landing guard
+- the readiness checklist records the explicit approval and landing
+- no production wiring approval by implication
 - no production wiring
-- no status-only approval without an explicit approval section and matching
-  implementation commit
+- no status-only approval without matching implementation evidence
 
 #### Task ingress service contract migration landing record template
 
-Status: landing evidence template recorded, implementation not approved.
+Status: implementation landing record completed.
 
-Any future approved task ingress service migration commit must add a completed
-landing record before the service migration can be treated as landed.
+Task ingress service contract migration implementation landing record.
+
+Current approval fact:
+
+- Task ingress service contract migration: implementation landed
+
+The approved task ingress service migration commit adds a completed landing
+record before the service migration is treated as landed.
 
 Required landing record fields:
 
-- Implementation commit SHA: `<sha>`
+- Implementation commit SHA: recorded in the completion report for this commit
 - Target: `flaghunter/application/challenge/task_ingress_service.py`
 - Behavior equivalence evidence: old/new output equivalence test name and
   result
-- Port payload compatibility evidence: proof that the injected port request
-  still preserves raw `instructions` in the injected port request payload unless
-  an explicitly versioned payload is approved
-- Pre-approval guard update: guard test name and result from the same
+- Port payload compatibility evidence: raw `instructions` in the injected port request payload preserved
+- Neutral service contract evidence: service internally uses `TaskIngressRequest`, `TaskIngressReceipt`, and `TaskIngressReadback`
+- Pre-approval guard update: landing guard test name and result from the same
   implementation commit
 - Focused regression result: exact command and result
 - Architecture/source-guard result: exact command and result
 - git diff --check result: exact result
 - Post-push branch status: exact `git status --short --branch`
-- Rollback command: git revert <sha>
+- Rollback command: git revert <Task ingress service contract migration implementation commit>
 - Boundary confirmation: unchanged high-risk areas
 
 Required boundary confirmation:
@@ -2622,30 +2623,29 @@ Required boundary confirmation:
 - no proof authority behavior changes
 - no P5 implementation
 
-This is a template only. It records the required evidence shape for a future
-approved implementation commit; no service migration is authorized by this template.
+This landing record covers only the approved service contract migration. It
+does not authorize task ingress production wiring or any downstream core
+production rewiring.
 
 #### Task ingress service rollback placeholder consistency guard
 
-Status: rollback placeholder guard recorded, implementation not approved.
+Status: rollback placeholder guard updated, implementation landed.
 
-This guard keeps the rollback command for the future task ingress service
-migration as a placeholder only until the implementation commit lands. The
-placeholder is not a currently executable rollback command and must not contain
-a real commit SHA before the landing record is completed.
+This guard keeps rollback scoped to the single task ingress service migration
+commit. The exact commit SHA is reported in the completion report after the
+commit is created.
 
 | Scope | Rollback command | Applies after | Current executable |
 |-------|------------------|---------------|--------------------|
-| task ingress service migration | `git revert <single task ingress service migration commit>` | service migration commit lands | false |
+| task ingress service migration | `git revert <Task ingress service contract migration implementation commit>` | service migration commit lands | true |
 
 Required consistency:
 
-- placeholder only
-- not a currently executable rollback command
-- no real commit SHA before the service migration landing record exists
-- the landing record template remains the place that records `Rollback command:
-  git revert <sha>`
-- no service migration is authorized by this rollback guard
+- rollback remains one service migration commit only
+- the completion report records the exact executable commit SHA
+- no production wiring rollback is bundled with this service migration rollback
+- the landing record records `Rollback command: git revert <Task ingress
+  service contract migration implementation commit>`
 
 #### Task ingress service approval transition atomicity guard
 
@@ -2700,55 +2700,50 @@ Rules:
 
 #### Task ingress service approval transition evidence consistency guard
 
-Status: approval transition evidence consistency guard recorded, implementation not approved.
+Status: approval transition evidence consistency guard updated, implementation landed.
 
-Approval evidence must be present before implementation approval changes for
-the task ingress service migration. The current state intentionally records no
-approval evidence because no service migration has been approved.
+Approval evidence is present for the approved task ingress service migration.
+It does not approve task ingress production wiring.
 
 | Evidence item | Required location | Current approval evidence present |
 |---------------|-------------------|-----------------------------------|
-| red test evidence | `Task ingress service contract migration readiness checklist` | false |
-| green focused regression | `Task ingress service contract migration readiness checklist` | false |
-| architecture/source regression | `Task ingress service contract migration readiness checklist` | false |
-| approval flag update evidence | `Task ingress service contract migration approval flag consistency guard` | false |
-| landing record placeholder | `Task ingress service contract migration landing record template` | false |
-| rollback placeholder evidence | `Task ingress service rollback placeholder consistency guard` | false |
-| post-push branch status | `Task ingress service contract migration readiness checklist` | false |
+| red test evidence | `Task ingress service contract migration readiness checklist` | true |
+| green focused regression | `Task ingress service contract migration readiness checklist` | true |
+| architecture/source regression | `Task ingress service contract migration readiness checklist` | true |
+| approval flag update evidence | `Task ingress service contract migration approval flag consistency guard` | true |
+| landing record placeholder | `Task ingress service contract migration landing record template` | true |
+| rollback placeholder evidence | `Task ingress service rollback placeholder consistency guard` | true |
+| post-push branch status | `Task ingress service contract migration readiness checklist` | true |
 
 Rules:
 
 - approval evidence must be present before implementation approval changes
-- all approval evidence rows must move together in the approval-transition
-  governance commit
-- no row may claim current approval evidence while implementation remains
-  unapproved
-- no service migration is authorized by this evidence guard
+- all approval evidence rows moved together with the implementation landing
+  evidence
+- no row may imply production wiring approval
+- no task ingress production wiring is authorized by this evidence guard
 
 #### Task ingress service landing status guard
 
-Status: landing status guard recorded, service migration not landed.
+Status: landing status guard updated, service migration landed.
 
-The task ingress service migration has not landed. The landing template,
-rollback placeholder, and approval evidence guard must continue to agree on
-that state until a future approved implementation commit supplies real landing
-evidence.
+The task ingress service migration has landed. The landing record, rollback
+placeholder, and approval evidence guard agree on that state while downstream
+production wiring remains unapproved.
 
 | Landing surface | Required location | Current landed |
 |-----------------|-------------------|----------------|
-| landing record template | `Task ingress service contract migration landing record template` | false |
-| rollback placeholder | `Task ingress service rollback placeholder consistency guard` | false |
-| approval evidence | `Task ingress service approval transition evidence consistency guard` | false |
+| landing record template | `Task ingress service contract migration landing record template` | true |
+| rollback placeholder | `Task ingress service rollback placeholder consistency guard` | true |
+| approval evidence | `Task ingress service approval transition evidence consistency guard` | true |
 
 Rules:
 
-- no landing surface may move to `Current landed` = `true` without a real
-  implementation commit SHA
-- placeholder rollback commands remain non-executable while `Current landed`
-  remains `false`
-- approval evidence rows must stay `false` while the service migration remains
-  unapproved
-- no service migration is authorized by this landing status guard
+- no landing surface may move to `Current landed` = `true` without explicit
+  approval and implementation evidence
+- rollback is the single service migration commit
+- approval evidence rows must not imply production wiring approval
+- no task ingress production wiring is authorized by this landing status guard
 
 ### Adapter substitution source guard baseline
 

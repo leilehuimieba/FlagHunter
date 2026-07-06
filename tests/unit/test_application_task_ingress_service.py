@@ -175,6 +175,8 @@ async def test_submit_delegates_to_task_ingress_port_only() -> None:
             "metadata": {"lane": "ingress"},
         }
     ]
+    assert ingress.requests[0]["instructions"] == "Submit neutral task"
+    assert "instructionsPreview" not in ingress.requests[0]
     assert payload == {
         "schemaVersion": 1,
         "taskId": "task-2",
@@ -284,21 +286,26 @@ def test_task_ingress_service_is_small_and_has_no_private_runtime_hooks() -> Non
     assert public_methods == {"submit"}
 
 
-def test_task_ingress_service_contract_migration_pre_approval_guard() -> None:
+def test_task_ingress_service_contract_migration_landing_guard() -> None:
     playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
     source_path = APPLICATION_ROOT / "challenge" / "task_ingress_service.py"
     source = source_path.read_text(encoding="utf-8")
 
-    assert "Task ingress service contract migration pre-approval guard" in playbook
-    assert "Status: pre-approval guard active, implementation not approved." in playbook
+    assert (
+        "Task ingress service contract migration implementation landing record"
+        in playbook
+    )
+    assert "Task ingress service contract migration: implementation landed" in playbook
+    assert "raw `instructions` in the injected port request payload preserved" in playbook
+    assert "no MCP production wiring" in playbook
 
-    forbidden_tokens = {
+    required_tokens = {
         "from flaghunter.domain.challenge.contracts.task_ingress",
         "TaskIngressRequest",
         "TaskIngressReceipt",
         "TaskIngressReadback",
     }
 
-    offenders = sorted(token for token in forbidden_tokens if token in source)
+    missing = sorted(token for token in required_tokens if token not in source)
 
-    assert offenders == []
+    assert missing == []

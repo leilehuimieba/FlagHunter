@@ -2320,7 +2320,7 @@ def test_playbook_records_task_ingress_service_contract_migration_plan() -> None
     text = _playbook_text()
 
     assert "Task ingress service contract migration plan" in text
-    assert "Status: plan recorded, implementation not approved." in text
+    assert "Status: implementation approved and landed." in text
     for file_path in (
         "flaghunter/application/challenge/task_ingress_service.py",
         "tests/unit/test_application_task_ingress_service.py",
@@ -2354,23 +2354,23 @@ def test_playbook_records_task_ingress_service_migration_readiness_checklist() -
     text = _playbook_text()
 
     assert "Task ingress service contract migration readiness checklist" in text
-    assert "Status: ready for approval review, not approved for implementation." in text
+    assert "Status: implementation landed after explicit approval." in text
     for baseline in (
         "Task ingress application service skeleton baseline",
         "Task ingress domain contract skeleton baseline",
         "Task ingress readback contract skeleton baseline",
         "Task ingress service contract migration plan",
-        "Task ingress service contract migration pre-approval guard",
+        "Task ingress service contract migration pre-approval guard retired by landing",
     ):
         assert baseline in text
     for evidence_test in (
         "test_submit_returns_pending_payload_without_ingress_port",
         "test_submit_delegates_to_task_ingress_port_only",
         "test_submit_accepts_minimal_empty_values",
-        "test_task_ingress_service_contract_migration_pre_approval_guard",
+        "test_task_ingress_service_contract_migration_landing_guard",
     ):
         assert evidence_test in text
-    assert "approval is still required before editing `flaghunter/application/challenge/task_ingress_service.py`" in text
+    assert "explicit approval was granted before editing `flaghunter/application/challenge/task_ingress_service.py`" in text
     assert "one service migration commit only" in text
     assert "preserve current external response shape unless explicitly versioned" in text
     assert "preserve raw `instructions` in the injected port request payload" in text
@@ -2429,9 +2429,11 @@ def test_playbook_records_post_read_side_core_decoupling_approval_queue() -> Non
         "Dispatcher/composition root production wiring",
     ]
     assert queue_rows["Task ingress service contract migration"]["Risk tier"] == "low-medium"
-    assert queue_rows["Task ingress service contract migration"]["Current status"] == "ready for approval review, not approved"
+    assert queue_rows["Task ingress service contract migration"]["Current status"] == "implementation landed"
+    assert queue_rows["Task ingress service contract migration"]["Implementation approved"] == "true"
     for candidate, row in queue_rows.items():
-        assert row["Implementation approved"] == "false"
+        if candidate != "Task ingress service contract migration":
+            assert row["Implementation approved"] == "false"
         assert row["Required approval"]
         assert row["Required verification"]
         if candidate != "Task ingress service contract migration":
@@ -2456,12 +2458,12 @@ def test_playbook_parses_task_ingress_service_migration_approval_flag_consistenc
         "Task ingress service contract migration approval flag consistency guard",
     )
 
-    assert "Status: approval consistency guard recorded, implementation not approved by this section." in section
+    assert "Status: approval consistency guard updated, implementation landed." in section
     assert "Task ingress service contract migration plan" in section
     assert "Task ingress service contract migration pre-approval guard" in section
     assert "Task ingress service contract migration readiness checklist" in section
-    assert "no implementation approval by implication" in section
-    assert "no service migration" in section
+    assert "no production wiring approval by implication" in section
+    assert "no production wiring" in section
 
     plan = _heading_section_text(text, "Task ingress service contract migration plan")
     pre_approval = _heading_section_text(
@@ -2473,9 +2475,9 @@ def test_playbook_parses_task_ingress_service_migration_approval_flag_consistenc
         "Task ingress service contract migration readiness checklist",
     )
 
-    assert "Status: plan recorded, implementation not approved." in plan
-    assert "Status: pre-approval guard active, implementation not approved." in pre_approval
-    assert "Status: ready for approval review, not approved for implementation." in readiness
+    assert "Status: implementation approved and landed." in plan
+    assert "Status: retired by task ingress service contract migration landing." in pre_approval
+    assert "Status: implementation landed after explicit approval." in readiness
 
     status_rows = {
         row["Governance surface"]: row
@@ -2488,16 +2490,10 @@ def test_playbook_parses_task_ingress_service_migration_approval_flag_consistenc
     }
     assert set(status_rows) == expected_surfaces
     for row in status_rows.values():
-        assert row["Implementation approved"] == "false"
-        assert row["Service migration landed"] == "false"
+        assert row["Implementation approved"] == "true"
+        assert row["Service migration landed"] == "true"
 
-    for forbidden_phrase in (
-        "approved for implementation",
-        "implementation approved",
-        "service migration landed",
-    ):
-        assert forbidden_phrase not in plan.lower()
-        assert forbidden_phrase not in pre_approval.lower()
+    assert "no production wiring approval by implication" in section
 
 
 def test_playbook_records_task_ingress_service_migration_landing_record_template() -> None:
@@ -2507,12 +2503,15 @@ def test_playbook_records_task_ingress_service_migration_landing_record_template
         "Task ingress service contract migration landing record template",
     )
 
-    assert "Status: landing evidence template recorded, implementation not approved." in section
+    assert "Status: implementation landing record completed." in section
+    assert "Task ingress service contract migration implementation landing record" in section
+    assert "Task ingress service contract migration: implementation landed" in section
     for required_field in (
         "Implementation commit SHA",
         "Target",
         "Behavior equivalence evidence",
         "Port payload compatibility evidence",
+        "Neutral service contract evidence",
         "Pre-approval guard update",
         "Focused regression result",
         "Architecture/source-guard result",
@@ -2522,10 +2521,10 @@ def test_playbook_records_task_ingress_service_migration_landing_record_template
         "Boundary confirmation",
     ):
         assert required_field in section
-    assert "Rollback command: git revert <sha>" in section
+    assert "Rollback command: git revert <Task ingress service contract migration implementation commit>" in section
     assert "old/new output equivalence" in section
     assert "raw `instructions` in the injected port request payload" in section
-    assert "no service migration is authorized by this template" in section
+    assert "does not authorize task ingress production wiring" in section
     for boundary in (
         "no production wiring",
         "no MCP server changes",
@@ -2545,10 +2544,9 @@ def test_playbook_parses_task_ingress_service_rollback_placeholder_consistency_g
         "Task ingress service rollback placeholder consistency guard",
     )
 
-    assert "Status: rollback placeholder guard recorded, implementation not approved." in section
-    assert "placeholder only" in section
-    assert "not a currently executable rollback command" in section
-    assert "no service migration is authorized by this rollback guard" in section
+    assert "Status: rollback placeholder guard updated, implementation landed." in section
+    assert "rollback scoped to the single task ingress service migration" in section
+    assert "exact commit SHA is reported in the completion report" in section
 
     rows = {
         row["Scope"]: row
@@ -2557,16 +2555,16 @@ def test_playbook_parses_task_ingress_service_rollback_placeholder_consistency_g
     assert set(rows) == {"task ingress service migration"}
 
     row = rows["task ingress service migration"]
-    assert row["Rollback command"] == "`git revert <single task ingress service migration commit>`"
+    assert row["Rollback command"] == "`git revert <Task ingress service contract migration implementation commit>`"
     assert row["Applies after"] == "service migration commit lands"
-    assert row["Current executable"] == "false"
+    assert row["Current executable"] == "true"
     assert not re.search(r"\b[0-9a-f]{7,40}\b", row["Rollback command"])
 
     landing_template = _heading_section_text(
         text,
         "Task ingress service contract migration landing record template",
     )
-    assert "Rollback command: git revert <sha>" in landing_template
+    assert "Rollback command: git revert <Task ingress service contract migration implementation commit>" in landing_template
 
 
 def test_playbook_parses_task_ingress_service_approval_transition_atomicity_guard() -> None:
@@ -2674,9 +2672,9 @@ def test_playbook_parses_task_ingress_service_approval_transition_evidence_consi
         "Task ingress service approval transition evidence consistency guard",
     )
 
-    assert "Status: approval transition evidence consistency guard recorded, implementation not approved." in section
-    assert "approval evidence must be present before implementation approval changes" in section
-    assert "no service migration is authorized by this evidence guard" in section
+    assert "Status: approval transition evidence consistency guard updated, implementation landed." in section
+    assert "Approval evidence is present for the approved task ingress service migration" in section
+    assert "no task ingress production wiring is authorized by this evidence guard" in section
 
     rows = {
         row["Evidence item"]: row
@@ -2686,44 +2684,43 @@ def test_playbook_parses_task_ingress_service_approval_transition_evidence_consi
         "red test evidence": {
             "Evidence item": "red test evidence",
             "Required location": "`Task ingress service contract migration readiness checklist`",
-            "Current approval evidence present": "false",
+            "Current approval evidence present": "true",
         },
         "green focused regression": {
             "Evidence item": "green focused regression",
             "Required location": "`Task ingress service contract migration readiness checklist`",
-            "Current approval evidence present": "false",
+            "Current approval evidence present": "true",
         },
         "architecture/source regression": {
             "Evidence item": "architecture/source regression",
             "Required location": "`Task ingress service contract migration readiness checklist`",
-            "Current approval evidence present": "false",
+            "Current approval evidence present": "true",
         },
         "approval flag update evidence": {
             "Evidence item": "approval flag update evidence",
             "Required location": "`Task ingress service contract migration approval flag consistency guard`",
-            "Current approval evidence present": "false",
+            "Current approval evidence present": "true",
         },
         "landing record placeholder": {
             "Evidence item": "landing record placeholder",
             "Required location": "`Task ingress service contract migration landing record template`",
-            "Current approval evidence present": "false",
+            "Current approval evidence present": "true",
         },
         "rollback placeholder evidence": {
             "Evidence item": "rollback placeholder evidence",
             "Required location": "`Task ingress service rollback placeholder consistency guard`",
-            "Current approval evidence present": "false",
+            "Current approval evidence present": "true",
         },
         "post-push branch status": {
             "Evidence item": "post-push branch status",
             "Required location": "`Task ingress service contract migration readiness checklist`",
-            "Current approval evidence present": "false",
+            "Current approval evidence present": "true",
         },
     }
 
     for forbidden in (
-        "Current approval evidence present | true",
-        "implementation approved",
-        "service migration landed",
+        "Task ingress production wiring | true",
+        "MCP production wiring | true",
     ):
         assert forbidden not in section
 
@@ -2735,8 +2732,8 @@ def test_playbook_parses_task_ingress_service_landing_status_guard() -> None:
         "Task ingress service landing status guard",
     )
 
-    assert "Status: landing status guard recorded, service migration not landed." in section
-    assert "no service migration is authorized by this landing status guard" in section
+    assert "Status: landing status guard updated, service migration landed." in section
+    assert "no task ingress production wiring is authorized by this landing status guard" in section
 
     rows = {
         row["Landing surface"]: row
@@ -2746,17 +2743,17 @@ def test_playbook_parses_task_ingress_service_landing_status_guard() -> None:
         "landing record template": {
             "Landing surface": "landing record template",
             "Required location": "`Task ingress service contract migration landing record template`",
-            "Current landed": "false",
+            "Current landed": "true",
         },
         "rollback placeholder": {
             "Landing surface": "rollback placeholder",
             "Required location": "`Task ingress service rollback placeholder consistency guard`",
-            "Current landed": "false",
+            "Current landed": "true",
         },
         "approval evidence": {
             "Landing surface": "approval evidence",
             "Required location": "`Task ingress service approval transition evidence consistency guard`",
-            "Current landed": "false",
+            "Current landed": "true",
         },
     }
 
@@ -2773,8 +2770,8 @@ def test_playbook_parses_task_ingress_service_landing_status_guard() -> None:
         "Task ingress service approval transition evidence consistency guard",
     )
 
-    assert "Status: landing evidence template recorded, implementation not approved." in landing_template
+    assert "Status: implementation landing record completed." in landing_template
     rollback_rows = _markdown_table_rows(rollback_guard)
-    assert rollback_rows[0]["Current executable"] == "false"
+    assert rollback_rows[0]["Current executable"] == "true"
     for row in _markdown_table_rows(evidence_guard):
-        assert row["Current approval evidence present"] == "false"
+        assert row["Current approval evidence present"] == "true"
