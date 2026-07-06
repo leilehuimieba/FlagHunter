@@ -4038,6 +4038,58 @@ def test_playbook_records_state_ownership_verification_gate_guard() -> None:
         assert boundary in section
 
 
+def test_playbook_records_state_ownership_implementation_approval_readiness_completeness_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "State ownership implementation approval readiness completeness guard",
+    )
+
+    assert "Status: readiness completeness guard recorded, State implementation not approved." in section
+    assert "State ownership implementation approval readiness is complete as governance evidence only" in section
+    rows = {
+        row["Readiness surface"]: row
+        for row in _markdown_table_rows(section)
+    }
+    expected = {
+        "approval package": "`State ownership implementation approval package aggregate guard`",
+        "transition atomicity": "`State ownership approval transition atomicity guard`",
+        "transition coverage": "`State ownership approval transition coverage guard`",
+        "transition evidence": "`State ownership approval transition evidence consistency guard`",
+        "landing status": "`State ownership implementation landing status guard`",
+        "rollback placeholder": "`State ownership rollback placeholder consistency guard`",
+        "verification gates": "`State ownership implementation verification gate guard`",
+    }
+    assert set(rows) == set(expected)
+    for surface, heading in expected.items():
+        assert rows[surface]["Required heading"] == heading
+        assert rows[surface]["Governance ready"] == "true"
+        assert rows[surface]["Implementation approved"] == "false"
+        assert heading.strip("`") in text
+    for invariant in (
+        "State readiness completeness is not State implementation approval",
+        "explicit user approval is still required before any State implementation commit",
+        "future State implementation must update exactly one implementation landing record",
+        "readiness completeness must not authorize State ownership migration",
+    ):
+        assert invariant in section
+    for boundary in (
+        "no `CTFState` ownership migration",
+        "no state-store production wiring",
+        "no claim-store production wiring",
+        "no proof-authority behavior changes",
+        "no verifier decision behavior changes",
+        "no ToolExecutor changes",
+        "no `CTFTaskDispatcher` flow changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_state_ownership_first_slice_characterization_landing() -> None:
     text = _playbook_text()
     section = _heading_section_text(
