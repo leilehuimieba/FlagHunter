@@ -6231,6 +6231,45 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Proof authority characterization readiness aggregate
+
+Status: aggregate guard recorded, implementation not approved.
+
+This aggregate keeps the proof-authority boundary characterization runway
+visible as approval package evidence, not implementation approval.
+
+Required characterization guards:
+
+- Proof authority write surface characterization guard
+- Verified decision reference characterization guard
+- Proof authority port action unwired guard
+- Proof authority adapter import unwired guard
+
+Focused guard tests:
+
+- `test_p1_proof_authority_write_calls_stay_in_verifier_and_state_only`
+- `test_p1_verified_decision_references_stay_in_verifier_and_state_only`
+- `test_p1_proof_authority_port_actions_remain_unwired_outside_port_and_adapter`
+- `test_p1_proof_authority_adapter_stays_unwired_from_production_imports`
+
+Verifier/proof authority boundary implementation remains unapproved. These
+guards only prove the current write surface, verified-decision reference
+surface, port action skeleton, and adapter import skeleton are characterized
+before a future explicit approval.
+
+Boundary confirmation for this aggregate:
+
+- no proof-authority behavior changes
+- no proof authority production wiring
+- no `CTFState` ownership split
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Web provenance/trace payload test debt characterization landing record
 
 Status: characterization debt fixed for Web provenance and trace payload read paths.

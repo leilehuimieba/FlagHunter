@@ -3374,6 +3374,45 @@ def test_playbook_records_proof_authority_adapter_import_unwired_guard() -> None
         assert boundary in section
 
 
+def test_playbook_records_proof_authority_characterization_readiness_aggregate() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Proof authority characterization readiness aggregate",
+    )
+
+    assert "Status: aggregate guard recorded, implementation not approved." in section
+    for required_guard in (
+        "Proof authority write surface characterization guard",
+        "Verified decision reference characterization guard",
+        "Proof authority port action unwired guard",
+        "Proof authority adapter import unwired guard",
+    ):
+        assert required_guard in section
+    for focused_test in (
+        "test_p1_proof_authority_write_calls_stay_in_verifier_and_state_only",
+        "test_p1_verified_decision_references_stay_in_verifier_and_state_only",
+        "test_p1_proof_authority_port_actions_remain_unwired_outside_port_and_adapter",
+        "test_p1_proof_authority_adapter_stays_unwired_from_production_imports",
+    ):
+        assert focused_test in section
+    assert "Verifier/proof authority boundary implementation remains unapproved" in section
+    assert "approval package evidence, not implementation approval" in section
+    for boundary in (
+        "no proof-authority behavior changes",
+        "no proof authority production wiring",
+        "no `CTFState` ownership split",
+        "no ToolExecutor changes",
+        "no `CTFTaskDispatcher` flow changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_web_provenance_trace_payload_debt_characterization() -> None:
     text = _playbook_text()
     section = _heading_section_text(
