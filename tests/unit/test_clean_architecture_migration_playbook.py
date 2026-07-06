@@ -4066,6 +4066,7 @@ def test_playbook_records_state_ownership_rollback_placeholder_consistency_guard
     expected = {
         "approval package": "`State ownership implementation approval package aggregate guard`",
         "approval transition evidence": "`State ownership approval transition evidence consistency guard`",
+        "decision checklist": "`State ownership first implementation decision checklist`",
         "landing status": "`State ownership implementation landing status guard`",
         "implementation landing record": "`State ownership split implementation landing record`",
     }
@@ -4077,6 +4078,7 @@ def test_playbook_records_state_ownership_rollback_placeholder_consistency_guard
         assert location.split("`")[1] in text
     for invariant in (
         "State rollback point must be the single approved implementation commit",
+        "State rollback evidence must preserve the approved decision checklist option",
         "rollback placeholder must remain false before State implementation approval",
         "rollback evidence must land with the implementation landing record",
         "rollback placeholder must not authorize State ownership migration",

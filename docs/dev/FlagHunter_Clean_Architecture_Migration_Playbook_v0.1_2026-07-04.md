@@ -3471,12 +3471,14 @@ as the rollback command in the same landing commit that updates implementation e
 |------------------|-------------------|--------------------------|---------------------------------|
 | approval package | `State ownership implementation approval package aggregate guard` | false | false |
 | approval transition evidence | `State ownership approval transition evidence consistency guard` | false | false |
+| decision checklist | `State ownership first implementation decision checklist` | false | false |
 | landing status | `State ownership implementation landing status guard` | false | false |
 | implementation landing record | `State ownership split implementation landing record` | false | false |
 
 Required invariants:
 
 - State rollback point must be the single approved implementation commit
+- State rollback evidence must preserve the approved decision checklist option
 - rollback placeholder must remain false before State implementation approval
 - rollback evidence must land with the implementation landing record
 - rollback placeholder must not authorize State ownership migration
