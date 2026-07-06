@@ -3216,6 +3216,67 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Dispatcher composition root first slice approval text template
+
+Status: approval text template recorded, implementation not approved by this section.
+
+Copyable approval text for the maximum-risk dispatcher/composition-root first slice:
+
+```text
+批准 Dispatcher/composition root production wiring 第一刀：
+candidate: Dispatcher/composition root production wiring
+first slice: composition-root characterization or wiring plan with no production entrypoint switch
+scope: dispatcher/composition-root boundary characterization only
+rollback: revert the single implementation commit
+readiness evidence: CTFTaskDispatcher legacy construction characterization guard reviewed
+landing evidence: required
+独立 TDD、独立 commit/push。
+禁止 CTFTaskDispatcher flow change。
+禁止 composition root production wiring。
+禁止 MCP/Web/CLI/TUI task execution path switch。
+禁止 ToolExecutor side-effect migration。
+禁止 CTFState ownership migration。
+禁止 proof authority behavior change。
+禁止 P5、crew/recovery。
+```
+
+Recommended first slice:
+
+- composition-root wiring only after proof, state, and executor seams land
+- no production entrypoint switch
+- no dispatcher flow movement
+- no MCP router or task execution wiring
+- no proof, state, or executor ownership movement
+
+Approval text invariants:
+
+- this template is not approval by itself
+- approval must be sent as a user message
+- dispatcher/composition-root work must stay last until proof, state, and executor seams land
+- composition-root planning does not approve production entrypoint wiring
+- any future wiring slice must name one entrypoint family and one rollback commit
+
+Required verification for a future approved dispatcher/composition-root first slice:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/session/test_agent_session.py tests/unit/interface/test_web_server.py tests/unit/mcp/test_mcp_ingress_mode_contract.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/agents/test_ctf_dispatcher.py tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this template:
+
+- no implementation approval by this section
+- no dispatcher flow changes
+- no composition root production wiring
+- no MCP router changes
+- no MCP/Web/CLI/TUI task execution path switch
+- no ToolExecutor side-effect split
+- no `CTFState` ownership split
+- no proof-authority behavior changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Core production approval package aggregate guard
 
 Status: aggregate guard recorded, implementation not approved by this section.

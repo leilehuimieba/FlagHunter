@@ -2939,6 +2939,44 @@ def test_playbook_records_tool_executor_first_slice_approval_text_template() -> 
         assert invariant in section
 
 
+def test_playbook_records_dispatcher_composition_root_first_slice_approval_text_template() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Dispatcher composition root first slice approval text template",
+    )
+
+    assert "Status: approval text template recorded, implementation not approved by this section." in section
+    assert "批准 Dispatcher/composition root production wiring 第一刀" in section
+    assert "composition-root wiring only after proof, state, and executor seams land" in section
+    for required_clause in (
+        "candidate: Dispatcher/composition root production wiring",
+        "first slice: composition-root characterization or wiring plan with no production entrypoint switch",
+        "scope: dispatcher/composition-root boundary characterization only",
+        "rollback: revert the single implementation commit",
+        "readiness evidence: CTFTaskDispatcher legacy construction characterization guard reviewed",
+        "landing evidence: required",
+    ):
+        assert required_clause in section
+    for forbidden_clause in (
+        "禁止 CTFTaskDispatcher flow change",
+        "禁止 composition root production wiring",
+        "禁止 MCP/Web/CLI/TUI task execution path switch",
+        "禁止 ToolExecutor side-effect migration",
+        "禁止 CTFState ownership migration",
+        "禁止 proof authority behavior change",
+        "禁止 P5、crew/recovery",
+    ):
+        assert forbidden_clause in section
+    for invariant in (
+        "this template is not approval by itself",
+        "approval must be sent as a user message",
+        "dispatcher/composition-root work must stay last until proof, state, and executor seams land",
+        "composition-root planning does not approve production entrypoint wiring",
+    ):
+        assert invariant in section
+
+
 def test_playbook_records_core_implementation_landing_evidence_template() -> None:
     text = _playbook_text()
     section = _heading_section_text(
