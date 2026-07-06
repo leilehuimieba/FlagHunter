@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import ast
+import importlib
 import warnings
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 EXECUTOR_PATH = REPO_ROOT / "flaghunter" / "tools" / "executor.py"
+TOOLS_INIT_PATH = REPO_ROOT / "flaghunter" / "tools" / "__init__.py"
 
 
 def _parse_executor() -> ast.Module:
@@ -18,6 +20,25 @@ def _parse_executor() -> ast.Module:
             EXECUTOR_PATH.read_text(encoding="utf-8-sig"),
             filename=str(EXECUTOR_PATH),
         )
+
+
+def _parse_tools_init() -> ast.Module:
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", SyntaxWarning)
+        return ast.parse(
+            TOOLS_INIT_PATH.read_text(encoding="utf-8-sig"),
+            filename=str(TOOLS_INIT_PATH),
+        )
+
+
+def _imported_module_names(tree: ast.Module) -> list[str]:
+    modules: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            modules.extend(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            modules.append("." * node.level + (node.module or ""))
+    return modules
 
 
 def _class_method(
@@ -98,5 +119,31 @@ def test_tool_executor_module_does_not_import_tool_runner_adapter() -> None:
             for alias in node.names:
                 if alias.name == "ToolRunnerAdapter":
                     offenders.append((alias.name, node.lineno))
+
+    assert offenders == []
+
+
+def test_tools_namespace_keeps_tool_executor_legacy_reexport_only() -> None:
+    package = importlib.import_module("flaghunter.tools")
+    executor_module = importlib.import_module("flaghunter.tools.executor")
+    source = TOOLS_INIT_PATH.read_text(encoding="utf-8")
+
+    assert package.ToolExecutor is executor_module.ToolExecutor
+    assert "ToolExecutor" in package.__all__
+    assert "ExecutionResult" not in package.__all__
+
+    imported_modules = set(_imported_module_names(_parse_tools_init()))
+    assert ".executor" in imported_modules
+    assert ".loader" in imported_modules
+    assert ".registry" in imported_modules
+
+    forbidden_tokens = {
+        "ToolRunnerAdapter",
+        "ToolRunnerPort",
+        "flaghunter.adapters.tools",
+        "flaghunter.ports.tool_runner",
+        "ExecutionResult",
+    }
+    offenders = sorted(token for token in forbidden_tokens if token in source)
 
     assert offenders == []

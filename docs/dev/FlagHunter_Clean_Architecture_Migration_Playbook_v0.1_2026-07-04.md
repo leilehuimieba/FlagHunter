@@ -3306,6 +3306,43 @@ Boundary confirmation for this landing:
 - no P5 implementation
 - no crew/recovery changes
 
+#### ToolExecutor namespace re-export guard
+
+Status: namespace guard landed, no ToolExecutor behavior changed.
+
+`tests/unit/tools/test_executor_side_effect_characterization.py::test_tools_namespace_keeps_tool_executor_legacy_reexport_only`
+now locks the `flaghunter.tools` package namespace around the current legacy
+executor re-export surface.
+
+Locked namespace surface:
+
+- `flaghunter/tools/__init__.py`
+- `ToolExecutor`
+- `flaghunter.tools.executor.ToolExecutor`
+- no `ToolRunnerAdapter` re-export
+- no `ToolRunnerPort` re-export
+- no `ExecutionResult` namespace expansion
+
+This is a namespace guard only. It keeps the legacy `ToolExecutor` package
+surface stable while preventing the tools package from becoming an accidental
+tool-runner adapter wiring or side-effect migration path.
+
+Boundary confirmation for this guard:
+
+- no ToolExecutor production behavior changes
+- no ToolExecutor side-effect split
+- no tool-runner production wiring
+- no runtime construction changes
+- no `CTFState` ownership migration
+- no `CTFVerifier` decision behavior changes
+- no proof-authority behavior changes
+- no Dispatcher changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Tool runner adapter delegate-only guard hardening
 
 Status: delegate-only guard recorded, no production wiring.

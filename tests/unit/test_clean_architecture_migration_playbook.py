@@ -3506,6 +3506,42 @@ def test_playbook_records_tool_executor_first_slice_characterization_landing() -
         assert boundary in section
 
 
+def test_playbook_records_tool_executor_namespace_reexport_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "ToolExecutor namespace re-export guard",
+    )
+
+    assert "Status: namespace guard landed, no ToolExecutor behavior changed." in section
+    assert "test_tools_namespace_keeps_tool_executor_legacy_reexport_only" in section
+    for locked_surface in (
+        "`flaghunter/tools/__init__.py`",
+        "`ToolExecutor`",
+        "`flaghunter.tools.executor.ToolExecutor`",
+        "no `ToolRunnerAdapter` re-export",
+        "no `ToolRunnerPort` re-export",
+        "no `ExecutionResult` namespace expansion",
+    ):
+        assert locked_surface in section
+    for boundary in (
+        "no ToolExecutor production behavior changes",
+        "no ToolExecutor side-effect split",
+        "no tool-runner production wiring",
+        "no runtime construction changes",
+        "no `CTFState` ownership migration",
+        "no `CTFVerifier` decision behavior changes",
+        "no proof-authority behavior changes",
+        "no Dispatcher changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_tool_runner_adapter_delegate_only_guard_hardening() -> None:
     text = _playbook_text()
     section = _heading_section_text(
