@@ -3787,6 +3787,78 @@ Boundary confirmation for this entrypoint guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### MCP task execution composition-root approval package
+
+Status: approval package characterized, implementation not approved.
+
+MCP task execution remains legacy direct construction in
+`flaghunter.mcp.server.mcp_tools` until an explicit future wiring approval
+lands. The current characterization evidence is
+`tests/unit/test_entrypoint_composition_root_characterization.py::test_mcp_task_execution_stays_legacy_direct_construction_before_wiring_approval`.
+
+| Item | Required value |
+|------|----------------|
+| target production file | `flaghunter/mcp/server/mcp_tools.py` |
+| allowed test files | `tests/unit/mcp`; `tests/unit/test_entrypoint_composition_root_characterization.py`; `tests/unit/test_clean_architecture_migration_playbook.py` |
+| governance record | `docs/dev/FlagHunter_Clean_Architecture_Migration_Playbook_v0.1_2026-07-04.md` |
+| rollback point | single future MCP task execution wiring commit |
+
+Future approval package must preserve:
+
+- MCP external response shape
+- task entry lifecycle
+- blocking and async behavior
+- ingress handoff and control decision payload compatibility
+- current CTF dispatcher handoff behavior
+
+Required verification gates for a future approved implementation:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/mcp/test_mcp_ingress_mode_contract.py tests/unit/mcp/test_mcp_tools.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_entrypoint_composition_root_characterization.py tests/unit/test_clean_architecture_migration_playbook.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py -q
+git diff --check
+```
+
+Required invariants:
+
+- approval package evidence is not implementation approval
+- future implementation must preserve MCP external response shape
+- future implementation must preserve task entry lifecycle and async/blocking behavior
+- future implementation must update exactly one production wiring surface
+
+Copyable future approval skeleton:
+
+```text
+批准 MCP task execution composition-root wiring 第一刀：
+只改 flaghunter/mcp/server/mcp_tools.py 的 task execution agent/runtime construction path。
+保持 MCP external response shape、TaskEntry lifecycle、run_task/run_task_async blocking/async 行为、ingress handoff、control decision、CTF dispatcher handoff 兼容。
+只更新 tests/unit/mcp、entrypoint composition-root characterization、playbook。
+独立 TDD、独立 commit/push。
+禁止 MCP router changes。
+禁止 ToolExecutor changes。
+禁止 Verifier or proof authority behavior changes。
+禁止 CTFState ownership split。
+禁止 Dispatcher flow changes。
+禁止 Web/CLI/TUI task wiring changes。
+禁止 composition-root production wiring outside MCP task execution。
+禁止 P5、crew/recovery。
+```
+
+Boundary confirmation for this approval package:
+
+- no implementation approval by this section
+- no MCP task execution wiring changes
+- no MCP router changes
+- no ToolExecutor changes
+- no Verifier or proof authority behavior changes
+- no CTFState ownership split
+- no Dispatcher flow changes
+- no Web/CLI/TUI task wiring changes
+- no composition-root production wiring outside MCP task execution
+- no P5 implementation
+- no crew/recovery changes
+
 #### Dispatcher production wiring approval package consistency guard
 
 Status: approval package consistency guard recorded, no production wiring.

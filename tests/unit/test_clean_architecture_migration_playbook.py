@@ -3213,6 +3213,55 @@ def test_playbook_records_entrypoint_composition_root_usage_characterization_gua
         assert boundary in section
 
 
+def test_playbook_records_mcp_task_execution_composition_root_approval_package() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "MCP task execution composition-root approval package",
+    )
+
+    assert "Status: approval package characterized, implementation not approved." in section
+    assert "MCP task execution remains legacy direct construction" in section
+    assert "test_mcp_task_execution_stays_legacy_direct_construction_before_wiring_approval" in section
+    rows = {
+        row["Item"]: row
+        for row in _markdown_table_rows(section)
+    }
+    expected_rows = {
+        "target production file": "`flaghunter/mcp/server/mcp_tools.py`",
+        "allowed test files": "`tests/unit/mcp`; `tests/unit/test_entrypoint_composition_root_characterization.py`; `tests/unit/test_clean_architecture_migration_playbook.py`",
+        "governance record": "`docs/dev/FlagHunter_Clean_Architecture_Migration_Playbook_v0.1_2026-07-04.md`",
+        "rollback point": "single future MCP task execution wiring commit",
+    }
+    for item, expected_value in expected_rows.items():
+        assert rows[item]["Required value"] == expected_value
+    for required_gate in (
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/mcp/test_mcp_ingress_mode_contract.py tests/unit/mcp/test_mcp_tools.py -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_entrypoint_composition_root_characterization.py tests/unit/test_clean_architecture_migration_playbook.py -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py -q",
+        "git diff --check",
+    ):
+        assert required_gate in section
+    for forbidden in (
+        "禁止 MCP router changes",
+        "禁止 ToolExecutor changes",
+        "禁止 Verifier or proof authority behavior changes",
+        "禁止 CTFState ownership split",
+        "禁止 Dispatcher flow changes",
+        "禁止 Web/CLI/TUI task wiring changes",
+        "禁止 composition-root production wiring outside MCP task execution",
+        "禁止 P5、crew/recovery",
+    ):
+        assert forbidden in section
+    for invariant in (
+        "approval package evidence is not implementation approval",
+        "future implementation must preserve MCP external response shape",
+        "future implementation must preserve task entry lifecycle and async/blocking behavior",
+        "future implementation must update exactly one production wiring surface",
+    ):
+        assert invariant in section
+
+
 def test_playbook_records_state_ownership_first_slice_approval_text_template() -> None:
     text = _playbook_text()
     section = _heading_section_text(
