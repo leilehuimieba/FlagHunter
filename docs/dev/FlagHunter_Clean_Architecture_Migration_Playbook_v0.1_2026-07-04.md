@@ -6153,6 +6153,47 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Proof authority port action unwired guard
+
+Status: source guard recorded, no production wiring approved.
+
+`tests/unit/agents/test_p1_source_guards.py::test_p1_proof_authority_port_actions_remain_unwired_outside_port_and_adapter`
+now locks the proof authority port action methods as skeleton-only surfaces.
+
+Current allowed proof authority port action definitions:
+
+- `ProofAuthorityPort.append_proof_record`
+- `ProofAuthorityPort.confirm_claim`
+- `ProofAuthorityAdapter.append_proof_record`
+- `ProofAuthorityAdapter.confirm_claim`
+
+Current allowed files:
+
+- `flaghunter/ports/proof_authority.py`
+- `flaghunter/adapters/proof/proof_authority_adapter.py`
+
+The guarded action names are:
+
+- `append_proof_record`
+- `confirm_claim`
+
+This keeps the proof authority port and adapter skeleton available for a
+future approved proof-authority boundary migration, while preventing accidental
+production wiring or direct proof-authority action calls elsewhere.
+
+Boundary confirmation for this guard:
+
+- no proof-authority behavior changes
+- no proof authority production wiring
+- no `CTFState` ownership split
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Web provenance/trace payload test debt characterization landing record
 
 Status: characterization debt fixed for Web provenance and trace payload read paths.

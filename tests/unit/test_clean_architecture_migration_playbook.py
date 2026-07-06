@@ -3302,6 +3302,44 @@ def test_playbook_records_verified_decision_reference_characterization_guard() -
         assert boundary in section
 
 
+def test_playbook_records_proof_authority_port_action_unwired_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Proof authority port action unwired guard",
+    )
+
+    assert "Status: source guard recorded, no production wiring approved." in section
+    assert (
+        "tests/unit/agents/test_p1_source_guards.py::"
+        "test_p1_proof_authority_port_actions_remain_unwired_outside_port_and_adapter"
+    ) in section
+    for allowed_surface in (
+        "`ProofAuthorityPort.append_proof_record`",
+        "`ProofAuthorityPort.confirm_claim`",
+        "`ProofAuthorityAdapter.append_proof_record`",
+        "`ProofAuthorityAdapter.confirm_claim`",
+        "`flaghunter/ports/proof_authority.py`",
+        "`flaghunter/adapters/proof/proof_authority_adapter.py`",
+        "`append_proof_record`",
+        "`confirm_claim`",
+    ):
+        assert allowed_surface in section
+    for boundary in (
+        "no proof-authority behavior changes",
+        "no proof authority production wiring",
+        "no `CTFState` ownership split",
+        "no ToolExecutor changes",
+        "no `CTFTaskDispatcher` flow changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_web_provenance_trace_payload_debt_characterization() -> None:
     text = _playbook_text()
     section = _heading_section_text(

@@ -298,6 +298,94 @@ def test_p1_verified_decision_references_stay_in_verifier_and_state_only() -> No
     assert offenders == []
 
 
+def test_p1_proof_authority_port_actions_remain_unwired_outside_port_and_adapter() -> None:
+    allowed_definitions: set[tuple[str, str, str]] = {
+        (
+            "flaghunter/ports/proof_authority.py",
+            "ProofAuthorityPort.append_proof_record",
+            "append_proof_record",
+        ),
+        (
+            "flaghunter/ports/proof_authority.py",
+            "ProofAuthorityPort.confirm_claim",
+            "confirm_claim",
+        ),
+        (
+            "flaghunter/adapters/proof/proof_authority_adapter.py",
+            "ProofAuthorityAdapter.append_proof_record",
+            "append_proof_record",
+        ),
+        (
+            "flaghunter/adapters/proof/proof_authority_adapter.py",
+            "ProofAuthorityAdapter.confirm_claim",
+            "confirm_claim",
+        ),
+    }
+    allowed_calls: set[tuple[str, str, str]] = {
+        (
+            "flaghunter/adapters/proof/proof_authority_adapter.py",
+            "ProofAuthorityAdapter.append_proof_record",
+            "append_proof_record",
+        ),
+        (
+            "flaghunter/adapters/proof/proof_authority_adapter.py",
+            "ProofAuthorityAdapter.confirm_claim",
+            "confirm_claim",
+        ),
+    }
+    guarded_names = {"append_proof_record", "confirm_claim"}
+    offenders: list[tuple[str, str, str, int]] = []
+
+    class ProofPortActionVisitor(ast.NodeVisitor):
+        def __init__(self, relative_path: str):
+            self.relative_path = relative_path
+            self.scope: list[str] = []
+
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            self.scope.append(node.name)
+            self.generic_visit(node)
+            self.scope.pop()
+
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            self.scope.append(node.name)
+            scope_name = ".".join(self.scope)
+            if node.name in guarded_names:
+                key = (self.relative_path, scope_name, node.name)
+                if key not in allowed_definitions:
+                    offenders.append((self.relative_path, scope_name, node.name, node.lineno))
+            self.generic_visit(node)
+            self.scope.pop()
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            self.scope.append(node.name)
+            scope_name = ".".join(self.scope)
+            if node.name in guarded_names:
+                key = (self.relative_path, scope_name, node.name)
+                if key not in allowed_definitions:
+                    offenders.append((self.relative_path, scope_name, node.name, node.lineno))
+            self.generic_visit(node)
+            self.scope.pop()
+
+        def visit_Call(self, node: ast.Call) -> None:
+            call_name = ""
+            if isinstance(node.func, ast.Attribute):
+                call_name = node.func.attr
+            elif isinstance(node.func, ast.Name):
+                call_name = node.func.id
+            if call_name in guarded_names:
+                scope_name = ".".join(self.scope) or "<module>"
+                key = (self.relative_path, scope_name, call_name)
+                if key not in allowed_calls:
+                    offenders.append((self.relative_path, scope_name, call_name, node.lineno))
+            self.generic_visit(node)
+
+    for path in _python_sources(PRODUCTION_ROOT):
+        visitor = ProofPortActionVisitor(_relative(path))
+        visitor.visit(_parse_source(_relative(path)))
+
+    assert offenders == []
+
+
 def test_p1_control_and_ingress_paths_do_not_emit_verification_decisions() -> None:
     guarded_paths = [
         "flaghunter/agents/pa_agent/coordinator.py",
