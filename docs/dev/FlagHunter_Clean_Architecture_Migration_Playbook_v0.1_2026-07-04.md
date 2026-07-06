@@ -3892,6 +3892,45 @@ Boundary confirmation for this landing:
 - no P5 implementation
 - no crew/recovery changes
 
+#### MCP task execution behavior equivalence hardening record
+
+Status: behavior equivalence hardening landed, no production changes.
+
+This follow-up card locks the compatibility surface after the MCP task
+execution construction path moved behind `AgentSession.create`. It does not
+extend wiring or change runtime behavior.
+
+Locked compatibility surfaces:
+
+- run_task blocking response shape
+- run_task_async accepted response shape
+- TaskEntry lifecycle fields
+- status/result/readback fields
+- ingressHandoff and controlDecision payload compatibility
+- notes snapshot, thinking, tool call, and tool result readback semantics
+
+Evidence:
+
+- `test_mcp_task_execution_behavior_equivalence_survives_session_construction`
+
+Rollback command:
+
+- `git revert <MCP task execution behavior equivalence hardening commit>`
+
+Boundary confirmation for this hardening:
+
+- no `flaghunter/mcp/server/mcp_tools.py` production changes
+- no MCP router changes
+- no MCP server bootstrap changes
+- no Web/CLI/TUI task wiring changes
+- no ToolExecutor changes
+- no Verifier or proof authority behavior changes
+- no CTFState ownership split
+- no Dispatcher flow changes
+- no composition-root production wiring changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Dispatcher production wiring approval package consistency guard
 
 Status: approval package consistency guard recorded, no production wiring.

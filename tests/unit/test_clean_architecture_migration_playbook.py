@@ -3293,6 +3293,40 @@ def test_playbook_records_mcp_task_execution_composition_root_wiring_landing() -
         assert boundary in section
 
 
+def test_playbook_records_mcp_task_execution_behavior_equivalence_hardening() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "MCP task execution behavior equivalence hardening record",
+    )
+
+    assert "Status: behavior equivalence hardening landed, no production changes." in section
+    assert "test_mcp_task_execution_behavior_equivalence_survives_session_construction" in section
+    for locked_surface in (
+        "run_task blocking response shape",
+        "run_task_async accepted response shape",
+        "TaskEntry lifecycle fields",
+        "status/result/readback fields",
+        "ingressHandoff and controlDecision payload compatibility",
+        "notes snapshot, thinking, tool call, and tool result readback semantics",
+    ):
+        assert locked_surface in section
+    for boundary in (
+        "no `flaghunter/mcp/server/mcp_tools.py` production changes",
+        "no MCP router changes",
+        "no MCP server bootstrap changes",
+        "no Web/CLI/TUI task wiring changes",
+        "no ToolExecutor changes",
+        "no Verifier or proof authority behavior changes",
+        "no CTFState ownership split",
+        "no Dispatcher flow changes",
+        "no composition-root production wiring changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_state_ownership_first_slice_approval_text_template() -> None:
     text = _playbook_text()
     section = _heading_section_text(

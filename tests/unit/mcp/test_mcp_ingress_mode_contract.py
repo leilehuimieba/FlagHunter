@@ -453,6 +453,187 @@ async def test_mcp_run_task_and_async_submit_neutral_ingress_without_response_dr
     assert "ingress" not in async_result.lower()
 
 
+@pytest.mark.asyncio
+async def test_mcp_task_execution_behavior_equivalence_survives_session_construction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class RecordingSubmitTaskIngress:
+        async def submit(self, **kwargs):
+            return {
+                "schemaVersion": 1,
+                "taskId": kwargs.get("task_id"),
+                "request": {
+                    "schemaVersion": 1,
+                    "instructions": kwargs.get("instructions"),
+                },
+                "ingress": {},
+            }
+
+    async def fake_make_agent(target, scope):
+        return SimpleNamespace(
+            runtime=SimpleNamespace(),
+            tools=[],
+            cleanup_after_cancel=lambda: None,
+        )
+
+    async def fake_drive_task(entry):
+        entry.status = "done"
+        entry.result = "stable task result"
+        entry.thinking.append("kept thinking event")
+        entry.tool_calls.append(
+            {
+                "id": "call-1",
+                "name": "artifact_collect",
+                "arguments": {"path": "artifact.txt"},
+            }
+        )
+        entry.tool_results.append(
+            {
+                "tool_call_id": "call-1",
+                "tool_name": "artifact_collect",
+                "success": True,
+                "result": "collected",
+                "error": None,
+            }
+        )
+        entry.notes_snapshot = "stable notes snapshot"
+
+    def fake_create_task(coro):
+        coro.close()
+        return SimpleNamespace(done=lambda: True)
+
+    monkeypatch.setattr(
+        mcp_tools,
+        "_current_model_readiness",
+        lambda: {"ready": True, "reason": "ok"},
+    )
+    monkeypatch.setattr(mcp_tools, "_make_agent", fake_make_agent)
+    monkeypatch.setattr(mcp_tools, "_drive_task", fake_drive_task)
+    monkeypatch.setattr(mcp_tools.asyncio, "create_task", fake_create_task)
+    monkeypatch.setattr(
+        mcp_tools,
+        "SubmitTaskIngress",
+        RecordingSubmitTaskIngress,
+        raising=False,
+    )
+
+    request = {
+        "task": "resume challenge from MCP",
+        "target": "http://challenge.test",
+        "scope": ["http://challenge.test"],
+        "mode": "ctf",
+        "ctfType": "web",
+        "resumeContext": {
+            "runId": "run-prev-1",
+            "checkpointId": "checkpoint-prev-1",
+            "summary": "continue from prior checkpoint",
+        },
+        "challengePath": r"D:\webstudy\CTF\easy_login",
+        "artifactPaths": ["artifact.txt"],
+    }
+
+    run_result = await mcp_tools.run_task(request)
+    entry = next(iter(mcp_tools._tasks.values()))
+    status_output = await mcp_tools.get_task_status({"task_id": entry.id})
+    result_output = await mcp_tools.get_task_result({"task_id": entry.id})
+
+    assert run_result.splitlines()[:5] == [
+        "[result]",
+        "stable task result",
+        "[mode] ctf",
+        "[mode_subtype] web",
+        "[goal_style] flag",
+    ]
+    assert "[control_decision] resume_execute" in run_result
+    assert f"[run_id] mcp-ctf-{entry.id}" in run_result
+    assert "[resume_from_run] run-prev-1" in run_result
+    assert "[resume_from_checkpoint] checkpoint-prev-1" in run_result
+    assert "[challenge_path] D:\\webstudy\\CTF\\easy_login" in run_result
+    assert "[artifact_paths] artifact.txt" in run_result
+    assert "[tools_used] artifact_collect" in run_result
+    assert "[notes_snapshot]\nstable notes snapshot" in run_result
+    assert "ingressHandoff" not in run_result
+
+    assert entry.status == "done"
+    assert entry.task == "resume challenge from MCP"
+    assert entry.target == "http://challenge.test"
+    assert entry.scope == ["http://challenge.test"]
+    assert entry.mode == "ctf"
+    assert entry.modeSubtype == "web"
+    assert entry.goalStyle == "flag"
+    assert entry.runId == f"mcp-ctf-{entry.id}"
+    assert entry.resumeFromRunId == "run-prev-1"
+    assert entry.resumeFromCheckpointId == "checkpoint-prev-1"
+    assert entry.resumeSummary == "continue from prior checkpoint"
+    assert isinstance(entry.controlDecision, dict)
+    assert entry.controlDecision["decisionKind"] == "resume_execute"
+    assert entry.controlDecision["nextAction"] == "resume_from_checkpoint"
+    assert isinstance(entry.ingressHandoff, dict)
+    assert entry.ingressHandoff["decisionKind"] == "resume_execute"
+    assert entry.ingressHandoff["resumeBootstrap"] == {
+        "nextAction": "resume_from_checkpoint",
+        "runId": "run-prev-1",
+        "checkpointId": "checkpoint-prev-1",
+        "summary": "continue from prior checkpoint",
+    }
+
+    for expected in (
+        f"task_id:    {entry.id}",
+        "status:     done",
+        "mode:       ctf",
+        "mode_subtype: web",
+        "goal_style: flag",
+        "control_decision: resume_execute",
+        f"run_id:     mcp-ctf-{entry.id}",
+        "resume_from_run: run-prev-1",
+        "resume_from_checkpoint: checkpoint-prev-1",
+        "challenge_path: D:\\webstudy\\CTF\\easy_login",
+        "artifact_paths: artifact.txt",
+        "result (preview):\nstable task result",
+    ):
+        assert expected in status_output
+
+    for expected in (
+        f"task_id:     {entry.id}",
+        "status:      done",
+        "mode:        ctf",
+        "mode_subtype: web",
+        "goal_style:  flag",
+        "control_decision: resume_execute",
+        "[thinking]",
+        "kept thinking event",
+        "[tool_calls]",
+        "artifact_collect",
+        "[tool_results]",
+        "collected",
+        "[result]\nstable task result",
+        "[notes_snapshot]\nstable notes snapshot",
+    ):
+        assert expected in result_output
+
+    mcp_tools._tasks.clear()
+    async_result = await mcp_tools.run_task_async(request | {"task": "async resume challenge from MCP"})
+    async_entry = next(iter(mcp_tools._tasks.values()))
+
+    assert async_result.splitlines()[:6] == [
+        f"task_id: {async_entry.id}",
+        "status: pending",
+        "task: async resume challenge from MCP",
+        "mode: ctf",
+        "mode_subtype: web",
+        "goal_style: flag",
+    ]
+    assert "control_decision: resume_execute" in async_result
+    assert f"run_id: mcp-ctf-{async_entry.id}" in async_result
+    assert "resume_from_run: run-prev-1" in async_result
+    assert "resume_from_checkpoint: checkpoint-prev-1" in async_result
+    assert "challenge_path: D:\\webstudy\\CTF\\easy_login" in async_result
+    assert "artifact_paths: artifact.txt" in async_result
+    assert async_entry.status == "pending"
+    assert isinstance(async_entry.ingressHandoff, dict)
+    assert async_entry.ingressHandoff["decisionKind"] == "resume_execute"
+
+
 def test_mcp_blackboard_readback_formatting_matches_candidate_a_projection() -> None:
     case = _mcp_blackboard_readback_formatting_case()
     lines: list[str] = []
