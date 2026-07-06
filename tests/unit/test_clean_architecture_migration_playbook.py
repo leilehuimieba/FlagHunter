@@ -4427,6 +4427,72 @@ def test_playbook_records_verifier_proof_authority_core_landing_completion_appro
         assert boundary in section
 
 
+def test_playbook_records_state_unlock_blocked_until_proof_completion_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "State ownership unlock blocked until proof completion guard",
+    )
+
+    assert "Status: unlock guard recorded, State ownership remains blocked." in section
+    for required_heading in (
+        "Verifier proof authority core landing completion approval checklist",
+        "Verifier proof authority partial landing reconciliation guard",
+        "Core implementation landing evidence completeness matrix",
+        "Core implementation sequence gate",
+        "State ownership characterization readiness aggregate",
+    ):
+        assert required_heading in section
+    rows = {
+        row["Gate surface"]: row
+        for row in _markdown_table_rows(section)
+    }
+    expected = {
+        "proof completion approval": {
+            "Current state": "pending",
+            "State impact": "blocks State",
+        },
+        "proof core landing row": {
+            "Current state": "incomplete",
+            "State impact": "blocks State",
+        },
+        "sequence gate proof row": {
+            "Current state": "next approvable, not landed",
+            "State impact": "blocks State",
+        },
+        "State ownership split": {
+            "Current state": "sequence-blocked",
+            "State impact": "blocked by proof completion",
+        },
+    }
+    assert set(rows) == set(expected)
+    for surface, expected_values in expected.items():
+        for column, value in expected_values.items():
+            assert rows[surface][column] == value
+    for invariant in (
+        "State ownership split cannot be reviewed for implementation while proof completion is pending",
+        "State unlock requires proof completion approval and matrix/sequence gate update in the same functional commit",
+        "State readiness aggregate is not State implementation approval",
+        "partial proof landings do not unlock State",
+    ):
+        assert invariant in section
+    for boundary in (
+        "no State ownership split",
+        "no state-store production wiring",
+        "no claim-store production wiring",
+        "no proof-authority behavior changes",
+        "no verifier decision behavior changes",
+        "no ToolExecutor changes",
+        "no CTFTaskDispatcher flow changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_task_ingress_production_wiring_a_landing() -> None:
     text = _playbook_text()
     section = _heading_section_text(

@@ -4792,6 +4792,59 @@ Boundary confirmation for this checklist:
 - no P5 implementation
 - no crew/recovery changes
 
+#### State ownership unlock blocked until proof completion guard
+
+Status: unlock guard recorded, State ownership remains blocked.
+
+This guard keeps State ownership split review tied to proof-boundary completion
+rather than to partial characterization landings. State characterization work
+may remain useful as readiness evidence, but it does not unlock production
+state ownership migration while proof completion is pending.
+
+Required reference surfaces:
+
+- Verifier proof authority core landing completion approval checklist
+- Verifier proof authority partial landing reconciliation guard
+- Core implementation landing evidence completeness matrix
+- Core implementation sequence gate
+- State ownership characterization readiness aggregate
+
+| Gate surface | Current state | State impact |
+|--------------|---------------|--------------|
+| proof completion approval | pending | blocks State |
+| proof core landing row | incomplete | blocks State |
+| sequence gate proof row | next approvable, not landed | blocks State |
+| State ownership split | sequence-blocked | blocked by proof completion |
+
+Required invariants:
+
+- State ownership split cannot be reviewed for implementation while proof completion is pending
+- State unlock requires proof completion approval and matrix/sequence gate update in the same functional commit
+- State readiness aggregate is not State implementation approval
+- partial proof landings do not unlock State
+
+Required verification for this guard:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this guard:
+
+- no State ownership split
+- no state-store production wiring
+- no claim-store production wiring
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no ToolExecutor changes
+- no CTFTaskDispatcher flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Task ingress service contract migration approval flag consistency guard
 
 Status: approval consistency guard updated, implementation landed.
