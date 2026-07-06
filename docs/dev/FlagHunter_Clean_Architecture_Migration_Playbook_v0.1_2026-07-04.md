@@ -3692,6 +3692,51 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### CTFState unwired store ports source guard
+
+Status: source guard landed, no State ownership migration.
+
+`tests/unit/agents/test_p1_source_guards.py::test_p1_ctf_state_stays_unwired_from_state_and_claim_store_ports`
+now locks `flaghunter/agents/pa_agent/ctf_state.py` away from neutral
+state-store or claim-store ports and storage adapters before explicit State
+implementation approval lands.
+
+Guarded import surfaces:
+
+- `flaghunter/agents/pa_agent/ctf_state.py`
+- `StateStoreAdapter`
+- `ClaimStoreAdapter`
+- `StateStorePort`
+- `ClaimStorePort`
+
+Required invariants:
+
+- CTFState remains the legacy state owner until explicit State implementation approval
+- state-store and claim-store ports remain unwired from CTFState
+- adapter skeletons do not imply State production wiring
+
+Required verification for this guard:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/agents/test_p1_source_guards.py::test_p1_ctf_state_stays_unwired_from_state_and_claim_store_ports -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this guard:
+
+- no `CTFState` ownership migration
+- no state-store production wiring
+- no claim-store production wiring
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no ToolExecutor changes
+- no Dispatcher changes
+- no MCP/Web/CLI/TUI changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### State characterization landing evidence aggregate guard
 
 Status: aggregate guard recorded; first slice characterized, State core landing incomplete.

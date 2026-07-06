@@ -4347,6 +4347,45 @@ def test_playbook_records_state_ownership_characterization_landing_reconciliatio
         assert boundary in section
 
 
+def test_playbook_records_ctf_state_unwired_store_ports_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "CTFState unwired store ports source guard",
+    )
+
+    assert "Status: source guard landed, no State ownership migration." in section
+    assert "test_p1_ctf_state_stays_unwired_from_state_and_claim_store_ports" in section
+    for guarded_surface in (
+        "`flaghunter/agents/pa_agent/ctf_state.py`",
+        "`StateStoreAdapter`",
+        "`ClaimStoreAdapter`",
+        "`StateStorePort`",
+        "`ClaimStorePort`",
+    ):
+        assert guarded_surface in section
+    for invariant in (
+        "CTFState remains the legacy state owner until explicit State implementation approval",
+        "state-store and claim-store ports remain unwired from CTFState",
+        "adapter skeletons do not imply State production wiring",
+    ):
+        assert invariant in section
+    for boundary in (
+        "no `CTFState` ownership migration",
+        "no state-store production wiring",
+        "no claim-store production wiring",
+        "no proof-authority behavior changes",
+        "no verifier decision behavior changes",
+        "no ToolExecutor changes",
+        "no Dispatcher changes",
+        "no MCP/Web/CLI/TUI changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_state_characterization_landing_evidence_aggregate_guard() -> None:
     text = _playbook_text()
     section = _heading_section_text(

@@ -705,6 +705,49 @@ def test_p1_ctf_state_snapshot_ownership_stays_in_legacy_state_only() -> None:
     assert offenders == []
 
 
+def test_p1_ctf_state_stays_unwired_from_state_and_claim_store_ports() -> None:
+    path = "flaghunter/agents/pa_agent/ctf_state.py"
+    forbidden_import_modules = {
+        "flaghunter.adapters.storage",
+        "flaghunter.adapters.storage.state_store_adapter",
+        "flaghunter.adapters.storage.claim_store_adapter",
+        "flaghunter.ports.state_store",
+        "flaghunter.ports.claim_store",
+        "flaghunter.ports",
+        "...adapters.storage",
+        "...ports",
+    }
+    forbidden_names = {
+        "StateStoreAdapter",
+        "ClaimStoreAdapter",
+        "StateStorePort",
+        "ClaimStorePort",
+    }
+    offenders: list[tuple[str, str, int]] = []
+
+    class StateWiringImportVisitor(ast.NodeVisitor):
+        def visit_Import(self, node: ast.Import) -> None:
+            for alias in node.names:
+                if alias.name in forbidden_import_modules:
+                    offenders.append((path, alias.name, node.lineno))
+            self.generic_visit(node)
+
+        def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+            module_name = node.module or ""
+            normalized = f"{'.' * node.level}{module_name}" if node.level else module_name
+            imported_names = {alias.name for alias in node.names}
+            if module_name in forbidden_import_modules or normalized in forbidden_import_modules:
+                offenders.append((path, normalized, node.lineno))
+            for imported_name in imported_names:
+                if imported_name in forbidden_names:
+                    offenders.append((path, imported_name, node.lineno))
+            self.generic_visit(node)
+
+    StateWiringImportVisitor().visit(_parse_source(path))
+
+    assert offenders == []
+
+
 def test_p1_state_store_adapter_stays_unwired_from_production_imports() -> None:
     allowed_paths = {
         "flaghunter/adapters/storage/__init__.py",
