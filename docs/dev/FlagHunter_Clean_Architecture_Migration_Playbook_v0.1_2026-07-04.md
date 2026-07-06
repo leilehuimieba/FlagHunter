@@ -2682,6 +2682,61 @@ Queue rules:
 - rollback point is always the single implementation commit for the approved
   candidate
 
+#### Verifier/proof authority boundary approval plan
+
+Status: approval plan recorded, implementation not approved.
+
+Purpose:
+
+- Prepare the first high-risk proof-authority review package after the
+  read-side, MCP readback, and task-ingress slices landed.
+- Keep proof-authority writes stay in verifier-owned code until explicitly migrated behind neutral contracts, ports, adapters, or application services.
+- Make the next implementation review concrete without granting approval by
+  implication.
+
+Candidate scope for a future approved implementation:
+
+- `flaghunter/agents/pa_agent/verifier.py`
+- `flaghunter/agents/pa_agent/ctf_state.py`
+- `tests/unit/agents/test_p1_claim_invariants.py`
+- `tests/unit/test_verifier_adapter.py`
+- playbook governance records for the single approved proof-authority slice
+
+Current proof-authority surfaces that require explicit review:
+
+- `upgrade_claim_to_verified`
+- `append_verification_record`
+- `record_verification_receipt`
+- `verified_flags`
+- `VerificationDecision.VERIFIED`
+
+Required approval:
+
+- explicit proof-authority approval required before implementation
+- one proof-authority functional point per commit
+- no status-only approval without matching implementation evidence
+- rollback point: revert the single approved proof-authority implementation commit
+
+Required verification for a future approved implementation:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/agents/test_p1_claim_invariants.py tests/unit/test_verifier_adapter.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py tests/unit/test_adapter_boundary_skeleton.py tests/unit/test_proof_authority_adapter.py -q
+git diff --check
+```
+
+Boundary confirmation for this approval plan:
+
+- no implementation approval by this section
+- no ToolExecutor changes
+- no `CTFState` ownership split
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Task ingress service contract migration approval flag consistency guard
 
 Status: approval consistency guard updated, implementation landed.

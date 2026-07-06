@@ -2456,6 +2456,48 @@ def test_playbook_records_post_read_side_core_decoupling_approval_queue() -> Non
         assert forbidden_scope in section
 
 
+def test_playbook_records_verifier_proof_authority_approval_plan() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Verifier/proof authority boundary approval plan",
+    )
+
+    assert "Status: approval plan recorded, implementation not approved." in section
+    assert "flaghunter/agents/pa_agent/verifier.py" in section
+    assert "flaghunter/agents/pa_agent/ctf_state.py" in section
+    assert "tests/unit/agents/test_p1_claim_invariants.py" in section
+    assert "tests/unit/test_verifier_adapter.py" in section
+    assert "proof-authority writes stay in verifier-owned code until explicitly migrated" in section
+    assert "rollback point: revert the single approved proof-authority implementation commit" in section
+    assert "explicit proof-authority approval required before implementation" in section
+    for required_surface in (
+        "upgrade_claim_to_verified",
+        "append_verification_record",
+        "record_verification_receipt",
+        "verified_flags",
+        "VerificationDecision.VERIFIED",
+    ):
+        assert required_surface in section
+    for non_goal in (
+        "no ToolExecutor changes",
+        "no `CTFState` ownership split",
+        "no `CTFTaskDispatcher` flow changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert non_goal in section
+    for command in (
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/agents/test_p1_claim_invariants.py tests/unit/test_verifier_adapter.py -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py tests/unit/test_adapter_boundary_skeleton.py tests/unit/test_proof_authority_adapter.py -q",
+        "git diff --check",
+    ):
+        assert command in section
+
+
 def test_playbook_records_task_ingress_production_wiring_a_landing() -> None:
     text = _playbook_text()
     section = _heading_section_text(
