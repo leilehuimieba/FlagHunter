@@ -4943,6 +4943,51 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Verifier proof authority completion approval package aggregate guard
+
+Status: aggregate guard recorded, completion approval not granted.
+
+This aggregate keeps the proof completion approval package visible as one
+review unit. It does not approve implementation, completion, production
+wiring, behavior changes, or State unlock by itself.
+
+| Approval package surface | Required heading | Current complete |
+|--------------------------|------------------|------------------|
+| partial landing reconciliation | `Verifier proof authority partial landing reconciliation guard` | false |
+| completion checklist | `Verifier proof authority core landing completion approval checklist` | false |
+| transition atomicity | `Verifier proof authority completion transition atomicity guard` | false |
+| rollback evidence | `Verifier proof authority completion rollback evidence guard` | false |
+| State unlock guard | `State ownership unlock blocked until proof completion guard` | false |
+
+Required invariants:
+
+- proof completion approval package is not implementation approval
+- all package surfaces must be complete before State can be unblocked
+- completion approval must preserve proof-authority and verifier behavior unless separately approved
+- package aggregate evidence cannot replace a real proof completion landing commit
+
+Required verification for this guard:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this aggregate:
+
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no proof authority production wiring
+- no verifier production wiring
+- no `CTFState` ownership split
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### State ownership unlock blocked until proof completion guard
 
 Status: unlock guard recorded, State ownership remains blocked.

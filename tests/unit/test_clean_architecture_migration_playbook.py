@@ -4623,6 +4623,53 @@ def test_playbook_records_verifier_proof_authority_completion_rollback_evidence_
         assert boundary in section
 
 
+def test_playbook_records_verifier_proof_authority_completion_approval_package_aggregate_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Verifier proof authority completion approval package aggregate guard",
+    )
+
+    assert "Status: aggregate guard recorded, completion approval not granted." in section
+    required_surfaces = {
+        "partial landing reconciliation": "`Verifier proof authority partial landing reconciliation guard`",
+        "completion checklist": "`Verifier proof authority core landing completion approval checklist`",
+        "transition atomicity": "`Verifier proof authority completion transition atomicity guard`",
+        "rollback evidence": "`Verifier proof authority completion rollback evidence guard`",
+        "State unlock guard": "`State ownership unlock blocked until proof completion guard`",
+    }
+    rows = {
+        row["Approval package surface"]: row
+        for row in _markdown_table_rows(section)
+    }
+    assert set(rows) == set(required_surfaces)
+    for surface, heading in required_surfaces.items():
+        assert rows[surface]["Required heading"] == heading
+        assert rows[surface]["Current complete"] == "false"
+    for invariant in (
+        "proof completion approval package is not implementation approval",
+        "all package surfaces must be complete before State can be unblocked",
+        "completion approval must preserve proof-authority and verifier behavior unless separately approved",
+        "package aggregate evidence cannot replace a real proof completion landing commit",
+    ):
+        assert invariant in section
+    for boundary in (
+        "no proof-authority behavior changes",
+        "no verifier decision behavior changes",
+        "no proof authority production wiring",
+        "no verifier production wiring",
+        "no `CTFState` ownership split",
+        "no ToolExecutor changes",
+        "no `CTFTaskDispatcher` flow changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_state_unlock_blocked_until_proof_completion_guard() -> None:
     text = _playbook_text()
     section = _heading_section_text(
