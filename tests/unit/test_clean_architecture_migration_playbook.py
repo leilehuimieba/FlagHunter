@@ -3156,14 +3156,14 @@ def test_playbook_records_core_readiness_aggregate_acceptance_matrix() -> None:
         "Verifier/proof authority boundary": {
             "Readiness aggregate": "`Proof authority characterization readiness aggregate`",
             "Readiness accepted": "true",
-            "Implementation approved": "false",
-            "Next gate": "explicit Verifier/proof authority boundary implementation approval",
+            "Implementation approved": "governance-only completion",
+            "Next gate": "future proof behavior or wiring needs separate approval",
         },
         "State ownership split": {
             "Readiness aggregate": "`State ownership characterization readiness aggregate`",
             "Readiness accepted": "true",
             "Implementation approved": "false",
-            "Next gate": "explicit State ownership split implementation approval",
+            "Next gate": "next approvable State ownership implementation review",
         },
         "ToolExecutor side-effect split": {
             "Readiness aggregate": "`ToolExecutor side-effect characterization readiness aggregate`",
@@ -3192,7 +3192,7 @@ def test_playbook_records_core_readiness_aggregate_acceptance_matrix() -> None:
         assert aggregate_heading in section
     for invariant in (
         "readiness accepted means characterization evidence exists, not that production migration is approved",
-        "implementation approved must remain false until a user-approved implementation slice lands",
+        "future production implementation must remain unapproved until a user-approved implementation slice lands",
         "next gate text must name the exact high-risk boundary requiring approval",
         "every future implementation must update one row and add one landing record in the same functional commit",
     ):

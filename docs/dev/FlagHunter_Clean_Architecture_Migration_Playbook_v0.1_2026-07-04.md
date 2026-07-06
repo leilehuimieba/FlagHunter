@@ -4684,15 +4684,15 @@ exists, not that production migration is approved.
 
 | Core candidate | Readiness aggregate | Readiness accepted | Implementation approved | Next gate |
 |----------------|---------------------|--------------------|-------------------------|-----------|
-| Verifier/proof authority boundary | `Proof authority characterization readiness aggregate` | true | false | explicit Verifier/proof authority boundary implementation approval |
-| State ownership split | `State ownership characterization readiness aggregate` | true | false | explicit State ownership split implementation approval |
+| Verifier/proof authority boundary | `Proof authority characterization readiness aggregate` | true | governance-only completion | future proof behavior or wiring needs separate approval |
+| State ownership split | `State ownership characterization readiness aggregate` | true | false | next approvable State ownership implementation review |
 | ToolExecutor side-effect split | `ToolExecutor side-effect characterization readiness aggregate` | true | false | explicit ToolExecutor side-effect split implementation approval |
 | Dispatcher/composition root production wiring | `Dispatcher composition root characterization readiness aggregate` | true | false | explicit Dispatcher/composition root production wiring implementation approval |
 
 Required invariants:
 
 - readiness accepted means characterization evidence exists, not that production migration is approved
-- implementation approved must remain false until a user-approved implementation slice lands
+- future production implementation must remain unapproved until a user-approved implementation slice lands
 - next gate text must name the exact high-risk boundary requiring approval
 - every future implementation must update one row and add one landing record in the same functional commit
 
