@@ -3099,6 +3099,77 @@ def test_playbook_core_approval_queue_matches_aggregate_guard() -> None:
         assert invariant in aggregate_section
 
 
+def test_playbook_records_core_readiness_aggregate_acceptance_matrix() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Core readiness aggregate acceptance matrix",
+    )
+
+    assert "Status: readiness matrix recorded, no production implementation approved." in section
+    rows = {
+        row["Core candidate"]: row
+        for row in _markdown_table_rows(section)
+    }
+    expected = {
+        "Verifier/proof authority boundary": {
+            "Readiness aggregate": "`Proof authority characterization readiness aggregate`",
+            "Readiness accepted": "true",
+            "Implementation approved": "false",
+            "Next gate": "explicit Verifier/proof authority boundary implementation approval",
+        },
+        "State ownership split": {
+            "Readiness aggregate": "`State ownership characterization readiness aggregate`",
+            "Readiness accepted": "true",
+            "Implementation approved": "false",
+            "Next gate": "explicit State ownership split implementation approval",
+        },
+        "ToolExecutor side-effect split": {
+            "Readiness aggregate": "`ToolExecutor side-effect characterization readiness aggregate`",
+            "Readiness accepted": "true",
+            "Implementation approved": "false",
+            "Next gate": "explicit ToolExecutor side-effect split implementation approval",
+        },
+        "Dispatcher/composition root production wiring": {
+            "Readiness aggregate": "`Dispatcher composition root characterization readiness aggregate`",
+            "Readiness accepted": "true",
+            "Implementation approved": "false",
+            "Next gate": "explicit Dispatcher/composition root production wiring implementation approval",
+        },
+    }
+    assert set(rows) == set(expected)
+    for candidate, expected_values in expected.items():
+        for column, value in expected_values.items():
+            assert rows[candidate][column] == value
+    for aggregate_heading in (
+        "Proof authority characterization readiness aggregate",
+        "State ownership characterization readiness aggregate",
+        "ToolExecutor side-effect characterization readiness aggregate",
+        "Dispatcher composition root characterization readiness aggregate",
+    ):
+        assert aggregate_heading in text
+        assert aggregate_heading in section
+    for invariant in (
+        "readiness accepted means characterization evidence exists, not that production migration is approved",
+        "implementation approved must remain false until a user-approved implementation slice lands",
+        "next gate text must name the exact high-risk boundary requiring approval",
+        "every future implementation must update one row and add one landing record in the same functional commit",
+    ):
+        assert invariant in section
+    for boundary in (
+        "no proof-authority behavior changes",
+        "no `CTFState` ownership split",
+        "no ToolExecutor changes",
+        "no `CTFTaskDispatcher` flow changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root production wiring",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_dispatcher_composition_root_readiness_characterization_guard() -> None:
     text = _playbook_text()
     section = _heading_section_text(

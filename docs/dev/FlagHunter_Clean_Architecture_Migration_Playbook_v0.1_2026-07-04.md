@@ -3785,6 +3785,40 @@ Boundary confirmation for this aggregate guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Core readiness aggregate acceptance matrix
+
+Status: readiness matrix recorded, no production implementation approved.
+
+This matrix is the current acceptance index for the four high-risk core
+readiness aggregates. Readiness accepted means characterization evidence
+exists, not that production migration is approved.
+
+| Core candidate | Readiness aggregate | Readiness accepted | Implementation approved | Next gate |
+|----------------|---------------------|--------------------|-------------------------|-----------|
+| Verifier/proof authority boundary | `Proof authority characterization readiness aggregate` | true | false | explicit Verifier/proof authority boundary implementation approval |
+| State ownership split | `State ownership characterization readiness aggregate` | true | false | explicit State ownership split implementation approval |
+| ToolExecutor side-effect split | `ToolExecutor side-effect characterization readiness aggregate` | true | false | explicit ToolExecutor side-effect split implementation approval |
+| Dispatcher/composition root production wiring | `Dispatcher composition root characterization readiness aggregate` | true | false | explicit Dispatcher/composition root production wiring implementation approval |
+
+Required invariants:
+
+- readiness accepted means characterization evidence exists, not that production migration is approved
+- implementation approved must remain false until a user-approved implementation slice lands
+- next gate text must name the exact high-risk boundary requiring approval
+- every future implementation must update one row and add one landing record in the same functional commit
+
+Boundary confirmation for this matrix:
+
+- no proof-authority behavior changes
+- no `CTFState` ownership split
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root production wiring
+- no P5 implementation
+- no crew/recovery changes
+
 #### Core approval queue aggregate consistency guard
 
 Status: queue aggregate consistency guard recorded, implementation not approved by this section.
