@@ -3421,6 +3421,41 @@ def test_playbook_records_verifier_adapter_import_unwired_guard() -> None:
         assert boundary in section
 
 
+def test_playbook_records_ctf_verifier_legacy_construction_characterization_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "CTFVerifier legacy construction characterization guard",
+    )
+
+    assert "Status: characterization guard recorded, no verifier behavior changed." in section
+    assert (
+        "tests/unit/agents/test_p1_source_guards.py::"
+        "test_p1_ctf_verifier_construction_stays_legacy_dispatcher_only"
+    ) in section
+    for allowed_surface in (
+        "`flaghunter/agents/pa_agent/ctf_dispatcher.py`",
+        "`CTFTaskDispatcher.__init__`",
+        "`CTFVerifier`",
+        "legacy dispatcher construction remains the only production construction surface",
+    ):
+        assert allowed_surface in section
+    for boundary in (
+        "no verifier production wiring",
+        "no proof-authority behavior changes",
+        "no proof authority production wiring",
+        "no `CTFState` ownership split",
+        "no ToolExecutor changes",
+        "no `CTFTaskDispatcher` flow changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_proof_authority_characterization_readiness_aggregate() -> None:
     text = _playbook_text()
     section = _heading_section_text(
@@ -3435,6 +3470,7 @@ def test_playbook_records_proof_authority_characterization_readiness_aggregate()
         "Proof authority port action unwired guard",
         "Proof authority adapter import unwired guard",
         "Verifier adapter import unwired guard",
+        "CTFVerifier legacy construction characterization guard",
     ):
         assert required_guard in section
     for focused_test in (
@@ -3443,6 +3479,7 @@ def test_playbook_records_proof_authority_characterization_readiness_aggregate()
         "test_p1_proof_authority_port_actions_remain_unwired_outside_port_and_adapter",
         "test_p1_proof_authority_adapter_stays_unwired_from_production_imports",
         "test_p1_verifier_adapter_stays_unwired_from_production_imports",
+        "test_p1_ctf_verifier_construction_stays_legacy_dispatcher_only",
     ):
         assert focused_test in section
     assert "Verifier/proof authority boundary implementation remains unapproved" in section

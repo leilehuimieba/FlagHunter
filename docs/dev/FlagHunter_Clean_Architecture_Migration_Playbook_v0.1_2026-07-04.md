@@ -6278,6 +6278,39 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### CTFVerifier legacy construction characterization guard
+
+Status: characterization guard recorded, no verifier behavior changed.
+
+`tests/unit/agents/test_p1_source_guards.py::test_p1_ctf_verifier_construction_stays_legacy_dispatcher_only`
+now locks the current `CTFVerifier` production construction surface before any
+verifier adapter, proof-authority boundary, dispatcher, or composition-root
+wiring.
+
+Current allowed production construction surface:
+
+- `flaghunter/agents/pa_agent/ctf_dispatcher.py`
+- `CTFTaskDispatcher.__init__`
+- `CTFVerifier`
+
+This confirms legacy dispatcher construction remains the only production construction surface.
+It does not approve verifier production wiring, composition-root migration, or
+proof-authority behavior changes.
+
+Boundary confirmation for this guard:
+
+- no verifier production wiring
+- no proof-authority behavior changes
+- no proof authority production wiring
+- no `CTFState` ownership split
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Proof authority characterization readiness aggregate
 
 Status: aggregate guard recorded, implementation not approved.
@@ -6292,6 +6325,7 @@ Required characterization guards:
 - Proof authority port action unwired guard
 - Proof authority adapter import unwired guard
 - Verifier adapter import unwired guard
+- CTFVerifier legacy construction characterization guard
 
 Focused guard tests:
 
@@ -6300,11 +6334,12 @@ Focused guard tests:
 - `test_p1_proof_authority_port_actions_remain_unwired_outside_port_and_adapter`
 - `test_p1_proof_authority_adapter_stays_unwired_from_production_imports`
 - `test_p1_verifier_adapter_stays_unwired_from_production_imports`
+- `test_p1_ctf_verifier_construction_stays_legacy_dispatcher_only`
 
 Verifier/proof authority boundary implementation remains unapproved. These
 guards only prove the current write surface, verified-decision reference
-surface, port action skeleton, and adapter import skeleton are characterized
-before a future explicit approval.
+surface, port action skeleton, adapter import skeleton, and legacy verifier
+construction surface are characterized before a future explicit approval.
 
 Boundary confirmation for this aggregate:
 

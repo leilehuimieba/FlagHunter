@@ -481,6 +481,74 @@ def test_p1_verifier_adapter_stays_unwired_from_production_imports() -> None:
     assert offenders == []
 
 
+def test_p1_ctf_verifier_construction_stays_legacy_dispatcher_only() -> None:
+    allowed_imports: set[tuple[str, str]] = {
+        ("flaghunter/agents/pa_agent/ctf_dispatcher.py", "CTFVerifier"),
+    }
+    allowed_constructions: set[tuple[str, str, str]] = {
+        (
+            "flaghunter/agents/pa_agent/ctf_dispatcher.py",
+            "CTFTaskDispatcher.__init__",
+            "CTFVerifier",
+        ),
+    }
+    offenders: list[tuple[str, str, int]] = []
+
+    class CTFVerifierConstructionVisitor(ast.NodeVisitor):
+        def __init__(self, relative_path: str):
+            self.relative_path = relative_path
+            self.scope: list[str] = []
+
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            self.scope.append(node.name)
+            self.generic_visit(node)
+            self.scope.pop()
+
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            self.scope.append(node.name)
+            self.generic_visit(node)
+            self.scope.pop()
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            self.scope.append(node.name)
+            self.generic_visit(node)
+            self.scope.pop()
+
+        def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+            module_name = node.module or ""
+            imported_names = {alias.name for alias in node.names}
+            imports_legacy_verifier = (
+                module_name == "flaghunter.agents.pa_agent.verifier"
+                or (node.level > 0 and module_name == "verifier")
+            )
+            if imports_legacy_verifier and "CTFVerifier" in imported_names:
+                key = (self.relative_path, "CTFVerifier")
+                if key not in allowed_imports:
+                    offenders.append(
+                        (self.relative_path, "CTFVerifier import", node.lineno)
+                    )
+            self.generic_visit(node)
+
+        def visit_Call(self, node: ast.Call) -> None:
+            call_name = ""
+            if isinstance(node.func, ast.Name):
+                call_name = node.func.id
+            elif isinstance(node.func, ast.Attribute):
+                call_name = node.func.attr
+            if call_name == "CTFVerifier":
+                scope_name = ".".join(self.scope) or "<module>"
+                key = (self.relative_path, scope_name, call_name)
+                if key not in allowed_constructions:
+                    offenders.append((self.relative_path, scope_name, node.lineno))
+            self.generic_visit(node)
+
+    for path in _python_sources(PRODUCTION_ROOT):
+        visitor = CTFVerifierConstructionVisitor(_relative(path))
+        visitor.visit(_parse_source(_relative(path)))
+
+    assert offenders == []
+
+
 def test_p1_control_and_ingress_paths_do_not_emit_verification_decisions() -> None:
     guarded_paths = [
         "flaghunter/agents/pa_agent/coordinator.py",
