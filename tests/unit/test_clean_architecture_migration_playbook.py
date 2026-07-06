@@ -2535,8 +2535,10 @@ def test_playbook_records_state_ownership_split_approval_plan() -> None:
     assert "Status: approval plan recorded, implementation not approved." in section
     assert "flaghunter/agents/pa_agent/ctf_state.py" in section
     assert "flaghunter/adapters/storage/state_store_adapter.py" in section
+    assert "flaghunter/adapters/storage/claim_store_adapter.py" in section
     assert "flaghunter/adapters/state/state_store_adapter.py" not in section
     assert "tests/unit/test_state_store_adapter.py" in section
+    assert "tests/unit/test_claim_store_adapter.py" in section
     assert "tests/unit/agents/test_p1_claim_invariants.py" in section
     assert "tests/unit/agents/test_p4_task_dag_replay_audit_bundle.py" in section
     assert "state ownership stays in legacy CTFState until explicitly migrated" in section
@@ -2564,7 +2566,7 @@ def test_playbook_records_state_ownership_split_approval_plan() -> None:
     ):
         assert non_goal in section
     for command in (
-        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_state_store_adapter.py tests/unit/agents/test_p1_claim_invariants.py tests/unit/agents/test_p4_task_dag_replay_audit_bundle.py -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_state_store_adapter.py tests/unit/test_claim_store_adapter.py tests/unit/agents/test_p1_claim_invariants.py tests/unit/agents/test_p4_task_dag_replay_audit_bundle.py -q",
         ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py tests/unit/test_adapter_boundary_skeleton.py -q",
         "git diff --check",
     ):
