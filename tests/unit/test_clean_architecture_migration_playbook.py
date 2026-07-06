@@ -2789,14 +2789,24 @@ def test_playbook_records_core_approval_package_aggregate_guard() -> None:
         "ToolExecutor side-effect split": "ToolExecutor side-effect split approval plan",
         "Dispatcher/composition root production wiring": "Dispatcher/composition root production wiring approval plan",
     }
+    expected_readiness = {
+        "Verifier/proof authority boundary": "Proof authority characterization readiness aggregate",
+        "State ownership split": "CTFState legacy construction characterization guard",
+        "ToolExecutor side-effect split": "ToolExecutor legacy construction characterization guard",
+        "Dispatcher/composition root production wiring": "CTFTaskDispatcher legacy construction characterization guard",
+    }
     for candidate, plan_heading in expected_plans.items():
         assert rows[candidate]["Approval package"] == f"`{plan_heading}`"
         assert rows[candidate]["Implementation approved"] == "false"
         assert rows[candidate]["Current implementation state"] == "not approved"
         assert plan_heading in text
+        readiness_heading = expected_readiness[candidate]
+        assert rows[candidate]["Readiness evidence"] == f"`{readiness_heading}`"
+        assert readiness_heading in text
     for invariant in (
         "every core package must remain implementation approved = false until explicit human approval lands",
         "approval package status must not be used as implementation approval",
+        "readiness evidence must not be used as implementation approval",
         "each future implementation must update exactly one package and add a landing record",
         "rollback point remains the single approved implementation commit",
     ):

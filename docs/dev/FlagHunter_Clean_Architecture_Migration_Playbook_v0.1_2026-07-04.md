@@ -3059,17 +3059,18 @@ Status: aggregate guard recorded, implementation not approved by this section.
 
 The four core production approval packages are now recorded, but approval packages do not grant implementation approval. This aggregate guard keeps their status aligned with the post read-side approval queue and prevents no approval by implication drift before explicit human approval lands.
 
-| Core candidate | Approval package | Implementation approved | Current implementation state |
-|----------------|------------------|-------------------------|------------------------------|
-| Verifier/proof authority boundary | `Verifier/proof authority boundary approval plan` | false | not approved |
-| State ownership split | `State ownership split approval plan` | false | not approved |
-| ToolExecutor side-effect split | `ToolExecutor side-effect split approval plan` | false | not approved |
-| Dispatcher/composition root production wiring | `Dispatcher/composition root production wiring approval plan` | false | not approved |
+| Core candidate | Approval package | Readiness evidence | Implementation approved | Current implementation state |
+|----------------|------------------|--------------------|-------------------------|------------------------------|
+| Verifier/proof authority boundary | `Verifier/proof authority boundary approval plan` | `Proof authority characterization readiness aggregate` | false | not approved |
+| State ownership split | `State ownership split approval plan` | `CTFState legacy construction characterization guard` | false | not approved |
+| ToolExecutor side-effect split | `ToolExecutor side-effect split approval plan` | `ToolExecutor legacy construction characterization guard` | false | not approved |
+| Dispatcher/composition root production wiring | `Dispatcher/composition root production wiring approval plan` | `CTFTaskDispatcher legacy construction characterization guard` | false | not approved |
 
 Required aggregate invariants:
 
 - every core package must remain implementation approved = false until explicit human approval lands
 - approval package status must not be used as implementation approval
+- readiness evidence must not be used as implementation approval
 - each future implementation must update exactly one package and add a landing record
 - rollback point remains the single approved implementation commit
 
