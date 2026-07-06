@@ -4304,6 +4304,71 @@ def test_playbook_records_p1b_proof_adapter_delegate_guard_hardening_landing() -
         assert command in section
 
 
+def test_playbook_records_verifier_proof_authority_partial_landing_reconciliation_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Verifier proof authority partial landing reconciliation guard",
+    )
+
+    assert "Status: reconciliation guard recorded, core landing remains incomplete." in section
+    for required_heading in (
+        "Verifier proof authority boundary first slice landing record",
+        "P1-B proof adapter delegate guard hardening landing record",
+        "Core implementation landing evidence completeness matrix",
+        "Core implementation sequence gate",
+    ):
+        assert required_heading in section
+    rows = {
+        row["Evidence surface"]: row
+        for row in _markdown_table_rows(section)
+    }
+    expected_rows = {
+        "first slice landing": {
+            "Required heading": "`Verifier proof authority boundary first slice landing record`",
+            "Counts as core landing complete": "false",
+        },
+        "P1-B delegate hardening": {
+            "Required heading": "`P1-B proof adapter delegate guard hardening landing record`",
+            "Counts as core landing complete": "false",
+        },
+        "core landing matrix row": {
+            "Required heading": "`Core implementation landing evidence completeness matrix`",
+            "Counts as core landing complete": "false",
+        },
+        "sequence gate row": {
+            "Required heading": "`Core implementation sequence gate`",
+            "Counts as core landing complete": "false",
+        },
+    }
+    assert set(rows) == set(expected_rows)
+    for surface, expected_values in expected_rows.items():
+        for column, value in expected_values.items():
+            assert rows[surface][column] == value
+    for invariant in (
+        "adapter and guard hardening landings do not complete the core production landing row",
+        "State ownership split remains sequence-blocked until Verifier/proof authority boundary landing evidence is complete",
+        "the proof boundary can only unblock State after a dedicated governance update sets the matching matrix row complete",
+        "partial landing reconciliation is not implementation approval",
+    ):
+        assert invariant in section
+    for boundary in (
+        "no proof-authority behavior changes",
+        "no verifier decision behavior changes",
+        "no proof authority production wiring",
+        "no verifier production wiring",
+        "no `CTFState` ownership split",
+        "no ToolExecutor changes",
+        "no `CTFTaskDispatcher` flow changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_task_ingress_production_wiring_a_landing() -> None:
     text = _playbook_text()
     section = _heading_section_text(

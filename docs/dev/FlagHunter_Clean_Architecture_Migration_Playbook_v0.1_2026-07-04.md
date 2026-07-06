@@ -4715,6 +4715,43 @@ Boundary confirmation for this landing:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Verifier proof authority partial landing reconciliation guard
+
+Status: reconciliation guard recorded, core landing remains incomplete.
+
+The verifier/proof-authority boundary has two landed characterization and guard
+hardening records, but those records do not complete the core production
+landing row or unblock the next core candidate by themselves.
+
+| Evidence surface | Required heading | Counts as core landing complete |
+|------------------|------------------|---------------------------------|
+| first slice landing | `Verifier proof authority boundary first slice landing record` | false |
+| P1-B delegate hardening | `P1-B proof adapter delegate guard hardening landing record` | false |
+| core landing matrix row | `Core implementation landing evidence completeness matrix` | false |
+| sequence gate row | `Core implementation sequence gate` | false |
+
+Required invariants:
+
+- adapter and guard hardening landings do not complete the core production landing row
+- State ownership split remains sequence-blocked until Verifier/proof authority boundary landing evidence is complete
+- the proof boundary can only unblock State after a dedicated governance update sets the matching matrix row complete
+- partial landing reconciliation is not implementation approval
+
+Boundary confirmation for this reconciliation guard:
+
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no proof authority production wiring
+- no verifier production wiring
+- no `CTFState` ownership split
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Task ingress service contract migration approval flag consistency guard
 
 Status: approval consistency guard updated, implementation landed.
