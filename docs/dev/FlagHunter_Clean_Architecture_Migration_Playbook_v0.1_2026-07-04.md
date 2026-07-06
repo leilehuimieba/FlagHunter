@@ -4891,6 +4891,58 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Verifier proof authority completion rollback evidence guard
+
+Status: rollback evidence guard recorded, completion not approved.
+
+Future verifier/proof-authority completion landing evidence must record an
+executable rollback path tied to the same real completion commit. Placeholders
+remain planning aids only and do not count as proof completion evidence or
+State unlock evidence.
+
+Required reference surfaces:
+
+- Verifier proof authority core landing completion approval checklist
+- Verifier proof authority completion transition atomicity guard
+- Core implementation landing evidence completeness matrix
+- Core implementation sequence gate
+
+| Landing evidence field | Required value | Current complete |
+|------------------------|----------------|------------------|
+| implementation commit SHA | real full commit SHA | false |
+| rollback command | `git revert <proof completion implementation commit>` | false |
+| post-push branch status | `git status --short --branch` after push | false |
+| State unlock impact | matrix and sequence gate updated in same commit | false |
+
+Required invariants:
+
+- placeholder rollback commands are not proof completion evidence
+- rollback command must point at the same real proof completion commit SHA
+- proof completion landing evidence cannot be recorded before explicit completion approval
+- State unlock impact remains incomplete until proof completion is pushed
+
+Required verification for this guard:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this guard:
+
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no proof authority production wiring
+- no verifier production wiring
+- no `CTFState` ownership split
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### State ownership unlock blocked until proof completion guard
 
 Status: unlock guard recorded, State ownership remains blocked.

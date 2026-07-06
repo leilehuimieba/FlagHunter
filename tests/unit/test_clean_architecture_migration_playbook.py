@@ -4558,6 +4558,71 @@ def test_playbook_records_verifier_proof_authority_completion_transition_atomici
         assert boundary in section
 
 
+def test_playbook_records_verifier_proof_authority_completion_rollback_evidence_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Verifier proof authority completion rollback evidence guard",
+    )
+
+    assert "Status: rollback evidence guard recorded, completion not approved." in section
+    for required_heading in (
+        "Verifier proof authority core landing completion approval checklist",
+        "Verifier proof authority completion transition atomicity guard",
+        "Core implementation landing evidence completeness matrix",
+        "Core implementation sequence gate",
+    ):
+        assert required_heading in section
+    rows = {
+        row["Landing evidence field"]: row
+        for row in _markdown_table_rows(section)
+    }
+    expected = {
+        "implementation commit SHA": {
+            "Required value": "real full commit SHA",
+            "Current complete": "false",
+        },
+        "rollback command": {
+            "Required value": "`git revert <proof completion implementation commit>`",
+            "Current complete": "false",
+        },
+        "post-push branch status": {
+            "Required value": "`git status --short --branch` after push",
+            "Current complete": "false",
+        },
+        "State unlock impact": {
+            "Required value": "matrix and sequence gate updated in same commit",
+            "Current complete": "false",
+        },
+    }
+    assert set(rows) == set(expected)
+    for field, expected_values in expected.items():
+        for column, value in expected_values.items():
+            assert rows[field][column] == value
+    for invariant in (
+        "placeholder rollback commands are not proof completion evidence",
+        "rollback command must point at the same real proof completion commit SHA",
+        "proof completion landing evidence cannot be recorded before explicit completion approval",
+        "State unlock impact remains incomplete until proof completion is pushed",
+    ):
+        assert invariant in section
+    for boundary in (
+        "no proof-authority behavior changes",
+        "no verifier decision behavior changes",
+        "no proof authority production wiring",
+        "no verifier production wiring",
+        "no `CTFState` ownership split",
+        "no ToolExecutor changes",
+        "no `CTFTaskDispatcher` flow changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_state_unlock_blocked_until_proof_completion_guard() -> None:
     text = _playbook_text()
     section = _heading_section_text(
