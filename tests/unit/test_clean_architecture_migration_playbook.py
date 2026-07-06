@@ -3422,6 +3422,7 @@ def test_playbook_records_proof_authority_characterization_readiness_aggregate()
         "Verified decision reference characterization guard",
         "Proof authority port action unwired guard",
         "Proof authority adapter import unwired guard",
+        "Verifier adapter import unwired guard",
     ):
         assert required_guard in section
     for focused_test in (
@@ -3429,6 +3430,7 @@ def test_playbook_records_proof_authority_characterization_readiness_aggregate()
         "test_p1_verified_decision_references_stay_in_verifier_and_state_only",
         "test_p1_proof_authority_port_actions_remain_unwired_outside_port_and_adapter",
         "test_p1_proof_authority_adapter_stays_unwired_from_production_imports",
+        "test_p1_verifier_adapter_stays_unwired_from_production_imports",
     ):
         assert focused_test in section
     assert "Verifier/proof authority boundary implementation remains unapproved" in section

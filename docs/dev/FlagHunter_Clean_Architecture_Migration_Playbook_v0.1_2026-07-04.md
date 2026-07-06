@@ -6278,6 +6278,7 @@ Required characterization guards:
 - Verified decision reference characterization guard
 - Proof authority port action unwired guard
 - Proof authority adapter import unwired guard
+- Verifier adapter import unwired guard
 
 Focused guard tests:
 
@@ -6285,6 +6286,7 @@ Focused guard tests:
 - `test_p1_verified_decision_references_stay_in_verifier_and_state_only`
 - `test_p1_proof_authority_port_actions_remain_unwired_outside_port_and_adapter`
 - `test_p1_proof_authority_adapter_stays_unwired_from_production_imports`
+- `test_p1_verifier_adapter_stays_unwired_from_production_imports`
 
 Verifier/proof authority boundary implementation remains unapproved. These
 guards only prove the current write surface, verified-decision reference
