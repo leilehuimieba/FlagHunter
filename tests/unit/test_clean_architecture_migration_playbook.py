@@ -3745,6 +3745,12 @@ def test_playbook_records_state_ownership_first_slice_approval_text_template() -
         "state ownership work must not move proof upgrade authority",
     ):
         assert invariant in section
+    for command in (
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_state_store_adapter.py tests/unit/test_claim_store_adapter.py tests/unit/agents/test_p1_claim_invariants.py tests/unit/agents/test_p4_task_dag_replay_audit_bundle.py -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py tests/unit/test_adapter_boundary_skeleton.py tests/unit/test_clean_architecture_migration_playbook.py -q",
+        "git diff --check",
+    ):
+        assert command in section
 
 
 def test_playbook_records_state_ownership_first_implementation_review_handoff_package() -> None:
