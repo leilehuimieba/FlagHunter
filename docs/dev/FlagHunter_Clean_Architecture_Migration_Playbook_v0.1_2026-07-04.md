@@ -3230,6 +3230,7 @@ review, but it does not grant State implementation approval by itself.
 | approval plan | `State ownership split approval plan` | true | false |
 | readiness aggregate | `State ownership characterization readiness aggregate` | true | false |
 | approval text template | `State ownership first slice approval text template` | true | false |
+| decision checklist | `State ownership first implementation decision checklist` | true | false |
 | proof completion prerequisite | `Verifier proof authority core landing completion transition record` | true | false |
 | sequence gate | `Core implementation sequence gate` | true | false |
 | landing evidence matrix | `Core implementation landing evidence completeness matrix` | true | false |
@@ -3238,6 +3239,7 @@ Required invariants:
 
 - State approval package readiness does not grant implementation approval
 - State implementation requires a separate explicit user approval
+- State implementation approval must choose exactly one decision checklist option
 - State first slice must remain one functional point per commit
 - State implementation must not move proof authority or verifier decisions
 

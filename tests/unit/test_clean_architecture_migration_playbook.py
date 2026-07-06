@@ -3780,6 +3780,7 @@ def test_playbook_records_state_ownership_implementation_approval_package_aggreg
         "approval plan": "`State ownership split approval plan`",
         "readiness aggregate": "`State ownership characterization readiness aggregate`",
         "approval text template": "`State ownership first slice approval text template`",
+        "decision checklist": "`State ownership first implementation decision checklist`",
         "proof completion prerequisite": "`Verifier proof authority core landing completion transition record`",
         "sequence gate": "`Core implementation sequence gate`",
         "landing evidence matrix": "`Core implementation landing evidence completeness matrix`",
@@ -3793,6 +3794,7 @@ def test_playbook_records_state_ownership_implementation_approval_package_aggreg
     for invariant in (
         "State approval package readiness does not grant implementation approval",
         "State implementation requires a separate explicit user approval",
+        "State implementation approval must choose exactly one decision checklist option",
         "State first slice must remain one functional point per commit",
         "State implementation must not move proof authority or verifier decisions",
     ):
