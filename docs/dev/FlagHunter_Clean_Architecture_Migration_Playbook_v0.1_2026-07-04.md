@@ -3968,6 +3968,54 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### ToolExecutor approval transition coverage guard
+
+Status: coverage guard recorded, ToolExecutor migration not approved.
+
+Every future ToolExecutor approval transition must keep the same canonical
+governance surface set across approval transition tables before any
+ToolExecutor migration commit can follow.
+
+| Governance surface | Required before approval transition | Current implementation approved |
+|--------------------|-------------------------------------|---------------------------------|
+| approval plan | true | false |
+| readiness aggregate | true | false |
+| approval text template | true | false |
+| transition atomicity | true | false |
+| landing evidence matrix | true | false |
+| sequence gate | true | false |
+| landing evidence | true | false |
+| verification evidence | true | false |
+
+Required invariants:
+
+- every ToolExecutor approval transition table must keep the same canonical governance surface set
+- ToolExecutor approval transition coverage must include current side-effect characterization evidence
+- ToolExecutor approval transition coverage must include landing evidence before migration
+- coverage evidence must not be treated as ToolExecutor migration approval
+
+Required verification for this guard:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this guard:
+
+- no ToolExecutor side-effect migration
+- no tool-runner production wiring
+- no runtime construction changes
+- no `CTFState` ownership migration
+- no `CTFVerifier` decision behavior changes
+- no proof-authority behavior changes
+- no Dispatcher changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Dispatcher/composition root production wiring approval plan
 
 Status: approval plan recorded, implementation not approved.

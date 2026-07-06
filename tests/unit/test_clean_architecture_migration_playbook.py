@@ -4436,6 +4436,57 @@ def test_playbook_records_tool_executor_approval_transition_atomicity_guard() ->
         assert boundary in section
 
 
+def test_playbook_records_tool_executor_approval_transition_coverage_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "ToolExecutor approval transition coverage guard",
+    )
+
+    assert "Status: coverage guard recorded, ToolExecutor migration not approved." in section
+    rows = {
+        row["Governance surface"]: row
+        for row in _markdown_table_rows(section)
+    }
+    expected = {
+        "approval plan",
+        "readiness aggregate",
+        "approval text template",
+        "transition atomicity",
+        "landing evidence matrix",
+        "sequence gate",
+        "landing evidence",
+        "verification evidence",
+    }
+    assert set(rows) == expected
+    for surface, row in rows.items():
+        assert row["Required before approval transition"] == "true"
+        assert row["Current implementation approved"] == "false"
+        assert surface in section
+    for invariant in (
+        "every ToolExecutor approval transition table must keep the same canonical governance surface set",
+        "ToolExecutor approval transition coverage must include current side-effect characterization evidence",
+        "ToolExecutor approval transition coverage must include landing evidence before migration",
+        "coverage evidence must not be treated as ToolExecutor migration approval",
+    ):
+        assert invariant in section
+    for boundary in (
+        "no ToolExecutor side-effect migration",
+        "no tool-runner production wiring",
+        "no runtime construction changes",
+        "no `CTFState` ownership migration",
+        "no `CTFVerifier` decision behavior changes",
+        "no proof-authority behavior changes",
+        "no Dispatcher changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_dispatcher_composition_root_first_slice_approval_text_template() -> None:
     text = _playbook_text()
     section = _heading_section_text(
