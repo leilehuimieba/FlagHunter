@@ -3259,9 +3259,13 @@ first slice: proof-authority boundary characterization or adapter wrapper with n
 scope: verifier/proof-authority boundary only
 rollback: revert the single implementation commit
 readiness evidence: Proof authority characterization readiness aggregate reviewed
+readiness guards: Proof authority adapter import unwired guard and Verifier adapter import unwired guard reviewed
 landing evidence: required
 独立 TDD、独立 commit/push。
 禁止 State ownership split、ToolExecutor、Dispatcher、composition root、MCP production wiring、Web/CLI/TUI task wiring、proof behavior change、P5、crew/recovery。
+禁止 proof authority production wiring。
+禁止 verifier production wiring。
+禁止 verifier decision behavior change。
 ```
 
 Approval text invariants:
@@ -3270,6 +3274,8 @@ Approval text invariants:
 - approval must be sent as a user message
 - approval text must not authorize bundled core changes
 - readiness evidence does not approve implementation by itself
+- adapter wrapper does not mean production wiring approval
+- verifier/proof-authority adapter import guards must remain green
 
 #### Task ingress service contract migration approval flag consistency guard
 

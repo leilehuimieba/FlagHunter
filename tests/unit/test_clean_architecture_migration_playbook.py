@@ -2977,6 +2977,30 @@ def test_playbook_records_core_first_slice_approval_text_template() -> None:
         assert invariant in section
 
 
+def test_playbook_core_first_slice_template_blocks_adapter_production_wiring() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Core first slice approval text template",
+    )
+
+    for readiness_guard in (
+        "Proof authority adapter import unwired guard",
+        "Verifier adapter import unwired guard",
+    ):
+        assert readiness_guard in section
+
+    for forbidden_clause in (
+        "禁止 proof authority production wiring",
+        "禁止 verifier production wiring",
+        "禁止 verifier decision behavior change",
+    ):
+        assert forbidden_clause in section
+
+    assert "adapter wrapper does not mean production wiring approval" in section
+    assert "verifier/proof-authority adapter import guards must remain green" in section
+
+
 def test_playbook_records_task_ingress_production_wiring_a_landing() -> None:
     text = _playbook_text()
     section = _heading_section_text(
