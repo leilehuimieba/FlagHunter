@@ -4063,6 +4063,50 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### ToolExecutor implementation landing status guard
+
+Status: landing status guard recorded, ToolExecutor migration not landed.
+
+ToolExecutor side-effect split remains unlanded until an approved implementation commit exists
+with the matching landing record, matrix update, sequence-gate update,
+verification evidence, rollback point, and post-push status.
+
+| Landing surface | Required location | Current landed | Current migration approved |
+|-----------------|-------------------|----------------|----------------------------|
+| landing record | `ToolExecutor side-effect split implementation landing record` | false | false |
+| landing evidence matrix | `Core implementation landing evidence completeness matrix` ToolExecutor row | false | false |
+| sequence gate | `Core implementation sequence gate` ToolExecutor row | false | false |
+| approval evidence | `ToolExecutor approval transition evidence consistency guard` | false | false |
+
+Required invariants:
+
+- ToolExecutor landing status must remain false until explicit approval and migration evidence land
+- ToolExecutor landing status must not be raised by characterization readiness alone
+- ToolExecutor landing status must move together with the matrix and sequence gate in the migration commit
+- ToolExecutor landing status must not authorize runtime construction or tool-runner production wiring
+
+Required verification for this guard:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this guard:
+
+- no ToolExecutor side-effect migration
+- no tool-runner production wiring
+- no runtime construction changes
+- no `CTFState` ownership migration
+- no `CTFVerifier` decision behavior changes
+- no proof-authority behavior changes
+- no Dispatcher changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Dispatcher/composition root production wiring approval plan
 
 Status: approval plan recorded, implementation not approved.

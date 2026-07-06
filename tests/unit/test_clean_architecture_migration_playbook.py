@@ -4559,6 +4559,55 @@ def test_playbook_records_tool_executor_approval_transition_evidence_consistency
         assert boundary in section
 
 
+def test_playbook_records_tool_executor_implementation_landing_status_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "ToolExecutor implementation landing status guard",
+    )
+
+    assert "Status: landing status guard recorded, ToolExecutor migration not landed." in section
+    assert "ToolExecutor side-effect split remains unlanded until an approved implementation commit exists" in section
+    rows = {
+        row["Landing surface"]: row
+        for row in _markdown_table_rows(section)
+    }
+    expected = {
+        "landing record": "`ToolExecutor side-effect split implementation landing record`",
+        "landing evidence matrix": "`Core implementation landing evidence completeness matrix` ToolExecutor row",
+        "sequence gate": "`Core implementation sequence gate` ToolExecutor row",
+        "approval evidence": "`ToolExecutor approval transition evidence consistency guard`",
+    }
+    assert set(rows) == set(expected)
+    for surface, location in expected.items():
+        assert rows[surface]["Required location"] == location
+        assert rows[surface]["Current landed"] == "false"
+        assert rows[surface]["Current migration approved"] == "false"
+        assert location.split("`")[1] in text
+    for invariant in (
+        "ToolExecutor landing status must remain false until explicit approval and migration evidence land",
+        "ToolExecutor landing status must not be raised by characterization readiness alone",
+        "ToolExecutor landing status must move together with the matrix and sequence gate in the migration commit",
+        "ToolExecutor landing status must not authorize runtime construction or tool-runner production wiring",
+    ):
+        assert invariant in section
+    for boundary in (
+        "no ToolExecutor side-effect migration",
+        "no tool-runner production wiring",
+        "no runtime construction changes",
+        "no `CTFState` ownership migration",
+        "no `CTFVerifier` decision behavior changes",
+        "no proof-authority behavior changes",
+        "no Dispatcher changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_dispatcher_composition_root_first_slice_approval_text_template() -> None:
     text = _playbook_text()
     section = _heading_section_text(
