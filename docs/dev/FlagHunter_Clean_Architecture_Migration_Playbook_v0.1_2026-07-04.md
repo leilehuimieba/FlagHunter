@@ -3070,6 +3070,29 @@ Required recommendation invariants:
 - human approval must name exactly one core candidate and one first slice
 - dispatcher/composition root work must stay last until narrower core seams land
 
+#### Core first slice approval text template
+
+Status: approval text template recorded, implementation not approved by this section.
+
+Copyable approval text for the recommended first slice:
+
+```text
+批准 Verifier/proof authority boundary 第一刀：
+candidate: Verifier/proof authority boundary
+first slice: proof-authority boundary characterization or adapter wrapper with no decision behavior change
+scope: verifier/proof-authority boundary only
+rollback: revert the single implementation commit
+landing evidence: required
+独立 TDD、独立 commit/push。
+禁止 State ownership split、ToolExecutor、Dispatcher、composition root、MCP production wiring、Web/CLI/TUI task wiring、proof behavior change、P5、crew/recovery。
+```
+
+Approval text invariants:
+
+- this template is not approval by itself
+- approval must be sent as a user message
+- approval text must not authorize bundled core changes
+
 #### Task ingress service contract migration approval flag consistency guard
 
 Status: approval consistency guard updated, implementation landed.

@@ -2811,6 +2811,35 @@ def test_playbook_records_core_first_slice_recommendation_gate() -> None:
         assert invariant in section
 
 
+def test_playbook_records_core_first_slice_approval_text_template() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Core first slice approval text template",
+    )
+
+    assert "Status: approval text template recorded, implementation not approved by this section." in section
+    assert "Copyable approval text for the recommended first slice" in section
+    assert "批准 Verifier/proof authority boundary 第一刀" in section
+    assert "proof-authority boundary characterization or adapter wrapper with no decision behavior change" in section
+    assert "独立 TDD、独立 commit/push" in section
+    assert "禁止 State ownership split、ToolExecutor、Dispatcher、composition root、MCP production wiring、Web/CLI/TUI task wiring、proof behavior change、P5、crew/recovery" in section
+    for required_clause in (
+        "candidate: Verifier/proof authority boundary",
+        "first slice: proof-authority boundary characterization or adapter wrapper with no decision behavior change",
+        "scope: verifier/proof-authority boundary only",
+        "rollback: revert the single implementation commit",
+        "landing evidence: required",
+    ):
+        assert required_clause in section
+    for invariant in (
+        "this template is not approval by itself",
+        "approval must be sent as a user message",
+        "approval text must not authorize bundled core changes",
+    ):
+        assert invariant in section
+
+
 def test_playbook_records_task_ingress_production_wiring_a_landing() -> None:
     text = _playbook_text()
     section = _heading_section_text(
