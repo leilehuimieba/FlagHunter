@@ -2599,6 +2599,12 @@ def test_playbook_records_ctf_state_legacy_construction_characterization_guard()
         "legacy state construction and snapshot restoration remain characterized",
     ):
         assert allowed_surface in section
+    for command in (
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/agents/test_p1_source_guards.py::test_p1_ctf_state_construction_stays_in_current_legacy_surfaces -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q",
+        "git diff --check",
+    ):
+        assert command in section
     for boundary in (
         "no state ownership split",
         "no proof-authority behavior changes",
