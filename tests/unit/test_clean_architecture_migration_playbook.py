@@ -3741,7 +3741,7 @@ def test_playbook_records_state_ownership_first_slice_approval_text_template() -
     for invariant in (
         "this template is not approval by itself",
         "approval must be sent as a user message",
-        "state-store adapter evidence does not approve production state ownership migration",
+        "state/claim-store adapter evidence does not approve production state ownership migration",
         "state ownership work must not move proof upgrade authority",
     ):
         assert invariant in section

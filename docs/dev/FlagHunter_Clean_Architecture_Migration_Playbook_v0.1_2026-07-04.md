@@ -3144,7 +3144,7 @@ Approval text invariants:
 
 - this template is not approval by itself
 - approval must be sent as a user message
-- state-store adapter evidence does not approve production state ownership migration
+- state/claim-store adapter evidence does not approve production state ownership migration
 - state ownership work must not move proof upgrade authority
 - state ownership work must remain downstream of the proof/verifier boundary guards
 
