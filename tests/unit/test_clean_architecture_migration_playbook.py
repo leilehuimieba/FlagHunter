@@ -2847,6 +2847,12 @@ def test_playbook_records_ctf_state_snapshot_ownership_characterization_guard() 
         "future State implementation approval must update this guard in the same functional slice",
     ):
         assert invariant in section
+    for command in (
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/agents/test_p1_source_guards.py::test_p1_ctf_state_snapshot_ownership_stays_in_legacy_state_only -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q",
+        "git diff --check",
+    ):
+        assert command in section
     for boundary in (
         "no `CTFState` ownership migration",
         "no state-store production wiring",

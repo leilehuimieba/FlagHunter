@@ -2914,6 +2914,14 @@ Required invariants:
 - snapshot ownership characterization does not approve state-store production wiring
 - future State implementation approval must update this guard in the same functional slice
 
+Required verification for this guard:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/agents/test_p1_source_guards.py::test_p1_ctf_state_snapshot_ownership_stays_in_legacy_state_only -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
 Boundary confirmation for this guard:
 
 - no `CTFState` ownership migration
