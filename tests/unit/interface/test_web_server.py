@@ -28,6 +28,7 @@ PLAYBOOK_PATH = (
 )
 WEB_SERIALIZE_TASK_PATH = REPO_ROOT / "flaghunter" / "interface" / "web_serialize_task.py"
 WEB_CONTROL_DECISION_PATH = REPO_ROOT / "flaghunter" / "interface" / "web_control_decision.py"
+WEB_SERVER_PATH = REPO_ROOT / "flaghunter" / "interface" / "web_server.py"
 
 
 class _NoopThread:
@@ -1782,6 +1783,114 @@ async def test_post_task_returns_normalized_contract_fields(web_client: TestClie
         "retry": False,
         "attachments": True,
     }
+
+
+def test_web_task_submission_ingress_wiring_uses_application_service_after_approval() -> None:
+    playbook = PLAYBOOK_PATH.read_text(encoding="utf-8")
+    source = WEB_SERVER_PATH.read_text(encoding="utf-8-sig")
+
+    assert "Task ingress production wiring B implementation landing record" in playbook
+    assert "Task ingress production wiring B: implementation landed" in playbook
+    assert "flaghunter/interface/web_server.py::post_task" in playbook
+    assert "flaghunter.application.challenge.task_ingress_service" in source
+    assert "SubmitTaskIngress" in source
+    assert "_submit_web_task_ingress(" in source
+
+
+@pytest.mark.asyncio
+async def test_post_task_submits_neutral_ingress_without_response_or_thread_drift(
+    web_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    captured_calls: list[dict[str, object]] = []
+
+    class RecordingSubmitTaskIngress:
+        async def submit(self, **kwargs):
+            captured_calls.append(dict(kwargs))
+            return {
+                "schemaVersion": 1,
+                "taskId": kwargs.get("task_id"),
+                "request": {
+                    "schemaVersion": 1,
+                    "taskId": kwargs.get("task_id"),
+                    "taskType": kwargs.get("task_type"),
+                    "instructions": kwargs.get("instructions"),
+                    "runId": kwargs.get("run_id"),
+                    "metadata": kwargs.get("metadata") or {},
+                },
+                "ingress": {},
+            }
+
+    monkeypatch.setattr(web_server, "SubmitTaskIngress", RecordingSubmitTaskIngress, raising=False)
+
+    created = await web_client.post(
+        "/api/tasks",
+        json={
+            "title": "web-ingress",
+            "target": "http://challenge.test",
+            "goal": "analyze challenge",
+            "mode": "ctf",
+            "ctfType": "web",
+        },
+    )
+
+    assert created.status == 201
+    task = await created.json()
+
+    assert len(captured_calls) == 1
+    call = captured_calls[0]
+    assert call["task_id"] == task["id"]
+    assert call["task_type"] == "ctf"
+    assert call["instructions"] == "analyze challenge"
+    assert call["run_id"] == task["currentRunId"]
+    assert call["metadata"] == {
+        "entryPoint": "web.post_task",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
+    }
+
+    assert "ingress" not in task
+    assert task["status"] == "queued"
+    assert task["controlDecision"]["shouldRun"] is True
+    assert task["ingressHandoff"]["decisionKind"] == "explore_first"
+    assert task["id"] in web_server._task_threads
+
+
+@pytest.mark.asyncio
+async def test_post_task_blocked_path_submits_ingress_without_starting_thread(
+    web_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    captured_calls: list[dict[str, object]] = []
+
+    class RecordingSubmitTaskIngress:
+        async def submit(self, **kwargs):
+            captured_calls.append(dict(kwargs))
+            return {"schemaVersion": 1, "taskId": kwargs.get("task_id")}
+
+    monkeypatch.setattr(web_server, "SubmitTaskIngress", RecordingSubmitTaskIngress, raising=False)
+
+    created = await web_client.post(
+        "/api/tasks",
+        json={
+            "title": "blocked-web-ingress",
+            "target": "",
+            "goal": "need target or local assets",
+            "mode": "ctf",
+        },
+    )
+
+    assert created.status == 201
+    task = await created.json()
+
+    assert len(captured_calls) == 1
+    assert captured_calls[0]["instructions"] == "need target or local assets"
+    assert captured_calls[0]["run_id"] == task["currentRunId"]
+    assert "ingress" not in task
+    assert task["status"] == "blocked"
+    assert task["controlDecision"]["decisionKind"] == "blocked"
+    assert task["startedAt"] is None
+    assert task["id"] not in web_server._task_threads
 
 
 @pytest.mark.asyncio

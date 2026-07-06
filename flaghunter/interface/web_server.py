@@ -19,6 +19,8 @@ from typing import Any
 
 from aiohttp import web
 
+from flaghunter.application.challenge.task_ingress_service import SubmitTaskIngress
+
 from .blackboard_lite import build_task_blackboard_snapshot, serialize_blackboard_snapshot
 from .control_contract import (
     build_control_decision_parts,
@@ -311,6 +313,20 @@ def _task_id() -> str:
 def _run_id() -> str:
     ts = datetime.now(timezone.utc).strftime("%y%m%d%H%M%S")
     return f"run_{ts}_{uuid.uuid4().hex[:4]}"
+
+
+async def _submit_web_task_ingress(task: dict[str, Any], *, entry_point: str) -> None:
+    await SubmitTaskIngress().submit(
+        task_id=str(task.get("id") or ""),
+        task_type=str(task.get("mode") or "task"),
+        instructions=str(task.get("goal") or task.get("title") or task.get("target") or ""),
+        run_id=str(task.get("currentRunId") or "") or None,
+        metadata={
+            "entryPoint": entry_point,
+            "modeSubtype": task.get("modeSubtype"),
+            "goalStyle": task.get("goalStyle"),
+        },
+    )
 
 
 def _session_context_has_observed_data(context: Any) -> bool:
@@ -1451,6 +1467,7 @@ def _make_handlers(project_root: Path):
             blackboard_snapshot=payload.get("blackboardSnapshot") if isinstance(payload.get("blackboardSnapshot"), dict) else None,
         )
         task["ingressHandoff"] = _build_ingress_handoff(task)
+        await _submit_web_task_ingress(task, entry_point="web.post_task")
         if decision.get("shouldRun") is False:
             task["status"] = "blocked"
         _tasks[tid] = task

@@ -2194,19 +2194,21 @@ interface, MCP, agents, tools, runtime, session, workspaces, and config
 production entrypoint packages against importing or constructing task ingress
 adapter, service, or port wiring outside the approved
 `flaghunter/mcp/server/mcp_tools.py` run_task/run_task_async task submission
-ingress slice.
+ingress slice and the approved `flaghunter/interface/web_server.py` post_task
+task creation ingress slice.
 
 Required gate for any further production entrypoint wiring: explicit production
 wiring approval.
 
-This guard keeps task ingress production wiring A from expanding into CLI, TUI,
-Web, other MCP server files, dispatcher, tool executor, runtime, session,
-workspace, or configuration paths.
+This guard keeps task ingress production wiring A/B from expanding into CLI,
+TUI, other Web handlers, other MCP server files, dispatcher, tool executor,
+runtime, session, workspace, or configuration paths.
 
 Boundary confirmation for this baseline:
 
 - MCP run_task/run_task_async task submission ingress only
-- no Web/CLI/TUI production wiring
+- Web post_task task creation ingress only
+- no CLI/TUI production wiring
 - no MCP router changes
 - no `_drive_task` changes
 - no `_make_agent` changes
@@ -2420,6 +2422,68 @@ Boundary confirmation for this landing:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Task ingress production wiring B implementation landing record
+
+Status: implementation landed for Web post_task task creation ingress only.
+
+Current approval fact:
+
+- Task ingress production wiring B: implementation landed
+
+Target:
+
+- `flaghunter/interface/web_server.py::post_task`
+
+Implementation summary:
+
+- Web `POST /api/tasks` now submits task creation ingress through the neutral
+  `SubmitTaskIngress` application service after the task dict, mode contract,
+  local asset contract, effective goal, control decision, and `ingressHandoff`
+  are prepared.
+- The ingress service call preserves the task goal/title/target as raw
+  `instructions` and uses task metadata only for entrypoint, mode subtype, and
+  goal style.
+- The service result is not surfaced in Web response JSON and is not used to
+  drive execution, so Web external response shape, task dict behavior,
+  `ingressHandoff`, control decision, blocked behavior, and background-thread
+  scheduling stay compatible.
+
+Equivalence evidence:
+
+- `tests/unit/interface/test_web_server.py::test_post_task_submits_neutral_ingress_without_response_or_thread_drift`
+  proves Web task creation calls `SubmitTaskIngress`, keeps raw instructions,
+  keeps run ids, does not add ingress fields to the external response, and
+  preserves background-thread scheduling for runnable tasks.
+- `tests/unit/interface/test_web_server.py::test_post_task_blocked_path_submits_ingress_without_starting_thread`
+  proves blocked task creation still records ingress while preserving blocked
+  status and no background thread.
+- `tests/unit/interface/test_web_server.py::test_web_task_submission_ingress_wiring_uses_application_service_after_approval`
+  records the approved Web service wiring.
+- `tests/unit/test_task_ingress_production_wiring_guards.py` allows only the
+  approved MCP A and Web B service wiring while keeping adapter/port wiring and
+  every other production entrypoint guarded.
+
+Rollback command:
+
+- `git revert <Task ingress production wiring B implementation commit>`
+
+Boundary confirmation for this landing:
+
+- no MCP follow-up changes
+- no MCP router changes
+- no `_drive_task` changes
+- no `_make_agent` changes
+- no CLI/TUI production wiring
+- no other Web handler production wiring
+- no ToolExecutor changes
+- no `CTFVerifier` proof behavior changes
+- no `CTFState` ownership split
+- no `CTFTaskDispatcher` flow changes
+- no composition root changes
+- no proof authority behavior changes
+- no P5 implementation
+- no crew/recovery changes
+
 ### Task ingress application service skeleton baseline
 
 Status: task ingress application service skeleton added before production wiring.
@@ -2597,7 +2661,7 @@ high-risk core surfaces separated.
 | Candidate | Risk tier | Current status | Implementation approved | Required approval | Required verification |
 |-----------|-----------|----------------|-------------------------|-------------------|-----------------------|
 | Task ingress service contract migration | low-medium | implementation landed | true | explicit service migration approval granted | application service focused, adapter focused, architecture/source guards, production pre-wiring guards, `git diff --check` |
-| Task ingress production wiring | high | A landed; remaining entrypoints not approved | partial | explicit production wiring approval per entrypoint family | MCP/entrypoint wiring focused, task ingress guards, architecture/source guards, `git diff --check` |
+| Task ingress production wiring | high | A and B landed; remaining entrypoints not approved | partial | explicit production wiring approval per entrypoint family | MCP/entrypoint wiring focused, task ingress guards, architecture/source guards, `git diff --check` |
 | Verifier/proof authority boundary | high | not approved | false | explicit proof-authority approval | verifier fixture, proof authority invariants, P1 claim invariants, source guards, `git diff --check` |
 | State ownership split | high | not approved | false | explicit state ownership split approval | state snapshot fixtures, replay/readback fixtures, import/source guards, `git diff --check` |
 | ToolExecutor side-effect split | high | not approved | false | explicit ToolExecutor side-effect split approval | tool receipt fixtures, executor guard fixtures, finish control receipt, architecture/source guards, `git diff --check` |

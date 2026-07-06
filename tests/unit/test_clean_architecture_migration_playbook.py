@@ -2431,7 +2431,7 @@ def test_playbook_records_post_read_side_core_decoupling_approval_queue() -> Non
     assert queue_rows["Task ingress service contract migration"]["Risk tier"] == "low-medium"
     assert queue_rows["Task ingress service contract migration"]["Current status"] == "implementation landed"
     assert queue_rows["Task ingress service contract migration"]["Implementation approved"] == "true"
-    assert queue_rows["Task ingress production wiring"]["Current status"] == "A landed; remaining entrypoints not approved"
+    assert queue_rows["Task ingress production wiring"]["Current status"] == "A and B landed; remaining entrypoints not approved"
     assert queue_rows["Task ingress production wiring"]["Implementation approved"] == "partial"
     for candidate, row in queue_rows.items():
         if candidate not in {
@@ -2475,6 +2475,38 @@ def test_playbook_records_task_ingress_production_wiring_a_landing() -> None:
         "no `_drive_task` changes",
         "no `_make_agent` changes",
         "no Web/CLI/TUI production wiring",
+        "no ToolExecutor changes",
+        "no `CTFVerifier` proof behavior changes",
+        "no `CTFState` ownership split",
+        "no `CTFTaskDispatcher` flow changes",
+        "no composition root changes",
+        "no proof authority behavior changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
+def test_playbook_records_task_ingress_production_wiring_b_landing() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Task ingress production wiring B implementation landing record",
+    )
+
+    assert "Status: implementation landed for Web post_task task creation ingress only." in section
+    assert "Task ingress production wiring B: implementation landed" in section
+    assert "flaghunter/interface/web_server.py::post_task" in section
+    assert "SubmitTaskIngress" in section
+    assert "raw" in section
+    assert "does not add ingress fields to the external response" in section
+    for boundary in (
+        "no MCP follow-up changes",
+        "no MCP router changes",
+        "no `_drive_task` changes",
+        "no `_make_agent` changes",
+        "no CLI/TUI production wiring",
+        "no other Web handler production wiring",
         "no ToolExecutor changes",
         "no `CTFVerifier` proof behavior changes",
         "no `CTFState` ownership split",
