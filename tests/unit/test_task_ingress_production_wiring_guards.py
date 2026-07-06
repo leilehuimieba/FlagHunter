@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 
@@ -78,6 +79,11 @@ APPROVED_TASK_INGRESS_WIRING_B_TOKENS = {
     "flaghunter.application.challenge.task_ingress_service",
 }
 
+APPROVED_TASK_INGRESS_SUBMISSION_SCOPES = {
+    "flaghunter/mcp/server/mcp_tools.py": {"_submit_task_ingress"},
+    "flaghunter/interface/web_server.py": {"_submit_web_task_ingress"},
+}
+
 REQUIRED_TASK_INGRESS_WIRING_TOKENS = {
     "TaskIngressAdapter",
     "TaskIngressPort",
@@ -115,6 +121,43 @@ def _production_sources() -> list[Path]:
     return paths
 
 
+def _call_scopes_for(path: Path, call_name: str) -> set[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
+    scopes: set[str] = set()
+
+    class CallScopeVisitor(ast.NodeVisitor):
+        def __init__(self) -> None:
+            self.scope: list[str] = []
+
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            self.scope.append(node.name)
+            self.generic_visit(node)
+            self.scope.pop()
+
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            self.scope.append(node.name)
+            self.generic_visit(node)
+            self.scope.pop()
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            self.scope.append(node.name)
+            self.generic_visit(node)
+            self.scope.pop()
+
+        def visit_Call(self, node: ast.Call) -> None:
+            name = ""
+            if isinstance(node.func, ast.Name):
+                name = node.func.id
+            elif isinstance(node.func, ast.Attribute):
+                name = node.func.attr
+            if name == call_name:
+                scopes.add(".".join(self.scope) or "<module>")
+            self.generic_visit(node)
+
+    CallScopeVisitor().visit(tree)
+    return scopes
+
+
 def test_task_ingress_production_entrypoints_only_allow_approved_mcp_submission_wiring() -> None:
     playbook = _playbook_text()
     assert "Task ingress production wiring A implementation landing record" in playbook
@@ -138,6 +181,27 @@ def test_task_ingress_production_entrypoints_only_allow_approved_mcp_submission_
         )
 
     assert offenders == []
+
+
+def test_task_ingress_remaining_entrypoints_stay_unwired_after_a_and_b() -> None:
+    playbook = _playbook_text()
+    assert "Task ingress remaining entrypoint denial guard" in playbook
+    assert "remaining entrypoints not approved" in playbook
+
+    for relative, allowed_scopes in APPROVED_TASK_INGRESS_SUBMISSION_SCOPES.items():
+        path = REPO_ROOT / relative
+        assert _call_scopes_for(path, "SubmitTaskIngress") == allowed_scopes
+
+    denied_surfaces = {
+        "MCPRouter",
+        "_drive_task",
+        "_make_agent",
+        "CLI/TUI",
+        "other Web handler",
+        "composition root",
+    }
+    for surface in denied_surfaces:
+        assert surface in playbook
 
 
 def test_task_ingress_pre_wiring_guard_covers_mcp_server_entrypoints() -> None:

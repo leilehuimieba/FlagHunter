@@ -2484,6 +2484,49 @@ Boundary confirmation for this landing:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Task ingress remaining entrypoint denial guard
+
+Status: remaining entrypoint denial guard recorded, no new production wiring approved.
+
+After Task ingress production wiring A and B, only the two approved task
+submission helper scopes may construct `SubmitTaskIngress`:
+
+- `flaghunter/mcp/server/mcp_tools.py::_submit_task_ingress`
+- `flaghunter/interface/web_server.py::_submit_web_task_ingress`
+
+`tests/unit/test_task_ingress_production_wiring_guards.py::test_task_ingress_remaining_entrypoints_stay_unwired_after_a_and_b`
+now locks those call scopes and keeps all remaining entrypoints not approved.
+
+Denied surfaces remain:
+
+- `MCPRouter`
+- `_drive_task`
+- `_make_agent`
+- CLI/TUI
+- other Web handler
+- composition root
+
+This guard prevents the partial Task ingress production wiring approval from
+drifting into MCP router wiring, MCP task execution wiring, CLI/TUI task
+creation, broader Web handlers, or composition-root assembly by implication.
+
+Boundary confirmation for this guard:
+
+- no new production wiring
+- no MCP router changes
+- no `_drive_task` changes
+- no `_make_agent` changes
+- no CLI/TUI production wiring
+- no other Web handler production wiring
+- no ToolExecutor changes
+- no `CTFVerifier` proof behavior changes
+- no `CTFState` ownership split
+- no `CTFTaskDispatcher` flow changes
+- no composition root changes
+- no proof authority behavior changes
+- no P5 implementation
+- no crew/recovery changes
+
 ### Task ingress application service skeleton baseline
 
 Status: task ingress application service skeleton added before production wiring.
