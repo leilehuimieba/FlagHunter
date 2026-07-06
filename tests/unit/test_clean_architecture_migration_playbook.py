@@ -5028,22 +5028,37 @@ def test_playbook_records_core_first_slice_template_coverage_guard() -> None:
 
     assert "Status: aggregate approval-template coverage guard recorded." in section
     expected_templates = {
-        "Verifier/proof authority boundary": "Core first slice approval text template",
-        "State ownership split": "State ownership first slice approval text template",
-        "ToolExecutor side-effect split": "ToolExecutor first slice approval text template",
-        "Dispatcher/composition root production wiring": "Dispatcher composition root first slice approval text template",
+        "Verifier/proof authority boundary": {
+            "Approval template": "Core first slice approval text template",
+            "Template role": "historical audit template",
+        },
+        "State ownership split": {
+            "Approval template": "State ownership first slice approval text template",
+            "Template role": "next approvable review template",
+        },
+        "ToolExecutor side-effect split": {
+            "Approval template": "ToolExecutor first slice approval text template",
+            "Template role": "sequence-blocked future template",
+        },
+        "Dispatcher/composition root production wiring": {
+            "Approval template": "Dispatcher composition root first slice approval text template",
+            "Template role": "sequence-blocked final template",
+        },
     }
     rows = {
         row["Core candidate"]: row
         for row in _markdown_table_rows(section)
     }
     assert rows.keys() == expected_templates.keys()
-    for candidate, template in expected_templates.items():
+    for candidate, expected_row in expected_templates.items():
+        template = expected_row["Approval template"]
         assert rows[candidate]["Approval template"] == f"`{template}`"
+        assert rows[candidate]["Template role"] == expected_row["Template role"]
         assert rows[candidate]["Coverage required"] == "true"
         assert template in text
     for invariant in (
         "all core candidates must keep one copyable first-slice approval template",
+        "template role must identify historical, next-review, or sequence-blocked status",
         "templates do not approve implementation by themselves",
         "dispatcher/composition-root remains last until proof, state, and executor seams land",
         "missing or renamed templates must fail review",

@@ -4611,16 +4611,17 @@ template before implementation can be requested. The templates make the
 approved scope, rollback point, readiness evidence, landing evidence, and
 forbidden production surfaces reviewable in one place.
 
-| Core candidate | Approval template | Coverage required |
-|----------------|-------------------|-------------------|
-| Verifier/proof authority boundary | `Core first slice approval text template` | true |
-| State ownership split | `State ownership first slice approval text template` | true |
-| ToolExecutor side-effect split | `ToolExecutor first slice approval text template` | true |
-| Dispatcher/composition root production wiring | `Dispatcher composition root first slice approval text template` | true |
+| Core candidate | Approval template | Template role | Coverage required |
+|----------------|-------------------|---------------|-------------------|
+| Verifier/proof authority boundary | `Core first slice approval text template` | historical audit template | true |
+| State ownership split | `State ownership first slice approval text template` | next approvable review template | true |
+| ToolExecutor side-effect split | `ToolExecutor first slice approval text template` | sequence-blocked future template | true |
+| Dispatcher/composition root production wiring | `Dispatcher composition root first slice approval text template` | sequence-blocked final template | true |
 
 Coverage invariants:
 
 - all core candidates must keep one copyable first-slice approval template
+- template role must identify historical, next-review, or sequence-blocked status
 - templates do not approve implementation by themselves
 - dispatcher/composition-root remains last until proof, state, and executor seams land
 - missing or renamed templates must fail review
