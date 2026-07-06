@@ -652,6 +652,59 @@ def test_p1_ctf_state_construction_stays_in_current_legacy_surfaces() -> None:
     assert offenders == []
 
 
+def test_p1_ctf_state_snapshot_ownership_stays_in_legacy_state_only() -> None:
+    allowed_definitions: set[tuple[str, str, str]] = {
+        (
+            "flaghunter/agents/pa_agent/ctf_state.py",
+            "CTFState.to_snapshot",
+            "to_snapshot",
+        ),
+        (
+            "flaghunter/agents/pa_agent/ctf_state.py",
+            "CTFState.from_snapshot",
+            "from_snapshot",
+        ),
+    }
+    guarded_names = {"to_snapshot", "from_snapshot"}
+    offenders: list[tuple[str, str, str, int]] = []
+
+    class SnapshotOwnershipVisitor(ast.NodeVisitor):
+        def __init__(self, relative_path: str):
+            self.relative_path = relative_path
+            self.scope: list[str] = []
+
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            self.scope.append(node.name)
+            self.generic_visit(node)
+            self.scope.pop()
+
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            self.scope.append(node.name)
+            scope_name = ".".join(self.scope)
+            if node.name in guarded_names:
+                key = (self.relative_path, scope_name, node.name)
+                if key not in allowed_definitions:
+                    offenders.append((self.relative_path, scope_name, node.name, node.lineno))
+            self.generic_visit(node)
+            self.scope.pop()
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            self.scope.append(node.name)
+            scope_name = ".".join(self.scope)
+            if node.name in guarded_names:
+                key = (self.relative_path, scope_name, node.name)
+                if key not in allowed_definitions:
+                    offenders.append((self.relative_path, scope_name, node.name, node.lineno))
+            self.generic_visit(node)
+            self.scope.pop()
+
+    for path in _python_sources(PRODUCTION_ROOT):
+        visitor = SnapshotOwnershipVisitor(_relative(path))
+        visitor.visit(_parse_source(_relative(path)))
+
+    assert offenders == []
+
+
 def test_p1_state_store_adapter_stays_unwired_from_production_imports() -> None:
     allowed_paths = {
         "flaghunter/adapters/storage/__init__.py",

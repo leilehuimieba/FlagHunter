@@ -2993,6 +2993,42 @@ def test_playbook_records_state_ownership_first_slice_approval_text_template() -
         assert invariant in section
 
 
+def test_playbook_records_state_ownership_first_slice_characterization_landing() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "State ownership first slice characterization landing record",
+    )
+
+    assert "Status: first slice characterization landed; no ownership migration." in section
+    assert "State ownership split 第一刀: formally approved" in section
+    assert "test_p1_ctf_state_snapshot_ownership_stays_in_legacy_state_only" in section
+    assert "test_p1_ctf_state_construction_stays_in_current_legacy_surfaces" in section
+    for expected in (
+        "`CTFState.to_snapshot` remains the only production snapshot export owner",
+        "`CTFState.from_snapshot` remains the only production snapshot restore owner",
+        "`flaghunter/agents/pa_agent/ctf_state.py`",
+        "state snapshot ownership characterization",
+        "claim-store ownership migration remains unstarted",
+    ):
+        assert expected in section
+    for boundary in (
+        "no `CTFState` ownership migration",
+        "no state-store production wiring",
+        "no claim-store production wiring",
+        "no proof-authority behavior changes",
+        "no verifier decision behavior changes",
+        "no Dispatcher changes",
+        "no ToolExecutor changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_tool_executor_first_slice_approval_text_template() -> None:
     text = _playbook_text()
     section = _heading_section_text(

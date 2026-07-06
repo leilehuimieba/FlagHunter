@@ -3048,6 +3048,53 @@ Boundary confirmation for this template:
 - no P5 implementation
 - no crew/recovery changes
 
+#### State ownership first slice characterization landing record
+
+Status: first slice characterization landed; no ownership migration.
+
+Current approval fact:
+
+- State ownership split 第一刀: formally approved
+
+Approved scope:
+
+- state snapshot ownership characterization
+- claim-store ownership characterization runway evidence
+- no storage ownership migration
+- no mutation ownership transfer
+
+Implementation summary:
+
+- `tests/unit/agents/test_p1_source_guards.py::test_p1_ctf_state_snapshot_ownership_stays_in_legacy_state_only`
+  now locks legacy snapshot ownership definitions.
+- `CTFState.to_snapshot` remains the only production snapshot export owner.
+- `CTFState.from_snapshot` remains the only production snapshot restore owner.
+- Both ownership definitions remain in
+  `flaghunter/agents/pa_agent/ctf_state.py`.
+- `tests/unit/agents/test_p1_source_guards.py::test_p1_ctf_state_construction_stays_in_current_legacy_surfaces`
+  remains the reviewed readiness guard for direct construction and snapshot
+  restoration call sites.
+- claim-store ownership migration remains unstarted.
+
+Rollback command:
+
+- `git revert <State ownership first slice characterization commit>`
+
+Boundary confirmation for this landing:
+
+- no `CTFState` ownership migration
+- no state-store production wiring
+- no claim-store production wiring
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no Dispatcher changes
+- no ToolExecutor changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### ToolExecutor side-effect split approval plan
 
 Status: approval plan recorded, implementation not approved.
