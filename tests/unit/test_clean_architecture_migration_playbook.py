@@ -4359,6 +4359,12 @@ def test_playbook_records_state_ownership_first_slice_characterization_landing()
         "claim-store ownership migration remains unstarted",
     ):
         assert expected in section
+    for command in (
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/agents/test_p1_source_guards.py::test_p1_ctf_state_snapshot_ownership_stays_in_legacy_state_only tests/unit/agents/test_p1_source_guards.py::test_p1_ctf_state_construction_stays_in_current_legacy_surfaces -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q",
+        "git diff --check",
+    ):
+        assert command in section
     for boundary in (
         "no `CTFState` ownership migration",
         "no state-store production wiring",

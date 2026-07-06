@@ -3722,6 +3722,14 @@ Rollback command:
 
 - `git revert <State ownership first slice characterization commit>`
 
+Required verification for this landing:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/agents/test_p1_source_guards.py::test_p1_ctf_state_snapshot_ownership_stays_in_legacy_state_only tests/unit/agents/test_p1_source_guards.py::test_p1_ctf_state_construction_stays_in_current_legacy_surfaces -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
 Boundary confirmation for this landing:
 
 - no `CTFState` ownership migration
