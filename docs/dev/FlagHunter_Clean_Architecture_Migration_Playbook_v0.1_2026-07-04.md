@@ -3077,6 +3077,7 @@ as approval package evidence, not implementation approval.
 Required characterization guards:
 
 - CTFState legacy construction characterization guard
+- CTFState snapshot ownership characterization guard
 - CTFState unwired store ports source guard
 - CTFState store name reference source guard
 - State store adapter import unwired guard
@@ -3088,6 +3089,7 @@ Required characterization guards:
 Focused guard tests:
 
 - `test_p1_ctf_state_construction_stays_in_current_legacy_surfaces`
+- `test_p1_ctf_state_snapshot_ownership_stays_in_legacy_state_only`
 - `test_p1_ctf_state_stays_unwired_from_state_and_claim_store_ports`
 - `test_p1_state_store_adapter_stays_unwired_from_production_imports`
 - `test_p1_claim_store_adapter_stays_unwired_from_production_imports`
@@ -3096,10 +3098,10 @@ Focused guard tests:
 - `test_storage_adapter_namespace_is_reexport_only`
 
 State ownership split implementation remains unapproved. These guards only
-prove the current legacy construction surface, CTFState store-port/name-reference
-absence, unwired adapter import surface, delegate-only adapter bodies, claim-store
-delegate body, and storage namespace surface are characterized before a future
-explicit approval.
+prove the current legacy construction and snapshot ownership surfaces, CTFState
+store-port/name-reference absence, unwired adapter import surface, delegate-only
+adapter bodies, claim-store delegate body, and storage namespace surface are
+characterized before a future explicit approval.
 
 Boundary confirmation for this aggregate:
 
