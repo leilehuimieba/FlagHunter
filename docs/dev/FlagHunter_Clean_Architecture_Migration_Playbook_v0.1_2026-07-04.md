@@ -3746,6 +3746,47 @@ Boundary confirmation for this session guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Entrypoint composition root usage characterization guard
+
+Status: entrypoint usage characterization recorded, no production wiring.
+
+`tests/unit/test_entrypoint_composition_root_characterization.py` now locks
+the current entrypoint composition-root usage facts before any future
+production wiring approval.
+
+Current characterization:
+
+- CLI, TUI, Web, and MCP server bootstrap currently use `AgentSession.create`
+- Web still uses `flaghunter.interface.initializer` as a compatibility builder seam
+- MCP task execution remains legacy direct construction in `flaghunter.mcp.server.mcp_tools`
+- this record does not approve moving MCP task execution to `AgentSession.create`
+
+Guarded tests:
+
+- `test_presentation_entrypoints_currently_use_agent_session_create`
+- `test_web_entrypoint_still_uses_compatibility_initializer_seam`
+- `test_mcp_task_execution_stays_legacy_direct_construction_before_wiring_approval`
+
+Required verification for this entrypoint guard:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_entrypoint_composition_root_characterization.py tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this entrypoint guard:
+
+- no `CTFTaskDispatcher` flow changes
+- no composition root production wiring changes
+- no MCP task execution wiring changes
+- no Web/CLI/TUI task wiring changes
+- no ToolExecutor changes
+- no runtime construction changes
+- no `CTFState` ownership split
+- no proof-authority behavior changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Dispatcher production wiring approval package consistency guard
 
 Status: approval package consistency guard recorded, no production wiring.

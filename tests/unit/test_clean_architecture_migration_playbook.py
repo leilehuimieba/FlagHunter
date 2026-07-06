@@ -3180,6 +3180,39 @@ def test_playbook_records_session_composition_root_characterization_guard() -> N
         assert boundary in section
 
 
+def test_playbook_records_entrypoint_composition_root_usage_characterization_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Entrypoint composition root usage characterization guard",
+    )
+
+    assert "Status: entrypoint usage characterization recorded, no production wiring." in section
+    assert "test_presentation_entrypoints_currently_use_agent_session_create" in section
+    assert "test_web_entrypoint_still_uses_compatibility_initializer_seam" in section
+    assert "test_mcp_task_execution_stays_legacy_direct_construction_before_wiring_approval" in section
+    for expected in (
+        "CLI, TUI, Web, and MCP server bootstrap currently use `AgentSession.create`",
+        "Web still uses `flaghunter.interface.initializer` as a compatibility builder seam",
+        "MCP task execution remains legacy direct construction in `flaghunter.mcp.server.mcp_tools`",
+        "this record does not approve moving MCP task execution to `AgentSession.create`",
+    ):
+        assert expected in section
+    for boundary in (
+        "no `CTFTaskDispatcher` flow changes",
+        "no composition root production wiring changes",
+        "no MCP task execution wiring changes",
+        "no Web/CLI/TUI task wiring changes",
+        "no ToolExecutor changes",
+        "no runtime construction changes",
+        "no `CTFState` ownership split",
+        "no proof-authority behavior changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_state_ownership_first_slice_approval_text_template() -> None:
     text = _playbook_text()
     section = _heading_section_text(
