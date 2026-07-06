@@ -4487,6 +4487,78 @@ def test_playbook_records_tool_executor_approval_transition_coverage_guard() -> 
         assert boundary in section
 
 
+def test_playbook_records_tool_executor_approval_transition_evidence_consistency_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "ToolExecutor approval transition evidence consistency guard",
+    )
+
+    assert "Status: evidence consistency guard recorded, ToolExecutor migration not approved." in section
+    assert "ToolExecutor migration evidence remains absent until explicit approval lands" in section
+    rows = {
+        row["Evidence item"]: row
+        for row in _markdown_table_rows(section)
+    }
+    expected = {
+        "readiness aggregate evidence": {
+            "Required location": "`ToolExecutor side-effect characterization readiness aggregate`",
+            "Current migration evidence present": "true",
+        },
+        "approval transition atomicity evidence": {
+            "Required location": "`ToolExecutor approval transition atomicity guard`",
+            "Current migration evidence present": "true",
+        },
+        "approval transition coverage evidence": {
+            "Required location": "`ToolExecutor approval transition coverage guard`",
+            "Current migration evidence present": "true",
+        },
+        "red test evidence": {
+            "Required location": "`ToolExecutor side-effect split implementation landing record`",
+            "Current migration evidence present": "false",
+        },
+        "green focused regression": {
+            "Required location": "`ToolExecutor side-effect split implementation landing record`",
+            "Current migration evidence present": "false",
+        },
+        "architecture/source regression": {
+            "Required location": "`ToolExecutor side-effect split implementation landing record`",
+            "Current migration evidence present": "false",
+        },
+        "post-push branch status": {
+            "Required location": "`ToolExecutor side-effect split implementation landing record`",
+            "Current migration evidence present": "false",
+        },
+    }
+    assert set(rows) == set(expected)
+    for item, expected_row in expected.items():
+        assert rows[item]["Required location"] == expected_row["Required location"]
+        assert rows[item]["Current migration evidence present"] == expected_row["Current migration evidence present"]
+        assert expected_row["Required location"].strip("`") in text
+    for invariant in (
+        "ToolExecutor migration evidence must remain false until explicit approval and implementation land",
+        "approval transition evidence must not be substituted for migration evidence",
+        "landing evidence must include red, green, architecture regression, and post-push status before ToolExecutor migration approved changes",
+        "evidence consistency must not authorize ToolExecutor side-effect migration",
+    ):
+        assert invariant in section
+    for boundary in (
+        "no ToolExecutor side-effect migration",
+        "no tool-runner production wiring",
+        "no runtime construction changes",
+        "no `CTFState` ownership migration",
+        "no `CTFVerifier` decision behavior changes",
+        "no proof-authority behavior changes",
+        "no Dispatcher changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_dispatcher_composition_root_first_slice_approval_text_template() -> None:
     text = _playbook_text()
     section = _heading_section_text(
