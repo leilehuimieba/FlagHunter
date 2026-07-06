@@ -3191,7 +3191,7 @@ def test_playbook_records_dispatcher_composition_root_first_slice_approval_text_
         "first slice: composition-root characterization or wiring plan with no production entrypoint switch",
         "scope: dispatcher/composition-root boundary characterization only",
         "rollback: revert the single implementation commit",
-        "readiness evidence: CTFTaskDispatcher legacy construction characterization guard reviewed",
+        "readiness evidence: Dispatcher composition root readiness characterization guard reviewed",
         "landing evidence: required",
     ):
         assert required_clause in section
