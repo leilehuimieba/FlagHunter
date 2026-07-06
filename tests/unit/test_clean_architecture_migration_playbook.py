@@ -3988,6 +3988,56 @@ def test_playbook_records_state_ownership_rollback_placeholder_consistency_guard
         assert boundary in section
 
 
+def test_playbook_records_state_ownership_verification_gate_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "State ownership implementation verification gate guard",
+    )
+
+    assert "Status: verification gate guard recorded, State implementation not approved." in section
+    assert "Future State implementation must pass every listed verification gate before landing status changes" in section
+    rows = {
+        row["Verification gate"]: row
+        for row in _markdown_table_rows(section)
+    }
+    expected = {
+        "red test evidence": "focused State ownership implementation test",
+        "green focused regression": "state snapshot fixtures and state-store adapter tests",
+        "proof/source regression": "proof guards, claim invariants, verifier/proof adapter tests",
+        "architecture regression": "import layers and clean architecture playbook tests",
+        "diff hygiene": "`git diff --check`",
+        "post-push status": "`git status --short --branch` plus remote branch SHA",
+    }
+    assert set(rows) == set(expected)
+    for gate, required_evidence in expected.items():
+        assert rows[gate]["Required evidence"] == required_evidence
+        assert rows[gate]["Current complete"] == "false"
+        assert rows[gate]["Current implementation approved"] == "false"
+    for invariant in (
+        "State verification gates must all be complete before implementation approved changes",
+        "focused State tests cannot replace proof/source regression",
+        "green tests cannot replace rollback and post-push evidence",
+        "verification gate readiness must not authorize State ownership migration",
+    ):
+        assert invariant in section
+    for boundary in (
+        "no `CTFState` ownership migration",
+        "no state-store production wiring",
+        "no claim-store production wiring",
+        "no proof-authority behavior changes",
+        "no verifier decision behavior changes",
+        "no ToolExecutor changes",
+        "no `CTFTaskDispatcher` flow changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_state_ownership_first_slice_characterization_landing() -> None:
     text = _playbook_text()
     section = _heading_section_text(

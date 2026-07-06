@@ -3404,6 +3404,51 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### State ownership implementation verification gate guard
+
+Status: verification gate guard recorded, State implementation not approved.
+
+Future State implementation must pass every listed verification gate before landing status changes.
+The gates are recorded now as requirements only; none of them approves State implementation by itself.
+
+| Verification gate | Required evidence | Current complete | Current implementation approved |
+|-------------------|-------------------|------------------|---------------------------------|
+| red test evidence | focused State ownership implementation test | false | false |
+| green focused regression | state snapshot fixtures and state-store adapter tests | false | false |
+| proof/source regression | proof guards, claim invariants, verifier/proof adapter tests | false | false |
+| architecture regression | import layers and clean architecture playbook tests | false | false |
+| diff hygiene | `git diff --check` | false | false |
+| post-push status | `git status --short --branch` plus remote branch SHA | false | false |
+
+Required invariants:
+
+- State verification gates must all be complete before implementation approved changes
+- focused State tests cannot replace proof/source regression
+- green tests cannot replace rollback and post-push evidence
+- verification gate readiness must not authorize State ownership migration
+
+Required verification for this guard:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this guard:
+
+- no `CTFState` ownership migration
+- no state-store production wiring
+- no claim-store production wiring
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### State ownership first slice characterization landing record
 
 Status: first slice characterization landed; no ownership migration.
