@@ -3155,6 +3155,7 @@ Required landing record fields:
 - core candidate
 - implementation commit SHA
 - approved scope
+- readiness evidence reviewed
 - files changed
 - red test evidence
 - focused regression result
@@ -3176,6 +3177,7 @@ Boundary confirmation for this landing template:
 - no implementation approval by this template
 - one core functional point per commit
 - no bundled proof, state, executor, dispatcher, composition-root, MCP, and entrypoint changes
+- readiness evidence must match the core aggregate row for the approved candidate
 - rollback command must use the real implementation commit SHA
 
 #### Core first implementation slice recommendation

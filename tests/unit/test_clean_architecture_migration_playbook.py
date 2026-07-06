@@ -2881,6 +2881,7 @@ def test_playbook_records_core_implementation_landing_evidence_template() -> Non
         "core candidate",
         "implementation commit SHA",
         "approved scope",
+        "readiness evidence reviewed",
         "files changed",
         "red test evidence",
         "focused regression result",
@@ -2902,6 +2903,7 @@ def test_playbook_records_core_implementation_landing_evidence_template() -> Non
         "one core functional point per commit",
         "no bundled proof, state, executor, dispatcher, composition-root, MCP, and entrypoint changes",
         "no implementation approval by this template",
+        "readiness evidence must match the core aggregate row for the approved candidate",
         "rollback command must use the real implementation commit SHA",
     ):
         assert boundary in section
