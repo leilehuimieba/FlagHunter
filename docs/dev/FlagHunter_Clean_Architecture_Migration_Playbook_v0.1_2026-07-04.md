@@ -2797,6 +2797,68 @@ Boundary confirmation for this approval plan:
 - no P5 implementation
 - no crew/recovery changes
 
+#### ToolExecutor side-effect split approval plan
+
+Status: approval plan recorded, implementation not approved.
+
+Purpose:
+
+- Prepare the first high-risk ToolExecutor side-effect review package after
+  read-side, task-ingress, proof-authority, and state ownership approval
+  planning.
+- Keep tool execution side effects stay in legacy ToolExecutor until explicitly migrated behind neutral tool receipt, tool runner, runtime action, audit, artifact, or checkpoint contracts.
+- Make tool-runner adapter and tool-receipt service evidence concrete without
+  granting production executor split approval by implication.
+
+Candidate scope for a future approved implementation:
+
+- `flaghunter/tools/executor.py`
+- `flaghunter/adapters/tools/tool_runner_adapter.py`
+- `tests/unit/tools/test_executor.py`
+- `tests/unit/tools/test_executor_cookie_inject.py`
+- `tests/unit/tools/test_finish_control_receipt.py`
+- `tests/unit/test_application_tool_receipt_service.py`
+- `tests/unit/test_tool_runner_adapter.py`
+- playbook governance records for the single approved ToolExecutor slice
+
+Current ToolExecutor side-effect surfaces that require explicit review:
+
+- `execute`
+- `execute_batch`
+- `runtime`
+- `scope check`
+- `cookie auto-inject`
+- `stealth mode`
+- `flag scanning`
+- `missing-tool detection`
+
+Required approval:
+
+- explicit ToolExecutor side-effect split approval required before implementation
+- one ToolExecutor functional point per commit
+- no status-only approval without matching implementation evidence
+- rollback point: revert the single approved ToolExecutor implementation commit
+
+Required verification for a future approved implementation:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/tools/test_executor.py tests/unit/tools/test_executor_cookie_inject.py tests/unit/tools/test_finish_control_receipt.py tests/unit/test_application_tool_receipt_service.py tests/unit/test_tool_runner_adapter.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py tests/unit/test_adapter_boundary_skeleton.py -q
+git diff --check
+```
+
+Boundary confirmation for this approval plan:
+
+- no implementation approval by this section
+- no proof-authority behavior changes
+- no `CTFState` ownership split
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Task ingress service contract migration approval flag consistency guard
 
 Status: approval consistency guard updated, implementation landed.

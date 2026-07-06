@@ -2543,6 +2543,53 @@ def test_playbook_records_state_ownership_split_approval_plan() -> None:
         assert command in section
 
 
+def test_playbook_records_tool_executor_side_effect_split_approval_plan() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "ToolExecutor side-effect split approval plan",
+    )
+
+    assert "Status: approval plan recorded, implementation not approved." in section
+    assert "flaghunter/tools/executor.py" in section
+    assert "flaghunter/adapters/tools/tool_runner_adapter.py" in section
+    assert "tests/unit/tools/test_executor.py" in section
+    assert "tests/unit/tools/test_executor_cookie_inject.py" in section
+    assert "tests/unit/tools/test_finish_control_receipt.py" in section
+    assert "tests/unit/test_application_tool_receipt_service.py" in section
+    assert "tool execution side effects stay in legacy ToolExecutor until explicitly migrated" in section
+    assert "rollback point: revert the single approved ToolExecutor implementation commit" in section
+    assert "explicit ToolExecutor side-effect split approval required before implementation" in section
+    for required_surface in (
+        "execute",
+        "execute_batch",
+        "runtime",
+        "scope check",
+        "cookie auto-inject",
+        "stealth mode",
+        "flag scanning",
+        "missing-tool detection",
+    ):
+        assert required_surface in section
+    for non_goal in (
+        "no proof-authority behavior changes",
+        "no `CTFState` ownership split",
+        "no `CTFTaskDispatcher` flow changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert non_goal in section
+    for command in (
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/tools/test_executor.py tests/unit/tools/test_executor_cookie_inject.py tests/unit/tools/test_finish_control_receipt.py tests/unit/test_application_tool_receipt_service.py tests/unit/test_tool_runner_adapter.py -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py tests/unit/test_adapter_boundary_skeleton.py -q",
+        "git diff --check",
+    ):
+        assert command in section
+
+
 def test_playbook_records_task_ingress_production_wiring_a_landing() -> None:
     text = _playbook_text()
     section = _heading_section_text(
