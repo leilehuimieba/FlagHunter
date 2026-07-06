@@ -4107,6 +4107,50 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### ToolExecutor rollback placeholder consistency guard
+
+Status: rollback placeholder guard recorded, ToolExecutor migration not approved.
+
+Rollback remains a placeholder until a single approved ToolExecutor migration commit lands.
+Future ToolExecutor migration must record `git revert <ToolExecutor migration commit>`
+as the rollback command in the same landing commit that updates migration evidence.
+
+| Rollback surface | Required location | Rollback command present | Current migration approved |
+|------------------|-------------------|--------------------------|----------------------------|
+| readiness aggregate | `ToolExecutor side-effect characterization readiness aggregate` | false | false |
+| approval transition evidence | `ToolExecutor approval transition evidence consistency guard` | false | false |
+| landing status | `ToolExecutor implementation landing status guard` | false | false |
+| implementation landing record | `ToolExecutor side-effect split implementation landing record` | false | false |
+
+Required invariants:
+
+- ToolExecutor rollback point must be the single approved migration commit
+- rollback placeholder must remain false before ToolExecutor migration approval
+- rollback evidence must land with the ToolExecutor implementation landing record
+- rollback placeholder must not authorize ToolExecutor side-effect migration
+
+Required verification for this guard:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this guard:
+
+- no ToolExecutor side-effect migration
+- no tool-runner production wiring
+- no runtime construction changes
+- no `CTFState` ownership migration
+- no `CTFVerifier` decision behavior changes
+- no proof-authority behavior changes
+- no Dispatcher changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Dispatcher/composition root production wiring approval plan
 
 Status: approval plan recorded, implementation not approved.
