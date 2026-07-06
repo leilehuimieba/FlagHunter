@@ -2553,6 +2553,46 @@ def test_playbook_records_state_ownership_split_approval_plan() -> None:
         assert command in section
 
 
+def test_playbook_records_ctf_state_legacy_construction_characterization_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "CTFState legacy construction characterization guard",
+    )
+
+    assert "Status: characterization guard recorded, no state ownership changed." in section
+    assert (
+        "tests/unit/agents/test_p1_source_guards.py::"
+        "test_p1_ctf_state_construction_stays_in_current_legacy_surfaces"
+    ) in section
+    for allowed_surface in (
+        "`flaghunter/agents/pa_agent/coordinator.py`",
+        "`CTFCoordinator._bootstrap_dispatcher`",
+        "`flaghunter/agents/pa_agent/ctf_crew_runner.py`",
+        "`run_ctf_crew_solve`",
+        "`flaghunter/interface/tui_ctf_apply.py`",
+        "`CtfApplyMixin._rebuild_override_stop_report`",
+        "`CtfApplyMixin._rebuild_wrong_flag_stop_report`",
+        "`flaghunter/interface/tui_ctf_runners.py`",
+        "`CtfRunnerMixin._run_ctf_crew_dispatcher_mode`",
+        "`CTFState.from_snapshot`",
+        "legacy state construction and snapshot restoration remain characterized",
+    ):
+        assert allowed_surface in section
+    for boundary in (
+        "no state ownership split",
+        "no proof-authority behavior changes",
+        "no ToolExecutor changes",
+        "no `CTFTaskDispatcher` flow changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_tool_executor_side_effect_split_approval_plan() -> None:
     text = _playbook_text()
     section = _heading_section_text(

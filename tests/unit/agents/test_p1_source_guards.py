@@ -549,6 +549,109 @@ def test_p1_ctf_verifier_construction_stays_legacy_dispatcher_only() -> None:
     assert offenders == []
 
 
+def test_p1_ctf_state_construction_stays_in_current_legacy_surfaces() -> None:
+    allowed_constructions: set[tuple[str, str, str]] = {
+        (
+            "flaghunter/agents/pa_agent/coordinator.py",
+            "CTFCoordinator._bootstrap_dispatcher",
+            "CTFState",
+        ),
+        (
+            "flaghunter/agents/pa_agent/ctf_crew_runner.py",
+            "run_ctf_crew_solve",
+            "CTFState",
+        ),
+        (
+            "flaghunter/interface/tui_ctf_apply.py",
+            "CtfApplyMixin._rebuild_override_stop_report",
+            "CTFState",
+        ),
+        (
+            "flaghunter/interface/tui_ctf_apply.py",
+            "CtfApplyMixin._rebuild_wrong_flag_stop_report",
+            "CTFState",
+        ),
+        (
+            "flaghunter/interface/tui_ctf_runners.py",
+            "CtfRunnerMixin._run_ctf_crew_dispatcher_mode",
+            "CTFState",
+        ),
+    }
+    allowed_restores: set[tuple[str, str, str]] = {
+        (
+            "flaghunter/agents/pa_agent/ctf_dispatcher.py",
+            "CTFTaskDispatcher._restore_context",
+            "CTFState.from_snapshot",
+        ),
+        (
+            "flaghunter/agents/pa_agent/session_context.py",
+            "SessionContextView.build_run_context",
+            "CTFState.from_snapshot",
+        ),
+        (
+            "flaghunter/agents/pa_agent/session_context.py",
+            "SessionContextView.build_blackboard_view",
+            "CTFState.from_snapshot",
+        ),
+        (
+            "flaghunter/interface/blackboard_lite.py",
+            "_snapshot_from_state_payload",
+            "CTFState.from_snapshot",
+        ),
+    }
+    offenders: list[tuple[str, str, str, int]] = []
+
+    class CTFStateConstructionVisitor(ast.NodeVisitor):
+        def __init__(self, relative_path: str):
+            self.relative_path = relative_path
+            self.scope: list[str] = []
+
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            self.scope.append(node.name)
+            self.generic_visit(node)
+            self.scope.pop()
+
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            self.scope.append(node.name)
+            self.generic_visit(node)
+            self.scope.pop()
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            self.scope.append(node.name)
+            self.generic_visit(node)
+            self.scope.pop()
+
+        def visit_Call(self, node: ast.Call) -> None:
+            scope_name = ".".join(self.scope) or "<module>"
+            if isinstance(node.func, ast.Name) and node.func.id == "CTFState":
+                key = (self.relative_path, scope_name, "CTFState")
+                if key not in allowed_constructions:
+                    offenders.append((self.relative_path, scope_name, "CTFState", node.lineno))
+            if (
+                isinstance(node.func, ast.Attribute)
+                and node.func.attr == "from_snapshot"
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "CTFState"
+            ):
+                key = (self.relative_path, scope_name, "CTFState.from_snapshot")
+                if key not in allowed_restores:
+                    offenders.append(
+                        (
+                            self.relative_path,
+                            scope_name,
+                            "CTFState.from_snapshot",
+                            node.lineno,
+                        )
+                    )
+            self.generic_visit(node)
+
+    for path in _python_sources(PRODUCTION_ROOT):
+        visitor = CTFStateConstructionVisitor(_relative(path))
+        visitor.visit(_parse_source(_relative(path)))
+
+    assert offenders == []
+
+
 def test_p1_control_and_ingress_paths_do_not_emit_verification_decisions() -> None:
     guarded_paths = [
         "flaghunter/agents/pa_agent/coordinator.py",

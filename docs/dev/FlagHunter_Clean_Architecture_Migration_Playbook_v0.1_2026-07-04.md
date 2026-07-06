@@ -2808,6 +2808,46 @@ Boundary confirmation for this approval plan:
 - no P5 implementation
 - no crew/recovery changes
 
+#### CTFState legacy construction characterization guard
+
+Status: characterization guard recorded, no state ownership changed.
+
+`tests/unit/agents/test_p1_source_guards.py::test_p1_ctf_state_construction_stays_in_current_legacy_surfaces`
+now locks the current legacy `CTFState` direct construction and snapshot
+restoration surfaces before any state-store ownership split, dispatcher
+rewiring, or composition-root migration.
+
+Current allowed direct construction surfaces:
+
+- `flaghunter/agents/pa_agent/coordinator.py` -> `CTFCoordinator._bootstrap_dispatcher`
+- `flaghunter/agents/pa_agent/ctf_crew_runner.py` -> `run_ctf_crew_solve`
+- `flaghunter/interface/tui_ctf_apply.py` -> `CtfApplyMixin._rebuild_override_stop_report`
+- `flaghunter/interface/tui_ctf_apply.py` -> `CtfApplyMixin._rebuild_wrong_flag_stop_report`
+- `flaghunter/interface/tui_ctf_runners.py` -> `CtfRunnerMixin._run_ctf_crew_dispatcher_mode`
+
+Current allowed snapshot restoration surfaces:
+
+- `flaghunter/agents/pa_agent/ctf_dispatcher.py` -> `CTFTaskDispatcher._restore_context` -> `CTFState.from_snapshot`
+- `flaghunter/agents/pa_agent/session_context.py` -> `SessionContextView.build_run_context` -> `CTFState.from_snapshot`
+- `flaghunter/agents/pa_agent/session_context.py` -> `SessionContextView.build_blackboard_view` -> `CTFState.from_snapshot`
+- `flaghunter/interface/blackboard_lite.py` -> `_snapshot_from_state_payload` -> `CTFState.from_snapshot`
+
+This confirms legacy state construction and snapshot restoration remain characterized.
+It does not approve a state ownership split, state-store production wiring, or
+composition-root migration.
+
+Boundary confirmation for this guard:
+
+- no state ownership split
+- no proof-authority behavior changes
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### ToolExecutor side-effect split approval plan
 
 Status: approval plan recorded, implementation not approved.
