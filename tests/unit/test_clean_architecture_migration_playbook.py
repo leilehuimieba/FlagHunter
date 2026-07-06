@@ -3043,6 +3043,51 @@ def test_playbook_records_dispatcher_production_wiring_approval_package_consiste
         assert boundary in section
 
 
+def test_playbook_records_dispatcher_approval_transition_atomicity_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Dispatcher approval transition atomicity guard",
+    )
+
+    assert "Status: approval transition atomicity guard recorded, no production wiring approved." in section
+    rows = {
+        row["Transition surface"]: row
+        for row in _markdown_table_rows(section)
+    }
+    expected_rows = {
+        "approval plan state": "Dispatcher/composition root production wiring approval plan",
+        "approval package consistency": "Dispatcher production wiring approval package consistency guard",
+        "aggregate approval flag": "Core production approval package aggregate guard",
+        "first-slice approval text": "Dispatcher composition root first slice approval text template",
+        "landing evidence": "Core implementation landing evidence template",
+    }
+    assert set(rows) == set(expected_rows)
+    for surface, heading in expected_rows.items():
+        assert rows[surface]["Required heading"] == f"`{heading}`"
+        assert rows[surface]["Current transition complete"] == "false"
+        assert heading in text
+    for invariant in (
+        "dispatcher approval transitions must update every listed surface in the same governance commit",
+        "partial approval transitions must fail review",
+        "approval transition evidence must land before any production wiring commit",
+        "landing evidence must stay incomplete until a real implementation commit SHA exists",
+    ):
+        assert invariant in section
+    for boundary in (
+        "no `CTFTaskDispatcher` flow changes",
+        "no composition root production wiring",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no ToolExecutor changes",
+        "no `CTFState` ownership split",
+        "no proof-authority behavior changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_state_ownership_first_slice_approval_text_template() -> None:
     text = _playbook_text()
     section = _heading_section_text(

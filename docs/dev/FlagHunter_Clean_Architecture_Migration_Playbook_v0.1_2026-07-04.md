@@ -3710,6 +3710,48 @@ Boundary confirmation for this consistency guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Dispatcher approval transition atomicity guard
+
+Status: approval transition atomicity guard recorded, no production wiring approved.
+
+Any future dispatcher/composition-root approval transition must update every
+listed governance surface in the same governance commit before a production
+wiring implementation commit can follow.
+
+| Transition surface | Required heading | Current transition complete |
+|--------------------|------------------|-----------------------------|
+| approval plan state | `Dispatcher/composition root production wiring approval plan` | false |
+| approval package consistency | `Dispatcher production wiring approval package consistency guard` | false |
+| aggregate approval flag | `Core production approval package aggregate guard` | false |
+| first-slice approval text | `Dispatcher composition root first slice approval text template` | false |
+| landing evidence | `Core implementation landing evidence template` | false |
+
+Required invariants:
+
+- dispatcher approval transitions must update every listed surface in the same governance commit
+- partial approval transitions must fail review
+- approval transition evidence must land before any production wiring commit
+- landing evidence must stay incomplete until a real implementation commit SHA exists
+
+Required verification for this atomicity guard:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this atomicity guard:
+
+- no `CTFTaskDispatcher` flow changes
+- no composition root production wiring
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no ToolExecutor changes
+- no `CTFState` ownership split
+- no proof-authority behavior changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Core implementation landing evidence template
 
 Status: landing evidence template recorded, no core implementation approved by this section.
