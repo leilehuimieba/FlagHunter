@@ -7545,6 +7545,41 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Proof adapter namespace re-export guard
+
+Status: namespace guard landed, no production wiring approved.
+
+`tests/unit/test_adapter_boundary_skeleton.py::test_proof_adapter_namespace_is_reexport_only`
+now locks the proof adapter package namespace as a re-export-only skeleton.
+
+Locked namespace surface:
+
+- `flaghunter/adapters/proof/__init__.py`
+- `ProofAuthorityAdapter`
+- `VerifierAdapter`
+- `__all__ = ["ProofAuthorityAdapter", "VerifierAdapter"]`
+- only relative adapter-module imports
+- no `ProofAuthorityPort` re-export
+- no `VerifierPort` re-export
+
+This keeps the proof adapter namespace convenient for adapter tests while
+preventing it from becoming a composition-root shortcut or a proof-authority
+production wiring surface.
+
+Boundary confirmation for this guard:
+
+- no verifier production wiring
+- no proof authority production wiring
+- no proof-authority behavior changes
+- no `CTFState` ownership split
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### CTFVerifier legacy construction characterization guard
 
 Status: characterization guard recorded, no verifier behavior changed.

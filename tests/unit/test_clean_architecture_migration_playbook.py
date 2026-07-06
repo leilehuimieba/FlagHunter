@@ -4456,6 +4456,41 @@ def test_playbook_records_verifier_adapter_import_unwired_guard() -> None:
         assert boundary in section
 
 
+def test_playbook_records_proof_adapter_namespace_reexport_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Proof adapter namespace re-export guard",
+    )
+
+    assert "Status: namespace guard landed, no production wiring approved." in section
+    assert "test_proof_adapter_namespace_is_reexport_only" in section
+    for locked_surface in (
+        "`flaghunter/adapters/proof/__init__.py`",
+        "`ProofAuthorityAdapter`",
+        "`VerifierAdapter`",
+        "`__all__ = [\"ProofAuthorityAdapter\", \"VerifierAdapter\"]`",
+        "only relative adapter-module imports",
+        "no `ProofAuthorityPort` re-export",
+        "no `VerifierPort` re-export",
+    ):
+        assert locked_surface in section
+    for boundary in (
+        "no verifier production wiring",
+        "no proof authority production wiring",
+        "no proof-authority behavior changes",
+        "no `CTFState` ownership split",
+        "no ToolExecutor changes",
+        "no `CTFTaskDispatcher` flow changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_ctf_verifier_legacy_construction_characterization_guard() -> None:
     text = _playbook_text()
     section = _heading_section_text(

@@ -224,6 +224,28 @@ def test_mcp_adapter_namespace_exports_task_ingress_skeleton() -> None:
     assert package.__all__ == ["TaskIngressAdapter"]
 
 
+def test_proof_adapter_namespace_is_reexport_only() -> None:
+    package = importlib.import_module("flaghunter.adapters.proof")
+    proof_authority_module = importlib.import_module(
+        "flaghunter.adapters.proof.proof_authority_adapter"
+    )
+    verifier_module = importlib.import_module("flaghunter.adapters.proof.verifier_adapter")
+    init_path = ADAPTERS_ROOT / "proof" / "__init__.py"
+    tree = _parse(init_path)
+
+    assert package.ProofAuthorityAdapter is proof_authority_module.ProofAuthorityAdapter
+    assert package.VerifierAdapter is verifier_module.VerifierAdapter
+    assert package.__all__ == ["ProofAuthorityAdapter", "VerifierAdapter"]
+
+    imported_modules = _imported_module_names(tree)
+    assert sorted(imported_modules) == [
+        ".proof_authority_adapter",
+        ".verifier_adapter",
+    ]
+    assert "ProofAuthorityPort" not in init_path.read_text(encoding="utf-8")
+    assert "VerifierPort" not in init_path.read_text(encoding="utf-8")
+
+
 def test_root_adapter_namespace_declares_managed_packages() -> None:
     module = importlib.import_module("flaghunter.adapters")
 
