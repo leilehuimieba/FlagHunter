@@ -4191,6 +4191,73 @@ def test_playbook_records_state_ownership_characterization_landing_reconciliatio
         assert boundary in section
 
 
+def test_playbook_records_state_characterization_landing_evidence_aggregate_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "State characterization landing evidence aggregate guard",
+    )
+
+    assert "Status: aggregate guard recorded; first slice characterized, State core landing incomplete." in section
+    rows = {
+        row["Evidence surface"]: row
+        for row in _markdown_table_rows(section)
+    }
+    expected_rows = {
+        "first slice landing": {
+            "Required heading": "`State ownership first slice characterization landing record`",
+            "Evidence complete": "true",
+            "Counts as ownership migration": "false",
+        },
+        "snapshot ownership guard": {
+            "Required guard": "`test_p1_ctf_state_snapshot_ownership_stays_in_legacy_state_only`",
+            "Evidence complete": "true",
+            "Counts as ownership migration": "false",
+        },
+        "construction surface guard": {
+            "Required guard": "`test_p1_ctf_state_construction_stays_in_current_legacy_surfaces`",
+            "Evidence complete": "true",
+            "Counts as ownership migration": "false",
+        },
+        "core landing reconciliation": {
+            "Required heading": "`State ownership characterization landing reconciliation guard`",
+            "Evidence complete": "true",
+            "Counts as ownership migration": "false",
+        },
+        "core landing matrix": {
+            "Required heading": "`Core implementation landing evidence completeness matrix` State row",
+            "Evidence complete": "false",
+            "Counts as ownership migration": "false",
+        },
+    }
+    assert set(rows) == set(expected_rows)
+    for surface, expected_values in expected_rows.items():
+        for column, value in expected_values.items():
+            assert rows[surface][column] == value
+    for invariant in (
+        "State characterization landing is complete as evidence only",
+        "State characterization evidence does not move storage ownership",
+        "State core landing remains incomplete until an approved implementation commit lands",
+        "claim-store ownership migration remains unstarted",
+    ):
+        assert invariant in section
+    for boundary in (
+        "no `CTFState` ownership migration",
+        "no state-store production wiring",
+        "no claim-store production wiring",
+        "no proof-authority behavior changes",
+        "no verifier decision behavior changes",
+        "no ToolExecutor changes",
+        "no Dispatcher changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_tool_executor_first_slice_approval_text_template() -> None:
     text = _playbook_text()
     section = _heading_section_text(

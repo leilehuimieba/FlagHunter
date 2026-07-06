@@ -3589,6 +3589,54 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### State characterization landing evidence aggregate guard
+
+Status: aggregate guard recorded; first slice characterized, State core landing incomplete.
+
+This aggregate keeps the approved State first-slice characterization evidence
+visible after proof completion unlocked State review. It confirms the first
+slice evidence is complete as characterization only, while the State core
+landing row and ownership migration remain incomplete until a separately
+approved implementation commit lands.
+
+| Evidence surface | Required heading | Required guard | Evidence complete | Counts as ownership migration |
+|------------------|------------------|----------------|-------------------|-------------------------------|
+| first slice landing | `State ownership first slice characterization landing record` |  | true | false |
+| snapshot ownership guard |  | `test_p1_ctf_state_snapshot_ownership_stays_in_legacy_state_only` | true | false |
+| construction surface guard |  | `test_p1_ctf_state_construction_stays_in_current_legacy_surfaces` | true | false |
+| core landing reconciliation | `State ownership characterization landing reconciliation guard` |  | true | false |
+| core landing matrix | `Core implementation landing evidence completeness matrix` State row |  | false | false |
+
+Required invariants:
+
+- State characterization landing is complete as evidence only
+- State characterization evidence does not move storage ownership
+- State core landing remains incomplete until an approved implementation commit lands
+- claim-store ownership migration remains unstarted
+
+Required verification for this guard:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/agents/test_p1_source_guards.py tests/unit/test_state_store_adapter.py tests/unit/test_claim_store_adapter.py -q
+git diff --check
+```
+
+Boundary confirmation for this guard:
+
+- no `CTFState` ownership migration
+- no state-store production wiring
+- no claim-store production wiring
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no ToolExecutor changes
+- no Dispatcher changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### ToolExecutor side-effect split approval plan
 
 Status: approval plan recorded, implementation not approved.
