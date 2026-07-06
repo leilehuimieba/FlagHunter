@@ -4166,6 +4166,7 @@ def test_playbook_records_state_ownership_implementation_approval_readiness_comp
     }
     expected = {
         "approval package": "`State ownership implementation approval package aggregate guard`",
+        "decision checklist": "`State ownership first implementation decision checklist`",
         "transition atomicity": "`State ownership approval transition atomicity guard`",
         "transition coverage": "`State ownership approval transition coverage guard`",
         "transition evidence": "`State ownership approval transition evidence consistency guard`",
@@ -4182,6 +4183,7 @@ def test_playbook_records_state_ownership_implementation_approval_readiness_comp
     for invariant in (
         "State readiness completeness is not State implementation approval",
         "explicit user approval is still required before any State implementation commit",
+        "readiness completeness must preserve the exact decision checklist option",
         "future State implementation must update exactly one implementation landing record",
         "readiness completeness must not authorize State ownership migration",
     ):

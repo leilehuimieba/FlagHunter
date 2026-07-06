@@ -3561,6 +3561,7 @@ before any State implementation commit can land.
 | Readiness surface | Required heading | Governance ready | Implementation approved |
 |-------------------|------------------|------------------|-------------------------|
 | approval package | `State ownership implementation approval package aggregate guard` | true | false |
+| decision checklist | `State ownership first implementation decision checklist` | true | false |
 | transition atomicity | `State ownership approval transition atomicity guard` | true | false |
 | transition coverage | `State ownership approval transition coverage guard` | true | false |
 | transition evidence | `State ownership approval transition evidence consistency guard` | true | false |
@@ -3572,6 +3573,7 @@ Required invariants:
 
 - State readiness completeness is not State implementation approval
 - explicit user approval is still required before any State implementation commit
+- readiness completeness must preserve the exact decision checklist option
 - future State implementation must update exactly one implementation landing record
 - readiness completeness must not authorize State ownership migration
 
