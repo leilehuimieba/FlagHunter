@@ -52,7 +52,7 @@ def _parse_source(path: Path) -> ast.Module:
 def _function_source(path: Path, tree: ast.Module, name: str) -> str:
     text = path.read_text(encoding="utf-8-sig")
     for node in tree.body:
-        if isinstance(node, ast.FunctionDef) and node.name == name:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name:
             return ast.get_source_segment(text, node) or ""
     raise AssertionError(f"{name} was not found in {path}")
 
@@ -253,20 +253,22 @@ def test_deferred_mcp_readback_uses_neutral_projection_after_approval() -> None:
     assert sorted(token for token in required_wiring_tokens if token not in source) == []
 
 
-def test_mcp_task_ingress_pre_wiring_guard_blocks_adapter_and_service_wiring() -> None:
+def test_mcp_task_ingress_wiring_guard_only_allows_submission_service() -> None:
     playbook = _playbook_text()
-    assert "Task ingress MCP pre-wiring guard baseline" in playbook
+    assert "Task ingress production wiring A implementation landing record" in playbook
 
     mcp_server_root = REPO_ROOT / "flaghunter" / "mcp" / "server"
     forbidden_wiring_tokens = {
         "TaskIngressAdapter",
         "TaskIngressPort",
-        "SubmitTaskIngress",
         "task_ingress_adapter",
-        "task_ingress_service",
         "flaghunter.adapters.mcp",
-        "flaghunter.application.challenge.task_ingress_service",
         "flaghunter.ports.task_ingress",
+    }
+    approved_service_tokens = {
+        "SubmitTaskIngress",
+        "task_ingress_service",
+        "flaghunter.application.challenge.task_ingress_service",
     }
     offenders: list[tuple[str, str]] = []
     for path in sorted(mcp_server_root.rglob("*.py")):
@@ -276,8 +278,126 @@ def test_mcp_task_ingress_pre_wiring_guard_blocks_adapter_and_service_wiring() -
             for token in sorted(forbidden_wiring_tokens)
             if token in source
         )
+        if path.name != "mcp_tools.py":
+            offenders.extend(
+                (path.relative_to(REPO_ROOT).as_posix(), token)
+                for token in sorted(approved_service_tokens)
+                if token in source
+            )
 
     assert offenders == []
+
+
+def test_mcp_task_submission_ingress_wiring_uses_application_service_after_approval() -> None:
+    playbook = _playbook_text()
+    assert "Task ingress production wiring A implementation landing record" in playbook
+    assert "Task ingress production wiring A: implementation landed" in playbook
+
+    source = MCP_TOOLS_PATH.read_text(encoding="utf-8-sig")
+    tree = _parse_source(MCP_TOOLS_PATH)
+    run_task_source = _function_source(MCP_TOOLS_PATH, tree, "run_task")
+    run_task_async_source = _function_source(MCP_TOOLS_PATH, tree, "run_task_async")
+
+    assert "flaghunter.application.challenge.task_ingress_service" in source
+    assert "SubmitTaskIngress" in source
+    assert "_submit_task_ingress(" in run_task_source
+    assert "_submit_task_ingress(" in run_task_async_source
+    assert "TaskIngressAdapter" not in source
+    assert "_drive_task" not in _function_source(MCP_TOOLS_PATH, tree, "_submit_task_ingress")
+    assert "_make_agent" not in _function_source(MCP_TOOLS_PATH, tree, "_submit_task_ingress")
+
+
+@pytest.mark.asyncio
+async def test_mcp_run_task_and_async_submit_neutral_ingress_without_response_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_calls: list[dict[str, object]] = []
+
+    class RecordingSubmitTaskIngress:
+        async def submit(self, **kwargs):
+            captured_calls.append(dict(kwargs))
+            return {
+                "schemaVersion": 1,
+                "taskId": kwargs.get("task_id"),
+                "request": {
+                    "schemaVersion": 1,
+                    "taskId": kwargs.get("task_id"),
+                    "taskType": kwargs.get("task_type"),
+                    "instructions": kwargs.get("instructions"),
+                    "runId": kwargs.get("run_id"),
+                    "metadata": kwargs.get("metadata") or {},
+                },
+                "ingress": {},
+            }
+
+    async def fake_make_agent(target, scope):
+        return SimpleNamespace()
+
+    async def fake_drive_task(entry):
+        entry.status = "done"
+        entry.result = "done via fake driver"
+
+    def fake_create_task(coro):
+        coro.close()
+        return SimpleNamespace(done=lambda: True)
+
+    def fake_resolve_mode_contract(payload, *, source_task=None):
+        return {"mode": "ctf", "modeSubtype": "web", "goalStyle": "flag"}
+
+    monkeypatch.setattr(mcp_tools, "_make_agent", fake_make_agent)
+    monkeypatch.setattr(mcp_tools, "_drive_task", fake_drive_task)
+    monkeypatch.setattr(mcp_tools.asyncio, "create_task", fake_create_task)
+    monkeypatch.setattr(mcp_tools, "resolve_mode_contract", fake_resolve_mode_contract, raising=False)
+    monkeypatch.setattr(mcp_tools, "SubmitTaskIngress", RecordingSubmitTaskIngress, raising=False)
+
+    run_result = await mcp_tools.run_task(
+        {
+            "task": "solve easy_login from MCP",
+            "target": "http://challenge.test",
+            "mode": "ctf",
+            "ctfType": "web",
+        }
+    )
+    async_result = await mcp_tools.run_task_async(
+        {
+            "task": "solve easy_login from MCP async",
+            "target": "http://challenge.test",
+            "mode": "ctf",
+            "ctfType": "web",
+        }
+    )
+
+    assert len(captured_calls) == 2
+    assert captured_calls[0]["instructions"] == "solve easy_login from MCP"
+    assert captured_calls[1]["instructions"] == "solve easy_login from MCP async"
+    assert captured_calls[0]["metadata"] == {
+        "entryPoint": "mcp.run_task",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
+    }
+    assert captured_calls[1]["metadata"] == {
+        "entryPoint": "mcp.run_task_async",
+        "modeSubtype": "web",
+        "goalStyle": "flag",
+    }
+    for call in captured_calls:
+        assert call["task_type"] == "ctf"
+        assert str(call["task_id"]).strip()
+        assert str(call["run_id"]).startswith("mcp-ctf-")
+
+    assert "[result]\ndone via fake driver" in run_result
+    assert "[mode] ctf" in run_result
+    assert "[mode_subtype] web" in run_result
+    assert "[goal_style] flag" in run_result
+    assert "ingress" not in run_result.lower()
+
+    assert "task_id:" in async_result
+    assert "status: pending" in async_result
+    assert "task: solve easy_login from MCP async" in async_result
+    assert "mode: ctf" in async_result
+    assert "mode_subtype: web" in async_result
+    assert "goal_style: flag" in async_result
+    assert "ingress" not in async_result.lower()
 
 
 def test_mcp_blackboard_readback_formatting_matches_candidate_a_projection() -> None:

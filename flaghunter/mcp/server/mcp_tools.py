@@ -8,6 +8,8 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Optional, Type
 
+from flaghunter.application.challenge.task_ingress_service import SubmitTaskIngress
+
 from ...interface.blackboard_lite import (
     build_entry_blackboard_snapshot,
     format_blackboard_snapshot_lines,
@@ -684,6 +686,20 @@ def _assign_ctf_run_artifacts(entry: TaskEntry) -> None:
     entry.checkpointPath = str(checkpoint_path).replace("\\", "/")
 
 
+async def _submit_task_ingress(entry: TaskEntry, *, entry_point: str) -> None:
+    await SubmitTaskIngress().submit(
+        task_id=entry.id,
+        task_type=str(entry.mode or "task"),
+        instructions=entry.task,
+        run_id=entry.runId,
+        metadata={
+            "entryPoint": entry_point,
+            "modeSubtype": entry.modeSubtype,
+            "goalStyle": entry.goalStyle,
+        },
+    )
+
+
 def _entry_challenge_context(entry: TaskEntry) -> dict[str, object]:
     context: dict[str, object] = {
         "challengePath": entry.challengePath,
@@ -1246,6 +1262,7 @@ async def run_task(args: dict[str, object]) -> str:
     _apply_resume_contract(entry, args)
     _apply_local_asset_contract(entry, args)
     _assign_ctf_run_artifacts(entry)
+    await _submit_task_ingress(entry, entry_point="mcp.run_task")
     explicit_blackboard_snapshot = (
         args.get("blackboardSnapshot") if isinstance(args.get("blackboardSnapshot"), dict) else None
     )
@@ -1370,6 +1387,7 @@ async def run_task_async(args: dict[str, object]) -> str:
     _apply_resume_contract(entry, args)
     _apply_local_asset_contract(entry, args)
     _assign_ctf_run_artifacts(entry)
+    await _submit_task_ingress(entry, entry_point="mcp.run_task_async")
     explicit_blackboard_snapshot = (
         args.get("blackboardSnapshot") if isinstance(args.get("blackboardSnapshot"), dict) else None
     )

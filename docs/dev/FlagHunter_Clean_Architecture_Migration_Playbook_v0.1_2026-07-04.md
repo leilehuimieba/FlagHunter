@@ -2154,23 +2154,27 @@ Boundary confirmation for this baseline:
 
 ### Task ingress MCP pre-wiring guard baseline
 
-Status: MCP pre-wiring guard added before production wiring.
+Status: retired by Task ingress production wiring A landing for MCP task submission only.
 
 `tests/unit/mcp/test_mcp_ingress_mode_contract.py` now guards the production
-MCP server package against importing or constructing `TaskIngressAdapter`,
-`SubmitTaskIngress`, `TaskIngressPort`, task ingress adapters, task ingress
-application services, or task ingress port modules before explicit production
-wiring approval is recorded.
+MCP server package so only `flaghunter/mcp/server/mcp_tools.py` may import and
+construct `SubmitTaskIngress` for MCP run_task/run_task_async task submission
+ingress after explicit production wiring A approval.
 
-Required gate: explicit production wiring approval.
+Required gate for any further MCP task execution wiring: explicit production
+wiring approval.
 
-This guard keeps the task ingress adapter, port, application service, and
-domain contracts available as clean architecture runway without silently
-rewiring MCP task execution.
+This guard keeps the task ingress adapter, port, and other MCP server files
+unwired. Production wiring A is limited to calling the neutral application
+service at task submission time; it does not change MCP routing, task
+execution driving, agent construction, or dispatcher behavior.
 
 Boundary confirmation for this baseline:
 
-- no MCP production wiring
+- MCP run_task/run_task_async task submission ingress only
+- no MCP router changes
+- no `_drive_task` changes
+- no `_make_agent` changes
 - no concrete adapter construction
 - no dispatcher loop changes
 - no `CTFState` ownership split
@@ -2183,27 +2187,29 @@ Boundary confirmation for this baseline:
 
 ### Task ingress production entrypoint pre-wiring guard baseline
 
-Status: production entrypoint pre-wiring guard added before production wiring.
+Status: retired by Task ingress production wiring A for the approved MCP task submission entrypoint only.
 
 `tests/unit/test_task_ingress_production_wiring_guards.py` now guards
 interface, MCP, agents, tools, runtime, session, workspaces, and config
-production entrypoint packages against importing or constructing
-`TaskIngressAdapter`, `SubmitTaskIngress`, `TaskIngressPort`, task ingress
-adapters, task ingress application services, or task ingress port modules
-before explicit production wiring approval is recorded. The scan includes
-`flaghunter/mcp/server` so MCP server entrypoints cannot silently adopt the
-task ingress runway before approval.
+production entrypoint packages against importing or constructing task ingress
+adapter, service, or port wiring outside the approved
+`flaghunter/mcp/server/mcp_tools.py` run_task/run_task_async task submission
+ingress slice.
 
-Required gate: explicit production wiring approval.
+Required gate for any further production entrypoint wiring: explicit production
+wiring approval.
 
-This guard keeps task ingress skeleton work from becoming accidental production
-entrypoint wiring through CLI, TUI, MCP server, dispatcher, tool executor,
-runtime, session, workspace, or configuration paths.
+This guard keeps task ingress production wiring A from expanding into CLI, TUI,
+Web, other MCP server files, dispatcher, tool executor, runtime, session,
+workspace, or configuration paths.
 
 Boundary confirmation for this baseline:
 
-- no production entrypoint wiring
-- no MCP production wiring
+- MCP run_task/run_task_async task submission ingress only
+- no Web/CLI/TUI production wiring
+- no MCP router changes
+- no `_drive_task` changes
+- no `_make_agent` changes
 - no concrete adapter construction
 - no dispatcher loop changes
 - no `CTFState` ownership split
@@ -2355,6 +2361,64 @@ Boundary confirmation for this guard:
 - no composition root changes
 - no proof authority behavior changes
 - no P5 implementation
+
+#### Task ingress production wiring A implementation landing record
+
+Status: implementation landed for MCP task submission ingress only.
+
+Current approval fact:
+
+- Task ingress production wiring A: implementation landed
+
+Target:
+
+- `flaghunter/mcp/server/mcp_tools.py::run_task`
+- `flaghunter/mcp/server/mcp_tools.py::run_task_async`
+
+Implementation summary:
+
+- MCP `run_task` and `run_task_async` now submit task ingress through the
+  neutral `SubmitTaskIngress` application service after the task entry, mode
+  contract, local asset contract, resume contract, and CTF run artifacts are
+  prepared.
+- The ingress service call preserves raw task instructions as `instructions`
+  and uses task metadata only for entrypoint, mode subtype, and goal style.
+- The service result is not surfaced in MCP response text and is not used to
+  drive execution, so external MCP response shape, task entry behavior,
+  `ingressHandoff`, control decision, blocked behavior, and async scheduling
+  stay compatible.
+
+Equivalence evidence:
+
+- `tests/unit/mcp/test_mcp_ingress_mode_contract.py::test_mcp_run_task_and_async_submit_neutral_ingress_without_response_drift`
+  proves both MCP task submission entrypoints call `SubmitTaskIngress`, keep
+  raw instructions, keep run ids, and do not add ingress text to external MCP
+  responses.
+- `tests/unit/mcp/test_mcp_ingress_mode_contract.py::test_mcp_task_submission_ingress_wiring_uses_application_service_after_approval`
+  proves only the application service is wired and that `_drive_task` and
+  `_make_agent` are not part of the ingress helper.
+- `tests/unit/test_task_ingress_production_wiring_guards.py` allows only this
+  MCP submission service wiring while keeping adapter/port wiring and every
+  other production entrypoint guarded.
+
+Rollback command:
+
+- `git revert <Task ingress production wiring A implementation commit>`
+
+Boundary confirmation for this landing:
+
+- no MCP router changes
+- no `_drive_task` changes
+- no `_make_agent` changes
+- no Web/CLI/TUI production wiring
+- no ToolExecutor changes
+- no `CTFVerifier` proof behavior changes
+- no `CTFState` ownership split
+- no `CTFTaskDispatcher` flow changes
+- no composition root changes
+- no proof authority behavior changes
+- no P5 implementation
+- no crew/recovery changes
 
 ### Task ingress application service skeleton baseline
 
@@ -2533,7 +2597,7 @@ high-risk core surfaces separated.
 | Candidate | Risk tier | Current status | Implementation approved | Required approval | Required verification |
 |-----------|-----------|----------------|-------------------------|-------------------|-----------------------|
 | Task ingress service contract migration | low-medium | implementation landed | true | explicit service migration approval granted | application service focused, adapter focused, architecture/source guards, production pre-wiring guards, `git diff --check` |
-| Task ingress production wiring | high | not approved | false | explicit production wiring approval | MCP/entrypoint wiring focused, task ingress guards, architecture/source guards, `git diff --check` |
+| Task ingress production wiring | high | A landed; remaining entrypoints not approved | partial | explicit production wiring approval per entrypoint family | MCP/entrypoint wiring focused, task ingress guards, architecture/source guards, `git diff --check` |
 | Verifier/proof authority boundary | high | not approved | false | explicit proof-authority approval | verifier fixture, proof authority invariants, P1 claim invariants, source guards, `git diff --check` |
 | State ownership split | high | not approved | false | explicit state ownership split approval | state snapshot fixtures, replay/readback fixtures, import/source guards, `git diff --check` |
 | ToolExecutor side-effect split | high | not approved | false | explicit ToolExecutor side-effect split approval | tool receipt fixtures, executor guard fixtures, finish control receipt, architecture/source guards, `git diff --check` |

@@ -62,6 +62,14 @@ FORBIDDEN_TASK_INGRESS_WIRING_TOKENS = {
     "flaghunter.ports.task_ingress",
 }
 
+APPROVED_TASK_INGRESS_WIRING_A_FILE = "flaghunter/mcp/server/mcp_tools.py"
+
+APPROVED_TASK_INGRESS_WIRING_A_TOKENS = {
+    "SubmitTaskIngress",
+    "task_ingress_service",
+    "flaghunter.application.challenge.task_ingress_service",
+}
+
 REQUIRED_TASK_INGRESS_WIRING_TOKENS = {
     "TaskIngressAdapter",
     "TaskIngressPort",
@@ -99,17 +107,21 @@ def _production_sources() -> list[Path]:
     return paths
 
 
-def test_task_ingress_production_entrypoints_remain_unwired_before_approval() -> None:
+def test_task_ingress_production_entrypoints_only_allow_approved_mcp_submission_wiring() -> None:
     playbook = _playbook_text()
-    assert "Task ingress production entrypoint pre-wiring guard baseline" in playbook
-    assert "Required gate: explicit production wiring approval" in playbook
+    assert "Task ingress production wiring A implementation landing record" in playbook
+    assert "Task ingress production wiring A: implementation landed" in playbook
 
     offenders: list[tuple[str, str]] = []
     for path in _production_sources():
+        relative = path.relative_to(REPO_ROOT).as_posix()
         source = path.read_text(encoding="utf-8-sig")
+        forbidden_tokens = set(FORBIDDEN_TASK_INGRESS_WIRING_TOKENS)
+        if relative == APPROVED_TASK_INGRESS_WIRING_A_FILE:
+            forbidden_tokens -= APPROVED_TASK_INGRESS_WIRING_A_TOKENS
         offenders.extend(
-            (path.relative_to(REPO_ROOT).as_posix(), token)
-            for token in sorted(FORBIDDEN_TASK_INGRESS_WIRING_TOKENS)
+            (relative, token)
+            for token in sorted(forbidden_tokens)
             if token in source
         )
 
@@ -121,7 +133,7 @@ def test_task_ingress_pre_wiring_guard_covers_mcp_server_entrypoints() -> None:
 
     assert "flaghunter/mcp" in PRODUCTION_ENTRY_ROOTS
     assert "flaghunter/mcp/server" in playbook
-    assert "MCP server changes" in playbook
+    assert "MCP run_task/run_task_async task submission ingress" in playbook
 
 
 def test_task_ingress_pre_wiring_guard_covers_explicit_wiring_tokens() -> None:
@@ -159,5 +171,6 @@ def test_task_ingress_pre_wiring_guard_covers_required_entry_files() -> None:
 def test_task_ingress_pre_wiring_guard_coverage_completeness_is_recorded() -> None:
     playbook = _playbook_text()
     assert "Task ingress production pre-wiring coverage completeness guard" in playbook
+    assert "Task ingress production wiring A implementation landing record" in playbook
     for section_name in sorted(REQUIRED_TASK_INGRESS_PRODUCTION_GUARD_SECTIONS):
         assert section_name in playbook

@@ -2431,8 +2431,13 @@ def test_playbook_records_post_read_side_core_decoupling_approval_queue() -> Non
     assert queue_rows["Task ingress service contract migration"]["Risk tier"] == "low-medium"
     assert queue_rows["Task ingress service contract migration"]["Current status"] == "implementation landed"
     assert queue_rows["Task ingress service contract migration"]["Implementation approved"] == "true"
+    assert queue_rows["Task ingress production wiring"]["Current status"] == "A landed; remaining entrypoints not approved"
+    assert queue_rows["Task ingress production wiring"]["Implementation approved"] == "partial"
     for candidate, row in queue_rows.items():
-        if candidate != "Task ingress service contract migration":
+        if candidate not in {
+            "Task ingress service contract migration",
+            "Task ingress production wiring",
+        }:
             assert row["Implementation approved"] == "false"
         assert row["Required approval"]
         assert row["Required verification"]
@@ -2449,6 +2454,37 @@ def test_playbook_records_post_read_side_core_decoupling_approval_queue() -> Non
         "no P5 implementation",
     ):
         assert forbidden_scope in section
+
+
+def test_playbook_records_task_ingress_production_wiring_a_landing() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Task ingress production wiring A implementation landing record",
+    )
+
+    assert "Status: implementation landed for MCP task submission ingress only." in section
+    assert "Task ingress production wiring A: implementation landed" in section
+    assert "flaghunter/mcp/server/mcp_tools.py::run_task" in section
+    assert "flaghunter/mcp/server/mcp_tools.py::run_task_async" in section
+    assert "SubmitTaskIngress" in section
+    assert "raw instructions" in section
+    assert "do not add ingress text to external MCP" in section
+    for boundary in (
+        "no MCP router changes",
+        "no `_drive_task` changes",
+        "no `_make_agent` changes",
+        "no Web/CLI/TUI production wiring",
+        "no ToolExecutor changes",
+        "no `CTFVerifier` proof behavior changes",
+        "no `CTFState` ownership split",
+        "no `CTFTaskDispatcher` flow changes",
+        "no composition root changes",
+        "no proof authority behavior changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
 
 
 def test_playbook_parses_task_ingress_service_migration_approval_flag_consistency_guard() -> None:
