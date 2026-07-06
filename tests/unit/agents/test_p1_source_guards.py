@@ -439,6 +439,48 @@ def test_p1_proof_authority_adapter_stays_unwired_from_production_imports() -> N
     assert offenders == []
 
 
+def test_p1_verifier_adapter_stays_unwired_from_production_imports() -> None:
+    allowed_paths = {
+        "flaghunter/adapters/proof/__init__.py",
+        "flaghunter/adapters/proof/verifier_adapter.py",
+    }
+    offenders: list[tuple[str, str, int]] = []
+
+    class VerifierAdapterImportVisitor(ast.NodeVisitor):
+        def __init__(self, relative_path: str):
+            self.relative_path = relative_path
+
+        def _allow_current_path(self) -> bool:
+            return self.relative_path in allowed_paths
+
+        def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+            module_name = node.module or ""
+            imported_names = {alias.name for alias in node.names}
+            if (
+                not self._allow_current_path()
+                and module_name.startswith("flaghunter.adapters.proof")
+                and "VerifierAdapter" in imported_names
+            ):
+                offenders.append((self.relative_path, "VerifierAdapter import", node.lineno))
+            self.generic_visit(node)
+
+        def visit_Attribute(self, node: ast.Attribute) -> None:
+            if not self._allow_current_path() and node.attr == "VerifierAdapter":
+                offenders.append((self.relative_path, "attribute VerifierAdapter", node.lineno))
+            self.generic_visit(node)
+
+        def visit_Name(self, node: ast.Name) -> None:
+            if not self._allow_current_path() and node.id == "VerifierAdapter":
+                offenders.append((self.relative_path, "name VerifierAdapter", node.lineno))
+            self.generic_visit(node)
+
+    for path in _python_sources(PRODUCTION_ROOT):
+        visitor = VerifierAdapterImportVisitor(_relative(path))
+        visitor.visit(_parse_source(_relative(path)))
+
+    assert offenders == []
+
+
 def test_p1_control_and_ingress_paths_do_not_emit_verification_decisions() -> None:
     guarded_paths = [
         "flaghunter/agents/pa_agent/coordinator.py",

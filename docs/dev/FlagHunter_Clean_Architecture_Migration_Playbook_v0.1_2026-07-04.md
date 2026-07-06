@@ -6231,6 +6231,40 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Verifier adapter import unwired guard
+
+Status: source guard recorded, no production wiring approved.
+
+`tests/unit/agents/test_p1_source_guards.py::test_p1_verifier_adapter_stays_unwired_from_production_imports`
+now locks the verifier adapter as an unwired production surface.
+
+Current allowed verifier adapter skeleton files:
+
+- `flaghunter/adapters/proof/__init__.py`
+- `flaghunter/adapters/proof/verifier_adapter.py`
+
+Guarded adapter name:
+
+- `VerifierAdapter`
+
+`VerifierPort` remains allowed through approved application-service ports; this
+guard blocks only `VerifierAdapter` production imports or wiring before an
+explicit Verifier/proof authority boundary implementation approval.
+
+Boundary confirmation for this guard:
+
+- no verifier production wiring
+- no proof-authority behavior changes
+- no proof authority production wiring
+- no `CTFState` ownership split
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Proof authority characterization readiness aggregate
 
 Status: aggregate guard recorded, implementation not approved.
