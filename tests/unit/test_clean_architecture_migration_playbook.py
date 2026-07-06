@@ -3024,7 +3024,7 @@ def test_playbook_records_core_approval_package_aggregate_guard() -> None:
     expected_readiness = {
         "Verifier/proof authority boundary": "Proof authority characterization readiness aggregate",
         "State ownership split": "State ownership characterization readiness aggregate",
-        "ToolExecutor side-effect split": "ToolExecutor legacy construction characterization guard",
+        "ToolExecutor side-effect split": "ToolExecutor side-effect characterization readiness aggregate",
         "Dispatcher/composition root production wiring": "Dispatcher composition root readiness characterization guard",
     }
     for candidate, plan_heading in expected_plans.items():
@@ -3639,6 +3639,58 @@ def test_playbook_records_tool_runner_adapter_delegate_only_guard_hardening() ->
         assert expected in section
     for boundary in (
         "no ToolExecutor production behavior changes",
+        "no tool-runner production wiring",
+        "no runtime construction changes",
+        "no `CTFState` ownership migration",
+        "no `CTFVerifier` decision behavior changes",
+        "no proof-authority behavior changes",
+        "no Dispatcher changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
+def test_playbook_records_tool_executor_side_effect_characterization_readiness_aggregate() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "ToolExecutor side-effect characterization readiness aggregate",
+    )
+
+    assert "Status: aggregate guard recorded, production migration not approved." in section
+    for required_guard in (
+        "ToolExecutor legacy construction characterization guard",
+        "ToolExecutor first slice characterization landing record",
+        "ToolExecutor namespace re-export guard",
+        "Tool runner adapter delegate-only guard hardening",
+    ):
+        assert required_guard in section
+    for focused_test in (
+        "test_p1_tool_executor_construction_stays_in_base_agent_only",
+        "test_tool_executor_execute_retains_legacy_side_effect_surface_markers",
+        "test_tool_executor_batch_still_delegates_through_legacy_execute",
+        "test_tool_executor_module_does_not_import_tool_runner_adapter",
+        "test_tools_namespace_keeps_tool_executor_legacy_reexport_only",
+        "test_tool_runner_adapter_run_tool_body_remains_direct_delegate_only",
+    ):
+        assert focused_test in section
+    for retained_surface in (
+        "scope check",
+        "cookie auto-inject",
+        "stealth mode",
+        "flag scanning",
+        "missing-tool detection",
+        "`execute_batch`",
+    ):
+        assert retained_surface in section
+    assert "ToolExecutor side-effect migration remains unapproved" in section
+    assert "approval package evidence, not production migration approval" in section
+    for boundary in (
+        "no ToolExecutor side-effect migration",
         "no tool-runner production wiring",
         "no runtime construction changes",
         "no `CTFState` ownership migration",

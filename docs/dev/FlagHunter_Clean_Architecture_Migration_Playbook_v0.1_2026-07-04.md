@@ -3455,6 +3455,58 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### ToolExecutor side-effect characterization readiness aggregate
+
+Status: aggregate guard recorded, production migration not approved.
+
+This aggregate keeps the ToolExecutor side-effect split characterization runway
+visible as approval package evidence, not production migration approval.
+
+Required characterization guards:
+
+- ToolExecutor legacy construction characterization guard
+- ToolExecutor first slice characterization landing record
+- ToolExecutor namespace re-export guard
+- Tool runner adapter delegate-only guard hardening
+
+Focused guard tests:
+
+- `test_p1_tool_executor_construction_stays_in_base_agent_only`
+- `test_tool_executor_execute_retains_legacy_side_effect_surface_markers`
+- `test_tool_executor_batch_still_delegates_through_legacy_execute`
+- `test_tool_executor_module_does_not_import_tool_runner_adapter`
+- `test_tools_namespace_keeps_tool_executor_legacy_reexport_only`
+- `test_tool_runner_adapter_run_tool_body_remains_direct_delegate_only`
+
+Retained legacy side-effect surfaces:
+
+- scope check
+- cookie auto-inject
+- stealth mode
+- flag scanning
+- missing-tool detection
+- `execute_batch`
+
+ToolExecutor side-effect migration remains unapproved. These guards only prove
+the current legacy construction surface, current side-effect owner, legacy
+namespace re-export, and unwired delegate-only adapter surface are
+characterized before a future explicit production migration approval.
+
+Boundary confirmation for this aggregate:
+
+- no ToolExecutor side-effect migration
+- no tool-runner production wiring
+- no runtime construction changes
+- no `CTFState` ownership migration
+- no `CTFVerifier` decision behavior changes
+- no proof-authority behavior changes
+- no Dispatcher changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Dispatcher/composition root production wiring approval plan
 
 Status: approval plan recorded, implementation not approved.
@@ -3702,7 +3754,7 @@ The four core production approval packages are now recorded, but approval packag
 |----------------|------------------|--------------------|-------------------------|------------------------------|
 | Verifier/proof authority boundary | `Verifier/proof authority boundary approval plan` | `Proof authority characterization readiness aggregate` | false | not approved |
 | State ownership split | `State ownership split approval plan` | `State ownership characterization readiness aggregate` | false | not approved |
-| ToolExecutor side-effect split | `ToolExecutor side-effect split approval plan` | `ToolExecutor legacy construction characterization guard` | false | not approved |
+| ToolExecutor side-effect split | `ToolExecutor side-effect split approval plan` | `ToolExecutor side-effect characterization readiness aggregate` | false | not approved |
 | Dispatcher/composition root production wiring | `Dispatcher/composition root production wiring approval plan` | `Dispatcher composition root readiness characterization guard` | false | not approved |
 
 Required aggregate invariants:
