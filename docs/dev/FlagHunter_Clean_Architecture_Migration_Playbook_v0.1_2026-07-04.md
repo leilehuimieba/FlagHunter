@@ -2957,6 +2957,39 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Claim store adapter delegate-only guard hardening
+
+Status: delegate-only guard recorded, no claim ownership changed.
+
+`tests/unit/test_claim_store_adapter.py::test_claim_store_adapter_action_bodies_remain_direct_delegate_only`
+now locks the claim-store adapter wrapper methods as direct delegates over the
+injected claim store port:
+
+- `ClaimStoreAdapter.create_candidate_claim` remains a single delegate call to
+  `self._store.create_candidate_claim`
+- `ClaimStoreAdapter.find_claims` remains a single delegate call to
+  `self._store.find_claims`
+- `ClaimStoreAdapter.append_evidence_trace` remains a single delegate call to
+  `self._store.append_evidence_trace`
+
+This hardening keeps the adapter skeleton from becoming an accidental claim
+owner, proof authority, verifier decision surface, dispatcher bridge, or
+state ownership migration path before explicit approval.
+
+Boundary confirmation for this guard:
+
+- no claim-store production wiring
+- no `CTFState` ownership split
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no dispatcher flow changes
+- no ToolExecutor changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### State ownership first slice approval text template
 
 Status: approval text template recorded, implementation not approved by this section.

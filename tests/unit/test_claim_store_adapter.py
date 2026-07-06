@@ -122,6 +122,16 @@ def _imported_module_names(tree: ast.Module) -> list[str]:
     return modules
 
 
+def _class_method(tree: ast.Module, class_name: str, method_name: str) -> ast.FunctionDef:
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef) or node.name != class_name:
+            continue
+        for item in node.body:
+            if isinstance(item, ast.FunctionDef) and item.name == method_name:
+                return item
+    raise AssertionError(f"{class_name}.{method_name} was not found")
+
+
 def test_claim_store_adapter_delegates_to_injected_port() -> None:
     module = importlib.import_module("flaghunter.adapters.storage.claim_store_adapter")
     package = importlib.import_module("flaghunter.adapters.storage")
@@ -187,5 +197,73 @@ def test_claim_store_adapter_has_no_concrete_or_action_imports() -> None:
         for token in FORBIDDEN_PROOF_ACTION_TOKENS
         if token in text
     )
+
+    assert offenders == []
+
+
+def test_claim_store_adapter_action_bodies_remain_direct_delegate_only() -> None:
+    tree = _parse(ADAPTER_PATH)
+    expectations = {
+        "create_candidate_claim": {
+            "delegate_attr": "create_candidate_claim",
+            "args": ["kind", "content"],
+            "keywords": {},
+        },
+        "find_claims": {
+            "delegate_attr": "find_claims",
+            "args": [],
+            "keywords": {"kind": "kind", "status": "status"},
+        },
+        "append_evidence_trace": {
+            "delegate_attr": "append_evidence_trace",
+            "args": ["claim_id", "evidence"],
+            "keywords": {},
+        },
+    }
+    forbidden_nodes = (
+        ast.Assign,
+        ast.AugAssign,
+        ast.If,
+        ast.For,
+        ast.While,
+        ast.Try,
+        ast.With,
+        ast.Raise,
+    )
+
+    offenders: list[tuple[str, str]] = []
+    for method_name, expectation in expectations.items():
+        method = _class_method(tree, "ClaimStoreAdapter", method_name)
+        if len(method.body) != 1 or not isinstance(method.body[0], ast.Return):
+            offenders.append((method_name, "not single return"))
+            continue
+        call = method.body[0].value
+        if not isinstance(call, ast.Call):
+            offenders.append((method_name, "return is not a call"))
+            continue
+        if (
+            not isinstance(call.func, ast.Attribute)
+            or call.func.attr != expectation["delegate_attr"]
+            or not isinstance(call.func.value, ast.Attribute)
+            or call.func.value.attr != "_store"
+            or not isinstance(call.func.value.value, ast.Name)
+            or call.func.value.value.id != "self"
+        ):
+            offenders.append((method_name, "not delegated to self._store"))
+        arg_names = [arg.id for arg in call.args if isinstance(arg, ast.Name)]
+        if arg_names != expectation["args"]:
+            offenders.append((method_name, f"args {arg_names}"))
+        keyword_names = {
+            keyword.arg: keyword.value.id
+            for keyword in call.keywords
+            if keyword.arg is not None and isinstance(keyword.value, ast.Name)
+        }
+        if keyword_names != expectation["keywords"]:
+            offenders.append((method_name, f"keywords {keyword_names}"))
+        offenders.extend(
+            (method_name, type(node).__name__)
+            for node in ast.walk(method)
+            if isinstance(node, forbidden_nodes)
+        )
 
     assert offenders == []

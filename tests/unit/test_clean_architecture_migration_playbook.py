@@ -2650,6 +2650,40 @@ def test_playbook_records_state_store_adapter_delegate_only_guard_hardening() ->
         assert boundary in section
 
 
+def test_playbook_records_claim_store_adapter_delegate_only_guard_hardening() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Claim store adapter delegate-only guard hardening",
+    )
+
+    assert "Status: delegate-only guard recorded, no claim ownership changed." in section
+    assert "test_claim_store_adapter_action_bodies_remain_direct_delegate_only" in section
+    for expected in (
+        "`ClaimStoreAdapter.create_candidate_claim` remains a single delegate call",
+        "`ClaimStoreAdapter.find_claims` remains a single delegate call",
+        "`ClaimStoreAdapter.append_evidence_trace` remains a single delegate call",
+        "`self._store.create_candidate_claim`",
+        "`self._store.find_claims`",
+        "`self._store.append_evidence_trace`",
+    ):
+        assert expected in section
+    for boundary in (
+        "no claim-store production wiring",
+        "no `CTFState` ownership split",
+        "no proof-authority behavior changes",
+        "no verifier decision behavior changes",
+        "no dispatcher flow changes",
+        "no ToolExecutor changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_tool_executor_side_effect_split_approval_plan() -> None:
     text = _playbook_text()
     section = _heading_section_text(
