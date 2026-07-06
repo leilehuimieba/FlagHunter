@@ -6194,6 +6194,43 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Proof authority adapter import unwired guard
+
+Status: source guard recorded, no production wiring approved.
+
+`tests/unit/agents/test_p1_source_guards.py::test_p1_proof_authority_adapter_stays_unwired_from_production_imports`
+now locks the proof authority adapter and authority port names as unwired
+production surfaces.
+
+Current allowed adapter skeleton files:
+
+- `flaghunter/adapters/proof/__init__.py`
+- `flaghunter/adapters/proof/proof_authority_adapter.py`
+
+Guarded names:
+
+- `ProofAuthorityAdapter`
+- `ProofAuthorityPort`
+
+This keeps the proof authority adapter skeleton importable for its adapter
+tests and package re-export, while preventing presentation, application
+services, entrypoints, MCP, dispatcher, state, verifier, runtime, or
+composition-root-adjacent modules from importing or wiring it before explicit
+proof-authority production approval.
+
+Boundary confirmation for this guard:
+
+- no proof-authority behavior changes
+- no proof authority production wiring
+- no `CTFState` ownership split
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Web provenance/trace payload test debt characterization landing record
 
 Status: characterization debt fixed for Web provenance and trace payload read paths.

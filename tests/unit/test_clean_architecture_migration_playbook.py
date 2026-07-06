@@ -3340,6 +3340,40 @@ def test_playbook_records_proof_authority_port_action_unwired_guard() -> None:
         assert boundary in section
 
 
+def test_playbook_records_proof_authority_adapter_import_unwired_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Proof authority adapter import unwired guard",
+    )
+
+    assert "Status: source guard recorded, no production wiring approved." in section
+    assert (
+        "tests/unit/agents/test_p1_source_guards.py::"
+        "test_p1_proof_authority_adapter_stays_unwired_from_production_imports"
+    ) in section
+    for allowed_surface in (
+        "`flaghunter/adapters/proof/__init__.py`",
+        "`flaghunter/adapters/proof/proof_authority_adapter.py`",
+        "`ProofAuthorityAdapter`",
+        "`ProofAuthorityPort`",
+    ):
+        assert allowed_surface in section
+    for boundary in (
+        "no proof-authority behavior changes",
+        "no proof authority production wiring",
+        "no `CTFState` ownership split",
+        "no ToolExecutor changes",
+        "no `CTFTaskDispatcher` flow changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_web_provenance_trace_payload_debt_characterization() -> None:
     text = _playbook_text()
     section = _heading_section_text(

@@ -386,6 +386,59 @@ def test_p1_proof_authority_port_actions_remain_unwired_outside_port_and_adapter
     assert offenders == []
 
 
+def test_p1_proof_authority_adapter_stays_unwired_from_production_imports() -> None:
+    allowed_paths = {
+        "flaghunter/adapters/proof/__init__.py",
+        "flaghunter/adapters/proof/proof_authority_adapter.py",
+    }
+    guarded_names = {"ProofAuthorityAdapter", "ProofAuthorityPort"}
+    offenders: list[tuple[str, str, int]] = []
+
+    class ProofAdapterImportVisitor(ast.NodeVisitor):
+        def __init__(self, relative_path: str):
+            self.relative_path = relative_path
+
+        def _allow_current_path(self) -> bool:
+            return self.relative_path in allowed_paths
+
+        def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+            module_name = node.module or ""
+            imported_names = {alias.name for alias in node.names}
+            if (
+                not self._allow_current_path()
+                and module_name.startswith("flaghunter.adapters.proof")
+                and "ProofAuthorityAdapter" in imported_names
+            ):
+                offenders.append(
+                    (self.relative_path, "ProofAuthorityAdapter import", node.lineno)
+                )
+            if (
+                not self._allow_current_path()
+                and module_name in {"flaghunter.ports", "flaghunter.ports.proof_authority"}
+                and "ProofAuthorityPort" in imported_names
+            ):
+                offenders.append(
+                    (self.relative_path, "ProofAuthorityPort import", node.lineno)
+                )
+            self.generic_visit(node)
+
+        def visit_Attribute(self, node: ast.Attribute) -> None:
+            if not self._allow_current_path() and node.attr in guarded_names:
+                offenders.append((self.relative_path, f"attribute {node.attr}", node.lineno))
+            self.generic_visit(node)
+
+        def visit_Name(self, node: ast.Name) -> None:
+            if not self._allow_current_path() and node.id in guarded_names:
+                offenders.append((self.relative_path, f"name {node.id}", node.lineno))
+            self.generic_visit(node)
+
+    for path in _python_sources(PRODUCTION_ROOT):
+        visitor = ProofAdapterImportVisitor(_relative(path))
+        visitor.visit(_parse_source(_relative(path)))
+
+    assert offenders == []
+
+
 def test_p1_control_and_ingress_paths_do_not_emit_verification_decisions() -> None:
     guarded_paths = [
         "flaghunter/agents/pa_agent/coordinator.py",
