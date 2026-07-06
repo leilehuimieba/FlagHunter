@@ -2843,3 +2843,44 @@ def test_playbook_parses_task_ingress_service_landing_status_guard() -> None:
     assert rollback_rows[0]["Current executable"] == "true"
     for row in _markdown_table_rows(evidence_guard):
         assert row["Current approval evidence present"] == "true"
+
+
+def test_playbook_records_web_provenance_trace_payload_debt_characterization() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Web provenance/trace payload test debt characterization landing record",
+    )
+
+    assert "Status: characterization debt fixed for Web provenance and trace payload read paths." in section
+    assert "Web provenance/trace payload test debt characterization: implementation landed" in section
+    assert "flaghunter/interface/blackboard_lite.py" in section
+    assert "tests/unit/interface/test_web_server.py" in section
+    assert "`artifactUrl` and `exploitType`" in section
+    assert "10 existing" in section
+    for evidence in (
+        "test_task_detail_surfaces_exploit_provenance_from_source_leak_observation",
+        "test_task_detail_surfaces_exploit_provenance_from_local_source_hint",
+        "test_build_trace_payload_projects_artifacts_checkpoint_and_outcomes_from_session_context",
+        "test_build_trace_payload_projects_dispatcher_started_outcome_event",
+        "test_build_trace_payload_projects_dispatcher_started_summary_with_local_source_exploit_truth",
+        "test_build_trace_payload_projects_control_action_outcome_events",
+        "test_build_trace_payload_surfaces_exploit_provenance_summary",
+        "test_build_trace_payload_keeps_local_source_hint_exploit_provenance_in_outcome_events",
+        "test_build_trace_payload_projects_verification_and_finish_summaries_with_local_source_exploit_truth",
+        "test_build_trace_payload_projects_recovery_decision_summary_with_local_source_exploit_truth",
+    ):
+        assert evidence in section
+    for boundary in (
+        "no Task ingress wiring expansion",
+        "no MCP changes",
+        "no ToolExecutor changes",
+        "no `CTFVerifier` proof behavior changes",
+        "no `CTFState` ownership split",
+        "no `CTFTaskDispatcher` flow changes",
+        "no composition root changes",
+        "no proof authority behavior changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section

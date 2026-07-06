@@ -770,7 +770,41 @@ def _project_candidate_a_board(
             ]
         },
     )
-    return build_task_board_projection(read_model)
+    projection = build_task_board_projection(read_model)
+    _preserve_web_fact_fields(projection, list(snapshot.get("facts") or []))
+    return projection
+
+
+def _preserve_web_fact_fields(
+    projection: dict[str, Any],
+    source_facts: list[Any],
+) -> None:
+    projected_facts = projection.get("facts")
+    if not isinstance(projected_facts, list):
+        return
+    source_by_identity: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for item in source_facts:
+        if not isinstance(item, dict):
+            continue
+        source_by_identity.setdefault(_fact_identity(item), item)
+    for item in projected_facts:
+        if not isinstance(item, dict):
+            continue
+        source = source_by_identity.get(_fact_identity(item))
+        if not isinstance(source, dict):
+            continue
+        for key in ("artifactUrl", "exploitType"):
+            value = source.get(key)
+            if value is not None and item.get(key) in (None, ""):
+                item[key] = value
+
+
+def _fact_identity(item: dict[str, Any]) -> tuple[str, str, str]:
+    return (
+        str(item.get("kind") or "").strip(),
+        str(item.get("value") or "").strip(),
+        str(item.get("source") or "").strip(),
+    )
 
 
 def _build_blackboard_snapshot(

@@ -5664,6 +5664,66 @@ Boundary confirmation for this fixture baseline:
 - no MCP production wiring
 - no proof authority behavior changes
 
+#### Web provenance/trace payload test debt characterization landing record
+
+Status: characterization debt fixed for Web provenance and trace payload read paths.
+
+Current approval fact:
+
+- Web provenance/trace payload test debt characterization: implementation landed
+
+Target:
+
+- `flaghunter/interface/blackboard_lite.py`
+- `tests/unit/interface/test_web_server.py`
+
+Implementation summary:
+
+- Web blackboard projection now preserves Web-only fact payload fields
+  `artifactUrl` and `exploitType` after the neutral board projection step.
+- This keeps source-leak and local-source exploit provenance visible in task
+  detail payloads, trace payload summaries, and trace outcome event JSON.
+- The fix is read-only payload projection work. It does not continue task
+  ingress wiring and does not change execution, dispatcher, verifier, state,
+  tool executor, MCP, or composition-root behavior.
+
+Red test evidence:
+
+- `tests/unit/interface/test_web_server.py` initially reported 10 existing
+  failures in provenance/trace payload fixtures, including missing
+  `artifactUrl`, missing local-source `exploitKind`, and trace summaries
+  missing local-source exploit provenance.
+
+Focused evidence:
+
+- `tests/unit/interface/test_web_server.py::test_task_detail_surfaces_exploit_provenance_from_source_leak_observation`
+- `tests/unit/interface/test_web_server.py::test_task_detail_surfaces_exploit_provenance_from_local_source_hint`
+- `tests/unit/interface/test_web_server.py::test_build_trace_payload_projects_artifacts_checkpoint_and_outcomes_from_session_context`
+- `tests/unit/interface/test_web_server.py::test_build_trace_payload_projects_dispatcher_started_outcome_event`
+- `tests/unit/interface/test_web_server.py::test_build_trace_payload_projects_dispatcher_started_summary_with_local_source_exploit_truth`
+- `tests/unit/interface/test_web_server.py::test_build_trace_payload_projects_control_action_outcome_events`
+- `tests/unit/interface/test_web_server.py::test_build_trace_payload_surfaces_exploit_provenance_summary`
+- `tests/unit/interface/test_web_server.py::test_build_trace_payload_keeps_local_source_hint_exploit_provenance_in_outcome_events`
+- `tests/unit/interface/test_web_server.py::test_build_trace_payload_projects_verification_and_finish_summaries_with_local_source_exploit_truth`
+- `tests/unit/interface/test_web_server.py::test_build_trace_payload_projects_recovery_decision_summary_with_local_source_exploit_truth`
+
+Rollback command:
+
+- `git revert <Web provenance/trace payload characterization implementation commit>`
+
+Boundary confirmation for this landing:
+
+- no Task ingress wiring expansion
+- no MCP changes
+- no ToolExecutor changes
+- no `CTFVerifier` proof behavior changes
+- no `CTFState` ownership split
+- no `CTFTaskDispatcher` flow changes
+- no composition root changes
+- no proof authority behavior changes
+- no P5 implementation
+- no crew/recovery changes
+
 First read-path switch approval plan must include:
 
 - file list
