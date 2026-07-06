@@ -3555,7 +3555,7 @@ The gates are recorded now as requirements only; none of them approves State imp
 | Verification gate | Required evidence | Current complete | Current implementation approved |
 |-------------------|-------------------|------------------|---------------------------------|
 | red test evidence | focused State ownership implementation test | false | false |
-| green focused regression | state snapshot fixtures and state-store adapter tests | false | false |
+| green focused regression | state snapshot fixtures and state/claim-store adapter tests | false | false |
 | proof/source regression | proof guards, claim invariants, verifier/proof adapter tests | false | false |
 | architecture regression | import layers and clean architecture playbook tests | false | false |
 | diff hygiene | `git diff --check` | false | false |

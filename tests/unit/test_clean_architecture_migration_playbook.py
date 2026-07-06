@@ -4195,7 +4195,7 @@ def test_playbook_records_state_ownership_verification_gate_guard() -> None:
     }
     expected = {
         "red test evidence": "focused State ownership implementation test",
-        "green focused regression": "state snapshot fixtures and state-store adapter tests",
+        "green focused regression": "state snapshot fixtures and state/claim-store adapter tests",
         "proof/source regression": "proof guards, claim invariants, verifier/proof adapter tests",
         "architecture regression": "import layers and clean architecture playbook tests",
         "diff hygiene": "`git diff --check`",
