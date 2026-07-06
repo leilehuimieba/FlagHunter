@@ -2884,7 +2884,7 @@ def test_playbook_records_core_approval_package_aggregate_guard() -> None:
         "Verifier/proof authority boundary": "Proof authority characterization readiness aggregate",
         "State ownership split": "CTFState legacy construction characterization guard",
         "ToolExecutor side-effect split": "ToolExecutor legacy construction characterization guard",
-        "Dispatcher/composition root production wiring": "CTFTaskDispatcher legacy construction characterization guard",
+        "Dispatcher/composition root production wiring": "Dispatcher composition root readiness characterization guard",
     }
     for candidate, plan_heading in expected_plans.items():
         assert rows[candidate]["Approval package"] == f"`{plan_heading}`"

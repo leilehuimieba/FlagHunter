@@ -3547,7 +3547,7 @@ The four core production approval packages are now recorded, but approval packag
 | Verifier/proof authority boundary | `Verifier/proof authority boundary approval plan` | `Proof authority characterization readiness aggregate` | false | not approved |
 | State ownership split | `State ownership split approval plan` | `CTFState legacy construction characterization guard` | false | not approved |
 | ToolExecutor side-effect split | `ToolExecutor side-effect split approval plan` | `ToolExecutor legacy construction characterization guard` | false | not approved |
-| Dispatcher/composition root production wiring | `Dispatcher/composition root production wiring approval plan` | `CTFTaskDispatcher legacy construction characterization guard` | false | not approved |
+| Dispatcher/composition root production wiring | `Dispatcher/composition root production wiring approval plan` | `Dispatcher composition root readiness characterization guard` | false | not approved |
 
 Required aggregate invariants:
 
