@@ -2990,6 +2990,43 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Storage adapter namespace re-export guard
+
+Status: namespace guard landed, no state ownership changed.
+
+`tests/unit/test_adapter_boundary_skeleton.py::test_storage_adapter_namespace_is_reexport_only`
+now locks the storage adapter package namespace as a re-export-only skeleton.
+
+Locked namespace surface:
+
+- `flaghunter/adapters/storage/__init__.py`
+- `CheckpointStoreAdapter`
+- `ClaimStoreAdapter`
+- `ReadModelStoreAdapter`
+- `StateStoreAdapter`
+- only relative storage adapter imports
+- no store port re-export
+- no legacy `CTFState` import
+
+This keeps the storage adapter namespace convenient for adapter tests while
+preventing it from becoming a state-store, claim-store, dispatcher, or
+composition-root wiring shortcut before explicit state ownership approval.
+
+Boundary confirmation for this guard:
+
+- no state ownership split
+- no state-store production wiring
+- no claim-store production wiring
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no `CTFTaskDispatcher` flow changes
+- no ToolExecutor changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### State ownership first slice approval text template
 
 Status: approval text template recorded, implementation not approved by this section.

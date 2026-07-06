@@ -2684,6 +2684,43 @@ def test_playbook_records_claim_store_adapter_delegate_only_guard_hardening() ->
         assert boundary in section
 
 
+def test_playbook_records_storage_adapter_namespace_reexport_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Storage adapter namespace re-export guard",
+    )
+
+    assert "Status: namespace guard landed, no state ownership changed." in section
+    assert "test_storage_adapter_namespace_is_reexport_only" in section
+    for locked_surface in (
+        "`flaghunter/adapters/storage/__init__.py`",
+        "`CheckpointStoreAdapter`",
+        "`ClaimStoreAdapter`",
+        "`ReadModelStoreAdapter`",
+        "`StateStoreAdapter`",
+        "only relative storage adapter imports",
+        "no store port re-export",
+        "no legacy `CTFState` import",
+    ):
+        assert locked_surface in section
+    for boundary in (
+        "no state ownership split",
+        "no state-store production wiring",
+        "no claim-store production wiring",
+        "no proof-authority behavior changes",
+        "no verifier decision behavior changes",
+        "no `CTFTaskDispatcher` flow changes",
+        "no ToolExecutor changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_tool_executor_side_effect_split_approval_plan() -> None:
     text = _playbook_text()
     section = _heading_section_text(

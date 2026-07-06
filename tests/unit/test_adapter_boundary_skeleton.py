@@ -246,6 +246,54 @@ def test_proof_adapter_namespace_is_reexport_only() -> None:
     assert "VerifierPort" not in init_path.read_text(encoding="utf-8")
 
 
+def test_storage_adapter_namespace_is_reexport_only() -> None:
+    package = importlib.import_module("flaghunter.adapters.storage")
+    modules = {
+        "CheckpointStoreAdapter": importlib.import_module(
+            "flaghunter.adapters.storage.checkpoint_store_adapter"
+        ),
+        "ClaimStoreAdapter": importlib.import_module(
+            "flaghunter.adapters.storage.claim_store_adapter"
+        ),
+        "ReadModelStoreAdapter": importlib.import_module(
+            "flaghunter.adapters.storage.read_model_store_adapter"
+        ),
+        "StateStoreAdapter": importlib.import_module(
+            "flaghunter.adapters.storage.state_store_adapter"
+        ),
+    }
+    init_path = ADAPTERS_ROOT / "storage" / "__init__.py"
+    source = init_path.read_text(encoding="utf-8")
+
+    assert package.__all__ == [
+        "CheckpointStoreAdapter",
+        "ClaimStoreAdapter",
+        "ReadModelStoreAdapter",
+        "StateStoreAdapter",
+    ]
+    for exported_name, module in modules.items():
+        assert getattr(package, exported_name) is getattr(module, exported_name)
+
+    assert sorted(_imported_module_names(_parse(init_path))) == [
+        ".checkpoint_store_adapter",
+        ".claim_store_adapter",
+        ".read_model_store_adapter",
+        ".state_store_adapter",
+    ]
+    forbidden_tokens = {
+        "StateStorePort",
+        "ClaimStorePort",
+        "CheckpointStorePort",
+        "ReadModelStorePort",
+        "CTFState",
+        "flaghunter.agents",
+        "flaghunter.ports",
+    }
+    offenders = sorted(token for token in forbidden_tokens if token in source)
+
+    assert offenders == []
+
+
 def test_root_adapter_namespace_declares_managed_packages() -> None:
     module = importlib.import_module("flaghunter.adapters")
 
