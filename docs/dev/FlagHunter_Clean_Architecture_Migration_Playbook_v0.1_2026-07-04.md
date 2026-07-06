@@ -3269,6 +3269,53 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### State ownership approval transition evidence consistency guard
+
+Status: evidence consistency guard recorded, State implementation not approved.
+
+State implementation evidence remains absent until explicit approval lands and
+a real State implementation commit supplies the matching red/green regression
+and post-push evidence.
+
+| Evidence item | Required location | Current implementation evidence present |
+|---------------|-------------------|-----------------------------------------|
+| approval package evidence | `State ownership implementation approval package aggregate guard` | true |
+| approval transition atomicity evidence | `State ownership approval transition atomicity guard` | true |
+| approval transition coverage evidence | `State ownership approval transition coverage guard` | true |
+| red test evidence | `State ownership split implementation landing record` | false |
+| green focused regression | `State ownership split implementation landing record` | false |
+| architecture/source regression | `State ownership split implementation landing record` | false |
+| post-push branch status | `State ownership split implementation landing record` | false |
+
+Required invariants:
+
+- State implementation evidence must remain false until explicit approval and implementation land
+- approval transition evidence must not be substituted for implementation evidence
+- landing evidence must include red, green, architecture regression, and post-push status before State implementation approved changes
+- evidence consistency must not authorize State ownership migration
+
+Required verification for this guard:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this guard:
+
+- no `CTFState` ownership migration
+- no state-store production wiring
+- no claim-store production wiring
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### State ownership first slice characterization landing record
 
 Status: first slice characterization landed; no ownership migration.

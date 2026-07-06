@@ -3815,6 +3815,81 @@ def test_playbook_records_state_ownership_approval_transition_coverage_guard() -
         assert boundary in section
 
 
+def test_playbook_records_state_ownership_approval_transition_evidence_consistency_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "State ownership approval transition evidence consistency guard",
+    )
+
+    assert "Status: evidence consistency guard recorded, State implementation not approved." in section
+    assert "State implementation evidence remains absent until explicit approval lands" in section
+    rows = {
+        row["Evidence item"]: row
+        for row in _markdown_table_rows(section)
+    }
+    expected = {
+        "approval package evidence": {
+            "Required location": "`State ownership implementation approval package aggregate guard`",
+            "Current implementation evidence present": "true",
+        },
+        "approval transition atomicity evidence": {
+            "Required location": "`State ownership approval transition atomicity guard`",
+            "Current implementation evidence present": "true",
+        },
+        "approval transition coverage evidence": {
+            "Required location": "`State ownership approval transition coverage guard`",
+            "Current implementation evidence present": "true",
+        },
+        "red test evidence": {
+            "Required location": "`State ownership split implementation landing record`",
+            "Current implementation evidence present": "false",
+        },
+        "green focused regression": {
+            "Required location": "`State ownership split implementation landing record`",
+            "Current implementation evidence present": "false",
+        },
+        "architecture/source regression": {
+            "Required location": "`State ownership split implementation landing record`",
+            "Current implementation evidence present": "false",
+        },
+        "post-push branch status": {
+            "Required location": "`State ownership split implementation landing record`",
+            "Current implementation evidence present": "false",
+        },
+    }
+    assert set(rows) == set(expected)
+    for item, expected_row in expected.items():
+        assert rows[item]["Required location"] == expected_row["Required location"]
+        assert (
+            rows[item]["Current implementation evidence present"]
+            == expected_row["Current implementation evidence present"]
+        )
+        assert expected_row["Required location"].strip("`") in text
+    for invariant in (
+        "State implementation evidence must remain false until explicit approval and implementation land",
+        "approval transition evidence must not be substituted for implementation evidence",
+        "landing evidence must include red, green, architecture regression, and post-push status before State implementation approved changes",
+        "evidence consistency must not authorize State ownership migration",
+    ):
+        assert invariant in section
+    for boundary in (
+        "no `CTFState` ownership migration",
+        "no state-store production wiring",
+        "no claim-store production wiring",
+        "no proof-authority behavior changes",
+        "no verifier decision behavior changes",
+        "no ToolExecutor changes",
+        "no `CTFTaskDispatcher` flow changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_state_ownership_first_slice_characterization_landing() -> None:
     text = _playbook_text()
     section = _heading_section_text(
