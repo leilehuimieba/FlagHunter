@@ -3191,7 +3191,7 @@ rollback, verification, and landing evidence before any production edit.
 | candidate | State ownership split | false |
 | recommended first slice | state snapshot ownership seam or claim-store ownership seam | false |
 | allowed production files | `flaghunter/agents/pa_agent/ctf_state.py` only after explicit approval | false |
-| allowed tests | `tests/unit/agents/test_p1_source_guards.py`; `tests/unit/agents/test_p1_claim_invariants.py`; `tests/unit/test_state_store_adapter.py`; `tests/unit/test_claim_store_adapter.py` | false |
+| allowed tests | `tests/unit/agents/test_p1_source_guards.py`; `tests/unit/agents/test_p1_claim_invariants.py`; `tests/unit/agents/test_p4_task_dag_replay_audit_bundle.py`; `tests/unit/test_state_store_adapter.py`; `tests/unit/test_claim_store_adapter.py` | false |
 | allowed governance | `docs/dev/FlagHunter_Clean_Architecture_Migration_Playbook_v0.1_2026-07-04.md`; `tests/unit/test_clean_architecture_migration_playbook.py` | false |
 | rollback point | revert the single approved State implementation commit | false |
 | landing evidence | `State ownership split implementation landing record` | false |
