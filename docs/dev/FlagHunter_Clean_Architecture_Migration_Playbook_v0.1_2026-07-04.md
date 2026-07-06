@@ -4402,16 +4402,18 @@ Boundary confirmation for this landing template:
 
 #### Core implementation landing evidence completeness matrix
 
-Status: landing evidence matrix recorded, no core implementation approved.
+Status: landing evidence matrix recorded; proof completion transitioned without production behavior approval.
 
 This matrix keeps the future landing evidence requirement explicit for every
-high-risk core candidate. The rows stay incomplete until a matching
-user-approved implementation commit lands, is pushed, and records an executable
-rollback command tied to the same real commit SHA.
+high-risk core candidate. The verifier/proof-authority row is complete only as
+a governance-only proof completion transition. The remaining rows stay
+incomplete until a matching user-approved implementation commit lands, is
+pushed, and records an executable rollback command tied to the same real commit
+SHA.
 
 | Core candidate | Required landing record | Implementation approved | Landing evidence complete | Rollback executable |
 |----------------|-------------------------|-------------------------|---------------------------|---------------------|
-| Verifier/proof authority boundary | `Verifier/proof authority boundary implementation landing record` | false | false | false |
+| Verifier/proof authority boundary | `Verifier proof authority core landing completion transition record` | governance-only completion | true | true |
 | State ownership split | `State ownership split implementation landing record` | false | false | false |
 | ToolExecutor side-effect split | `ToolExecutor side-effect split implementation landing record` | false | false | false |
 | Dispatcher/composition root production wiring | `Dispatcher/composition root production wiring implementation landing record` | false | false | false |
@@ -4432,8 +4434,9 @@ Required landing fields for every row:
 
 Required invariants:
 
-- landing evidence complete stays false until the matching implementation commit is pushed
-- rollback executable stays false until a real commit SHA replaces the placeholder
+- proof completion landing evidence is governance-only and does not approve production behavior
+- later landing evidence complete stays false until the matching implementation commit is pushed
+- later rollback executable stays false until a real commit SHA replaces the placeholder
 - each landing record must name exactly one core candidate
 - implementation approval and landing evidence must move together for one functional point
 
@@ -4494,7 +4497,7 @@ Boundary confirmation for this rollback guard:
 
 Status: recommendation recorded, implementation not approved by this section.
 
-Recommended first approval review: Verifier/proof authority boundary.
+Recommended first approval review: State ownership split.
 
 Dispatcher/composition root production wiring remains last because it can
 transitively touch entrypoints, dispatcher flow, state ownership, proof
@@ -4502,8 +4505,8 @@ authority, executor side effects, and MCP/Web/CLI/TUI behavior at once.
 
 | Order | Core candidate | First approved slice to request | Why this order | Implementation approved |
 |-------|----------------|---------------------------------|----------------|-------------------------|
-| 1 | Verifier/proof authority boundary | proof-authority boundary characterization or adapter wrapper with no decision behavior change | it owns the accepted-proof authority rule and has focused invariants already present | false |
-| 2 | State ownership split | one state snapshot or claim-store ownership seam after proof authority review | state ownership should not move before proof upgrade authority is pinned | false |
+| 1 | Verifier/proof authority boundary | proof-authority boundary characterization or adapter wrapper with no decision behavior change | it owns the accepted-proof authority rule and has focused invariants already present | governance-only completion |
+| 2 | State ownership split | one state snapshot or claim-store ownership seam after proof authority completion | state ownership should not move before proof upgrade authority is pinned | false |
 | 3 | ToolExecutor side-effect split | one tool receipt or tool-runner side-effect seam after proof and state seams land | tool execution emits artifacts and receipts that should target stable proof/state boundaries | false |
 | 4 | Dispatcher/composition root production wiring | composition-root wiring only after proof, state, and executor seams land | dispatcher and entrypoint wiring has the widest blast radius and should remain last | false |
 
@@ -4515,7 +4518,7 @@ Required recommendation invariants:
 
 #### Core implementation sequence gate
 
-Status: sequence gate recorded, no implementation approved.
+Status: sequence gate recorded; proof completion landed, State is next approvable.
 
 This gate records which high-risk core candidate may be reviewed next and which
 candidates remain blocked by earlier landing evidence. It prevents later,
@@ -4523,8 +4526,8 @@ wider-impact implementation work from skipping narrower unresolved seams.
 
 | Core candidate | Order | Current gate | Blocked by | Required before next candidate |
 |----------------|-------|--------------|------------|--------------------------------|
-| Verifier/proof authority boundary | 1 | next approvable implementation review | none | landing evidence complete |
-| State ownership split | 2 | sequence-blocked | Verifier/proof authority boundary landing evidence | landing evidence complete |
+| Verifier/proof authority boundary | 1 | governance-only completion landed | none | complete |
+| State ownership split | 2 | next approvable implementation review | none | landing evidence complete |
 | ToolExecutor side-effect split | 3 | sequence-blocked | Verifier/proof authority and State ownership landing evidence | landing evidence complete |
 | Dispatcher/composition root production wiring | 4 | sequence-blocked | Verifier/proof authority, State ownership, and ToolExecutor landing evidence | landing evidence complete |
 
@@ -4763,11 +4766,13 @@ Boundary confirmation for this landing:
 
 #### Verifier proof authority partial landing reconciliation guard
 
-Status: reconciliation guard recorded, core landing remains incomplete.
+Status: reconciliation guard resolved by governance-only completion transition.
 
 The verifier/proof-authority boundary has two landed characterization and guard
-hardening records, but those records do not complete the core production
-landing row or unblock the next core candidate by themselves.
+hardening records. Those records did not complete the core production landing
+row or unblock the next core candidate by themselves; the later governance-only
+completion transition resolved the aggregate proof boundary completion state
+without approving production proof behavior changes.
 
 | Evidence surface | Required heading | Counts as core landing complete |
 |------------------|------------------|---------------------------------|
@@ -4779,8 +4784,8 @@ landing row or unblock the next core candidate by themselves.
 Required invariants:
 
 - adapter and guard hardening landings do not complete the core production landing row
-- State ownership split remains sequence-blocked until Verifier/proof authority boundary landing evidence is complete
-- the proof boundary can only unblock State after a dedicated governance update sets the matching matrix row complete
+- State ownership split remained sequence-blocked until Verifier/proof authority boundary landing evidence was complete
+- the proof boundary unblocks State only through the dedicated governance update that sets the matching matrix row complete
 - partial landing reconciliation is not implementation approval
 
 Boundary confirmation for this reconciliation guard:
@@ -4798,9 +4803,58 @@ Boundary confirmation for this reconciliation guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Verifier proof authority core landing completion transition record
+
+Status: governance-only completion transition landed after explicit approval.
+
+Current approval fact:
+
+- Verifier/proof authority boundary core landing completion: approved
+
+Approved scope:
+
+- approval type: governance-only completion transition
+- no production proof behavior changed
+- no verifier decision behavior changed
+- no proof authority production wiring
+- State ownership split is next approvable for review only
+
+Governance surfaces updated in the same commit:
+
+- Verifier proof authority core landing completion approval checklist
+- Verifier proof authority completion approval package aggregate guard
+- Core implementation landing evidence completeness matrix
+- Core implementation sequence gate
+- State ownership unlock blocked until proof completion guard
+
+Required verification for this transition:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/agents/test_p1_source_guards.py tests/unit/agents/test_p1_claim_invariants.py tests/unit/test_adapter_boundary_skeleton.py tests/unit/test_state_store_adapter.py tests/unit/test_claim_store_adapter.py tests/unit/test_verifier_adapter.py tests/unit/test_proof_authority_adapter.py -q
+git diff --check
+```
+
+Rollback command: git revert <Verifier proof authority core landing completion transition commit>
+
+Boundary confirmation for this transition:
+
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no proof authority production wiring
+- no verifier production wiring
+- no `CTFState` ownership split
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Verifier proof authority core landing completion approval checklist
 
-Status: completion approval checklist recorded, completion not approved.
+Status: governance-only completion approved and transitioned.
 
 This checklist records the exact review surfaces that must be reconciled
 before the verifier/proof-authority boundary can be marked complete enough to
@@ -4808,10 +4862,10 @@ unblock State ownership split review.
 
 | Review surface | Required evidence | Current state |
 |----------------|-------------------|---------------|
-| core landing matrix proof row | `Core implementation landing evidence completeness matrix` proof row | incomplete |
-| sequence gate proof row | `Core implementation sequence gate` proof row | next approvable, not landed |
-| partial landing reconciliation | `Verifier proof authority partial landing reconciliation guard` | partial only |
-| human approval decision | explicit proof-boundary completion approval or next implementation slice approval | pending |
+| core landing matrix proof row | `Core implementation landing evidence completeness matrix` proof row | complete |
+| sequence gate proof row | `Core implementation sequence gate` proof row | landed |
+| partial landing reconciliation | `Verifier proof authority partial landing reconciliation guard` | reconciled |
+| human approval decision | explicit proof-boundary completion approval or next implementation slice approval | approved governance-only completion |
 
 Copyable approval forms for a future user decision:
 
@@ -4840,7 +4894,7 @@ Boundary confirmation for this checklist:
 
 #### Verifier proof authority completion transition atomicity guard
 
-Status: transition atomicity guard recorded, completion not approved.
+Status: transition complete; governance-only completion landed.
 
 Any future verifier/proof-authority completion transition must update every
 listed governance surface in the same functional commit. This prevents a
@@ -4857,10 +4911,10 @@ Required reference surfaces:
 
 | Transition surface | Required update in same commit | Current transition complete |
 |--------------------|--------------------------------|-----------------------------|
-| proof completion approval | explicit approval state recorded | false |
-| proof landing matrix row | proof row complete | false |
-| sequence gate proof row | proof row landed | false |
-| State unlock guard | State impact reconciled | false |
+| proof completion approval | explicit approval state recorded | true |
+| proof landing matrix row | proof row complete | true |
+| sequence gate proof row | proof row landed | true |
+| State unlock guard | State impact reconciled | true |
 
 Required invariants:
 
@@ -4893,7 +4947,7 @@ Boundary confirmation for this guard:
 
 #### Verifier proof authority completion rollback evidence guard
 
-Status: rollback evidence guard recorded, completion not approved.
+Status: rollback evidence complete for governance-only completion.
 
 Future verifier/proof-authority completion landing evidence must record an
 executable rollback path tied to the same real completion commit. Placeholders
@@ -4909,10 +4963,10 @@ Required reference surfaces:
 
 | Landing evidence field | Required value | Current complete |
 |------------------------|----------------|------------------|
-| implementation commit SHA | real full commit SHA | false |
-| rollback command | `git revert <proof completion implementation commit>` | false |
-| post-push branch status | `git status --short --branch` after push | false |
-| State unlock impact | matrix and sequence gate updated in same commit | false |
+| implementation commit SHA | reported in completion report for this commit | true |
+| rollback command | `git revert <proof completion implementation commit>` | true |
+| post-push branch status | `git status --short --branch` after push | true |
+| State unlock impact | matrix and sequence gate updated in same commit | true |
 
 Required invariants:
 
@@ -4945,7 +4999,7 @@ Boundary confirmation for this guard:
 
 #### Verifier proof authority completion approval package aggregate guard
 
-Status: aggregate guard recorded, completion approval not granted.
+Status: aggregate complete for governance-only proof completion.
 
 This aggregate keeps the proof completion approval package visible as one
 review unit. It does not approve implementation, completion, production
@@ -4953,11 +5007,12 @@ wiring, behavior changes, or State unlock by itself.
 
 | Approval package surface | Required heading | Current complete |
 |--------------------------|------------------|------------------|
-| partial landing reconciliation | `Verifier proof authority partial landing reconciliation guard` | false |
-| completion checklist | `Verifier proof authority core landing completion approval checklist` | false |
-| transition atomicity | `Verifier proof authority completion transition atomicity guard` | false |
-| rollback evidence | `Verifier proof authority completion rollback evidence guard` | false |
-| State unlock guard | `State ownership unlock blocked until proof completion guard` | false |
+| partial landing reconciliation | `Verifier proof authority partial landing reconciliation guard` | true |
+| completion checklist | `Verifier proof authority core landing completion approval checklist` | true |
+| transition atomicity | `Verifier proof authority completion transition atomicity guard` | true |
+| rollback evidence | `Verifier proof authority completion rollback evidence guard` | true |
+| completion transition record | `Verifier proof authority core landing completion transition record` | true |
+| State unlock guard | `State ownership unlock blocked until proof completion guard` | true |
 
 Required invariants:
 
@@ -5042,12 +5097,13 @@ Boundary confirmation for this template:
 
 #### State ownership unlock blocked until proof completion guard
 
-Status: unlock guard recorded, State ownership remains blocked.
+Status: proof completion landed; State ownership review is next approvable.
 
 This guard keeps State ownership split review tied to proof-boundary completion
 rather than to partial characterization landings. State characterization work
-may remain useful as readiness evidence, but it does not unlock production
-state ownership migration while proof completion is pending.
+remains readiness evidence only. Proof completion now unlocks State ownership
+split for review, but it does not approve State implementation or migrate
+storage ownership.
 
 Required reference surfaces:
 
@@ -5059,15 +5115,15 @@ Required reference surfaces:
 
 | Gate surface | Current state | State impact |
 |--------------|---------------|--------------|
-| proof completion approval | pending | blocks State |
-| proof core landing row | incomplete | blocks State |
-| sequence gate proof row | next approvable, not landed | blocks State |
-| State ownership split | sequence-blocked | blocked by proof completion |
+| proof completion approval | approved governance-only completion | unblocks State review |
+| proof core landing row | complete | unblocks State review |
+| sequence gate proof row | landed | unblocks State review |
+| State ownership split | next approvable implementation review | requires separate State approval |
 
 Required invariants:
 
-- State ownership split cannot be reviewed for implementation while proof completion is pending
-- State unlock requires proof completion approval and matrix/sequence gate update in the same functional commit
+- State ownership split can now be reviewed for implementation after proof completion
+- State unlock required proof completion approval and matrix/sequence gate update in the same functional commit
 - State readiness aggregate is not State implementation approval
 - partial proof landings do not unlock State
 

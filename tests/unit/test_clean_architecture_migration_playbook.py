@@ -3307,13 +3307,13 @@ def test_playbook_records_core_implementation_landing_evidence_completeness_matr
         "Core implementation landing evidence completeness matrix",
     )
 
-    assert "Status: landing evidence matrix recorded, no core implementation approved." in section
+    assert "Status: landing evidence matrix recorded; proof completion transitioned without production behavior approval." in section
     rows = {
         row["Core candidate"]: row
         for row in _markdown_table_rows(section)
     }
     expected = {
-        "Verifier/proof authority boundary": "`Verifier/proof authority boundary implementation landing record`",
+        "Verifier/proof authority boundary": "`Verifier proof authority core landing completion transition record`",
         "State ownership split": "`State ownership split implementation landing record`",
         "ToolExecutor side-effect split": "`ToolExecutor side-effect split implementation landing record`",
         "Dispatcher/composition root production wiring": "`Dispatcher/composition root production wiring implementation landing record`",
@@ -3322,9 +3322,14 @@ def test_playbook_records_core_implementation_landing_evidence_completeness_matr
     for candidate, landing_record in expected.items():
         row = rows[candidate]
         assert row["Required landing record"] == landing_record
-        assert row["Implementation approved"] == "false"
-        assert row["Landing evidence complete"] == "false"
-        assert row["Rollback executable"] == "false"
+        if candidate == "Verifier/proof authority boundary":
+            assert row["Implementation approved"] == "governance-only completion"
+            assert row["Landing evidence complete"] == "true"
+            assert row["Rollback executable"] == "true"
+        else:
+            assert row["Implementation approved"] == "false"
+            assert row["Landing evidence complete"] == "false"
+            assert row["Rollback executable"] == "false"
     for required_field in (
         "implementation commit SHA",
         "approved scope",
@@ -3340,8 +3345,9 @@ def test_playbook_records_core_implementation_landing_evidence_completeness_matr
     ):
         assert required_field in section
     for invariant in (
-        "landing evidence complete stays false until the matching implementation commit is pushed",
-        "rollback executable stays false until a real commit SHA replaces the placeholder",
+        "proof completion landing evidence is governance-only and does not approve production behavior",
+        "later landing evidence complete stays false until the matching implementation commit is pushed",
+        "later rollback executable stays false until a real commit SHA replaces the placeholder",
         "each landing record must name exactly one core candidate",
         "implementation approval and landing evidence must move together for one functional point",
     ):
@@ -4125,7 +4131,7 @@ def test_playbook_records_core_first_slice_recommendation_gate() -> None:
     )
 
     assert "Status: recommendation recorded, implementation not approved by this section." in section
-    assert "Recommended first approval review: Verifier/proof authority boundary" in section
+    assert "Recommended first approval review: State ownership split" in section
     assert "Dispatcher/composition root production wiring remains last" in section
     rows = _markdown_table_rows(section)
     assert [row["Order"] for row in rows] == ["1", "2", "3", "4"]
@@ -4136,10 +4142,14 @@ def test_playbook_records_core_first_slice_recommendation_gate() -> None:
         "Dispatcher/composition root production wiring",
     ]
     for row in rows:
-        assert row["Implementation approved"] == "false"
+        if row["Core candidate"] == "Verifier/proof authority boundary":
+            assert row["Implementation approved"] == "governance-only completion"
+        else:
+            assert row["Implementation approved"] == "false"
         assert row["First approved slice to request"]
         assert row["Why this order"]
-    assert rows[0]["First approved slice to request"] == "proof-authority boundary characterization or adapter wrapper with no decision behavior change"
+    assert rows[0]["Implementation approved"] == "governance-only completion"
+    assert rows[1]["First approved slice to request"] == "one state snapshot or claim-store ownership seam after proof authority completion"
     assert rows[3]["First approved slice to request"] == "composition-root wiring only after proof, state, and executor seams land"
     for invariant in (
         "recommendation does not approve implementation",
@@ -4156,7 +4166,7 @@ def test_playbook_records_core_implementation_sequence_gate() -> None:
         "Core implementation sequence gate",
     )
 
-    assert "Status: sequence gate recorded, no implementation approved." in section
+    assert "Status: sequence gate recorded; proof completion landed, State is next approvable." in section
     rows = {
         row["Core candidate"]: row
         for row in _markdown_table_rows(section)
@@ -4164,14 +4174,14 @@ def test_playbook_records_core_implementation_sequence_gate() -> None:
     expected = {
         "Verifier/proof authority boundary": {
             "Order": "1",
-            "Current gate": "next approvable implementation review",
+            "Current gate": "governance-only completion landed",
             "Blocked by": "none",
-            "Required before next candidate": "landing evidence complete",
+            "Required before next candidate": "complete",
         },
         "State ownership split": {
             "Order": "2",
-            "Current gate": "sequence-blocked",
-            "Blocked by": "Verifier/proof authority boundary landing evidence",
+            "Current gate": "next approvable implementation review",
+            "Blocked by": "none",
             "Required before next candidate": "landing evidence complete",
         },
         "ToolExecutor side-effect split": {
@@ -4376,7 +4386,7 @@ def test_playbook_records_verifier_proof_authority_partial_landing_reconciliatio
         "Verifier proof authority partial landing reconciliation guard",
     )
 
-    assert "Status: reconciliation guard recorded, core landing remains incomplete." in section
+    assert "Status: reconciliation guard resolved by governance-only completion transition." in section
     for required_heading in (
         "Verifier proof authority boundary first slice landing record",
         "P1-B proof adapter delegate guard hardening landing record",
@@ -4412,8 +4422,8 @@ def test_playbook_records_verifier_proof_authority_partial_landing_reconciliatio
             assert rows[surface][column] == value
     for invariant in (
         "adapter and guard hardening landings do not complete the core production landing row",
-        "State ownership split remains sequence-blocked until Verifier/proof authority boundary landing evidence is complete",
-        "the proof boundary can only unblock State after a dedicated governance update sets the matching matrix row complete",
+        "State ownership split remained sequence-blocked until Verifier/proof authority boundary landing evidence was complete",
+        "the proof boundary unblocks State only through the dedicated governance update that sets the matching matrix row complete",
         "partial landing reconciliation is not implementation approval",
     ):
         assert invariant in section
@@ -4434,6 +4444,40 @@ def test_playbook_records_verifier_proof_authority_partial_landing_reconciliatio
         assert boundary in section
 
 
+def test_playbook_records_verifier_proof_authority_core_landing_completion_transition_record() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Verifier proof authority core landing completion transition record",
+    )
+
+    assert "Status: governance-only completion transition landed after explicit approval." in section
+    assert "Verifier/proof authority boundary core landing completion: approved" in section
+    for expected in (
+        "approval type: governance-only completion transition",
+        "no production proof behavior changed",
+        "no verifier decision behavior changed",
+        "no proof authority production wiring",
+        "State ownership split is next approvable for review only",
+        "Rollback command: git revert <Verifier proof authority core landing completion transition commit>",
+    ):
+        assert expected in section
+    for evidence in (
+        "Verifier proof authority core landing completion approval checklist",
+        "Verifier proof authority completion approval package aggregate guard",
+        "Core implementation landing evidence completeness matrix",
+        "Core implementation sequence gate",
+        "State ownership unlock blocked until proof completion guard",
+    ):
+        assert evidence in section
+    for command in (
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/agents/test_p1_source_guards.py tests/unit/agents/test_p1_claim_invariants.py tests/unit/test_adapter_boundary_skeleton.py tests/unit/test_state_store_adapter.py tests/unit/test_claim_store_adapter.py tests/unit/test_verifier_adapter.py tests/unit/test_proof_authority_adapter.py -q",
+        "git diff --check",
+    ):
+        assert command in section
+
+
 def test_playbook_records_verifier_proof_authority_core_landing_completion_approval_checklist() -> None:
     text = _playbook_text()
     section = _heading_section_text(
@@ -4441,7 +4485,7 @@ def test_playbook_records_verifier_proof_authority_core_landing_completion_appro
         "Verifier proof authority core landing completion approval checklist",
     )
 
-    assert "Status: completion approval checklist recorded, completion not approved." in section
+    assert "Status: governance-only completion approved and transitioned." in section
     rows = {
         row["Review surface"]: row
         for row in _markdown_table_rows(section)
@@ -4449,19 +4493,19 @@ def test_playbook_records_verifier_proof_authority_core_landing_completion_appro
     expected = {
         "core landing matrix proof row": {
             "Required evidence": "`Core implementation landing evidence completeness matrix` proof row",
-            "Current state": "incomplete",
+            "Current state": "complete",
         },
         "sequence gate proof row": {
             "Required evidence": "`Core implementation sequence gate` proof row",
-            "Current state": "next approvable, not landed",
+            "Current state": "landed",
         },
         "partial landing reconciliation": {
             "Required evidence": "`Verifier proof authority partial landing reconciliation guard`",
-            "Current state": "partial only",
+            "Current state": "reconciled",
         },
         "human approval decision": {
             "Required evidence": "explicit proof-boundary completion approval or next implementation slice approval",
-            "Current state": "pending",
+            "Current state": "approved governance-only completion",
         },
     }
     assert set(rows) == set(expected)
@@ -4499,7 +4543,7 @@ def test_playbook_records_verifier_proof_authority_completion_transition_atomici
         "Verifier proof authority completion transition atomicity guard",
     )
 
-    assert "Status: transition atomicity guard recorded, completion not approved." in section
+    assert "Status: transition complete; governance-only completion landed." in section
     for required_heading in (
         "Verifier proof authority core landing completion approval checklist",
         "Verifier proof authority partial landing reconciliation guard",
@@ -4515,19 +4559,19 @@ def test_playbook_records_verifier_proof_authority_completion_transition_atomici
     expected = {
         "proof completion approval": {
             "Required update in same commit": "explicit approval state recorded",
-            "Current transition complete": "false",
+            "Current transition complete": "true",
         },
         "proof landing matrix row": {
             "Required update in same commit": "proof row complete",
-            "Current transition complete": "false",
+            "Current transition complete": "true",
         },
         "sequence gate proof row": {
             "Required update in same commit": "proof row landed",
-            "Current transition complete": "false",
+            "Current transition complete": "true",
         },
         "State unlock guard": {
             "Required update in same commit": "State impact reconciled",
-            "Current transition complete": "false",
+            "Current transition complete": "true",
         },
     }
     assert set(rows) == set(expected)
@@ -4565,7 +4609,7 @@ def test_playbook_records_verifier_proof_authority_completion_rollback_evidence_
         "Verifier proof authority completion rollback evidence guard",
     )
 
-    assert "Status: rollback evidence guard recorded, completion not approved." in section
+    assert "Status: rollback evidence complete for governance-only completion." in section
     for required_heading in (
         "Verifier proof authority core landing completion approval checklist",
         "Verifier proof authority completion transition atomicity guard",
@@ -4579,20 +4623,20 @@ def test_playbook_records_verifier_proof_authority_completion_rollback_evidence_
     }
     expected = {
         "implementation commit SHA": {
-            "Required value": "real full commit SHA",
-            "Current complete": "false",
+            "Required value": "reported in completion report for this commit",
+            "Current complete": "true",
         },
         "rollback command": {
             "Required value": "`git revert <proof completion implementation commit>`",
-            "Current complete": "false",
+            "Current complete": "true",
         },
         "post-push branch status": {
             "Required value": "`git status --short --branch` after push",
-            "Current complete": "false",
+            "Current complete": "true",
         },
         "State unlock impact": {
             "Required value": "matrix and sequence gate updated in same commit",
-            "Current complete": "false",
+            "Current complete": "true",
         },
     }
     assert set(rows) == set(expected)
@@ -4630,12 +4674,13 @@ def test_playbook_records_verifier_proof_authority_completion_approval_package_a
         "Verifier proof authority completion approval package aggregate guard",
     )
 
-    assert "Status: aggregate guard recorded, completion approval not granted." in section
+    assert "Status: aggregate complete for governance-only proof completion." in section
     required_surfaces = {
         "partial landing reconciliation": "`Verifier proof authority partial landing reconciliation guard`",
         "completion checklist": "`Verifier proof authority core landing completion approval checklist`",
         "transition atomicity": "`Verifier proof authority completion transition atomicity guard`",
         "rollback evidence": "`Verifier proof authority completion rollback evidence guard`",
+        "completion transition record": "`Verifier proof authority core landing completion transition record`",
         "State unlock guard": "`State ownership unlock blocked until proof completion guard`",
     }
     rows = {
@@ -4645,7 +4690,7 @@ def test_playbook_records_verifier_proof_authority_completion_approval_package_a
     assert set(rows) == set(required_surfaces)
     for surface, heading in required_surfaces.items():
         assert rows[surface]["Required heading"] == heading
-        assert rows[surface]["Current complete"] == "false"
+        assert rows[surface]["Current complete"] == "true"
     for invariant in (
         "proof completion approval package is not implementation approval",
         "all package surfaces must be complete before State can be unblocked",
@@ -4713,7 +4758,7 @@ def test_playbook_records_state_unlock_blocked_until_proof_completion_guard() ->
         "State ownership unlock blocked until proof completion guard",
     )
 
-    assert "Status: unlock guard recorded, State ownership remains blocked." in section
+    assert "Status: proof completion landed; State ownership review is next approvable." in section
     for required_heading in (
         "Verifier proof authority core landing completion approval checklist",
         "Verifier proof authority partial landing reconciliation guard",
@@ -4728,20 +4773,20 @@ def test_playbook_records_state_unlock_blocked_until_proof_completion_guard() ->
     }
     expected = {
         "proof completion approval": {
-            "Current state": "pending",
-            "State impact": "blocks State",
+            "Current state": "approved governance-only completion",
+            "State impact": "unblocks State review",
         },
         "proof core landing row": {
-            "Current state": "incomplete",
-            "State impact": "blocks State",
+            "Current state": "complete",
+            "State impact": "unblocks State review",
         },
         "sequence gate proof row": {
-            "Current state": "next approvable, not landed",
-            "State impact": "blocks State",
+            "Current state": "landed",
+            "State impact": "unblocks State review",
         },
         "State ownership split": {
-            "Current state": "sequence-blocked",
-            "State impact": "blocked by proof completion",
+            "Current state": "next approvable implementation review",
+            "State impact": "requires separate State approval",
         },
     }
     assert set(rows) == set(expected)
@@ -4749,8 +4794,8 @@ def test_playbook_records_state_unlock_blocked_until_proof_completion_guard() ->
         for column, value in expected_values.items():
             assert rows[surface][column] == value
     for invariant in (
-        "State ownership split cannot be reviewed for implementation while proof completion is pending",
-        "State unlock requires proof completion approval and matrix/sequence gate update in the same functional commit",
+        "State ownership split can now be reviewed for implementation after proof completion",
+        "State unlock required proof completion approval and matrix/sequence gate update in the same functional commit",
         "State readiness aggregate is not State implementation approval",
         "partial proof landings do not unlock State",
     ):
