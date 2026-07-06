@@ -5397,7 +5397,8 @@ Boundary confirmation for this gate:
 
 Status: approval text template recorded, implementation not approved by this section.
 
-Copyable approval text for the recommended first slice:
+Copyable historical approval text for the completed proof-boundary first slice.
+This is retained for audit and is not the next recommended approval text:
 
 ```text
 批准 Verifier/proof authority boundary 第一刀：
@@ -5420,6 +5421,7 @@ Approval text invariants:
 - this template is not approval by itself
 - approval must be sent as a user message
 - approval text must not authorize bundled core changes
+- proof-boundary first-slice template is retained for audit, not as the next recommendation
 - readiness evidence does not approve implementation by itself
 - adapter wrapper does not mean production wiring approval
 - verifier/proof-authority adapter import guards must remain green

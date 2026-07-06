@@ -5248,7 +5248,8 @@ def test_playbook_records_core_first_slice_approval_text_template() -> None:
     )
 
     assert "Status: approval text template recorded, implementation not approved by this section." in section
-    assert "Copyable approval text for the recommended first slice" in section
+    assert "Copyable historical approval text for the completed proof-boundary first slice" in section
+    assert "not the next recommended approval text" in section
     assert "批准 Verifier/proof authority boundary 第一刀" in section
     assert "proof-authority boundary characterization or adapter wrapper with no decision behavior change" in section
     assert "独立 TDD、独立 commit/push" in section
@@ -5266,6 +5267,7 @@ def test_playbook_records_core_first_slice_approval_text_template() -> None:
         "this template is not approval by itself",
         "approval must be sent as a user message",
         "approval text must not authorize bundled core changes",
+        "proof-boundary first-slice template is retained for audit, not as the next recommendation",
         "readiness evidence does not approve implementation by itself",
     ):
         assert invariant in section
