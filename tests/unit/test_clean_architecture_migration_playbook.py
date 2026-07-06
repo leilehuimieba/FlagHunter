@@ -3300,6 +3300,66 @@ def test_playbook_records_dispatcher_approval_transition_atomicity_guard() -> No
         assert boundary in section
 
 
+def test_playbook_records_core_implementation_landing_evidence_completeness_matrix() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Core implementation landing evidence completeness matrix",
+    )
+
+    assert "Status: landing evidence matrix recorded, no core implementation approved." in section
+    rows = {
+        row["Core candidate"]: row
+        for row in _markdown_table_rows(section)
+    }
+    expected = {
+        "Verifier/proof authority boundary": "`Verifier/proof authority boundary implementation landing record`",
+        "State ownership split": "`State ownership split implementation landing record`",
+        "ToolExecutor side-effect split": "`ToolExecutor side-effect split implementation landing record`",
+        "Dispatcher/composition root production wiring": "`Dispatcher/composition root production wiring implementation landing record`",
+    }
+    assert set(rows) == set(expected)
+    for candidate, landing_record in expected.items():
+        row = rows[candidate]
+        assert row["Required landing record"] == landing_record
+        assert row["Implementation approved"] == "false"
+        assert row["Landing evidence complete"] == "false"
+        assert row["Rollback executable"] == "false"
+    for required_field in (
+        "implementation commit SHA",
+        "approved scope",
+        "readiness evidence reviewed",
+        "files changed",
+        "red test evidence",
+        "focused regression result",
+        "architecture/source-guard result",
+        "git diff --check result",
+        "post-push branch status",
+        "rollback command",
+        "boundary confirmation",
+    ):
+        assert required_field in section
+    for invariant in (
+        "landing evidence complete stays false until the matching implementation commit is pushed",
+        "rollback executable stays false until a real commit SHA replaces the placeholder",
+        "each landing record must name exactly one core candidate",
+        "implementation approval and landing evidence must move together for one functional point",
+    ):
+        assert invariant in section
+    for boundary in (
+        "no proof-authority behavior changes",
+        "no `CTFState` ownership split",
+        "no ToolExecutor changes",
+        "no `CTFTaskDispatcher` flow changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root production wiring",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_session_composition_root_characterization_guard() -> None:
     text = _playbook_text()
     section = _heading_section_text(

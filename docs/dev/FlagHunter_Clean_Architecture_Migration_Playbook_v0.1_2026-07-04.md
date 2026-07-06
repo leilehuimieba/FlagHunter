@@ -4354,6 +4354,55 @@ Boundary confirmation for this landing template:
 - readiness evidence must match the core aggregate row for the approved candidate
 - rollback command must use the real implementation commit SHA
 
+#### Core implementation landing evidence completeness matrix
+
+Status: landing evidence matrix recorded, no core implementation approved.
+
+This matrix keeps the future landing evidence requirement explicit for every
+high-risk core candidate. The rows stay incomplete until a matching
+user-approved implementation commit lands, is pushed, and records an executable
+rollback command tied to the same real commit SHA.
+
+| Core candidate | Required landing record | Implementation approved | Landing evidence complete | Rollback executable |
+|----------------|-------------------------|-------------------------|---------------------------|---------------------|
+| Verifier/proof authority boundary | `Verifier/proof authority boundary implementation landing record` | false | false | false |
+| State ownership split | `State ownership split implementation landing record` | false | false | false |
+| ToolExecutor side-effect split | `ToolExecutor side-effect split implementation landing record` | false | false | false |
+| Dispatcher/composition root production wiring | `Dispatcher/composition root production wiring implementation landing record` | false | false | false |
+
+Required landing fields for every row:
+
+- implementation commit SHA
+- approved scope
+- readiness evidence reviewed
+- files changed
+- red test evidence
+- focused regression result
+- architecture/source-guard result
+- git diff --check result
+- post-push branch status
+- rollback command
+- boundary confirmation
+
+Required invariants:
+
+- landing evidence complete stays false until the matching implementation commit is pushed
+- rollback executable stays false until a real commit SHA replaces the placeholder
+- each landing record must name exactly one core candidate
+- implementation approval and landing evidence must move together for one functional point
+
+Boundary confirmation for this matrix:
+
+- no proof-authority behavior changes
+- no `CTFState` ownership split
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root production wiring
+- no P5 implementation
+- no crew/recovery changes
+
 #### Dispatcher landing evidence rollback guard
 
 Status: rollback guard recorded, no production wiring approved.
