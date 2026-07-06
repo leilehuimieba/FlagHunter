@@ -238,25 +238,19 @@ def test_mcp_blackboard_readback_helper_stays_read_only_projection() -> None:
         assert token not in helper_source
 
 
-def test_deferred_mcp_pre_approval_guard_blocks_neutral_projection_wiring() -> None:
+def test_deferred_mcp_readback_uses_neutral_projection_after_approval() -> None:
     playbook = _playbook_text()
-    assert "Deferred MCP pre-approval production wiring guard" in playbook
-    assert (
-        "Deferred MCP: blocked on Web projection equivalence and explicit MCP approval, not approved"
-        in playbook
-    )
+    assert "Deferred MCP implementation landing record" in playbook
+    assert "Deferred MCP readback: implementation landed" in playbook
 
     source = MCP_TOOLS_PATH.read_text(encoding="utf-8-sig")
-    forbidden_wiring_tokens = {
-        "flaghunter.application.challenge",
-        "flaghunter.domain.challenge.contracts",
+    required_wiring_tokens = {
         "board_read_model_service",
         "build_task_board_projection",
-        "BuildChallengeBoardReadModel",
         "ChallengeBoardReadModel",
     }
 
-    assert sorted(token for token in forbidden_wiring_tokens if token in source) == []
+    assert sorted(token for token in required_wiring_tokens if token not in source) == []
 
 
 def test_mcp_task_ingress_pre_wiring_guard_blocks_adapter_and_service_wiring() -> None:

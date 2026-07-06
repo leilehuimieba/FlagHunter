@@ -451,12 +451,113 @@ def _append_blackboard_snapshot_lines(
     *,
     run_context: dict[str, object] | None = None,
 ) -> None:
+    from ...application.challenge.board_read_model_service import (
+        build_task_board_projection,
+    )
+    from ...domain.challenge.contracts import BoardItem, ChallengeBoardReadModel
+
     session_context = run_context if isinstance(run_context, dict) else _entry_session_context(entry)
     snapshot = build_entry_blackboard_snapshot(
         entry,
         session_context=session_context,
     )
-    lines.extend(format_blackboard_snapshot_lines(snapshot))
+
+    def _board_item(
+        item: dict[str, Any],
+        *,
+        item_id: str,
+        board_bucket: str = "",
+    ) -> BoardItem | None:
+        kind = str(item.get("kind") or "").strip()
+        if not kind:
+            return None
+        metadata: dict[str, Any] = {}
+        if item.get("rationale") is not None:
+            metadata["rationale"] = item.get("rationale")
+        if board_bucket:
+            metadata["boardBucket"] = board_bucket
+        return BoardItem(
+            item_id=item_id,
+            item_type=kind,
+            value=item.get("value"),
+            source_ref=(
+                str(item.get("source"))
+                if item.get("source") is not None
+                else None
+            ),
+            confidence=item.get("confidence"),
+            metadata=metadata,
+        )
+
+    def _board_items(
+        items: object,
+        *,
+        prefix: str,
+        board_bucket: str = "",
+    ) -> list[BoardItem]:
+        result: list[BoardItem] = []
+        for index, item in enumerate(list(items or [])):
+            if not isinstance(item, dict):
+                continue
+            board_item = _board_item(
+                item,
+                item_id=f"{prefix}-{index}",
+                board_bucket=board_bucket,
+            )
+            if board_item is not None:
+                result.append(board_item)
+        return result
+
+    read_model = ChallengeBoardReadModel(
+        run_id="",
+        challenge_id="",
+        facts=_board_items(snapshot.get("facts"), prefix="fact"),
+        evidence=_board_items(
+            snapshot.get("pending_verifications"),
+            prefix="pending",
+            board_bucket="pendingVerification",
+        ),
+        decisions=[
+            dict(item)
+            for item in list(snapshot.get("decisions") or [])
+            if isinstance(item, dict)
+        ],
+        candidates=[
+            dict(item)
+            for item in list(snapshot.get("candidates") or [])
+            if isinstance(item, dict)
+        ],
+        action_results=[
+            dict(item)
+            for item in list(snapshot.get("action_results") or [])
+            if isinstance(item, dict)
+        ],
+        recommended_task=(
+            dict(snapshot.get("recommended_action") or {})
+            if isinstance(snapshot.get("recommended_action"), dict)
+            else {}
+        ),
+        surface_refs=[
+            dict(item)
+            for item in list(snapshot.get("attack_surfaces") or [])
+            if isinstance(item, dict)
+        ],
+        metadata={
+            "activeDecision": (
+                dict(snapshot.get("active_decision") or {})
+                if isinstance(snapshot.get("active_decision"), dict)
+                else {}
+            ),
+            "hypotheses": [
+                dict(item)
+                for item in list(snapshot.get("hypotheses") or [])
+                if isinstance(item, dict)
+            ],
+        },
+    )
+    lines.extend(
+        format_blackboard_snapshot_lines(build_task_board_projection(read_model))
+    )
 
 
 def _append_run_context_lines(lines: list[str], run_context: dict[str, object] | None) -> None:

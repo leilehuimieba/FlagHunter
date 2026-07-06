@@ -939,17 +939,17 @@ def test_playbook_records_deferred_mcp_implementation_readiness_checklist() -> N
     section = _section_text(text, "Deferred MCP implementation readiness checklist")
 
     assert "Deferred MCP implementation readiness checklist" in text
-    assert "Status: blocked on Web projection equivalence and explicit MCP approval, not approved for implementation." in text
+    assert "Status: implementation landed for Deferred MCP readback." in text
     assert "Deferred MCP readback approval plan" in text
     assert "Deferred MCP source guard baseline" in text
     assert "Deferred MCP pre-approval production wiring guard" in section
-    assert "test_deferred_mcp_pre_approval_guard_blocks_neutral_projection_wiring" in section
+    assert "test_deferred_mcp_readback_uses_neutral_projection_after_approval" in text
     assert "Deferred MCP readback formatting fixture baseline" in text
     assert "Deferred MCP empty/malformed readback fixture baseline" in text
     assert "flaghunter/mcp/server/mcp_tools.py::_append_blackboard_snapshot_lines" in text
     assert "tests/unit/mcp/test_mcp_ingress_mode_contract.py" in text
-    assert "after Web read-model projection equivalence is proven" in text
-    assert "explicit MCP production wiring approval" in text
+    assert "Web read-model projection equivalence is proven" in text
+    assert "explicit MCP production wiring approval was granted" in text
     assert "must consume the same approved read-model projection" in text
     assert "must not become an independent projection shape" in text
     assert "old/new output equivalence" in text
@@ -981,7 +981,7 @@ def test_playbook_records_deferred_mcp_approved_execution_checklist() -> None:
     text = _playbook_text()
     section = _section_text(text, "Deferred MCP approved execution checklist")
 
-    assert "Status: not approved; checklist only." in section
+    assert "Status: implementation landed." in section
     for required_item in (
         "confirm Web projection equivalence has landed",
         "confirm explicit MCP production wiring approval",
@@ -1017,8 +1017,7 @@ def test_playbook_records_first_read_path_switch_sequence_gate() -> None:
     text = _playbook_text()
 
     assert "First read-path switch sequence gate" in text
-    assert "Candidates A and B have landed as separate production read-path switches" in text.replace("\n", " ")
-    assert "Candidate C serialize-task is now the next review gate" in text.replace("\n", " ")
+    assert "Candidates A, B, C serialize-task, C control-decision, and Deferred MCP readback have landed" in text.replace("\n", " ")
     assert "Candidate B may not be implemented before Candidate A lands" in text
     assert "Candidate C serialize-task may not be implemented before Candidate B lands" in text
     assert "Deferred MCP may not be implemented before Web projection equivalence lands" in text
@@ -1053,14 +1052,14 @@ def test_playbook_records_read_path_switch_acceptance_matrix() -> None:
     assert "Read-path switch acceptance matrix" in text
     assert "Candidate A | implementation landed |" in text
     assert "Candidate B | implementation landed |" in text
-    assert "Candidate C | ready for serialize-task approval review, not approved |" in text
-    assert "Deferred MCP | blocked on Web projection equivalence and explicit MCP approval, not approved |" in text
+    assert "Candidate C | implementation landed |" in text
+    assert "Deferred MCP | implementation landed |" in text
     assert "blackboard_lite.py" in text
     assert "web_trace_timeline.py" in text
     assert "web_serialize_task.py and web_control_decision.py" in text
     assert "mcp_tools.py" in text
-    assert "explicit Candidate C serialize-task implementation approval" in text
-    assert "Web projection equivalence lands" in text
+    assert "complete" in text
+    assert "Web projection equivalence" in text
     for required_evidence in (
         "old/new output equivalence",
         "source guard remains green",
@@ -1151,8 +1150,8 @@ def test_playbook_records_read_path_approval_drift_guard() -> None:
     for candidate_status in (
         "Candidate A: implementation landed",
         "Candidate B: implementation landed",
-        "Candidate C: ready for serialize-task approval review, not approved",
-        "Deferred MCP: blocked on Web projection equivalence and explicit MCP approval, not approved",
+        "Candidate C: implementation landed",
+        "Deferred MCP: implementation landed",
     ):
         assert candidate_status in text
     for required_update in (
@@ -1173,14 +1172,14 @@ def test_playbook_records_read_path_approval_package_summary() -> None:
     for candidate_status in (
         "Candidate A | implementation landed",
         "Candidate B | implementation landed",
-        "Candidate C | ready for serialize-task approval review, not approved",
-        "Deferred MCP | blocked on Web projection equivalence and explicit MCP approval, not approved",
+        "Candidate C | implementation landed",
+        "Deferred MCP | implementation landed",
     ):
         assert candidate_status in text
     for required_phrase in (
         "evidence present",
         "remaining blocker",
-        "implementation not approved",
+        "implementation landed",
         "no production path switch",
         "no MCP production wiring",
         "no proof authority behavior changes",
@@ -1221,8 +1220,8 @@ def test_playbook_records_read_path_approval_status_consistency_guard() -> None:
     expected_statuses = {
         "Candidate A": "implementation landed",
         "Candidate B": "implementation landed",
-        "Candidate C": "ready for serialize-task approval review, not approved",
-        "Deferred MCP": "blocked on Web projection equivalence and explicit MCP approval, not approved",
+        "Candidate C": "implementation landed",
+        "Deferred MCP": "implementation landed",
     }
     for candidate, status in expected_statuses.items():
         assert f"{candidate}: {status}" in text
@@ -1344,7 +1343,7 @@ def test_playbook_parses_approval_transition_candidate_coverage_guard() -> None:
     assert set(evidence_rows) == expected_candidates
     assert source_candidates == expected_candidates
     for candidate, row in coverage_rows.items():
-        expected_flag = "true" if candidate in {"Candidate A", "Candidate B"} else "false"
+        expected_flag = "true"
         assert row["Current implementation approval"] == expected_flag
         assert row["Required coverage"] == "acceptance, drift, package, ledger, readiness, source-map, checklist, landing evidence"
         assert ledger_rows[candidate]["approvedForImplementation"] == expected_flag
@@ -1417,12 +1416,12 @@ def test_playbook_records_machine_readable_read_path_candidate_status_ledger() -
     text = _playbook_text()
     section = _section_text(text, "Read-path candidate status ledger")
 
-    assert "Status: machine-readable status ledger recorded, Candidates A and B landed and downstream read paths remain unapproved." in section
+    assert "Status: machine-readable status ledger recorded, Web read paths and Deferred MCP readback landed." in section
     expected_rows = (
         "| Candidate A | implementation landed | true | complete |",
         "| Candidate B | implementation landed | true | complete |",
-        "| Candidate C | ready for serialize-task approval review, not approved | false | explicit Candidate C serialize-task implementation approval |",
-        "| Deferred MCP | blocked on Web projection equivalence and explicit MCP approval, not approved | false | Web projection equivalence lands plus explicit MCP production wiring approval |",
+        "| Candidate C | implementation landed | true | complete |",
+        "| Deferred MCP | implementation landed | true | complete |",
     )
     for row in expected_rows:
         assert row in section
@@ -1472,7 +1471,7 @@ def test_playbook_parses_read_path_candidate_status_consistently() -> None:
     assert ledger_rows["Candidate A"]["approvedForImplementation"] == "true"
     assert ledger_rows["Candidate B"]["approvedForImplementation"] == "true"
     for candidate in ("Candidate C", "Deferred MCP"):
-        assert ledger_rows[candidate]["approvedForImplementation"] == "false"
+        assert ledger_rows[candidate]["approvedForImplementation"] == "true"
 
 
 def test_playbook_parses_read_path_next_gate_consistently() -> None:
@@ -1512,13 +1511,13 @@ def test_playbook_parses_deferred_mcp_explicit_wiring_approval_guard() -> None:
     text = _playbook_text()
     section = _section_text(text, "Deferred MCP explicit wiring approval guard")
 
-    assert "Status: explicit MCP approval guard recorded, no implementation approved by this section." in section
+    assert "Status: explicit MCP approval guard recorded, Deferred MCP readback implementation landed." in section
     assert "Web projection equivalence lands plus explicit MCP production wiring approval" in section
     assert "confirm explicit MCP production wiring approval" in section
     assert "no MCP production wiring without explicit approval" in section
-    assert "no production path switch" in section
+    assert "no task execution path switch" in section
 
-    expected_gate = "Web projection equivalence lands plus explicit MCP production wiring approval"
+    expected_gate = "complete"
     ledger_row = {
         row["Candidate"]: row
         for row in _markdown_table_rows(
@@ -1560,11 +1559,11 @@ def test_playbook_parses_deferred_mcp_explicit_wiring_approval_guard() -> None:
     assert ledger_row["nextGate"] == expected_gate
     assert readiness_row["Missing approval"] == expected_gate
     assert package_row["remaining blocker"] == expected_gate
-    assert "explicit MCP approval, not approved" in ledger_row["canonicalStatus"]
-    assert readiness_row["Implementation approved"] == "false"
+    assert ledger_row["canonicalStatus"] == "implementation landed"
+    assert readiness_row["Implementation approved"] == "true"
     assert source_row["Source path"] == "`flaghunter/mcp/server/mcp_tools.py`"
-    assert source_row["Implementation approved"] == "false"
-    assert evidence_row["Implementation landed"] == "false"
+    assert source_row["Implementation approved"] == "true"
+    assert evidence_row["Implementation landed"] == "true"
     assert rollback_row["Rollback command"] == "`git revert <single Deferred MCP implementation commit>`"
     assert "confirm explicit MCP production wiring approval" in checklist
     assert "no MCP production wiring without explicit approval" in text
@@ -1592,7 +1591,7 @@ def test_playbook_parses_read_path_approved_execution_checklist_index() -> None:
         checklist_section = _section_text(text, checklist_heading)
 
         assert row["Checklist section"] == f"`{checklist_heading}`"
-        if candidate == "Candidate B":
+        if candidate in {"Candidate B", "Deferred MCP"}:
             assert row["Checklist status"] == "implementation landed"
             assert row["Approval state"] == "implementation landed"
             assert "Status: implementation landed." in checklist_section
@@ -1606,7 +1605,7 @@ def test_playbook_parses_read_path_implementation_approval_readiness_report() ->
     text = _playbook_text()
     section = _section_text(text, "Read-path implementation approval readiness report")
 
-    assert "Status: readiness report recorded, Candidates A and B landed and downstream read paths remain unapproved." in section
+    assert "Status: readiness report recorded, Web read paths and Deferred MCP readback landed." in section
     readiness_rows = {
         row["Candidate"]: row
         for row in _markdown_table_rows(section)
@@ -1627,8 +1626,8 @@ def test_playbook_parses_read_path_implementation_approval_readiness_report() ->
     expected_readiness = {
         "Candidate A": "landed; output equivalence preserved",
         "Candidate B": "landed; output equivalence preserved",
-        "Candidate C": "serialize-task package ready; explicit implementation approval missing",
-        "Deferred MCP": "sequence blocked; Web projection equivalence and MCP approval missing",
+        "Candidate C": "landed; output equivalence preserved",
+        "Deferred MCP": "landed; output equivalence preserved",
     }
     assert set(readiness_rows) == set(ledger_rows) == set(package_rows)
     for candidate, expected_state in expected_readiness.items():
@@ -1636,7 +1635,7 @@ def test_playbook_parses_read_path_implementation_approval_readiness_report() ->
         assert row["Readiness state"] == expected_state
         assert row["Current status"] == ledger_rows[candidate]["canonicalStatus"]
         assert row["Missing approval"] == package_rows[candidate]["remaining blocker"]
-        expected_flag = "true" if candidate in {"Candidate A", "Candidate B"} else "false"
+        expected_flag = "true"
         assert row["Implementation approved"] == expected_flag
 
 
@@ -1644,7 +1643,7 @@ def test_playbook_parses_pre_approval_source_map_and_blocks_wiring() -> None:
     text = _playbook_text()
     section = _section_text(text, "Read-path pre-approval source-map guard")
 
-    assert "Status: Web read paths A, B, C1, and C2 implementation landed; Deferred MCP remains guarded." in section
+    assert "Status: Web read paths A, B, C1, C2, and Deferred MCP readback implementation landed." in section
     source_rows = _markdown_table_rows(section)
     expected_paths = {
         "flaghunter/interface/blackboard_lite.py",
@@ -1672,6 +1671,7 @@ def test_playbook_parses_pre_approval_source_map_and_blocks_wiring() -> None:
             "Candidate B",
             "Candidate C serialize-task",
             "Candidate C control-decision",
+            "Deferred MCP",
         }:
             assert row["Implementation approved"] == "true"
             assert any(token in source_text for token in forbidden_tokens)
@@ -1794,7 +1794,7 @@ def test_playbook_parses_implementation_landed_evidence_guard() -> None:
     text = _playbook_text()
     section = _section_text(text, "Read-path implementation landed evidence guard")
 
-    assert "Status: landed evidence guard recorded, Candidates A and B landed and downstream read paths remain unapproved." in section
+    assert "Status: landed evidence guard recorded, Web read paths and Deferred MCP readback landed." in section
     evidence_rows = {
         row["Candidate"]: row
         for row in _markdown_table_rows(section)
@@ -1814,25 +1814,22 @@ def test_playbook_parses_implementation_landed_evidence_guard() -> None:
 
     assert set(evidence_rows) == set(ledger_rows) == set(readiness_rows)
     for candidate, row in evidence_rows.items():
-        if candidate in {"Candidate A", "Candidate B"}:
+        if candidate in {"Candidate A", "Candidate B", "Candidate C", "Deferred MCP"}:
             assert row["Implementation landed"] == "true"
-            assert row["Landing evidence"] == f"{candidate} implementation landing record"
-            assert row["Required before landed"] == "landing record, implementation commit, regression results"
+            if candidate == "Candidate C":
+                assert row["Landing evidence"] == "Candidate C1 and Candidate C2 implementation landing records"
+                assert row["Required before landed"] == "landing records, implementation commits, regression results"
+            else:
+                assert row["Landing evidence"] == f"{candidate} implementation landing record"
+                assert row["Required before landed"] == "landing record, implementation commit, regression results"
             assert ledger_rows[candidate]["canonicalStatus"] == "implementation landed"
             assert readiness_rows[candidate]["Implementation approved"] == "true"
-        else:
-            assert row["Implementation landed"] == "false"
-            assert row["Landing evidence"] == "none"
-            assert row["Required before landed"] == "landing record, commit SHA, regression results"
-            assert "implementation landed" not in ledger_rows[candidate]["canonicalStatus"]
-            assert readiness_rows[candidate]["Implementation approved"] == "false"
-
 
 def test_playbook_parses_read_path_approval_flag_aggregate_guard() -> None:
     text = _playbook_text()
     section = _section_text(text, "Read-path approval flag aggregate guard")
 
-    assert "Status: aggregate approval flag guard recorded, Candidates A and B landed and downstream read paths remain unapproved." in section
+    assert "Status: aggregate approval flag guard recorded, Web read paths and Deferred MCP readback landed." in section
     assert "ledger `approvedForImplementation`" in section
     assert "readiness report `Implementation approved`" in section
     assert "source-map `Implementation approved`" in section
@@ -1867,7 +1864,7 @@ def test_playbook_parses_read_path_approval_flag_aggregate_guard() -> None:
     assert set(ledger_rows) == set(readiness_rows) == set(evidence_rows)
     assert source_candidates == set(ledger_rows)
     for candidate, ledger_row in ledger_rows.items():
-        expected_flag = "true" if candidate in {"Candidate A", "Candidate B"} else "false"
+        expected_flag = "true"
         assert ledger_row["approvedForImplementation"] == expected_flag
         assert readiness_rows[candidate]["Implementation approved"] == ledger_row["approvedForImplementation"]
         assert evidence_rows[candidate]["Implementation landed"] == expected_flag
@@ -1879,6 +1876,7 @@ def test_playbook_parses_read_path_approval_flag_aggregate_guard() -> None:
                 "Candidate B",
                 "Candidate C serialize-task",
                 "Candidate C control-decision",
+                "Deferred MCP",
             }
             else "false"
         )
@@ -1889,7 +1887,7 @@ def test_playbook_parses_read_path_rollback_command_index() -> None:
     text = _playbook_text()
     section = _section_text(text, "Read-path rollback command index")
 
-    assert "Status: rollback command index recorded, Candidates A and B landed and downstream read paths remain unapproved." in section
+    assert "Status: rollback command index recorded, Web read paths and Deferred MCP readback landed." in section
     assert "placeholder only" in section
     assert "not a currently executable rollback command" in section
 
@@ -1955,13 +1953,12 @@ def test_playbook_parses_landing_rollback_consistency_guard() -> None:
             assert "<single " in row["Rollback command"]
         assert not re.search(r"\b[0-9a-f]{7,40}\b", row["Rollback command"])
     for row in evidence_rows:
-        if row["Candidate"] in {"Candidate A", "Candidate B"}:
+        if row["Candidate"] in {"Candidate A", "Candidate B", "Candidate C", "Deferred MCP"}:
             assert row["Implementation landed"] == "true"
-            assert row["Landing evidence"] == f"{row['Candidate']} implementation landing record"
-        else:
-            assert row["Implementation landed"] == "false"
-            assert row["Landing evidence"] == "none"
-            assert "commit SHA" in row["Required before landed"]
+            if row["Candidate"] == "Candidate C":
+                assert row["Landing evidence"] == "Candidate C1 and Candidate C2 implementation landing records"
+            else:
+                assert row["Landing evidence"] == f"{row['Candidate']} implementation landing record"
         if row["Candidate"] == "Candidate A":
             assert "implementation commit" in row["Required before landed"]
 
@@ -1970,7 +1967,7 @@ def test_playbook_parses_read_path_implementation_landing_status_guard() -> None
     text = _playbook_text()
     section = _section_text(text, "Read-path implementation landing status guard")
 
-    assert "Status: landing status guard recorded, Candidates A and B landed and downstream read paths remain unapproved." in section
+    assert "Status: landing status guard recorded, Web read paths and Deferred MCP readback landed." in section
     assert "no production path switch is authorized by this landing status guard" in section
 
     rows = {
@@ -2004,12 +2001,11 @@ def test_playbook_parses_read_path_implementation_landing_status_guard() -> None
     landing_template = _section_text(text, "Read-path implementation landing record template")
 
     for row in evidence_rows:
-        if row["Candidate"] in {"Candidate A", "Candidate B"}:
-            assert row["Implementation landed"] == "true"
-            assert row["Landing evidence"] == f"{row['Candidate']} implementation landing record"
+        assert row["Implementation landed"] == "true"
+        if row["Candidate"] == "Candidate C":
+            assert row["Landing evidence"] == "Candidate C1 and Candidate C2 implementation landing records"
         else:
-            assert row["Implementation landed"] == "false"
-            assert row["Landing evidence"] == "none"
+            assert row["Landing evidence"] == f"{row['Candidate']} implementation landing record"
     for row in rollback_rows:
         assert row["Current executable"] == "false"
     assert "Status: landing evidence template recorded, no implementation approved by this" in landing_template
@@ -2020,7 +2016,7 @@ def test_playbook_parses_read_path_readiness_to_landing_transition_guard() -> No
     text = _playbook_text()
     section = _section_text(text, "Read-path readiness-to-landing transition guard")
 
-    assert "Status: readiness-to-landing guard recorded, Candidates A and B landed and downstream read paths remain unapproved." in section
+    assert "Status: readiness-to-landing guard recorded, Web read paths and Deferred MCP readback landed." in section
     assert "readiness complete alone must not unlock landing" in section.lower()
     assert "no production path switch is authorized by this readiness-to-landing guard" in section
 
@@ -2076,12 +2072,11 @@ def test_playbook_parses_read_path_readiness_to_landing_transition_guard() -> No
     for row in _markdown_table_rows(
         _section_text(text, "Read-path implementation landed evidence guard")
     ):
-        if row["Candidate"] in {"Candidate A", "Candidate B"}:
-            assert row["Implementation landed"] == "true"
-            assert row["Landing evidence"] == f"{row['Candidate']} implementation landing record"
+        assert row["Implementation landed"] == "true"
+        if row["Candidate"] == "Candidate C":
+            assert row["Landing evidence"] == "Candidate C1 and Candidate C2 implementation landing records"
         else:
-            assert row["Implementation landed"] == "false"
-            assert row["Landing evidence"] == "none"
+            assert row["Landing evidence"] == f"{row['Candidate']} implementation landing record"
     for row in _markdown_table_rows(_section_text(text, "Read-path rollback command index")):
         assert row["Current executable"] == "false"
     for row in _markdown_table_rows(

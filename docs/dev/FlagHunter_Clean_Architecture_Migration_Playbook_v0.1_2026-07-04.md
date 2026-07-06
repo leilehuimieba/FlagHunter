@@ -4210,11 +4210,10 @@ Boundary confirmation for this baseline:
 
 #### Deferred MCP implementation readiness checklist
 
-Status: blocked on Web projection equivalence and explicit MCP approval, not approved for implementation.
+Status: implementation landed for Deferred MCP readback.
 
-Deferred MCP readback remains downstream of the approved Web read-model
-projection path. It may proceed only after Web read-model projection equivalence
-is proven and explicit MCP production wiring approval is granted.
+Deferred MCP readback proceeded only after the approved Web read-model
+projection path landed and explicit MCP production wiring approval was granted.
 
 Current pre-switch baselines recorded:
 
@@ -4247,9 +4246,9 @@ Required fixture evidence:
 
 Implementation gate:
 
-- after Web read-model projection equivalence is proven
-- explicit MCP production wiring approval is still required before editing the
-  MCP readback helper
+- Web read-model projection equivalence is proven
+- explicit MCP production wiring approval was granted before editing the MCP
+  readback helper
 - one Deferred MCP implementation commit only
 - rollback point: revert the single Deferred MCP implementation commit
 - no schema migration, dispatcher loop change, ToolExecutor change,
@@ -4280,10 +4279,11 @@ Explicit non-goals for the requested Deferred MCP implementation slice:
 
 #### Deferred MCP approved execution checklist
 
-Status: not approved; checklist only.
+Status: implementation landed.
 
-If Web projection equivalence has landed and explicit MCP production wiring
-approval is granted, execute the Deferred MCP readback switch in this order:
+Web projection equivalence has landed and explicit MCP production wiring
+approval was granted. The Deferred MCP readback switch was executed in this
+order:
 
 - confirm Web projection equivalence has landed before editing MCP readback code
 - confirm explicit MCP production wiring approval is recorded in the playbook
@@ -4328,11 +4328,10 @@ git diff --check
 
 #### First read-path switch sequence gate
 
-Status: sequence guard recorded, Candidates A and B landed and downstream gates remain guarded.
+Status: sequence guard recorded, Web read paths and Deferred MCP readback landed; core production wiring remains guarded.
 
-Candidates A and B have landed as separate production read-path switches.
-Candidate C serialize-task is now the next review gate; Candidate C
-control-decision and Deferred MCP remain downstream and not approved.
+Candidates A, B, C serialize-task, C control-decision, and Deferred MCP
+readback have landed as separate read-path switches.
 
 Required implementation order:
 
@@ -4369,14 +4368,14 @@ Explicit non-goals for this sequence gate:
 
 #### Read-path switch acceptance matrix
 
-Status: acceptance matrix recorded, Candidates A and B landed and downstream read paths remain unapproved.
+Status: acceptance matrix recorded, Web read paths and Deferred MCP readback landed.
 
 | Candidate | Status | Target path | Unblock condition |
 |-----------|--------|-------------|-------------------|
 | Candidate A | implementation landed | `blackboard_lite.py` | complete |
 | Candidate B | implementation landed | `web_trace_timeline.py` | complete |
-| Candidate C | ready for serialize-task approval review, not approved | `web_serialize_task.py and web_control_decision.py` | explicit Candidate C serialize-task implementation approval |
-| Deferred MCP | blocked on Web projection equivalence and explicit MCP approval, not approved | `mcp_tools.py` | Web projection equivalence lands plus explicit MCP production wiring approval |
+| Candidate C | implementation landed | `web_serialize_task.py and web_control_decision.py` | complete |
+| Deferred MCP | implementation landed | `mcp_tools.py` | complete |
 
 Required evidence before any row can move to implementation:
 
@@ -4454,14 +4453,14 @@ Rules:
 
 #### Read-path approval drift guard
 
-Status: approval drift guard recorded, Candidates A and B landed and downstream read paths remain unapproved.
+Status: approval drift guard recorded, Web read paths and Deferred MCP readback landed.
 
 Current approval facts must not drift silently:
 
 - Candidate A: implementation landed
 - Candidate B: implementation landed
-- Candidate C: ready for serialize-task approval review, not approved
-- Deferred MCP: blocked on Web projection equivalence and explicit MCP approval, not approved
+- Candidate C: implementation landed
+- Deferred MCP: implementation landed
 
 Any future approval status change must update all of these in the same
 governance commit before implementation starts:
@@ -4479,14 +4478,14 @@ post-push branch status.
 
 #### Read-path approval package summary
 
-Status: consolidated approval package recorded, Candidates A and B landed and downstream read paths remain unapproved.
+Status: consolidated approval package recorded, Web read paths and Deferred MCP readback landed.
 
 | Candidate | Current status | Target | evidence present | remaining blocker |
 |-----------|----------------|--------|------------------|-------------------|
 | Candidate A | implementation landed | `flaghunter/interface/blackboard_lite.py::build_task_blackboard_snapshot` | neutral projection fixtures, Web blackboard fixtures, source guard, pre-approval guard retired by implementation landing record | complete |
 | Candidate B | implementation landed | `flaghunter/interface/web_trace_timeline.py::_build_control_observation_timeline_events` | characterization fixture, read-only source guard, pre-approval guard retired by implementation landing record | complete |
-| Candidate C | ready for serialize-task approval review, not approved | `flaghunter/interface/web_serialize_task.py::_serialize_task` and `flaghunter/interface/web_control_decision.py::_task_blackboard_snapshot_for_decision` | serialize-task fixture, control-decision merge fixture, source guard, pre-approval guard | explicit Candidate C serialize-task implementation approval |
-| Deferred MCP | blocked on Web projection equivalence and explicit MCP approval, not approved | `flaghunter/mcp/server/mcp_tools.py::_append_blackboard_snapshot_lines` | readback formatting fixture, empty/malformed fixture, source guard, pre-approval guard | Web projection equivalence lands plus explicit MCP production wiring approval |
+| Candidate C | implementation landed | `flaghunter/interface/web_serialize_task.py::_serialize_task` and `flaghunter/interface/web_control_decision.py::_task_blackboard_snapshot_for_decision` | serialize-task fixture, control-decision merge fixture, source guard, pre-approval guard retired by implementation landing records | complete |
+| Deferred MCP | implementation landed | `flaghunter/mcp/server/mcp_tools.py::_append_blackboard_snapshot_lines` | readback formatting fixture, empty/malformed fixture, source guard, pre-approval guard retired by implementation landing record | complete |
 
 This package records implementation not approved. Any production implementation
 still requires the candidate-specific approval state transition and a single
@@ -4507,7 +4506,7 @@ Forbidden scope for this package:
 
 #### Read-path candidate status ledger
 
-Status: machine-readable status ledger recorded, Candidates A and B landed and downstream read paths remain unapproved.
+Status: machine-readable status ledger recorded, Web read paths and Deferred MCP readback landed.
 
 This machine-readable approval ledger is the compact index for the current
 read-path candidate state. It is intentionally repetitive with the narrative
@@ -4517,8 +4516,8 @@ sections so guard tests can detect drift before implementation starts.
 |-----------|-----------------|---------------------------|----------|
 | Candidate A | implementation landed | true | complete |
 | Candidate B | implementation landed | true | complete |
-| Candidate C | ready for serialize-task approval review, not approved | false | explicit Candidate C serialize-task implementation approval |
-| Deferred MCP | blocked on Web projection equivalence and explicit MCP approval, not approved | false | Web projection equivalence lands plus explicit MCP production wiring approval |
+| Candidate C | implementation landed | true | complete |
+| Deferred MCP | implementation landed | true | complete |
 
 Rules:
 
@@ -4563,32 +4562,29 @@ prove that each candidate has one canonical blocker before implementation:
 
 #### Deferred MCP explicit wiring approval guard
 
-Status: explicit MCP approval guard recorded, no implementation approved by this section.
+Status: explicit MCP approval guard recorded, Deferred MCP readback implementation landed.
 
 Deferred MCP is the only current read-path candidate whose future implementation
-would count as MCP production wiring. It remains blocked until Web projection
-equivalence lands plus explicit MCP production wiring approval is recorded.
+counts as MCP production wiring. It remained blocked until Web projection
+equivalence landed plus explicit MCP production wiring approval was recorded.
 Web read-path equivalence alone must never authorize an MCP readback switch.
 
 Canonical Deferred MCP blocker: Web projection equivalence lands plus explicit MCP production wiring approval.
 
 Required parsed checks:
 
-- Deferred MCP ledger `nextGate` remains `Web projection equivalence lands plus
-  explicit MCP production wiring approval`
-- Deferred MCP readiness `Missing approval` remains `Web projection equivalence
-  lands plus explicit MCP production wiring approval`
-- Deferred MCP approval package `remaining blocker` remains `Web projection
-  equivalence lands plus explicit MCP production wiring approval`
+- Deferred MCP ledger `nextGate` is `complete`
+- Deferred MCP readiness `Missing approval` is `complete`
+- Deferred MCP approval package `remaining blocker` is `complete`
 - Deferred MCP source-map row remains
-  `flaghunter/mcp/server/mcp_tools.py` with `Implementation approved` = `false`
+  `flaghunter/mcp/server/mcp_tools.py` with `Implementation approved` = `true`
 - Deferred MCP approved execution checklist must confirm explicit MCP production wiring approval
 - Deferred MCP approved execution checklist keeps `confirm explicit MCP
   production wiring approval`
 - Deferred MCP non-goals must keep no MCP production wiring without explicit approval
 - Deferred MCP non-goals keep `no MCP production wiring without explicit
   approval`
-- no production path switch is authorized by this explicit MCP approval guard
+- no task execution path switch is authorized by this explicit MCP approval guard
 
 #### Read-path approved execution checklist index
 
@@ -4604,7 +4600,7 @@ recorded.
 | Candidate A | `Candidate A approved execution checklist` | not approved; checklist only | implementation not approved |
 | Candidate B | `Candidate B approved execution checklist` | implementation landed | implementation landed |
 | Candidate C | `Candidate C approved execution checklist` | not approved; checklist only | implementation not approved |
-| Deferred MCP | `Deferred MCP approved execution checklist` | not approved; checklist only | implementation not approved |
+| Deferred MCP | `Deferred MCP approved execution checklist` | implementation landed | implementation landed |
 
 Rules:
 
@@ -4615,7 +4611,7 @@ Rules:
 
 #### Read-path implementation approval readiness report
 
-Status: readiness report recorded, Candidates A and B landed and downstream read paths remain unapproved.
+Status: readiness report recorded, Web read paths and Deferred MCP readback landed.
 
 This report separates readiness evidence from approval. It identifies which
 candidates have enough recorded evidence to request implementation approval and
@@ -4625,22 +4621,22 @@ which candidates remain sequence-blocked by an earlier read-path switch.
 |-----------|----------------|-----------------|------------------|-------------------------|
 | Candidate A | implementation landed | landed; output equivalence preserved | complete | true |
 | Candidate B | implementation landed | landed; output equivalence preserved | complete | true |
-| Candidate C | ready for serialize-task approval review, not approved | serialize-task package ready; explicit implementation approval missing | explicit Candidate C serialize-task implementation approval | false |
-| Deferred MCP | blocked on Web projection equivalence and explicit MCP approval, not approved | sequence blocked; Web projection equivalence and MCP approval missing | Web projection equivalence lands plus explicit MCP production wiring approval | false |
+| Candidate C | implementation landed | landed; output equivalence preserved | complete | true |
+| Deferred MCP | implementation landed | landed; output equivalence preserved | complete | true |
 
 Rules:
 
 - readiness evidence is not implementation approval
 - Candidate A has landed as the first read-path implementation candidate
 - Candidate B has landed as the second read-path implementation candidate
-- Candidate C serialize-task is the next review gate and remains unapproved
-- Deferred MCP remains blocked until Web projection equivalence lands and MCP
-  production wiring approval is explicit
+- Candidate C serialize-task and control-decision have landed
+- Deferred MCP readback landed only after Web projection equivalence and
+  explicit MCP production wiring approval
 - no production path switch is authorized by this readiness report
 
 #### Read-path pre-approval source-map guard
 
-Status: Web read paths A, B, C1, and C2 implementation landed; Deferred MCP remains guarded.
+Status: Web read paths A, B, C1, C2, and Deferred MCP readback implementation landed.
 
 This source map lists the production source files that must remain free of
 neutral read-model projection wiring while the matching read-path candidate is
@@ -4653,7 +4649,7 @@ guards by keeping one parseable map in the playbook.
 | Candidate B | `flaghunter/interface/web_trace_timeline.py` | `flaghunter.application.challenge`, `flaghunter.domain.challenge.contracts`, `build_task_board_projection`, `BuildChallengeBoardReadModel`, `ChallengeBoardReadModel` | true |
 | Candidate C serialize-task | `flaghunter/interface/web_serialize_task.py` | `flaghunter.application.challenge`, `flaghunter.domain.challenge.contracts`, `build_task_board_projection`, `BuildChallengeBoardReadModel`, `ChallengeBoardReadModel` | true |
 | Candidate C control-decision | `flaghunter/interface/web_control_decision.py` | `flaghunter.application.challenge`, `flaghunter.domain.challenge.contracts`, `build_task_board_projection`, `BuildChallengeBoardReadModel`, `ChallengeBoardReadModel` | true |
-| Deferred MCP | `flaghunter/mcp/server/mcp_tools.py` | `flaghunter.application.challenge`, `flaghunter.domain.challenge.contracts`, `build_task_board_projection`, `BuildChallengeBoardReadModel`, `ChallengeBoardReadModel` | false |
+| Deferred MCP | `flaghunter/mcp/server/mcp_tools.py` | `flaghunter.application.challenge`, `flaghunter.domain.challenge.contracts`, `build_task_board_projection`, `BuildChallengeBoardReadModel`, `ChallengeBoardReadModel` | true |
 
 Rules:
 
@@ -4662,8 +4658,8 @@ Rules:
   approval lands for that candidate
 - source-map rows must remain `Implementation approved` = `false` until the
   matching implementation commit updates the pre-approval guard; Web read paths
-  A, B, C serialize-task, and C control-decision are the landed exceptions in
-  this table
+  A, B, C serialize-task, C control-decision, and Deferred MCP are the landed
+  exceptions in this table
 - no production path switch is authorized by this source-map guard
 
 #### Read-path source-map forbidden-token single-source guard
@@ -4740,7 +4736,7 @@ Rules:
 
 #### Read-path implementation landed evidence guard
 
-Status: landed evidence guard recorded, Candidates A and B landed and downstream read paths remain unapproved.
+Status: landed evidence guard recorded, Web read paths and Deferred MCP readback landed.
 
 This guard prevents a candidate from being marked `implementation landed`
 without the landing record required by the template below. Current rows have no
@@ -4751,8 +4747,8 @@ landed.
 |-----------|-----------------------|------------------|------------------------|
 | Candidate A | true | Candidate A implementation landing record | landing record, implementation commit, regression results |
 | Candidate B | true | Candidate B implementation landing record | landing record, implementation commit, regression results |
-| Candidate C | false | none | landing record, commit SHA, regression results |
-| Deferred MCP | false | none | landing record, commit SHA, regression results |
+| Candidate C | true | Candidate C1 and Candidate C2 implementation landing records | landing records, implementation commits, regression results |
+| Deferred MCP | true | Deferred MCP implementation landing record | landing record, implementation commit, regression results |
 
 Rules:
 
@@ -4768,7 +4764,7 @@ Rules:
 
 #### Read-path approval flag aggregate guard
 
-Status: aggregate approval flag guard recorded, Candidates A and B landed and downstream read paths remain unapproved.
+Status: aggregate approval flag guard recorded, Web read paths and Deferred MCP readback landed.
 
 This aggregate guard ties together the boolean approval and landing fields that
 are intentionally repeated across the read-path governance tables, including
@@ -4783,8 +4779,8 @@ Required aggregate checks:
 - ledger `approvedForImplementation` matches the readiness report
   `Implementation approved`
 - source-map `Implementation approved` remains `false` while the ledger
-  `approvedForImplementation` remains `false`; Candidates A and B are the
-  landed exceptions with both values `true`
+  `approvedForImplementation` remains `false`; landed read paths have both
+  values `true`
 - landed evidence `Implementation landed` remains `false` until a landing
   record exists
 - Candidate C source-map sub-rows must collapse back to the canonical
@@ -4793,7 +4789,7 @@ Required aggregate checks:
 
 #### Read-path rollback command index
 
-Status: rollback command index recorded, Candidates A and B landed and downstream read paths remain unapproved.
+Status: rollback command index recorded, Web read paths and Deferred MCP readback landed.
 
 This index records placeholder only rollback commands for future read-path
 implementation commits. Each command becomes valid only after the matching
@@ -4845,12 +4841,12 @@ Required parsed checks:
 
 #### Read-path implementation landing status guard
 
-Status: landing status guard recorded, Candidates A and B landed and downstream read paths remain unapproved.
+Status: landing status guard recorded, Web read paths and Deferred MCP readback landed.
 
-Candidates A and B have landed. The landed evidence rows, rollback index, and
-landing record template must continue to agree that downstream read paths
-remain unapproved until future approved implementation commits supply their own
-landing evidence.
+Web read paths and Deferred MCP readback have landed. The landed evidence rows,
+rollback index, and landing record template must continue to agree that
+rollback commands remain placeholder-only until the real implementation commit
+SHA is substituted in a release/rollback workflow.
 
 | Landing surface | Required location | Current landed |
 |-----------------|-------------------|----------------|
@@ -4862,15 +4858,15 @@ Rules:
 
 - no landing surface may move to `Current landed` = `true` without a real
   candidate implementation commit SHA
-- landed evidence rows must keep `Implementation landed` = `false` and
-  `Landing evidence` = `none` while no implementation has landed
+- landed evidence rows may move to `Implementation landed` = `true` only with
+  a candidate-specific landing record
 - rollback commands remain placeholder-only and non-executable while
   `Current landed` remains `false`
 - no production path switch is authorized by this landing status guard
 
 #### Read-path readiness-to-landing transition guard
 
-Status: readiness-to-landing guard recorded, Candidates A and B landed and downstream read paths remain unapproved.
+Status: readiness-to-landing guard recorded, Web read paths and Deferred MCP readback landed.
 
 Readiness complete alone must not unlock landing. A future read-path
 implementation can move from readiness review to landed only when explicit
@@ -4931,7 +4927,7 @@ Required parsed checks:
 
 #### Read-path approval status consistency guard
 
-Status: approval consistency guard recorded, Candidates A and B landed and downstream read paths remain unapproved.
+Status: approval consistency guard recorded, Web read paths and Deferred MCP readback landed.
 
 The read-path approval state has a single source of approval truth across the
 acceptance matrix, drift guard, approval package summary, and each
@@ -4941,8 +4937,8 @@ candidate-specific implementation readiness checklist.
 |-----------|------------------|------------|
 | Candidate A | implementation landed | acceptance matrix, drift guard, approval package summary, Candidate A readiness checklist |
 | Candidate B | implementation landed | acceptance matrix, drift guard, approval package summary, Candidate B readiness checklist |
-| Candidate C | ready for serialize-task approval review, not approved | acceptance matrix, drift guard, approval package summary, Candidate C readiness checklist |
-| Deferred MCP | blocked on Web projection equivalence and explicit MCP approval, not approved | acceptance matrix, drift guard, approval package summary, Deferred MCP readiness checklist |
+| Candidate C | implementation landed | acceptance matrix, drift guard, approval package summary, Candidate C readiness checklist |
+| Deferred MCP | implementation landed | acceptance matrix, drift guard, approval package summary, Deferred MCP readiness checklist |
 
 Any approval status change must land in the same governance commit before
 implementation starts. The update must include:
@@ -5004,8 +5000,8 @@ call-site family.
 |-----------|-------------------|---------------------------------|
 | Candidate A | acceptance, drift, package, ledger, readiness, source-map, checklist, landing evidence | true |
 | Candidate B | acceptance, drift, package, ledger, readiness, source-map, checklist, landing evidence | true |
-| Candidate C | acceptance, drift, package, ledger, readiness, source-map, checklist, landing evidence | false |
-| Deferred MCP | acceptance, drift, package, ledger, readiness, source-map, checklist, landing evidence | false |
+| Candidate C | acceptance, drift, package, ledger, readiness, source-map, checklist, landing evidence | true |
+| Deferred MCP | acceptance, drift, package, ledger, readiness, source-map, checklist, landing evidence | true |
 
 Rules:
 
@@ -5357,6 +5353,56 @@ Boundary confirmation for this landing:
 - no composition root changes
 - no proof authority behavior changes
 - no P5 implementation
+
+#### Deferred MCP implementation landing record
+
+Status: implementation landed for Deferred MCP readback.
+
+Current approval fact:
+
+- Deferred MCP readback: implementation landed
+
+Target:
+
+- `flaghunter/mcp/server/mcp_tools.py::_append_blackboard_snapshot_lines`
+
+Implementation summary:
+
+- Deferred MCP now routes blackboard readback through neutral
+  `ChallengeBoardReadModel` and `build_task_board_projection` before formatting
+  the existing MCP readback lines.
+- The existing MCP readback line text, ordering, and omission behavior remain
+  compatible with the pre-switch output shape.
+- The implementation commit modifies only the Deferred MCP readback helper,
+  MCP readback tests, and this playbook governance record.
+
+Equivalence evidence:
+
+- `tests/unit/mcp/test_mcp_ingress_mode_contract.py::test_mcp_blackboard_readback_formatting_matches_candidate_a_projection`
+  preserves representative facts, pending verification, active-decision,
+  recommended-action, action-result, and surface-summary readback lines.
+- `tests/unit/mcp/test_mcp_ingress_mode_contract.py::test_mcp_blackboard_readback_empty_and_malformed_inputs_are_quiet`
+  preserves quiet omission behavior for empty, missing, or malformed inputs.
+- `tests/unit/mcp/test_mcp_ingress_mode_contract.py::test_deferred_mcp_readback_uses_neutral_projection_after_approval`
+  records the landing and requires the approved neutral projection wiring.
+
+Rollback command:
+
+- `git revert <Deferred MCP implementation commit>`
+
+Boundary confirmation for this landing:
+
+- no MCP task execution wiring changes
+- no MCP router changes
+- no dispatcher loop changes
+- no `CTFState` ownership split
+- no `CTFVerifier` proof behavior changes
+- no ToolExecutor changes
+- no WorkerPool/CrewOrchestrator changes
+- no composition root changes
+- no proof authority behavior changes
+- no P5 implementation
+- no crew/recovery changes
 
 #### Candidate C pre-approval production switch guard
 
