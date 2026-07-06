@@ -4467,6 +4467,40 @@ Required recommendation invariants:
 - human approval must name exactly one core candidate and one first slice
 - dispatcher/composition root work must stay last until narrower core seams land
 
+#### Core implementation sequence gate
+
+Status: sequence gate recorded, no implementation approved.
+
+This gate records which high-risk core candidate may be reviewed next and which
+candidates remain blocked by earlier landing evidence. It prevents later,
+wider-impact implementation work from skipping narrower unresolved seams.
+
+| Core candidate | Order | Current gate | Blocked by | Required before next candidate |
+|----------------|-------|--------------|------------|--------------------------------|
+| Verifier/proof authority boundary | 1 | next approvable implementation review | none | landing evidence complete |
+| State ownership split | 2 | sequence-blocked | Verifier/proof authority boundary landing evidence | landing evidence complete |
+| ToolExecutor side-effect split | 3 | sequence-blocked | Verifier/proof authority and State ownership landing evidence | landing evidence complete |
+| Dispatcher/composition root production wiring | 4 | sequence-blocked | Verifier/proof authority, State ownership, and ToolExecutor landing evidence | landing evidence complete |
+
+Required invariants:
+
+- only the first unlanded candidate may be reviewed for implementation approval
+- a later core candidate cannot skip an incomplete earlier landing record
+- sequence gate changes require a dedicated governance commit before implementation
+- sequence gate is not implementation approval
+
+Boundary confirmation for this gate:
+
+- no proof-authority behavior changes
+- no `CTFState` ownership split
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root production wiring
+- no P5 implementation
+- no crew/recovery changes
+
 #### Core first slice approval text template
 
 Status: approval text template recorded, implementation not approved by this section.

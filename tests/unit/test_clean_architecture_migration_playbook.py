@@ -4084,6 +4084,69 @@ def test_playbook_records_core_first_slice_recommendation_gate() -> None:
         assert invariant in section
 
 
+def test_playbook_records_core_implementation_sequence_gate() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Core implementation sequence gate",
+    )
+
+    assert "Status: sequence gate recorded, no implementation approved." in section
+    rows = {
+        row["Core candidate"]: row
+        for row in _markdown_table_rows(section)
+    }
+    expected = {
+        "Verifier/proof authority boundary": {
+            "Order": "1",
+            "Current gate": "next approvable implementation review",
+            "Blocked by": "none",
+            "Required before next candidate": "landing evidence complete",
+        },
+        "State ownership split": {
+            "Order": "2",
+            "Current gate": "sequence-blocked",
+            "Blocked by": "Verifier/proof authority boundary landing evidence",
+            "Required before next candidate": "landing evidence complete",
+        },
+        "ToolExecutor side-effect split": {
+            "Order": "3",
+            "Current gate": "sequence-blocked",
+            "Blocked by": "Verifier/proof authority and State ownership landing evidence",
+            "Required before next candidate": "landing evidence complete",
+        },
+        "Dispatcher/composition root production wiring": {
+            "Order": "4",
+            "Current gate": "sequence-blocked",
+            "Blocked by": "Verifier/proof authority, State ownership, and ToolExecutor landing evidence",
+            "Required before next candidate": "landing evidence complete",
+        },
+    }
+    assert set(rows) == set(expected)
+    for candidate, expected_values in expected.items():
+        for column, value in expected_values.items():
+            assert rows[candidate][column] == value
+    for invariant in (
+        "only the first unlanded candidate may be reviewed for implementation approval",
+        "a later core candidate cannot skip an incomplete earlier landing record",
+        "sequence gate changes require a dedicated governance commit before implementation",
+        "sequence gate is not implementation approval",
+    ):
+        assert invariant in section
+    for boundary in (
+        "no proof-authority behavior changes",
+        "no `CTFState` ownership split",
+        "no ToolExecutor changes",
+        "no `CTFTaskDispatcher` flow changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root production wiring",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_core_first_slice_approval_text_template() -> None:
     text = _playbook_text()
     section = _heading_section_text(
