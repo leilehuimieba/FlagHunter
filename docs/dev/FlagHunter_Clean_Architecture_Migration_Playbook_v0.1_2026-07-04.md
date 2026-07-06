@@ -2717,6 +2717,17 @@ Required approval:
 - no status-only approval without matching implementation evidence
 - rollback point: revert the single approved proof-authority implementation commit
 
+Readiness evidence currently available:
+
+- Proof authority characterization readiness aggregate
+- Proof authority write surface characterization guard
+- Verified decision reference characterization guard
+- Proof authority port action unwired guard
+- Proof authority adapter import unwired guard
+- Verifier adapter import unwired guard
+
+The readiness aggregate is approval package evidence, not implementation approval.
+
 Required verification for a future approved implementation:
 
 ```powershell

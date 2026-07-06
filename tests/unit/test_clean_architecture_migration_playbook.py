@@ -2471,6 +2471,16 @@ def test_playbook_records_verifier_proof_authority_approval_plan() -> None:
     assert "proof-authority writes stay in verifier-owned code until explicitly migrated" in section
     assert "rollback point: revert the single approved proof-authority implementation commit" in section
     assert "explicit proof-authority approval required before implementation" in section
+    assert "Proof authority characterization readiness aggregate" in section
+    assert "readiness aggregate is approval package evidence, not implementation approval" in section
+    for readiness_guard in (
+        "Proof authority write surface characterization guard",
+        "Verified decision reference characterization guard",
+        "Proof authority port action unwired guard",
+        "Proof authority adapter import unwired guard",
+        "Verifier adapter import unwired guard",
+    ):
+        assert readiness_guard in section
     for required_surface in (
         "upgrade_claim_to_verified",
         "append_verification_record",
