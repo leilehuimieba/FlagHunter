@@ -2859,6 +2859,70 @@ Boundary confirmation for this approval plan:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Dispatcher/composition root production wiring approval plan
+
+Status: approval plan recorded, implementation not approved.
+
+Purpose:
+
+- Prepare the maximum-risk dispatcher and composition-root review package after
+  read-side, task-ingress, proof-authority, state ownership, and ToolExecutor
+  approval planning.
+- Keep dispatcher and composition root wiring stay in legacy entrypoints until explicitly migrated behind neutral application services, ports, adapters, and an approved composition root.
+- Make the future wiring route concrete without granting dispatcher flow,
+  entrypoint behavior, or production assembly approval by implication.
+
+Candidate scope for a future approved implementation:
+
+- `flaghunter/agents/pa_agent/ctf_dispatcher.py`
+- `flaghunter/session/initializer.py`
+- `flaghunter/session/agent_session.py`
+- `flaghunter/interface/cli.py`
+- `flaghunter/interface/web_server.py`
+- `flaghunter/mcp/server/mcp_tools.py`
+- `tests/unit/agents/test_ctf_dispatcher.py`
+- `tests/unit/session/test_agent_session.py`
+- `tests/unit/interface/test_web_server.py`
+- `tests/unit/mcp/test_mcp_ingress_mode_contract.py`
+- playbook governance records for the single approved dispatcher/composition-root slice
+
+Current dispatcher and composition-root surfaces that require explicit review:
+
+- `CTFTaskDispatcher`
+- `build_agent_components`
+- `AgentSession.create`
+- `run_task`
+- `run_task_async`
+- `post_task`
+- `MCPRouter`
+
+Required approval:
+
+- explicit dispatcher and composition-root approval required before implementation
+- one dispatcher/composition-root functional point per commit
+- no status-only approval without matching implementation evidence
+- rollback point: revert the single approved dispatcher/composition-root implementation commit
+
+Required verification for a future approved implementation:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/session/test_agent_session.py tests/unit/interface/test_web_server.py tests/unit/mcp/test_mcp_ingress_mode_contract.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/agents/test_ctf_dispatcher.py tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py -q
+git diff --check
+```
+
+Boundary confirmation for this approval plan:
+
+- no implementation approval by this section
+- no proof-authority behavior changes
+- no `CTFState` ownership split
+- no ToolExecutor changes
+- no MCP router changes
+- no unapproved Web/CLI/TUI behavior changes
+- no persisted schema compatibility changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Task ingress service contract migration approval flag consistency guard
 
 Status: approval consistency guard updated, implementation landed.

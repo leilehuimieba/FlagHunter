@@ -2590,6 +2590,56 @@ def test_playbook_records_tool_executor_side_effect_split_approval_plan() -> Non
         assert command in section
 
 
+def test_playbook_records_dispatcher_composition_root_approval_plan() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Dispatcher/composition root production wiring approval plan",
+    )
+
+    assert "Status: approval plan recorded, implementation not approved." in section
+    assert "flaghunter/agents/pa_agent/ctf_dispatcher.py" in section
+    assert "flaghunter/session/initializer.py" in section
+    assert "flaghunter/session/agent_session.py" in section
+    assert "flaghunter/interface/cli.py" in section
+    assert "flaghunter/interface/web_server.py" in section
+    assert "flaghunter/mcp/server/mcp_tools.py" in section
+    assert "tests/unit/agents/test_ctf_dispatcher.py" in section
+    assert "tests/unit/session/test_agent_session.py" in section
+    assert "tests/unit/interface/test_web_server.py" in section
+    assert "tests/unit/mcp/test_mcp_ingress_mode_contract.py" in section
+    assert "dispatcher and composition root wiring stay in legacy entrypoints until explicitly migrated" in section
+    assert "rollback point: revert the single approved dispatcher/composition-root implementation commit" in section
+    assert "explicit dispatcher and composition-root approval required before implementation" in section
+    for required_surface in (
+        "CTFTaskDispatcher",
+        "build_agent_components",
+        "AgentSession.create",
+        "run_task",
+        "run_task_async",
+        "post_task",
+        "MCPRouter",
+    ):
+        assert required_surface in section
+    for non_goal in (
+        "no proof-authority behavior changes",
+        "no `CTFState` ownership split",
+        "no ToolExecutor changes",
+        "no MCP router changes",
+        "no unapproved Web/CLI/TUI behavior changes",
+        "no persisted schema compatibility changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert non_goal in section
+    for command in (
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/session/test_agent_session.py tests/unit/interface/test_web_server.py tests/unit/mcp/test_mcp_ingress_mode_contract.py -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/agents/test_ctf_dispatcher.py tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py -q",
+        "git diff --check",
+    ):
+        assert command in section
+
+
 def test_playbook_records_task_ingress_production_wiring_a_landing() -> None:
     text = _playbook_text()
     section = _heading_section_text(
