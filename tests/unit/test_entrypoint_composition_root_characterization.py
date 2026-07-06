@@ -53,13 +53,19 @@ def test_web_entrypoint_still_uses_compatibility_initializer_seam() -> None:
     assert "AgentSession.create" in source
 
 
-def test_mcp_task_execution_stays_legacy_direct_construction_before_wiring_approval() -> None:
+def test_mcp_task_execution_routes_construction_through_agent_session_after_approval() -> None:
     mcp_source = _source("flaghunter/mcp/server/mcp_tools.py")
     make_agent_source = _function_source("flaghunter/mcp/server/mcp_tools.py", "_make_agent")
+    builder_source = _function_source(
+        "flaghunter/mcp/server/mcp_tools.py",
+        "_build_mcp_task_components",
+    )
     drive_task_source = _function_source("flaghunter/mcp/server/mcp_tools.py", "_drive_task")
 
-    assert "AgentSession.create" not in mcp_source
-    assert "build_agent_components" not in mcp_source
-    assert "FlagHunterAgent(" in make_agent_source
-    assert "runtime = _RuntimeClass(**_runtime_kwargs)" in make_agent_source
+    assert "AgentSession.create" in make_agent_source
+    assert "builder=_build_mcp_task_components" in make_agent_source
+    assert "FlagHunterAgent(" not in make_agent_source
+    assert "runtime = _RuntimeClass(**_runtime_kwargs)" not in make_agent_source
+    assert "FlagHunterAgent(" in builder_source
+    assert "runtime = _RuntimeClass(**_runtime_kwargs)" in builder_source
     assert "CTFTaskDispatcher(" in drive_task_source

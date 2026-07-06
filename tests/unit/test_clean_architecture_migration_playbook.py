@@ -3190,12 +3190,12 @@ def test_playbook_records_entrypoint_composition_root_usage_characterization_gua
     assert "Status: entrypoint usage characterization recorded, no production wiring." in section
     assert "test_presentation_entrypoints_currently_use_agent_session_create" in section
     assert "test_web_entrypoint_still_uses_compatibility_initializer_seam" in section
-    assert "test_mcp_task_execution_stays_legacy_direct_construction_before_wiring_approval" in section
+    assert "test_mcp_task_execution_routes_construction_through_agent_session_after_approval" in section
     for expected in (
         "CLI, TUI, Web, and MCP server bootstrap currently use `AgentSession.create`",
         "Web still uses `flaghunter.interface.initializer` as a compatibility builder seam",
-        "MCP task execution remains legacy direct construction in `flaghunter.mcp.server.mcp_tools`",
-        "this record does not approve moving MCP task execution to `AgentSession.create`",
+        "MCP task execution now routes construction through `AgentSession.create` in `flaghunter.mcp.server.mcp_tools`",
+        "MCP task execution keeps a MCP-specific builder to preserve legacy runtime, LLM, and tool compatibility",
     ):
         assert expected in section
     for boundary in (
@@ -3220,9 +3220,9 @@ def test_playbook_records_mcp_task_execution_composition_root_approval_package()
         "MCP task execution composition-root approval package",
     )
 
-    assert "Status: approval package characterized, implementation not approved." in section
-    assert "MCP task execution remains legacy direct construction" in section
-    assert "test_mcp_task_execution_stays_legacy_direct_construction_before_wiring_approval" in section
+    assert "Status: approval package characterized, first wiring slice landed." in section
+    assert "MCP task execution now routes construction through `AgentSession.create`" in section
+    assert "test_mcp_task_execution_routes_construction_through_agent_session_after_approval" in section
     rows = {
         row["Item"]: row
         for row in _markdown_table_rows(section)
@@ -3260,6 +3260,37 @@ def test_playbook_records_mcp_task_execution_composition_root_approval_package()
         "future implementation must update exactly one production wiring surface",
     ):
         assert invariant in section
+
+
+def test_playbook_records_mcp_task_execution_composition_root_wiring_landing() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "MCP task execution composition-root wiring landing record",
+    )
+
+    assert "Status: first wiring slice landed." in section
+    assert "approved scope: MCP task execution agent/runtime construction path only" in section
+    assert "`flaghunter/mcp/server/mcp_tools.py::_make_agent` now calls `AgentSession.create`" in section
+    assert "`_build_mcp_task_components` preserves legacy `_LLMClass`, `_RuntimeClass`, primary tools, and max iterations" in section
+    assert "CTF dispatcher handoff remains in `_drive_task`" in section
+    for evidence in (
+        "test_mcp_make_agent_routes_task_construction_through_agent_session",
+        "test_mcp_task_execution_routes_construction_through_agent_session_after_approval",
+    ):
+        assert evidence in section
+    for boundary in (
+        "no MCP router changes",
+        "no MCP server bootstrap changes",
+        "no Web/CLI/TUI task wiring changes",
+        "no ToolExecutor changes",
+        "no Verifier or proof authority behavior changes",
+        "no CTFState ownership split",
+        "no Dispatcher flow changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
 
 
 def test_playbook_records_state_ownership_first_slice_approval_text_template() -> None:

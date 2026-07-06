@@ -308,6 +308,59 @@ def test_mcp_task_submission_ingress_wiring_uses_application_service_after_appro
 
 
 @pytest.mark.asyncio
+async def test_mcp_make_agent_routes_task_construction_through_agent_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+    fake_tool = SimpleNamespace(metadata={})
+
+    class FakePrimaryAgent:
+        max_iterations = 42
+
+        def get_tools(self):
+            return [fake_tool]
+
+    class FakeRuntime:
+        def __init__(self, **kwargs):
+            captured["runtime_kwargs"] = dict(kwargs)
+
+        async def start(self):
+            captured["runtime_started"] = True
+
+    class FakeLLM:
+        def __init__(self, **kwargs):
+            captured["llm_kwargs"] = dict(kwargs)
+
+    async def fake_create(**kwargs):
+        captured["create_kwargs"] = dict(kwargs)
+        components = await kwargs["builder"](**kwargs)
+        captured["components"] = components
+        return SimpleNamespace(agent=components["agent"], components=components)
+
+    monkeypatch.setattr(mcp_tools, "_primary_agent", FakePrimaryAgent())
+    monkeypatch.setattr(mcp_tools, "_LLMClass", FakeLLM)
+    monkeypatch.setattr(mcp_tools, "_RuntimeClass", FakeRuntime)
+    monkeypatch.setattr(mcp_tools, "_llm_kwargs", {"model": "fake-model", "rag_engine": "rag"})
+    monkeypatch.setattr(mcp_tools, "_runtime_kwargs", {"sandbox": "fake"})
+    monkeypatch.setattr("flaghunter.session.AgentSession.create", fake_create)
+
+    agent = await mcp_tools._make_agent("target.test", ["scope-a"])
+
+    create_kwargs = captured["create_kwargs"]
+    assert create_kwargs["target"] == "target.test"
+    assert create_kwargs["scope"] == ["scope-a"]
+    assert create_kwargs["model"] == "fake-model"
+    assert create_kwargs["no_mcp"] is True
+    assert callable(create_kwargs["builder"])
+    assert captured["runtime_kwargs"] == {"sandbox": "fake"}
+    assert captured["runtime_started"] is True
+    assert captured["llm_kwargs"] == {"model": "fake-model", "rag_engine": "rag"}
+    assert agent.runtime is captured["components"]["runtime"]
+    assert agent.get_tools() == [fake_tool]
+    assert agent.max_iterations == 42
+
+
+@pytest.mark.asyncio
 async def test_mcp_run_task_and_async_submit_neutral_ingress_without_response_drift(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

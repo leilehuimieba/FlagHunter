@@ -210,8 +210,12 @@ def _log(level: str, message: str) -> None:
         _logs.pop(0)
 
 
-async def _make_agent(target: Optional[str], scope: list[str]) -> "FlagHunterAgent":
-    """Construct a fresh agent for each task — no shared mutable state between runs."""
+async def _build_mcp_task_components(
+    target: Optional[str] = None,
+    scope: Optional[list[str]] = None,
+    **_: Any,
+) -> dict[str, Any]:
+    """Build one task-scoped MCP agent while preserving legacy task semantics."""
     from flaghunter.agents.pa_agent import FlagHunterAgent
 
     if _LLMClass is None or _RuntimeClass is None:
@@ -219,15 +223,43 @@ async def _make_agent(target: Optional[str], scope: list[str]) -> "FlagHunterAge
 
     runtime = _RuntimeClass(**_runtime_kwargs)
     await runtime.start()
+    tools = list(_primary_agent.get_tools()) if _primary_agent else []
+    model = _llm_kwargs.get("model")
 
-    return FlagHunterAgent(
+    agent = FlagHunterAgent(
         llm=_LLMClass(**_llm_kwargs),
-        tools=list(_primary_agent.get_tools()) if _primary_agent else [],
+        tools=tools,
         runtime=runtime,
         target=target,
-        scope=scope,
+        scope=list(scope or []),
         max_iterations=getattr(_primary_agent, "max_iterations", 30),
     )
+    return {
+        "agent": agent,
+        "runtime": runtime,
+        "runtime_info": {"selected": "mcp_task", "connected": True},
+        "rag_engine": _llm_kwargs.get("rag_engine"),
+        "all_tools": tools,
+        "mcp_manager": None,
+        "rag_doc_count": 0,
+        "mcp_server_count": 0,
+        "model": model,
+    }
+
+
+async def _make_agent(target: Optional[str], scope: list[str]) -> "FlagHunterAgent":
+    """Construct a fresh agent for each task through the session facade."""
+    from flaghunter.session import AgentSession
+
+    session = await AgentSession.create(
+        target=target,
+        scope=scope,
+        model=_llm_kwargs.get("model"),
+        no_rag=True,
+        no_mcp=True,
+        builder=_build_mcp_task_components,
+    )
+    return session.agent
 
 
 def _resolve_target_scope(args: dict[str, object]) -> tuple[Optional[str], list[str]]:

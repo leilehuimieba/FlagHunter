@@ -3758,14 +3758,14 @@ Current characterization:
 
 - CLI, TUI, Web, and MCP server bootstrap currently use `AgentSession.create`
 - Web still uses `flaghunter.interface.initializer` as a compatibility builder seam
-- MCP task execution remains legacy direct construction in `flaghunter.mcp.server.mcp_tools`
-- this record does not approve moving MCP task execution to `AgentSession.create`
+- MCP task execution now routes construction through `AgentSession.create` in `flaghunter.mcp.server.mcp_tools`
+- MCP task execution keeps a MCP-specific builder to preserve legacy runtime, LLM, and tool compatibility
 
 Guarded tests:
 
 - `test_presentation_entrypoints_currently_use_agent_session_create`
 - `test_web_entrypoint_still_uses_compatibility_initializer_seam`
-- `test_mcp_task_execution_stays_legacy_direct_construction_before_wiring_approval`
+- `test_mcp_task_execution_routes_construction_through_agent_session_after_approval`
 
 Required verification for this entrypoint guard:
 
@@ -3789,12 +3789,11 @@ Boundary confirmation for this entrypoint guard:
 
 #### MCP task execution composition-root approval package
 
-Status: approval package characterized, implementation not approved.
+Status: approval package characterized, first wiring slice landed.
 
-MCP task execution remains legacy direct construction in
-`flaghunter.mcp.server.mcp_tools` until an explicit future wiring approval
-lands. The current characterization evidence is
-`tests/unit/test_entrypoint_composition_root_characterization.py::test_mcp_task_execution_stays_legacy_direct_construction_before_wiring_approval`.
+MCP task execution now routes construction through `AgentSession.create` in
+`flaghunter.mcp.server.mcp_tools`. The current characterization evidence is
+`tests/unit/test_entrypoint_composition_root_characterization.py::test_mcp_task_execution_routes_construction_through_agent_session_after_approval`.
 
 | Item | Required value |
 |------|----------------|
@@ -3847,8 +3846,8 @@ Copyable future approval skeleton:
 
 Boundary confirmation for this approval package:
 
-- no implementation approval by this section
-- no MCP task execution wiring changes
+- implementation approval was limited to the MCP task execution agent/runtime construction path
+- no MCP task execution wiring changes outside the approved `_make_agent` seam
 - no MCP router changes
 - no ToolExecutor changes
 - no Verifier or proof authority behavior changes
@@ -3856,6 +3855,40 @@ Boundary confirmation for this approval package:
 - no Dispatcher flow changes
 - no Web/CLI/TUI task wiring changes
 - no composition-root production wiring outside MCP task execution
+- no P5 implementation
+- no crew/recovery changes
+
+#### MCP task execution composition-root wiring landing record
+
+Status: first wiring slice landed.
+
+approved scope: MCP task execution agent/runtime construction path only
+
+Implementation summary:
+
+- `flaghunter/mcp/server/mcp_tools.py::_make_agent` now calls `AgentSession.create`
+- `_build_mcp_task_components` preserves legacy `_LLMClass`, `_RuntimeClass`, primary tools, and max iterations
+- CTF dispatcher handoff remains in `_drive_task`
+- MCP external response shape, task entry lifecycle, blocking/async behavior, ingress handoff, and control decision payloads remain covered by existing MCP tests
+
+Evidence:
+
+- `test_mcp_make_agent_routes_task_construction_through_agent_session`
+- `test_mcp_task_execution_routes_construction_through_agent_session_after_approval`
+
+Rollback command:
+
+- `git revert <MCP task execution composition-root wiring commit>`
+
+Boundary confirmation for this landing:
+
+- no MCP router changes
+- no MCP server bootstrap changes
+- no Web/CLI/TUI task wiring changes
+- no ToolExecutor changes
+- no Verifier or proof authority behavior changes
+- no CTFState ownership split
+- no Dispatcher flow changes
 - no P5 implementation
 - no crew/recovery changes
 
