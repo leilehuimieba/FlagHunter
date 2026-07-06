@@ -3066,6 +3066,45 @@ def test_playbook_records_tool_executor_first_slice_approval_text_template() -> 
         assert invariant in section
 
 
+def test_playbook_records_tool_executor_first_slice_characterization_landing() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "ToolExecutor first slice characterization landing record",
+    )
+
+    assert "Status: first slice characterization landed; no side-effect migration." in section
+    assert "ToolExecutor side-effect split 第一刀: formally approved" in section
+    assert "test_tool_executor_execute_retains_legacy_side_effect_surface_markers" in section
+    assert "test_tool_executor_batch_still_delegates_through_legacy_execute" in section
+    assert "test_tool_executor_module_does_not_import_tool_runner_adapter" in section
+    for expected in (
+        "`ToolExecutor.execute` retains legacy scope check ownership",
+        "`ToolExecutor.execute` retains legacy cookie auto-inject ownership",
+        "`ToolExecutor.execute` retains legacy stealth mode ownership",
+        "`ToolExecutor.execute` retains legacy flag scanning ownership",
+        "`ToolExecutor.execute` retains legacy missing-tool detection ownership",
+        "`ToolExecutor.execute_batch` still delegates through `self.execute`",
+        "tool-runner production wiring remains unstarted",
+    ):
+        assert expected in section
+    for boundary in (
+        "no ToolExecutor production behavior changes",
+        "no tool-runner production wiring",
+        "no runtime construction changes",
+        "no `CTFState` ownership migration",
+        "no `CTFVerifier` decision behavior changes",
+        "no proof-authority behavior changes",
+        "no Dispatcher changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_dispatcher_composition_root_first_slice_approval_text_template() -> None:
     text = _playbook_text()
     section = _heading_section_text(

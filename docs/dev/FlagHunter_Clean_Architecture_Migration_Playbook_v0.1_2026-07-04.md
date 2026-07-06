@@ -3256,6 +3256,56 @@ Boundary confirmation for this template:
 - no P5 implementation
 - no crew/recovery changes
 
+#### ToolExecutor first slice characterization landing record
+
+Status: first slice characterization landed; no side-effect migration.
+
+Current approval fact:
+
+- ToolExecutor side-effect split 第一刀: formally approved
+
+Approved scope:
+
+- ToolExecutor side-effect surface characterization
+- guard hardening for current legacy execution ownership
+- no executor side-effect migration
+- no tool-runner production wiring
+
+Implementation summary:
+
+- `tests/unit/tools/test_executor_side_effect_characterization.py::test_tool_executor_execute_retains_legacy_side_effect_surface_markers`
+  now locks current legacy `ToolExecutor.execute` side-effect surface markers.
+- `ToolExecutor.execute` retains legacy scope check ownership.
+- `ToolExecutor.execute` retains legacy cookie auto-inject ownership.
+- `ToolExecutor.execute` retains legacy stealth mode ownership.
+- `ToolExecutor.execute` retains legacy flag scanning ownership.
+- `ToolExecutor.execute` retains legacy missing-tool detection ownership.
+- `tests/unit/tools/test_executor_side_effect_characterization.py::test_tool_executor_batch_still_delegates_through_legacy_execute`
+  now locks `ToolExecutor.execute_batch` delegation through `self.execute`.
+- `ToolExecutor.execute_batch` still delegates through `self.execute`.
+- `tests/unit/tools/test_executor_side_effect_characterization.py::test_tool_executor_module_does_not_import_tool_runner_adapter`
+  keeps `flaghunter/tools/executor.py` unwired from tool-runner adapters.
+- tool-runner production wiring remains unstarted.
+
+Rollback command:
+
+- `git revert <ToolExecutor first slice characterization commit>`
+
+Boundary confirmation for this landing:
+
+- no ToolExecutor production behavior changes
+- no tool-runner production wiring
+- no runtime construction changes
+- no `CTFState` ownership migration
+- no `CTFVerifier` decision behavior changes
+- no proof-authority behavior changes
+- no Dispatcher changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Dispatcher/composition root production wiring approval plan
 
 Status: approval plan recorded, implementation not approved.
