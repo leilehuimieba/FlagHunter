@@ -2725,6 +2725,44 @@ def test_playbook_records_dispatcher_composition_root_approval_plan() -> None:
         assert command in section
 
 
+def test_playbook_records_ctf_task_dispatcher_legacy_construction_characterization_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "CTFTaskDispatcher legacy construction characterization guard",
+    )
+
+    assert "Status: characterization guard recorded, no dispatcher flow changed." in section
+    assert (
+        "tests/unit/agents/test_p1_source_guards.py::"
+        "test_p1_ctf_task_dispatcher_construction_stays_in_current_legacy_entrypoints"
+    ) in section
+    for allowed_surface in (
+        "`flaghunter/agents/pa_agent/ctf_dispatcher.py`",
+        "`flaghunter/agents/pa_agent/ctf_crew_runner.py`",
+        "`flaghunter/eval/replay.py`",
+        "`flaghunter/interface/cli.py`",
+        "`flaghunter/interface/tui_ctf_runners.py`",
+        "`flaghunter/interface/web_server.py`",
+        "`flaghunter/mcp/server/mcp_tools.py`",
+        "`CTFTaskDispatcher`",
+        "legacy entrypoints remain the only dispatcher construction surfaces",
+    ):
+        assert allowed_surface in section
+    for boundary in (
+        "no dispatcher flow changes",
+        "no composition root changes",
+        "no MCP router changes",
+        "no ToolExecutor changes",
+        "no `CTFState` ownership split",
+        "no proof-authority behavior changes",
+        "no Web/CLI/TUI behavior changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_core_approval_package_aggregate_guard() -> None:
     text = _playbook_text()
     section = _heading_section_text(

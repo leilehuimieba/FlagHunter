@@ -723,6 +723,93 @@ def test_p1_tool_executor_construction_stays_in_base_agent_only() -> None:
     assert offenders == []
 
 
+def test_p1_ctf_task_dispatcher_construction_stays_in_current_legacy_entrypoints() -> None:
+    allowed_definitions: set[tuple[str, str]] = {
+        ("flaghunter/agents/pa_agent/ctf_dispatcher.py", "CTFTaskDispatcher"),
+    }
+    allowed_constructions: set[tuple[str, str, str]] = {
+        (
+            "flaghunter/agents/pa_agent/ctf_crew_runner.py",
+            "run_ctf_crew_solve",
+            "CTFTaskDispatcher",
+        ),
+        (
+            "flaghunter/agents/pa_agent/ctf_crew_runner.py",
+            "run_ctf_crew_solve._worker_runner",
+            "CTFTaskDispatcher",
+        ),
+        ("flaghunter/eval/replay.py", "run_replay", "CTFTaskDispatcher"),
+        ("flaghunter/interface/cli.py", "run_cli", "CTFTaskDispatcher"),
+        (
+            "flaghunter/interface/tui_ctf_runners.py",
+            "CtfRunnerMixin._run_ctf_dispatcher_mode",
+            "CTFTaskDispatcher",
+        ),
+        (
+            "flaghunter/interface/tui_ctf_runners.py",
+            "CtfRunnerMixin._run_ctf_crew_dispatcher_mode",
+            "CTFTaskDispatcher",
+        ),
+        (
+            "flaghunter/interface/tui_ctf_runners.py",
+            "CtfRunnerMixin._run_ctf_crew_dispatcher_mode._worker_runner",
+            "CTFTaskDispatcher",
+        ),
+        (
+            "flaghunter/interface/web_server.py",
+            "_run_agent_task._build_and_run",
+            "CTFTaskDispatcher",
+        ),
+        ("flaghunter/mcp/server/mcp_tools.py", "_drive_task", "CTFTaskDispatcher"),
+    }
+    offenders: list[tuple[str, str, int]] = []
+
+    class CTFTaskDispatcherConstructionVisitor(ast.NodeVisitor):
+        def __init__(self, relative_path: str):
+            self.relative_path = relative_path
+            self.scope: list[str] = []
+
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            self.scope.append(node.name)
+            if node.name == "CTFTaskDispatcher":
+                key = (self.relative_path, "CTFTaskDispatcher")
+                if key not in allowed_definitions:
+                    offenders.append(
+                        (self.relative_path, "CTFTaskDispatcher class", node.lineno)
+                    )
+            self.generic_visit(node)
+            self.scope.pop()
+
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            self.scope.append(node.name)
+            self.generic_visit(node)
+            self.scope.pop()
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            self.scope.append(node.name)
+            self.generic_visit(node)
+            self.scope.pop()
+
+        def visit_Call(self, node: ast.Call) -> None:
+            call_name = ""
+            if isinstance(node.func, ast.Name):
+                call_name = node.func.id
+            elif isinstance(node.func, ast.Attribute):
+                call_name = node.func.attr
+            if call_name == "CTFTaskDispatcher":
+                scope_name = ".".join(self.scope) or "<module>"
+                key = (self.relative_path, scope_name, call_name)
+                if key not in allowed_constructions:
+                    offenders.append((self.relative_path, scope_name, node.lineno))
+            self.generic_visit(node)
+
+    for path in _python_sources(PRODUCTION_ROOT):
+        visitor = CTFTaskDispatcherConstructionVisitor(_relative(path))
+        visitor.visit(_parse_source(_relative(path)))
+
+    assert offenders == []
+
+
 def test_p1_control_and_ingress_paths_do_not_emit_verification_decisions() -> None:
     guarded_paths = [
         "flaghunter/agents/pa_agent/coordinator.py",

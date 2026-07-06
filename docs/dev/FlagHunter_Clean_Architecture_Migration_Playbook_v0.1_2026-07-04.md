@@ -3011,6 +3011,48 @@ Boundary confirmation for this approval plan:
 - no P5 implementation
 - no crew/recovery changes
 
+#### CTFTaskDispatcher legacy construction characterization guard
+
+Status: characterization guard recorded, no dispatcher flow changed.
+
+`tests/unit/agents/test_p1_source_guards.py::test_p1_ctf_task_dispatcher_construction_stays_in_current_legacy_entrypoints`
+now locks the current legacy `CTFTaskDispatcher` definition and direct
+construction surfaces before any dispatcher flow migration, entrypoint rewiring,
+MCP task execution wiring change, or composition-root migration.
+
+Current allowed definition surface:
+
+- `flaghunter/agents/pa_agent/ctf_dispatcher.py`
+- `CTFTaskDispatcher`
+
+Current allowed construction surfaces:
+
+- `flaghunter/agents/pa_agent/ctf_crew_runner.py` -> `run_ctf_crew_solve`
+- `flaghunter/agents/pa_agent/ctf_crew_runner.py` -> `run_ctf_crew_solve._worker_runner`
+- `flaghunter/eval/replay.py` -> `run_replay`
+- `flaghunter/interface/cli.py` -> `run_cli`
+- `flaghunter/interface/tui_ctf_runners.py` -> `CtfRunnerMixin._run_ctf_dispatcher_mode`
+- `flaghunter/interface/tui_ctf_runners.py` -> `CtfRunnerMixin._run_ctf_crew_dispatcher_mode`
+- `flaghunter/interface/tui_ctf_runners.py` -> `CtfRunnerMixin._run_ctf_crew_dispatcher_mode._worker_runner`
+- `flaghunter/interface/web_server.py` -> `_run_agent_task._build_and_run`
+- `flaghunter/mcp/server/mcp_tools.py` -> `_drive_task`
+
+This confirms legacy entrypoints remain the only dispatcher construction surfaces.
+It does not approve dispatcher flow changes, entrypoint behavior changes, MCP
+production wiring changes, or composition-root migration.
+
+Boundary confirmation for this guard:
+
+- no dispatcher flow changes
+- no composition root changes
+- no MCP router changes
+- no ToolExecutor changes
+- no `CTFState` ownership split
+- no proof-authority behavior changes
+- no Web/CLI/TUI behavior changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Core production approval package aggregate guard
 
 Status: aggregate guard recorded, implementation not approved by this section.
