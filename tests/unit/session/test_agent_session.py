@@ -96,6 +96,45 @@ def test_interface_initializer_is_compatibility_reexport():
     )
 
 
+def test_session_composition_root_characterizes_current_assembly_owner():
+    """The session-owned builder remains the current assembly owner."""
+    import flaghunter.interface.initializer as interface_initializer
+    import flaghunter.session.agent_session as agent_session_module
+    import flaghunter.session.initializer as session_initializer
+
+    create_src = inspect.getsource(AgentSession.create)
+    session_src = inspect.getsource(session_initializer)
+    facade_src = inspect.getsource(agent_session_module)
+    compatibility_src = inspect.getsource(interface_initializer)
+
+    assert "from .initializer import build_agent_components as builder" in create_src
+    assert "interface.initializer" not in create_src
+    for forbidden_facade_token in (
+        "from ..agents.pa_agent import FlagHunterAgent",
+        "from ..runtime.runtime import LocalRuntime",
+        "from ..runtime.docker_runtime import",
+        "from ..runtime.ssh_runtime import SSHRuntime",
+        "from ..llm import LLM",
+        "from ..mcp import MCPManager",
+        "from ..tools import get_all_tools",
+    ):
+        assert forbidden_facade_token not in facade_src
+    for current_owner_token in (
+        "from ..agents.pa_agent import FlagHunterAgent",
+        "from ..runtime.runtime import LocalRuntime",
+        "from ..runtime.docker_runtime import DockerConfig, DockerRuntime",
+        "from ..runtime.ssh_runtime import SSHRuntime",
+        "from ..llm import LLM, ModelConfig",
+        "from ..mcp import MCPManager",
+        "from ..tools import get_all_tools, register_tool_instance",
+    ):
+        assert current_owner_token in session_src
+
+    assert "from ..session.initializer import" in compatibility_src
+    assert "build_agent_components" in interface_initializer.__all__
+    assert interface_initializer.build_agent_components is session_initializer.build_agent_components
+
+
 @pytest.mark.asyncio
 async def test_run_drives_loop_emits_events_and_accumulates():
     messages = [

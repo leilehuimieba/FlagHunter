@@ -3149,6 +3149,37 @@ def test_playbook_records_dispatcher_approval_transition_atomicity_guard() -> No
         assert boundary in section
 
 
+def test_playbook_records_session_composition_root_characterization_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Session composition root characterization guard",
+    )
+
+    assert "Status: session composition-root characterization recorded, no production wiring." in section
+    assert "test_session_composition_root_characterizes_current_assembly_owner" in section
+    for expected in (
+        "`AgentSession.create` lazily imports `build_agent_components` from `flaghunter.session.initializer`",
+        "`flaghunter.session.initializer` remains the current assembly owner",
+        "`flaghunter.interface.initializer` remains a compatibility re-export",
+        "entrypoint production wiring remains unchanged",
+    ):
+        assert expected in section
+    for boundary in (
+        "no `CTFTaskDispatcher` flow changes",
+        "no composition root production wiring changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no ToolExecutor changes",
+        "no runtime construction changes",
+        "no `CTFState` ownership split",
+        "no proof-authority behavior changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_state_ownership_first_slice_approval_text_template() -> None:
     text = _playbook_text()
     section = _heading_section_text(

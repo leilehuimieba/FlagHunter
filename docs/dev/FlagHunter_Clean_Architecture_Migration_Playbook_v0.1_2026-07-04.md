@@ -3707,6 +3707,45 @@ Boundary confirmation for this readiness guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Session composition root characterization guard
+
+Status: session composition-root characterization recorded, no production wiring.
+
+`tests/unit/session/test_agent_session.py::test_session_composition_root_characterizes_current_assembly_owner`
+now locks the current session-owned assembly seam before any future
+dispatcher/composition-root production wiring approval.
+
+Current characterization:
+
+- `AgentSession.create` lazily imports `build_agent_components` from `flaghunter.session.initializer`
+- `flaghunter.session.initializer` remains the current assembly owner
+- `flaghunter.interface.initializer` remains a compatibility re-export
+- entrypoint production wiring remains unchanged
+
+This guard records the existing architecture joint A assembly path. It does
+not approve moving runtime construction, MCP production wiring,
+`CTFTaskDispatcher` construction, or any entrypoint task execution path.
+
+Required verification for this session guard:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/session/test_agent_session.py tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this session guard:
+
+- no `CTFTaskDispatcher` flow changes
+- no composition root production wiring changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no ToolExecutor changes
+- no runtime construction changes
+- no `CTFState` ownership split
+- no proof-authority behavior changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Dispatcher production wiring approval package consistency guard
 
 Status: approval package consistency guard recorded, no production wiring.
