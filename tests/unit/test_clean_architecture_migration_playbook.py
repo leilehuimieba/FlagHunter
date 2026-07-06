@@ -2816,6 +2816,67 @@ def test_playbook_records_dispatcher_composition_root_approval_plan() -> None:
         assert command in section
 
 
+def test_playbook_records_dispatcher_first_wiring_approval_review_package() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Dispatcher composition root first wiring approval review package",
+    )
+
+    assert "Status: approval review package recorded, implementation not approved." in section
+    assert "Recommended first candidate: session composition-root characterization only" in section
+    rows = {
+        row["Candidate first slice"]: row
+        for row in _markdown_table_rows(section)
+    }
+    expected = {
+        "session composition-root characterization": {
+            "Files": "`flaghunter/session/initializer.py`; `flaghunter/session/agent_session.py`; `tests/unit/session/test_agent_session.py`; playbook",
+            "Rollback point": "`git revert <single dispatcher/composition-root implementation commit>`",
+            "Verification gate": "session tests; import/source guards; playbook tests; `git diff --check`",
+        },
+        "web task construction characterization": {
+            "Files": "`flaghunter/interface/web_server.py`; `tests/unit/interface/test_web_server.py`; source guards; playbook",
+            "Rollback point": "`git revert <single dispatcher/composition-root implementation commit>`",
+            "Verification gate": "web tests; dispatcher tests; import/source guards; `git diff --check`",
+        },
+        "mcp task construction characterization": {
+            "Files": "`flaghunter/mcp/server/mcp_tools.py`; `tests/unit/mcp/test_mcp_ingress_mode_contract.py`; source guards; playbook",
+            "Rollback point": "`git revert <single dispatcher/composition-root implementation commit>`",
+            "Verification gate": "mcp tests; dispatcher tests; import/source guards; `git diff --check`",
+        },
+        "cli and tui task construction characterization": {
+            "Files": "`flaghunter/interface/cli.py`; `flaghunter/interface/tui_ctf_runners.py`; relevant interface tests; source guards; playbook",
+            "Rollback point": "`git revert <single dispatcher/composition-root implementation commit>`",
+            "Verification gate": "cli/tui tests; dispatcher tests; import/source guards; `git diff --check`",
+        },
+    }
+    assert set(rows) == set(expected)
+    for candidate, expected_values in expected.items():
+        for column, value in expected_values.items():
+            assert rows[candidate][column] == value
+        assert rows[candidate]["Implementation approved"] == "false"
+    for invariant in (
+        "one candidate first slice per implementation commit",
+        "no candidate may switch MCP/Web/CLI/TUI task execution without explicit approval",
+        "session characterization is the recommended first review because it can avoid entrypoint behavior changes",
+        "approval review package is not implementation approval",
+    ):
+        assert invariant in section
+    for boundary in (
+        "no `CTFTaskDispatcher` flow changes",
+        "no composition root production wiring",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no ToolExecutor changes",
+        "no `CTFState` ownership split",
+        "no proof-authority behavior changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_ctf_task_dispatcher_legacy_construction_characterization_guard() -> None:
     text = _playbook_text()
     section = _heading_section_text(

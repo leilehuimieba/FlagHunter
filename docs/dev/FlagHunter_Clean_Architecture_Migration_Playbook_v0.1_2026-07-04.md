@@ -3402,6 +3402,45 @@ Boundary confirmation for this approval plan:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Dispatcher composition root first wiring approval review package
+
+Status: approval review package recorded, implementation not approved.
+
+Recommended first candidate: session composition-root characterization only.
+
+| Candidate first slice | Files | Rollback point | Verification gate | Implementation approved |
+|-----------------------|-------|----------------|-------------------|-------------------------|
+| session composition-root characterization | `flaghunter/session/initializer.py`; `flaghunter/session/agent_session.py`; `tests/unit/session/test_agent_session.py`; playbook | `git revert <single dispatcher/composition-root implementation commit>` | session tests; import/source guards; playbook tests; `git diff --check` | false |
+| web task construction characterization | `flaghunter/interface/web_server.py`; `tests/unit/interface/test_web_server.py`; source guards; playbook | `git revert <single dispatcher/composition-root implementation commit>` | web tests; dispatcher tests; import/source guards; `git diff --check` | false |
+| mcp task construction characterization | `flaghunter/mcp/server/mcp_tools.py`; `tests/unit/mcp/test_mcp_ingress_mode_contract.py`; source guards; playbook | `git revert <single dispatcher/composition-root implementation commit>` | mcp tests; dispatcher tests; import/source guards; `git diff --check` | false |
+| cli and tui task construction characterization | `flaghunter/interface/cli.py`; `flaghunter/interface/tui_ctf_runners.py`; relevant interface tests; source guards; playbook | `git revert <single dispatcher/composition-root implementation commit>` | cli/tui tests; dispatcher tests; import/source guards; `git diff --check` | false |
+
+Required invariants:
+
+- one candidate first slice per implementation commit
+- no candidate may switch MCP/Web/CLI/TUI task execution without explicit approval
+- session characterization is the recommended first review because it can avoid entrypoint behavior changes
+- approval review package is not implementation approval
+
+Required verification for this review package:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this review package:
+
+- no `CTFTaskDispatcher` flow changes
+- no composition root production wiring
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no ToolExecutor changes
+- no `CTFState` ownership split
+- no proof-authority behavior changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### CTFTaskDispatcher legacy construction characterization guard
 
 Status: characterization guard recorded, no dispatcher flow changed.
