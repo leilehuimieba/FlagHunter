@@ -2640,6 +2640,51 @@ def test_playbook_records_dispatcher_composition_root_approval_plan() -> None:
         assert command in section
 
 
+def test_playbook_records_core_approval_package_aggregate_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Core production approval package aggregate guard",
+    )
+
+    assert "Status: aggregate guard recorded, implementation not approved by this section." in section
+    assert "approval packages do not grant implementation approval" in section
+    assert "no approval by implication" in section
+    rows = {
+        row["Core candidate"]: row
+        for row in _markdown_table_rows(section)
+    }
+    assert list(rows) == [
+        "Verifier/proof authority boundary",
+        "State ownership split",
+        "ToolExecutor side-effect split",
+        "Dispatcher/composition root production wiring",
+    ]
+    expected_plans = {
+        "Verifier/proof authority boundary": "Verifier/proof authority boundary approval plan",
+        "State ownership split": "State ownership split approval plan",
+        "ToolExecutor side-effect split": "ToolExecutor side-effect split approval plan",
+        "Dispatcher/composition root production wiring": "Dispatcher/composition root production wiring approval plan",
+    }
+    for candidate, plan_heading in expected_plans.items():
+        assert rows[candidate]["Approval package"] == f"`{plan_heading}`"
+        assert rows[candidate]["Implementation approved"] == "false"
+        assert rows[candidate]["Current implementation state"] == "not approved"
+        assert plan_heading in text
+    for invariant in (
+        "every core package must remain implementation approved = false until explicit human approval lands",
+        "approval package status must not be used as implementation approval",
+        "each future implementation must update exactly one package and add a landing record",
+        "rollback point remains the single approved implementation commit",
+    ):
+        assert invariant in section
+    for command in (
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q",
+        "git diff --check",
+    ):
+        assert command in section
+
+
 def test_playbook_records_task_ingress_production_wiring_a_landing() -> None:
     text = _playbook_text()
     section = _heading_section_text(
