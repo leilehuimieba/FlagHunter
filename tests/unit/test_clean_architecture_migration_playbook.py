@@ -2398,6 +2398,57 @@ def test_playbook_records_task_ingress_service_migration_readiness_checklist() -
         assert command in text
 
 
+def test_playbook_records_post_read_side_core_decoupling_approval_queue() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Post read-side core decoupling approval queue",
+    )
+
+    assert "Status: approval queue recorded, implementation not approved by this section." in section
+    assert "Web read paths and Deferred MCP readback are landed" in section
+    assert "Task ingress service contract migration" in section
+    assert "ToolExecutor side-effect split" in section
+    assert "Verifier/proof authority boundary" in section
+    assert "State ownership split" in section
+    assert "Dispatcher/composition root production wiring" in section
+    assert "one functional point per commit" in section
+    assert "no bundled core edits" in section
+    assert "no approval by implication" in section
+
+    queue_rows = {
+        row["Candidate"]: row
+        for row in _markdown_table_rows(section.split("Queue rules:", 1)[0])
+    }
+    assert list(queue_rows) == [
+        "Task ingress service contract migration",
+        "Task ingress production wiring",
+        "Verifier/proof authority boundary",
+        "State ownership split",
+        "ToolExecutor side-effect split",
+        "Dispatcher/composition root production wiring",
+    ]
+    assert queue_rows["Task ingress service contract migration"]["Risk tier"] == "low-medium"
+    assert queue_rows["Task ingress service contract migration"]["Current status"] == "ready for approval review, not approved"
+    for candidate, row in queue_rows.items():
+        assert row["Implementation approved"] == "false"
+        assert row["Required approval"]
+        assert row["Required verification"]
+        if candidate != "Task ingress service contract migration":
+            assert row["Risk tier"] in {"high", "maximum"}
+
+    for forbidden_scope in (
+        "no MCP task execution wiring without explicit production wiring approval",
+        "no ToolExecutor changes without ToolExecutor-specific approval",
+        "no Verifier/proof authority behavior changes without proof-authority approval",
+        "no CTFState ownership split without state-specific approval",
+        "no CTFTaskDispatcher flow changes without dispatcher-specific approval",
+        "no composition root changes without composition-root approval",
+        "no P5 implementation",
+    ):
+        assert forbidden_scope in section
+
+
 def test_playbook_parses_task_ingress_service_migration_approval_flag_consistency_guard() -> None:
     text = _playbook_text()
     section = _heading_section_text(

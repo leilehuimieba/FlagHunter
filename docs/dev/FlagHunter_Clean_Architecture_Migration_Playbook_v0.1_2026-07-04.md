@@ -2522,6 +2522,40 @@ Required verification for the future implementation commit:
 git diff --check
 ```
 
+### Post read-side core decoupling approval queue
+
+Status: approval queue recorded, implementation not approved by this section.
+
+Web read paths and Deferred MCP readback are landed. The next migration work
+must move from read-side projection cleanup into service, wiring, and core
+production decoupling only through explicit per-candidate approval. This section
+does not approve implementation; it orders the next review gates and keeps the
+high-risk core surfaces separated.
+
+| Candidate | Risk tier | Current status | Implementation approved | Required approval | Required verification |
+|-----------|-----------|----------------|-------------------------|-------------------|-----------------------|
+| Task ingress service contract migration | low-medium | ready for approval review, not approved | false | explicit service migration approval | application service focused, adapter focused, architecture/source guards, production pre-wiring guards, `git diff --check` |
+| Task ingress production wiring | high | not approved | false | explicit production wiring approval | MCP/entrypoint wiring focused, task ingress guards, architecture/source guards, `git diff --check` |
+| Verifier/proof authority boundary | high | not approved | false | explicit proof-authority approval | verifier fixture, proof authority invariants, P1 claim invariants, source guards, `git diff --check` |
+| State ownership split | high | not approved | false | explicit state ownership split approval | state snapshot fixtures, replay/readback fixtures, import/source guards, `git diff --check` |
+| ToolExecutor side-effect split | high | not approved | false | explicit ToolExecutor side-effect split approval | tool receipt fixtures, executor guard fixtures, finish control receipt, architecture/source guards, `git diff --check` |
+| Dispatcher/composition root production wiring | maximum | not approved | false | explicit dispatcher and composition-root approval | dispatcher focused, entrypoint focused, MCP/web/CLI smoke guards, architecture/source guards, `git diff --check` |
+
+Queue rules:
+
+- one functional point per commit
+- no bundled core edits
+- no approval by implication
+- no MCP task execution wiring without explicit production wiring approval
+- no ToolExecutor changes without ToolExecutor-specific approval
+- no Verifier/proof authority behavior changes without proof-authority approval
+- no CTFState ownership split without state-specific approval
+- no CTFTaskDispatcher flow changes without dispatcher-specific approval
+- no composition root changes without composition-root approval
+- no P5 implementation
+- rollback point is always the single implementation commit for the approved
+  candidate
+
 #### Task ingress service contract migration approval flag consistency guard
 
 Status: approval consistency guard recorded, implementation not approved by this section.
