@@ -3921,6 +3921,53 @@ Boundary confirmation for this aggregate:
 - no P5 implementation
 - no crew/recovery changes
 
+#### ToolExecutor approval transition atomicity guard
+
+Status: approval transition atomicity guard recorded, ToolExecutor migration not approved.
+
+Any future ToolExecutor approval transition must update every listed governance
+surface in the same approval commit before a ToolExecutor migration commit can
+follow. This keeps ToolExecutor characterization readiness distinct from
+production migration approval.
+
+| Transition surface | Required heading | Current transition complete |
+|--------------------|------------------|-----------------------------|
+| approval plan | `ToolExecutor side-effect split approval plan` | false |
+| readiness aggregate | `ToolExecutor side-effect characterization readiness aggregate` | false |
+| approval text template | `ToolExecutor first slice approval text template` | false |
+| landing matrix row | `Core implementation landing evidence completeness matrix` ToolExecutor row | false |
+| sequence gate row | `Core implementation sequence gate` ToolExecutor row | false |
+| landing evidence | `ToolExecutor side-effect split implementation landing record` | false |
+
+Required invariants:
+
+- ToolExecutor approval transition must update every listed surface in the same commit
+- partial ToolExecutor approval transitions must fail review
+- approval transition evidence must land before any ToolExecutor migration commit
+- ToolExecutor landing evidence must stay incomplete until a real implementation commit exists
+
+Required verification for this guard:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this guard:
+
+- no ToolExecutor side-effect migration
+- no tool-runner production wiring
+- no runtime construction changes
+- no `CTFState` ownership migration
+- no `CTFVerifier` decision behavior changes
+- no proof-authority behavior changes
+- no Dispatcher changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Dispatcher/composition root production wiring approval plan
 
 Status: approval plan recorded, implementation not approved.
