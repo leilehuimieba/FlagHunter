@@ -2891,6 +2891,64 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### State ownership first slice approval text template
+
+Status: approval text template recorded, implementation not approved by this section.
+
+Copyable approval text for the recommended state boundary first slice:
+
+```text
+批准 State ownership split 第一刀：
+candidate: State ownership split
+first slice: state snapshot or claim-store ownership characterization with no storage ownership migration
+scope: state boundary characterization only
+rollback: revert the single implementation commit
+readiness evidence: CTFState legacy construction characterization guard reviewed
+landing evidence: required
+独立 TDD、独立 commit/push。
+禁止 CTFState ownership migration。
+禁止 CTFVerifier decision behavior change。
+禁止 proof authority behavior change。
+禁止 Dispatcher、ToolExecutor、MCP production wiring、Web/CLI/TUI task wiring、composition root、P5、crew/recovery。
+```
+
+Recommended first slice:
+
+- one state snapshot or claim-store ownership characterization seam
+- no mutation ownership transfer
+- no proof upgrade authority movement
+- no production construction or composition-root wiring
+
+Approval text invariants:
+
+- this template is not approval by itself
+- approval must be sent as a user message
+- state-store adapter evidence does not approve production state ownership migration
+- state ownership work must not move proof upgrade authority
+- state ownership work must remain downstream of the proof/verifier boundary guards
+
+Required verification for a future approved state first slice:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_state_store_adapter.py tests/unit/agents/test_p1_claim_invariants.py tests/unit/agents/test_p4_task_dag_replay_audit_bundle.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py tests/unit/test_adapter_boundary_skeleton.py tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this template:
+
+- no implementation approval by this section
+- no state ownership split
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### ToolExecutor side-effect split approval plan
 
 Status: approval plan recorded, implementation not approved.

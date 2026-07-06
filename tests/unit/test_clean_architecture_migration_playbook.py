@@ -2867,6 +2867,41 @@ def test_playbook_core_approval_queue_matches_aggregate_guard() -> None:
         assert invariant in aggregate_section
 
 
+def test_playbook_records_state_ownership_first_slice_approval_text_template() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "State ownership first slice approval text template",
+    )
+
+    assert "Status: approval text template recorded, implementation not approved by this section." in section
+    assert "批准 State ownership split 第一刀" in section
+    assert "one state snapshot or claim-store ownership characterization seam" in section
+    for required_clause in (
+        "candidate: State ownership split",
+        "first slice: state snapshot or claim-store ownership characterization with no storage ownership migration",
+        "scope: state boundary characterization only",
+        "rollback: revert the single implementation commit",
+        "readiness evidence: CTFState legacy construction characterization guard reviewed",
+        "landing evidence: required",
+    ):
+        assert required_clause in section
+    for forbidden_clause in (
+        "禁止 CTFState ownership migration",
+        "禁止 CTFVerifier decision behavior change",
+        "禁止 proof authority behavior change",
+        "禁止 Dispatcher、ToolExecutor、MCP production wiring、Web/CLI/TUI task wiring、composition root、P5、crew/recovery",
+    ):
+        assert forbidden_clause in section
+    for invariant in (
+        "this template is not approval by itself",
+        "approval must be sent as a user message",
+        "state-store adapter evidence does not approve production state ownership migration",
+        "state ownership work must not move proof upgrade authority",
+    ):
+        assert invariant in section
+
+
 def test_playbook_records_core_implementation_landing_evidence_template() -> None:
     text = _playbook_text()
     section = _heading_section_text(
