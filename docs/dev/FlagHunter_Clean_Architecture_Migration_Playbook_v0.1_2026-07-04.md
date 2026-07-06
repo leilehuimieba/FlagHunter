@@ -3620,6 +3620,54 @@ Boundary confirmation for this consistency guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Dispatcher composition root readiness characterization guard
+
+Status: readiness characterization guard recorded, no production wiring.
+
+`tests/unit/agents/test_p1_source_guards.py::test_p1_composition_root_readiness_stays_unwired_from_new_public_surfaces`
+now locks the absence of new public composition-root production wiring
+surfaces before any dispatcher/composition-root implementation approval.
+
+Guarded public surface names:
+
+- `CompositionRoot`
+- `ProductionCompositionRoot`
+- `build_composition_root`
+- `create_composition_root`
+- `wire_production`
+
+This guard pairs with
+`tests/unit/agents/test_p1_source_guards.py::test_p1_ctf_task_dispatcher_construction_stays_in_current_legacy_entrypoints`,
+which keeps current `CTFTaskDispatcher` production construction surfaces
+characterized as legacy entrypoints until a future approved wiring slice names
+one entrypoint family and one rollback commit.
+
+Required invariants:
+
+- new public composition-root surfaces remain absent until explicit approval
+- current `CTFTaskDispatcher` production construction surfaces stay characterized as legacy entrypoints
+- readiness evidence is not implementation approval
+- future production wiring must name exactly one entrypoint family and one rollback commit
+
+Required verification for this readiness guard:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/agents/test_p1_source_guards.py tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this readiness guard:
+
+- no `CTFTaskDispatcher` flow changes
+- no composition root production wiring
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no ToolExecutor changes
+- no `CTFState` ownership split
+- no proof-authority behavior changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Core implementation landing evidence template
 
 Status: landing evidence template recorded, no core implementation approved by this section.

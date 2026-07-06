@@ -905,6 +905,82 @@ def test_p1_ctf_task_dispatcher_construction_stays_in_current_legacy_entrypoints
     assert offenders == []
 
 
+def test_p1_composition_root_readiness_stays_unwired_from_new_public_surfaces() -> None:
+    guarded_names = {
+        "CompositionRoot",
+        "ProductionCompositionRoot",
+        "build_composition_root",
+        "create_composition_root",
+        "wire_production",
+    }
+    offenders: list[tuple[str, str, str, int]] = []
+
+    class CompositionRootSurfaceVisitor(ast.NodeVisitor):
+        def __init__(self, relative_path: str):
+            self.relative_path = relative_path
+            self.scope: list[str] = []
+
+        def _scope_name(self) -> str:
+            return ".".join(self.scope) or "<module>"
+
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            self.scope.append(node.name)
+            if node.name in guarded_names:
+                offenders.append(
+                    (self.relative_path, self._scope_name(), "class definition", node.lineno)
+                )
+            self.generic_visit(node)
+            self.scope.pop()
+
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            self.scope.append(node.name)
+            if node.name in guarded_names:
+                offenders.append(
+                    (self.relative_path, self._scope_name(), "function definition", node.lineno)
+                )
+            self.generic_visit(node)
+            self.scope.pop()
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            self.visit_FunctionDef(node)  # type: ignore[arg-type]
+
+        def visit_Import(self, node: ast.Import) -> None:
+            for alias in node.names:
+                if alias.name.rsplit(".", 1)[-1] in guarded_names or (
+                    alias.asname in guarded_names
+                ):
+                    offenders.append(
+                        (self.relative_path, self._scope_name(), "import", node.lineno)
+                    )
+            self.generic_visit(node)
+
+        def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+            for alias in node.names:
+                if alias.name in guarded_names or alias.asname in guarded_names:
+                    offenders.append(
+                        (self.relative_path, self._scope_name(), "import", node.lineno)
+                    )
+            self.generic_visit(node)
+
+        def visit_Call(self, node: ast.Call) -> None:
+            call_name = ""
+            if isinstance(node.func, ast.Name):
+                call_name = node.func.id
+            elif isinstance(node.func, ast.Attribute):
+                call_name = node.func.attr
+            if call_name in guarded_names:
+                offenders.append(
+                    (self.relative_path, self._scope_name(), "call", node.lineno)
+                )
+            self.generic_visit(node)
+
+    for path in _python_sources(PRODUCTION_ROOT):
+        visitor = CompositionRootSurfaceVisitor(_relative(path))
+        visitor.visit(_parse_source(_relative(path)))
+
+    assert offenders == []
+
+
 def test_p1_control_and_ingress_paths_do_not_emit_verification_decisions() -> None:
     guarded_paths = [
         "flaghunter/agents/pa_agent/coordinator.py",

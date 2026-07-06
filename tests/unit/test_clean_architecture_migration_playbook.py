@@ -2958,6 +2958,45 @@ def test_playbook_core_approval_queue_matches_aggregate_guard() -> None:
         assert invariant in aggregate_section
 
 
+def test_playbook_records_dispatcher_composition_root_readiness_characterization_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Dispatcher composition root readiness characterization guard",
+    )
+
+    assert "Status: readiness characterization guard recorded, no production wiring." in section
+    assert "test_p1_composition_root_readiness_stays_unwired_from_new_public_surfaces" in section
+    assert "test_p1_ctf_task_dispatcher_construction_stays_in_current_legacy_entrypoints" in section
+    for guarded_name in (
+        "CompositionRoot",
+        "ProductionCompositionRoot",
+        "build_composition_root",
+        "create_composition_root",
+        "wire_production",
+    ):
+        assert guarded_name in section
+    for invariant in (
+        "new public composition-root surfaces remain absent until explicit approval",
+        "current `CTFTaskDispatcher` production construction surfaces stay characterized as legacy entrypoints",
+        "readiness evidence is not implementation approval",
+        "future production wiring must name exactly one entrypoint family and one rollback commit",
+    ):
+        assert invariant in section
+    for boundary in (
+        "no `CTFTaskDispatcher` flow changes",
+        "no composition root production wiring",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no ToolExecutor changes",
+        "no `CTFState` ownership split",
+        "no proof-authority behavior changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_state_ownership_first_slice_approval_text_template() -> None:
     text = _playbook_text()
     section = _heading_section_text(
