@@ -3666,6 +3666,56 @@ def test_playbook_records_state_ownership_first_slice_approval_text_template() -
         assert invariant in section
 
 
+def test_playbook_records_state_ownership_implementation_approval_package_aggregate_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "State ownership implementation approval package aggregate guard",
+    )
+
+    assert "Status: aggregate guard recorded, State implementation not approved." in section
+    rows = {
+        row["Approval package surface"]: row
+        for row in _markdown_table_rows(section)
+    }
+    expected = {
+        "approval plan": "`State ownership split approval plan`",
+        "readiness aggregate": "`State ownership characterization readiness aggregate`",
+        "approval text template": "`State ownership first slice approval text template`",
+        "proof completion prerequisite": "`Verifier proof authority core landing completion transition record`",
+        "sequence gate": "`Core implementation sequence gate`",
+        "landing evidence matrix": "`Core implementation landing evidence completeness matrix`",
+    }
+    assert set(rows) == set(expected)
+    for surface, heading in expected.items():
+        assert rows[surface]["Required heading"] == heading
+        assert rows[surface]["Current ready"] == "true"
+        assert rows[surface]["Implementation approved"] == "false"
+        assert heading.strip("`") in text
+    for invariant in (
+        "State approval package readiness does not grant implementation approval",
+        "State implementation requires a separate explicit user approval",
+        "State first slice must remain one functional point per commit",
+        "State implementation must not move proof authority or verifier decisions",
+    ):
+        assert invariant in section
+    for boundary in (
+        "no `CTFState` ownership migration",
+        "no state-store production wiring",
+        "no claim-store production wiring",
+        "no proof-authority behavior changes",
+        "no verifier decision behavior changes",
+        "no ToolExecutor changes",
+        "no `CTFTaskDispatcher` flow changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_state_ownership_first_slice_characterization_landing() -> None:
     text = _playbook_text()
     section = _heading_section_text(

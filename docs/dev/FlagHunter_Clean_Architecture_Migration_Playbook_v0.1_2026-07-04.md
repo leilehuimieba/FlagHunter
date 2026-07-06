@@ -3128,6 +3128,52 @@ Boundary confirmation for this template:
 - no P5 implementation
 - no crew/recovery changes
 
+#### State ownership implementation approval package aggregate guard
+
+Status: aggregate guard recorded, State implementation not approved.
+
+This aggregate keeps the State ownership split approval package visible after
+proof completion unlocks State for review. The package is ready for human
+review, but it does not grant State implementation approval by itself.
+
+| Approval package surface | Required heading | Current ready | Implementation approved |
+|--------------------------|------------------|---------------|-------------------------|
+| approval plan | `State ownership split approval plan` | true | false |
+| readiness aggregate | `State ownership characterization readiness aggregate` | true | false |
+| approval text template | `State ownership first slice approval text template` | true | false |
+| proof completion prerequisite | `Verifier proof authority core landing completion transition record` | true | false |
+| sequence gate | `Core implementation sequence gate` | true | false |
+| landing evidence matrix | `Core implementation landing evidence completeness matrix` | true | false |
+
+Required invariants:
+
+- State approval package readiness does not grant implementation approval
+- State implementation requires a separate explicit user approval
+- State first slice must remain one functional point per commit
+- State implementation must not move proof authority or verifier decisions
+
+Required verification for this guard:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this aggregate:
+
+- no `CTFState` ownership migration
+- no state-store production wiring
+- no claim-store production wiring
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### State ownership first slice characterization landing record
 
 Status: first slice characterization landed; no ownership migration.
