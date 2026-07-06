@@ -2721,6 +2721,49 @@ def test_playbook_records_storage_adapter_namespace_reexport_guard() -> None:
         assert boundary in section
 
 
+def test_playbook_records_state_ownership_characterization_readiness_aggregate() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "State ownership characterization readiness aggregate",
+    )
+
+    assert "Status: aggregate guard recorded, implementation not approved." in section
+    for required_guard in (
+        "CTFState legacy construction characterization guard",
+        "State store adapter import unwired guard",
+        "State store adapter delegate-only guard hardening",
+        "Claim store adapter delegate-only guard hardening",
+        "Storage adapter namespace re-export guard",
+    ):
+        assert required_guard in section
+    for focused_test in (
+        "test_p1_ctf_state_construction_stays_in_current_legacy_surfaces",
+        "test_p1_state_store_adapter_stays_unwired_from_production_imports",
+        "test_state_store_adapter_action_bodies_remain_direct_delegate_only",
+        "test_claim_store_adapter_action_bodies_remain_direct_delegate_only",
+        "test_storage_adapter_namespace_is_reexport_only",
+    ):
+        assert focused_test in section
+    assert "State ownership split implementation remains unapproved" in section
+    assert "approval package evidence, not implementation approval" in section
+    for boundary in (
+        "no state ownership split",
+        "no state-store production wiring",
+        "no claim-store production wiring",
+        "no proof-authority behavior changes",
+        "no verifier decision behavior changes",
+        "no `CTFTaskDispatcher` flow changes",
+        "no ToolExecutor changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_tool_executor_side_effect_split_approval_plan() -> None:
     text = _playbook_text()
     section = _heading_section_text(
@@ -2980,7 +3023,7 @@ def test_playbook_records_core_approval_package_aggregate_guard() -> None:
     }
     expected_readiness = {
         "Verifier/proof authority boundary": "Proof authority characterization readiness aggregate",
-        "State ownership split": "CTFState legacy construction characterization guard",
+        "State ownership split": "State ownership characterization readiness aggregate",
         "ToolExecutor side-effect split": "ToolExecutor legacy construction characterization guard",
         "Dispatcher/composition root production wiring": "Dispatcher composition root readiness characterization guard",
     }

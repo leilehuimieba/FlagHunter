@@ -3027,6 +3027,49 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### State ownership characterization readiness aggregate
+
+Status: aggregate guard recorded, implementation not approved.
+
+This aggregate keeps the State ownership split characterization runway visible
+as approval package evidence, not implementation approval.
+
+Required characterization guards:
+
+- CTFState legacy construction characterization guard
+- State store adapter import unwired guard
+- State store adapter delegate-only guard hardening
+- Claim store adapter delegate-only guard hardening
+- Storage adapter namespace re-export guard
+
+Focused guard tests:
+
+- `test_p1_ctf_state_construction_stays_in_current_legacy_surfaces`
+- `test_p1_state_store_adapter_stays_unwired_from_production_imports`
+- `test_state_store_adapter_action_bodies_remain_direct_delegate_only`
+- `test_claim_store_adapter_action_bodies_remain_direct_delegate_only`
+- `test_storage_adapter_namespace_is_reexport_only`
+
+State ownership split implementation remains unapproved. These guards only
+prove the current legacy construction surface, unwired adapter import surface,
+delegate-only adapter bodies, claim-store delegate body, and storage namespace
+surface are characterized before a future explicit approval.
+
+Boundary confirmation for this aggregate:
+
+- no state ownership split
+- no state-store production wiring
+- no claim-store production wiring
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no `CTFTaskDispatcher` flow changes
+- no ToolExecutor changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### State ownership first slice approval text template
 
 Status: approval text template recorded, implementation not approved by this section.
@@ -3658,7 +3701,7 @@ The four core production approval packages are now recorded, but approval packag
 | Core candidate | Approval package | Readiness evidence | Implementation approved | Current implementation state |
 |----------------|------------------|--------------------|-------------------------|------------------------------|
 | Verifier/proof authority boundary | `Verifier/proof authority boundary approval plan` | `Proof authority characterization readiness aggregate` | false | not approved |
-| State ownership split | `State ownership split approval plan` | `CTFState legacy construction characterization guard` | false | not approved |
+| State ownership split | `State ownership split approval plan` | `State ownership characterization readiness aggregate` | false | not approved |
 | ToolExecutor side-effect split | `ToolExecutor side-effect split approval plan` | `ToolExecutor legacy construction characterization guard` | false | not approved |
 | Dispatcher/composition root production wiring | `Dispatcher/composition root production wiring approval plan` | `Dispatcher composition root readiness characterization guard` | false | not approved |
 
