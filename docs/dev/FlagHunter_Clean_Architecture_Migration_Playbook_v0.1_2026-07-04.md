@@ -3277,6 +3277,52 @@ Approval text invariants:
 - adapter wrapper does not mean production wiring approval
 - verifier/proof-authority adapter import guards must remain green
 
+#### Proof adapter wrapper delegate-only pre-approval guard
+
+Status: delegate-only guard recorded, implementation not approved.
+
+The proof boundary adapter wrappers exist as skeletons, but they must remain
+delegate-only until a separate explicit production wiring approval lands.
+
+Guarded adapter scopes:
+
+- `VerifierAdapter.review_claim`
+- `ProofAuthorityAdapter.append_proof_record`
+- `ProofAuthorityAdapter.confirm_claim`
+
+Required invariants:
+
+- adapter wrappers remain delegate-only skeletons
+- adapter wrapper approval is not production wiring approval
+- no verifier decision behavior changes
+- no proof-authority behavior changes
+- no `CTFState` ownership split
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no composition root changes
+
+Required verification for this guard:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_verifier_adapter.py tests/unit/test_proof_authority_adapter.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/agents/test_p1_source_guards.py tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this guard:
+
+- no production wiring approval by this section
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no `CTFState` ownership split
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Task ingress service contract migration approval flag consistency guard
 
 Status: approval consistency guard updated, implementation landed.

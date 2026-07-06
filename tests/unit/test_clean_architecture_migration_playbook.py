@@ -3001,6 +3001,39 @@ def test_playbook_core_first_slice_template_blocks_adapter_production_wiring() -
     assert "verifier/proof-authority adapter import guards must remain green" in section
 
 
+def test_playbook_records_proof_adapter_wrapper_delegate_only_preapproval_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Proof adapter wrapper delegate-only pre-approval guard",
+    )
+
+    assert "Status: delegate-only guard recorded, implementation not approved." in section
+    for adapter_scope in (
+        "VerifierAdapter.review_claim",
+        "ProofAuthorityAdapter.append_proof_record",
+        "ProofAuthorityAdapter.confirm_claim",
+    ):
+        assert adapter_scope in section
+    for invariant in (
+        "adapter wrappers remain delegate-only skeletons",
+        "adapter wrapper approval is not production wiring approval",
+        "no verifier decision behavior changes",
+        "no proof-authority behavior changes",
+        "no `CTFState` ownership split",
+        "no ToolExecutor changes",
+        "no `CTFTaskDispatcher` flow changes",
+        "no composition root changes",
+    ):
+        assert invariant in section
+    for command in (
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_verifier_adapter.py tests/unit/test_proof_authority_adapter.py -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/agents/test_p1_source_guards.py tests/unit/test_clean_architecture_migration_playbook.py -q",
+        "git diff --check",
+    ):
+        assert command in section
+
+
 def test_playbook_records_task_ingress_production_wiring_a_landing() -> None:
     text = _playbook_text()
     section = _heading_section_text(
