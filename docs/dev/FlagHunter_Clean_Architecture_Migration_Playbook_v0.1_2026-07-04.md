@@ -4752,6 +4752,46 @@ Boundary confirmation for this reconciliation guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Verifier proof authority core landing completion approval checklist
+
+Status: completion approval checklist recorded, completion not approved.
+
+This checklist records the exact review surfaces that must be reconciled
+before the verifier/proof-authority boundary can be marked complete enough to
+unblock State ownership split review.
+
+| Review surface | Required evidence | Current state |
+|----------------|-------------------|---------------|
+| core landing matrix proof row | `Core implementation landing evidence completeness matrix` proof row | incomplete |
+| sequence gate proof row | `Core implementation sequence gate` proof row | next approvable, not landed |
+| partial landing reconciliation | `Verifier proof authority partial landing reconciliation guard` | partial only |
+| human approval decision | explicit proof-boundary completion approval or next implementation slice approval | pending |
+
+Copyable approval forms for a future user decision:
+
+- 批准 Verifier/proof authority boundary core landing completion
+- 批准 Verifier/proof authority boundary next implementation slice
+
+Required invariants:
+
+- completion approval must name whether it is governance-only completion or implementation work
+- completion approval must not unlock State ownership without updating the matrix and sequence gate in the same functional commit
+
+Boundary confirmation for this checklist:
+
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no proof authority production wiring
+- no verifier production wiring
+- no `CTFState` ownership split
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Task ingress service contract migration approval flag consistency guard
 
 Status: approval consistency guard updated, implementation landed.

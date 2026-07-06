@@ -4369,6 +4369,64 @@ def test_playbook_records_verifier_proof_authority_partial_landing_reconciliatio
         assert boundary in section
 
 
+def test_playbook_records_verifier_proof_authority_core_landing_completion_approval_checklist() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Verifier proof authority core landing completion approval checklist",
+    )
+
+    assert "Status: completion approval checklist recorded, completion not approved." in section
+    rows = {
+        row["Review surface"]: row
+        for row in _markdown_table_rows(section)
+    }
+    expected = {
+        "core landing matrix proof row": {
+            "Required evidence": "`Core implementation landing evidence completeness matrix` proof row",
+            "Current state": "incomplete",
+        },
+        "sequence gate proof row": {
+            "Required evidence": "`Core implementation sequence gate` proof row",
+            "Current state": "next approvable, not landed",
+        },
+        "partial landing reconciliation": {
+            "Required evidence": "`Verifier proof authority partial landing reconciliation guard`",
+            "Current state": "partial only",
+        },
+        "human approval decision": {
+            "Required evidence": "explicit proof-boundary completion approval or next implementation slice approval",
+            "Current state": "pending",
+        },
+    }
+    assert set(rows) == set(expected)
+    for surface, expected_values in expected.items():
+        for column, value in expected_values.items():
+            assert rows[surface][column] == value
+    for required_phrase in (
+        "批准 Verifier/proof authority boundary core landing completion",
+        "批准 Verifier/proof authority boundary next implementation slice",
+        "completion approval must name whether it is governance-only completion or implementation work",
+        "completion approval must not unlock State ownership without updating the matrix and sequence gate in the same functional commit",
+    ):
+        assert required_phrase in section
+    for boundary in (
+        "no proof-authority behavior changes",
+        "no verifier decision behavior changes",
+        "no proof authority production wiring",
+        "no verifier production wiring",
+        "no `CTFState` ownership split",
+        "no ToolExecutor changes",
+        "no `CTFTaskDispatcher` flow changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_task_ingress_production_wiring_a_landing() -> None:
     text = _playbook_text()
     section = _heading_section_text(
