@@ -3831,6 +3831,7 @@ def test_playbook_records_state_ownership_approval_transition_atomicity_guard() 
     expected = {
         "approval package": "`State ownership implementation approval package aggregate guard`",
         "approval plan": "`State ownership split approval plan`",
+        "decision checklist": "`State ownership first implementation decision checklist`",
         "landing matrix row": "`Core implementation landing evidence completeness matrix` State row",
         "sequence gate row": "`Core implementation sequence gate` State row",
         "landing evidence": "`State ownership split implementation landing record`",
@@ -3842,6 +3843,7 @@ def test_playbook_records_state_ownership_approval_transition_atomicity_guard() 
         assert heading.split("`")[1] in text
     for invariant in (
         "State approval transition must update every listed surface in the same commit",
+        "State approval transition must include the exact decision checklist option",
         "partial State approval transitions must fail review",
         "approval transition evidence must land before any State implementation commit",
         "State landing evidence must stay incomplete until a real implementation commit exists",
@@ -3881,6 +3883,7 @@ def test_playbook_records_state_ownership_approval_transition_coverage_guard() -
         "approval plan",
         "readiness aggregate",
         "approval text template",
+        "decision checklist",
         "proof completion prerequisite",
         "sequence gate",
         "landing evidence matrix",
@@ -3893,6 +3896,7 @@ def test_playbook_records_state_ownership_approval_transition_coverage_guard() -
         assert surface in text
     for invariant in (
         "every State approval transition table must keep the same canonical governance surface set",
+        "State approval transition coverage must include the decision checklist",
         "State approval transition coverage must include proof completion prerequisite evidence",
         "State approval transition coverage must include landing evidence before implementation",
         "coverage evidence must not be treated as State implementation approval",

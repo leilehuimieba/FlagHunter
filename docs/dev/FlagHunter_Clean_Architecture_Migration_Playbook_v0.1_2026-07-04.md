@@ -3279,6 +3279,7 @@ authorization.
 |--------------------|------------------|-----------------------------|
 | approval package | `State ownership implementation approval package aggregate guard` | false |
 | approval plan | `State ownership split approval plan` | false |
+| decision checklist | `State ownership first implementation decision checklist` | false |
 | landing matrix row | `Core implementation landing evidence completeness matrix` State row | false |
 | sequence gate row | `Core implementation sequence gate` State row | false |
 | landing evidence | `State ownership split implementation landing record` | false |
@@ -3286,6 +3287,7 @@ authorization.
 Required invariants:
 
 - State approval transition must update every listed surface in the same commit
+- State approval transition must include the exact decision checklist option
 - partial State approval transitions must fail review
 - approval transition evidence must land before any State implementation commit
 - State landing evidence must stay incomplete until a real implementation commit exists
@@ -3326,6 +3328,7 @@ implementation commit can follow.
 | approval plan | true | false |
 | readiness aggregate | true | false |
 | approval text template | true | false |
+| decision checklist | true | false |
 | proof completion prerequisite | true | false |
 | sequence gate | true | false |
 | landing evidence matrix | true | false |
@@ -3334,6 +3337,7 @@ implementation commit can follow.
 Required invariants:
 
 - every State approval transition table must keep the same canonical governance surface set
+- State approval transition coverage must include the decision checklist
 - State approval transition coverage must include proof completion prerequisite evidence
 - State approval transition coverage must include landing evidence before implementation
 - coverage evidence must not be treated as State implementation approval
