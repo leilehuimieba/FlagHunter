@@ -3277,6 +3277,37 @@ Boundary confirmation for this template:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Core first slice approval template coverage guard
+
+Status: aggregate approval-template coverage guard recorded.
+
+Every high-risk core candidate must keep a copyable first-slice approval
+template before implementation can be requested. The templates make the
+approved scope, rollback point, readiness evidence, landing evidence, and
+forbidden production surfaces reviewable in one place.
+
+| Core candidate | Approval template | Coverage required |
+|----------------|-------------------|-------------------|
+| Verifier/proof authority boundary | `Core first slice approval text template` | true |
+| State ownership split | `State ownership first slice approval text template` | true |
+| ToolExecutor side-effect split | `ToolExecutor first slice approval text template` | true |
+| Dispatcher/composition root production wiring | `Dispatcher composition root first slice approval text template` | true |
+
+Coverage invariants:
+
+- all core candidates must keep one copyable first-slice approval template
+- templates do not approve implementation by themselves
+- dispatcher/composition-root remains last until proof, state, and executor seams land
+- missing or renamed templates must fail review
+- every future implementation still needs explicit human approval and a landing record
+
+Required verification for this guard:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
 #### Core production approval package aggregate guard
 
 Status: aggregate guard recorded, implementation not approved by this section.

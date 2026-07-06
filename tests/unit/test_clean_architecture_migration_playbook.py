@@ -2977,6 +2977,38 @@ def test_playbook_records_dispatcher_composition_root_first_slice_approval_text_
         assert invariant in section
 
 
+def test_playbook_records_core_first_slice_template_coverage_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Core first slice approval template coverage guard",
+    )
+
+    assert "Status: aggregate approval-template coverage guard recorded." in section
+    expected_templates = {
+        "Verifier/proof authority boundary": "Core first slice approval text template",
+        "State ownership split": "State ownership first slice approval text template",
+        "ToolExecutor side-effect split": "ToolExecutor first slice approval text template",
+        "Dispatcher/composition root production wiring": "Dispatcher composition root first slice approval text template",
+    }
+    rows = {
+        row["Core candidate"]: row
+        for row in _markdown_table_rows(section)
+    }
+    assert rows.keys() == expected_templates.keys()
+    for candidate, template in expected_templates.items():
+        assert rows[candidate]["Approval template"] == f"`{template}`"
+        assert rows[candidate]["Coverage required"] == "true"
+        assert template in text
+    for invariant in (
+        "all core candidates must keep one copyable first-slice approval template",
+        "templates do not approve implementation by themselves",
+        "dispatcher/composition-root remains last until proof, state, and executor seams land",
+        "missing or renamed templates must fail review",
+    ):
+        assert invariant in section
+
+
 def test_playbook_records_core_implementation_landing_evidence_template() -> None:
     text = _playbook_text()
     section = _heading_section_text(
