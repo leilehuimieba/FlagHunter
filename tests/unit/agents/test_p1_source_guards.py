@@ -652,6 +652,77 @@ def test_p1_ctf_state_construction_stays_in_current_legacy_surfaces() -> None:
     assert offenders == []
 
 
+def test_p1_tool_executor_construction_stays_in_base_agent_only() -> None:
+    allowed_imports: set[tuple[str, str]] = {
+        ("flaghunter/agents/base_agent.py", "ToolExecutor"),
+    }
+    allowed_constructions: set[tuple[str, str, str]] = {
+        ("flaghunter/agents/base_agent.py", "BaseAgent.__init__", "ToolExecutor"),
+    }
+    allowed_definitions: set[tuple[str, str]] = {
+        ("flaghunter/tools/executor.py", "ToolExecutor"),
+    }
+    allowed_reexports: set[tuple[str, str]] = {
+        ("flaghunter/tools/__init__.py", "ToolExecutor"),
+    }
+    offenders: list[tuple[str, str, int]] = []
+
+    class ToolExecutorConstructionVisitor(ast.NodeVisitor):
+        def __init__(self, relative_path: str):
+            self.relative_path = relative_path
+            self.scope: list[str] = []
+
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            self.scope.append(node.name)
+            if node.name == "ToolExecutor":
+                key = (self.relative_path, "ToolExecutor")
+                if key not in allowed_definitions:
+                    offenders.append(
+                        (self.relative_path, "ToolExecutor class", node.lineno)
+                    )
+            self.generic_visit(node)
+            self.scope.pop()
+
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            self.scope.append(node.name)
+            self.generic_visit(node)
+            self.scope.pop()
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            self.scope.append(node.name)
+            self.generic_visit(node)
+            self.scope.pop()
+
+        def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+            imported_names = {alias.name for alias in node.names}
+            if "ToolExecutor" in imported_names:
+                key = (self.relative_path, "ToolExecutor")
+                if key not in allowed_imports and key not in allowed_reexports:
+                    offenders.append(
+                        (self.relative_path, "ToolExecutor import", node.lineno)
+                    )
+            self.generic_visit(node)
+
+        def visit_Call(self, node: ast.Call) -> None:
+            call_name = ""
+            if isinstance(node.func, ast.Name):
+                call_name = node.func.id
+            elif isinstance(node.func, ast.Attribute):
+                call_name = node.func.attr
+            if call_name == "ToolExecutor":
+                scope_name = ".".join(self.scope) or "<module>"
+                key = (self.relative_path, scope_name, call_name)
+                if key not in allowed_constructions:
+                    offenders.append((self.relative_path, scope_name, node.lineno))
+            self.generic_visit(node)
+
+    for path in _python_sources(PRODUCTION_ROOT):
+        visitor = ToolExecutorConstructionVisitor(_relative(path))
+        visitor.visit(_parse_source(_relative(path)))
+
+    assert offenders == []
+
+
 def test_p1_control_and_ingress_paths_do_not_emit_verification_decisions() -> None:
     guarded_paths = [
         "flaghunter/agents/pa_agent/coordinator.py",

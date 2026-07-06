@@ -2910,6 +2910,43 @@ Boundary confirmation for this approval plan:
 - no P5 implementation
 - no crew/recovery changes
 
+#### ToolExecutor legacy construction characterization guard
+
+Status: characterization guard recorded, no ToolExecutor behavior changed.
+
+`tests/unit/agents/test_p1_source_guards.py::test_p1_tool_executor_construction_stays_in_base_agent_only`
+now locks the current legacy `ToolExecutor` definition, package re-export, and
+production construction surface before any ToolExecutor side-effect split,
+tool-runner adapter wiring, or composition-root migration.
+
+Current allowed definition and re-export surfaces:
+
+- `flaghunter/tools/executor.py`
+- `flaghunter/tools/__init__.py`
+- `ToolExecutor`
+
+Current allowed production construction surface:
+
+- `flaghunter/agents/base_agent.py`
+- `BaseAgent.__init__`
+- `ToolExecutor`
+
+This confirms BaseAgent construction remains the only production construction surface.
+It does not approve a ToolExecutor side-effect split, tool-runner production
+wiring, or composition-root migration.
+
+Boundary confirmation for this guard:
+
+- no ToolExecutor side-effect split
+- no proof-authority behavior changes
+- no `CTFState` ownership split
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Dispatcher/composition root production wiring approval plan
 
 Status: approval plan recorded, implementation not approved.

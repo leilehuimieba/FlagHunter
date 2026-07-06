@@ -2640,6 +2640,41 @@ def test_playbook_records_tool_executor_side_effect_split_approval_plan() -> Non
         assert command in section
 
 
+def test_playbook_records_tool_executor_legacy_construction_characterization_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "ToolExecutor legacy construction characterization guard",
+    )
+
+    assert "Status: characterization guard recorded, no ToolExecutor behavior changed." in section
+    assert (
+        "tests/unit/agents/test_p1_source_guards.py::"
+        "test_p1_tool_executor_construction_stays_in_base_agent_only"
+    ) in section
+    for allowed_surface in (
+        "`flaghunter/tools/executor.py`",
+        "`flaghunter/tools/__init__.py`",
+        "`flaghunter/agents/base_agent.py`",
+        "`BaseAgent.__init__`",
+        "`ToolExecutor`",
+        "BaseAgent construction remains the only production construction surface",
+    ):
+        assert allowed_surface in section
+    for boundary in (
+        "no ToolExecutor side-effect split",
+        "no proof-authority behavior changes",
+        "no `CTFState` ownership split",
+        "no `CTFTaskDispatcher` flow changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_dispatcher_composition_root_approval_plan() -> None:
     text = _playbook_text()
     section = _heading_section_text(
