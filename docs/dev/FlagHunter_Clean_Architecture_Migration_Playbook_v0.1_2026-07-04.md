@@ -3006,6 +3006,47 @@ Boundary confirmation for this consistency guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Core implementation landing evidence template
+
+Status: landing evidence template recorded, no core implementation approved by this section.
+
+Any future approved core implementation must add a candidate-specific landing record in the same commit as the implementation. This template applies only after explicit approval for one core candidate is granted.
+
+Eligible core candidates:
+
+- Verifier/proof authority boundary
+- State ownership split
+- ToolExecutor side-effect split
+- Dispatcher/composition root production wiring
+
+Required landing record fields:
+
+- core candidate
+- implementation commit SHA
+- approved scope
+- files changed
+- red test evidence
+- focused regression result
+- architecture/source-guard result
+- git diff --check result
+- post-push branch status
+- rollback command
+- boundary confirmation
+
+Required verification for this template:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this landing template:
+
+- no implementation approval by this template
+- one core functional point per commit
+- no bundled proof, state, executor, dispatcher, composition-root, MCP, and entrypoint changes
+- rollback command must use the real implementation commit SHA
+
 #### Task ingress service contract migration approval flag consistency guard
 
 Status: approval consistency guard updated, implementation landed.

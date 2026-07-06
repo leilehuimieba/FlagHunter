@@ -2734,6 +2734,51 @@ def test_playbook_core_approval_queue_matches_aggregate_guard() -> None:
         assert invariant in aggregate_section
 
 
+def test_playbook_records_core_implementation_landing_evidence_template() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Core implementation landing evidence template",
+    )
+
+    assert "Status: landing evidence template recorded, no core implementation approved by this section." in section
+    assert "future approved core implementation" in section
+    assert "must add a candidate-specific landing record" in section
+    for field in (
+        "core candidate",
+        "implementation commit SHA",
+        "approved scope",
+        "files changed",
+        "red test evidence",
+        "focused regression result",
+        "architecture/source-guard result",
+        "git diff --check result",
+        "post-push branch status",
+        "rollback command",
+        "boundary confirmation",
+    ):
+        assert field in section
+    for candidate in (
+        "Verifier/proof authority boundary",
+        "State ownership split",
+        "ToolExecutor side-effect split",
+        "Dispatcher/composition root production wiring",
+    ):
+        assert candidate in section
+    for boundary in (
+        "one core functional point per commit",
+        "no bundled proof, state, executor, dispatcher, composition-root, MCP, and entrypoint changes",
+        "no implementation approval by this template",
+        "rollback command must use the real implementation commit SHA",
+    ):
+        assert boundary in section
+    for command in (
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q",
+        "git diff --check",
+    ):
+        assert command in section
+
+
 def test_playbook_records_task_ingress_production_wiring_a_landing() -> None:
     text = _playbook_text()
     section = _heading_section_text(
