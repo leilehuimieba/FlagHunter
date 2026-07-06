@@ -4484,6 +4484,11 @@ def test_playbook_records_state_characterization_landing_evidence_aggregate_guar
             "Evidence complete": "true",
             "Counts as ownership migration": "false",
         },
+        "claim-store import guard": {
+            "Required guard": "`test_p1_claim_store_adapter_stays_unwired_from_production_imports`",
+            "Evidence complete": "true",
+            "Counts as ownership migration": "false",
+        },
         "core landing reconciliation": {
             "Required heading": "`State ownership characterization landing reconciliation guard`",
             "Evidence complete": "true",

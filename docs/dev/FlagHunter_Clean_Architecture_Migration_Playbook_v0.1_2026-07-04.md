@@ -3836,6 +3836,7 @@ approved implementation commit lands.
 | first slice landing | `State ownership first slice characterization landing record` |  | true | false |
 | snapshot ownership guard |  | `test_p1_ctf_state_snapshot_ownership_stays_in_legacy_state_only` | true | false |
 | construction surface guard |  | `test_p1_ctf_state_construction_stays_in_current_legacy_surfaces` | true | false |
+| claim-store import guard |  | `test_p1_claim_store_adapter_stays_unwired_from_production_imports` | true | false |
 | core landing reconciliation | `State ownership characterization landing reconciliation guard` |  | true | false |
 | core landing matrix | `Core implementation landing evidence completeness matrix` State row |  | false | false |
 
