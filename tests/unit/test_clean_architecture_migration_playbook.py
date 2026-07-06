@@ -2902,6 +2902,43 @@ def test_playbook_records_state_ownership_first_slice_approval_text_template() -
         assert invariant in section
 
 
+def test_playbook_records_tool_executor_first_slice_approval_text_template() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "ToolExecutor first slice approval text template",
+    )
+
+    assert "Status: approval text template recorded, implementation not approved by this section." in section
+    assert "批准 ToolExecutor side-effect split 第一刀" in section
+    assert "one tool receipt or tool-runner side-effect characterization seam" in section
+    for required_clause in (
+        "candidate: ToolExecutor side-effect split",
+        "first slice: tool receipt or tool-runner side-effect characterization with no executor production wiring",
+        "scope: ToolExecutor boundary characterization only",
+        "rollback: revert the single implementation commit",
+        "readiness evidence: ToolExecutor legacy construction characterization guard reviewed",
+        "landing evidence: required",
+    ):
+        assert required_clause in section
+    for forbidden_clause in (
+        "禁止 ToolExecutor side-effect migration",
+        "禁止 tool-runner production wiring",
+        "禁止 runtime construction changes",
+        "禁止 CTFState ownership migration",
+        "禁止 proof authority behavior change",
+        "禁止 Dispatcher、MCP production wiring、Web/CLI/TUI task wiring、composition root、P5、crew/recovery",
+    ):
+        assert forbidden_clause in section
+    for invariant in (
+        "this template is not approval by itself",
+        "approval must be sent as a user message",
+        "tool-runner adapter evidence does not approve production ToolExecutor migration",
+        "ToolExecutor work must not move proof upgrade or state ownership authority",
+    ):
+        assert invariant in section
+
+
 def test_playbook_records_core_implementation_landing_evidence_template() -> None:
     text = _playbook_text()
     section = _heading_section_text(

@@ -3048,6 +3048,68 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### ToolExecutor first slice approval text template
+
+Status: approval text template recorded, implementation not approved by this section.
+
+Copyable approval text for the recommended ToolExecutor boundary first slice:
+
+```text
+批准 ToolExecutor side-effect split 第一刀：
+candidate: ToolExecutor side-effect split
+first slice: tool receipt or tool-runner side-effect characterization with no executor production wiring
+scope: ToolExecutor boundary characterization only
+rollback: revert the single implementation commit
+readiness evidence: ToolExecutor legacy construction characterization guard reviewed
+landing evidence: required
+独立 TDD、独立 commit/push。
+禁止 ToolExecutor side-effect migration。
+禁止 tool-runner production wiring。
+禁止 runtime construction changes。
+禁止 CTFState ownership migration。
+禁止 proof authority behavior change。
+禁止 Dispatcher、MCP production wiring、Web/CLI/TUI task wiring、composition root、P5、crew/recovery。
+```
+
+Recommended first slice:
+
+- one tool receipt or tool-runner side-effect characterization seam
+- no executor ownership transfer
+- no runtime construction movement
+- no production task execution wiring
+- no proof or state ownership movement
+
+Approval text invariants:
+
+- this template is not approval by itself
+- approval must be sent as a user message
+- tool-runner adapter evidence does not approve production ToolExecutor migration
+- ToolExecutor work must not move proof upgrade or state ownership authority
+- ToolExecutor work must remain downstream of proof/verifier and state boundary guards
+
+Required verification for a future approved ToolExecutor first slice:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/tools/test_executor.py tests/unit/tools/test_executor_cookie_inject.py tests/unit/tools/test_finish_control_receipt.py tests/unit/test_application_tool_receipt_service.py tests/unit/test_tool_runner_adapter.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_domain_challenge_contracts.py tests/unit/test_adapter_boundary_skeleton.py tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this template:
+
+- no implementation approval by this section
+- no ToolExecutor side-effect split
+- no tool-runner production wiring
+- no runtime construction changes
+- no proof-authority behavior changes
+- no `CTFState` ownership split
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Dispatcher/composition root production wiring approval plan
 
 Status: approval plan recorded, implementation not approved.
