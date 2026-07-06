@@ -3713,6 +3713,57 @@ def test_playbook_records_state_ownership_first_implementation_review_handoff_pa
         assert invariant in section
 
 
+def test_playbook_records_state_ownership_first_implementation_decision_checklist() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "State ownership first implementation decision checklist",
+    )
+
+    assert "Status: decision checklist recorded, implementation not approved." in section
+    rows = {
+        row["Decision option"]: row
+        for row in _markdown_table_rows(section)
+    }
+    expected = {
+        "snapshot ownership seam": {
+            "Approval text": "批准 State ownership split 第一刀: snapshot ownership seam",
+            "Allowed first implementation target": "`CTFState.to_snapshot` / `CTFState.from_snapshot` ownership seam only",
+        },
+        "claim-store ownership seam": {
+            "Approval text": "批准 State ownership split 第一刀: claim-store ownership seam",
+            "Allowed first implementation target": "`CTFState.create_claim` / `claims_by_id` ownership seam only",
+        },
+    }
+    assert set(rows) == set(expected)
+    for option, expected_values in expected.items():
+        for column, value in expected_values.items():
+            assert rows[option][column] == value
+        assert rows[option]["Approved now"] == "false"
+    for invariant in (
+        "exactly one decision option may be approved in the next State implementation commit",
+        "snapshot and claim-store seams must not land in the same implementation commit",
+        "approval must preserve proof authority and verifier decision behavior",
+        "decision checklist is not implementation approval",
+    ):
+        assert invariant in section
+    for boundary in (
+        "no `CTFState` ownership migration by this checklist",
+        "no state-store production wiring",
+        "no claim-store production wiring",
+        "no proof-authority behavior changes",
+        "no verifier decision behavior changes",
+        "no ToolExecutor changes",
+        "no Dispatcher changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_state_ownership_implementation_approval_package_aggregate_guard() -> None:
     text = _playbook_text()
     section = _heading_section_text(

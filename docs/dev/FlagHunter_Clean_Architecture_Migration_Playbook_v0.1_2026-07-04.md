@@ -3174,6 +3174,49 @@ Boundary confirmation for this handoff:
 - no P5 implementation
 - no crew/recovery changes
 
+#### State ownership first implementation decision checklist
+
+Status: decision checklist recorded, implementation not approved.
+
+The next State implementation approval must choose exactly one first seam. This
+checklist prevents a broad State approval from bundling snapshot ownership,
+claim-store ownership, proof authority, verifier decisions, dispatcher wiring,
+or composition-root changes into one commit.
+
+| Decision option | Approval text | Allowed first implementation target | Approved now |
+|-----------------|---------------|-------------------------------------|--------------|
+| snapshot ownership seam | 批准 State ownership split 第一刀: snapshot ownership seam | `CTFState.to_snapshot` / `CTFState.from_snapshot` ownership seam only | false |
+| claim-store ownership seam | 批准 State ownership split 第一刀: claim-store ownership seam | `CTFState.create_claim` / `claims_by_id` ownership seam only | false |
+
+Required invariants:
+
+- exactly one decision option may be approved in the next State implementation commit
+- snapshot and claim-store seams must not land in the same implementation commit
+- approval must preserve proof authority and verifier decision behavior
+- decision checklist is not implementation approval
+
+Required verification for this checklist:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this checklist:
+
+- no `CTFState` ownership migration by this checklist
+- no state-store production wiring
+- no claim-store production wiring
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no ToolExecutor changes
+- no Dispatcher changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### State ownership implementation approval package aggregate guard
 
 Status: aggregate guard recorded, State implementation not approved.
