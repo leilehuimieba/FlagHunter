@@ -3386,6 +3386,80 @@ Boundary confirmation for this landing:
 - no P5 implementation
 - no crew/recovery changes
 
+#### P1-B proof adapter delegate guard hardening landing record
+
+Status: guard hardening landed after explicit approval.
+
+Current approval fact:
+
+- Candidate P1-B Verifier/proof authority boundary second slice: landed
+
+Approved scope:
+
+- legacy verifier/proof authority adapter wrapper characterization
+- proof adapter guard hardening
+- `flaghunter/adapters/proof`
+- focused proof adapter tests
+- source guards
+- playbook governance record
+
+Guarded adapter body invariants:
+
+- VerifierAdapter.review_claim remains a single awaited delegate call
+- ProofAuthorityAdapter.append_proof_record remains a single delegate call
+- ProofAuthorityAdapter.confirm_claim remains a single delegate call
+- no legacy `CTFVerifier` construction
+- no legacy `CTFState` calls
+- no proof authority production wiring
+- no verifier production wiring
+- no verifier decision behavior changes
+- no proof-authority behavior changes
+
+Implementation summary:
+
+- `tests/unit/test_verifier_adapter.py` now characterizes
+  `VerifierAdapter.review_claim` as a direct `self._verifier.review_claim`
+  delegation with no branching, local assignment, exception handling, or proof
+  upgrade behavior.
+- `tests/unit/test_proof_authority_adapter.py` now characterizes
+  `ProofAuthorityAdapter.append_proof_record` and
+  `ProofAuthorityAdapter.confirm_claim` as direct `self._authority`
+  delegations with no branching, local assignment, exception handling, legacy
+  verifier construction, state calls, or production wiring.
+- No production adapter code changed because the current adapter skeletons
+  already match the approved delegate-only shape.
+
+Red test evidence:
+
+- `tests/unit/test_clean_architecture_migration_playbook.py::test_playbook_records_p1b_proof_adapter_delegate_guard_hardening_landing`
+  failed before this record existed with:
+  `AssertionError: missing heading: P1-B proof adapter delegate guard hardening landing record`
+
+Required verification for this landing:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_verifier_adapter.py tests/unit/test_proof_authority_adapter.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/agents/test_p1_source_guards.py tests/unit/agents/test_p1_claim_invariants.py tests/unit/test_adapter_boundary_skeleton.py tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Rollback command: git revert <P1-B proof adapter delegate guard hardening commit>
+
+Boundary confirmation for this landing:
+
+- no production wiring
+- no proof authority production wiring
+- no verifier production wiring
+- no verifier decision behavior changes
+- no proof-authority behavior changes
+- no `CTFState` ownership split
+- no Dispatcher changes
+- no ToolExecutor changes
+- no MCP/Web/CLI/TUI changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Task ingress service contract migration approval flag consistency guard
 
 Status: approval consistency guard updated, implementation landed.

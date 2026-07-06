@@ -3074,6 +3074,35 @@ def test_playbook_records_verifier_proof_authority_first_slice_landing() -> None
         assert required_evidence in section
 
 
+def test_playbook_records_p1b_proof_adapter_delegate_guard_hardening_landing() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "P1-B proof adapter delegate guard hardening landing record",
+    )
+
+    assert "Status: guard hardening landed after explicit approval." in section
+    assert "Candidate P1-B Verifier/proof authority boundary second slice: landed" in section
+    for guarded_scope in (
+        "VerifierAdapter.review_claim remains a single awaited delegate call",
+        "ProofAuthorityAdapter.append_proof_record remains a single delegate call",
+        "ProofAuthorityAdapter.confirm_claim remains a single delegate call",
+        "no legacy `CTFVerifier` construction",
+        "no legacy `CTFState` calls",
+        "no proof authority production wiring",
+        "no verifier production wiring",
+        "no verifier decision behavior changes",
+        "no proof-authority behavior changes",
+    ):
+        assert guarded_scope in section
+    for command in (
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_verifier_adapter.py tests/unit/test_proof_authority_adapter.py -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/agents/test_p1_source_guards.py tests/unit/agents/test_p1_claim_invariants.py tests/unit/test_adapter_boundary_skeleton.py tests/unit/test_clean_architecture_migration_playbook.py -q",
+        "git diff --check",
+    ):
+        assert command in section
+
+
 def test_playbook_records_task_ingress_production_wiring_a_landing() -> None:
     text = _playbook_text()
     section = _heading_section_text(
