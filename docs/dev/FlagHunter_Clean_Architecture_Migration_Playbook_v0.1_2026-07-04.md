@@ -3377,6 +3377,7 @@ and post-push evidence.
 | approval package evidence | `State ownership implementation approval package aggregate guard` | true |
 | approval transition atomicity evidence | `State ownership approval transition atomicity guard` | true |
 | approval transition coverage evidence | `State ownership approval transition coverage guard` | true |
+| decision checklist evidence | `State ownership first implementation decision checklist` | true |
 | red test evidence | `State ownership split implementation landing record` | false |
 | green focused regression | `State ownership split implementation landing record` | false |
 | architecture/source regression | `State ownership split implementation landing record` | false |
@@ -3386,6 +3387,7 @@ Required invariants:
 
 - State implementation evidence must remain false until explicit approval and implementation land
 - approval transition evidence must not be substituted for implementation evidence
+- decision checklist evidence must be present before State implementation evidence can land
 - landing evidence must include red, green, architecture regression, and post-push status before State implementation approved changes
 - evidence consistency must not authorize State ownership migration
 

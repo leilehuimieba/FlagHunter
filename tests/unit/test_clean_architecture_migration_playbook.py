@@ -3945,6 +3945,10 @@ def test_playbook_records_state_ownership_approval_transition_evidence_consisten
             "Required location": "`State ownership approval transition coverage guard`",
             "Current implementation evidence present": "true",
         },
+        "decision checklist evidence": {
+            "Required location": "`State ownership first implementation decision checklist`",
+            "Current implementation evidence present": "true",
+        },
         "red test evidence": {
             "Required location": "`State ownership split implementation landing record`",
             "Current implementation evidence present": "false",
@@ -3973,6 +3977,7 @@ def test_playbook_records_state_ownership_approval_transition_evidence_consisten
     for invariant in (
         "State implementation evidence must remain false until explicit approval and implementation land",
         "approval transition evidence must not be substituted for implementation evidence",
+        "decision checklist evidence must be present before State implementation evidence can land",
         "landing evidence must include red, green, architecture regression, and post-push status before State implementation approved changes",
         "evidence consistency must not authorize State ownership migration",
     ):
