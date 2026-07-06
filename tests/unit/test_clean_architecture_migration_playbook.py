@@ -2997,6 +2997,52 @@ def test_playbook_records_dispatcher_composition_root_readiness_characterization
         assert boundary in section
 
 
+def test_playbook_records_dispatcher_production_wiring_approval_package_consistency_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Dispatcher production wiring approval package consistency guard",
+    )
+
+    assert "Status: approval package consistency guard recorded, no production wiring." in section
+    rows = {
+        row["Governance surface"]: row
+        for row in _markdown_table_rows(section)
+    }
+    expected_rows = {
+        "approval plan": "Dispatcher/composition root production wiring approval plan",
+        "readiness guard": "Dispatcher composition root readiness characterization guard",
+        "approval text template": "Dispatcher composition root first slice approval text template",
+        "aggregate row": "Core production approval package aggregate guard",
+        "landing evidence template": "Core implementation landing evidence template",
+    }
+    assert set(rows) == set(expected_rows)
+    for surface, heading in expected_rows.items():
+        assert rows[surface]["Required heading"] == f"`{heading}`"
+        assert rows[surface]["Required before approval transition"] == "true"
+        assert rows[surface]["Current implementation approved"] == "false"
+        assert heading in text
+    for invariant in (
+        "dispatcher production wiring approval requires every governance surface to agree",
+        "readiness guard evidence must match the aggregate row and approval text template",
+        "landing evidence remains template-only until a real implementation commit exists",
+        "no dispatcher/composition-root production wiring may be inferred from this consistency guard",
+    ):
+        assert invariant in section
+    for boundary in (
+        "no `CTFTaskDispatcher` flow changes",
+        "no composition root production wiring",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no ToolExecutor changes",
+        "no `CTFState` ownership split",
+        "no proof-authority behavior changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_state_ownership_first_slice_approval_text_template() -> None:
     text = _playbook_text()
     section = _heading_section_text(

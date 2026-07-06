@@ -3668,6 +3668,48 @@ Boundary confirmation for this readiness guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Dispatcher production wiring approval package consistency guard
+
+Status: approval package consistency guard recorded, no production wiring.
+
+Dispatcher/composition-root production wiring is the highest-risk core
+migration package. Its approval package must keep every governance surface
+aligned before any future approval transition or implementation commit.
+
+| Governance surface | Required heading | Required before approval transition | Current implementation approved |
+|--------------------|------------------|-------------------------------------|---------------------------------|
+| approval plan | `Dispatcher/composition root production wiring approval plan` | true | false |
+| readiness guard | `Dispatcher composition root readiness characterization guard` | true | false |
+| approval text template | `Dispatcher composition root first slice approval text template` | true | false |
+| aggregate row | `Core production approval package aggregate guard` | true | false |
+| landing evidence template | `Core implementation landing evidence template` | true | false |
+
+Required invariants:
+
+- dispatcher production wiring approval requires every governance surface to agree
+- readiness guard evidence must match the aggregate row and approval text template
+- landing evidence remains template-only until a real implementation commit exists
+- no dispatcher/composition-root production wiring may be inferred from this consistency guard
+
+Required verification for this consistency guard:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this consistency guard:
+
+- no `CTFTaskDispatcher` flow changes
+- no composition root production wiring
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no ToolExecutor changes
+- no `CTFState` ownership split
+- no proof-authority behavior changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Core implementation landing evidence template
 
 Status: landing evidence template recorded, no core implementation approved by this section.
