@@ -2839,6 +2839,7 @@ def test_playbook_records_core_first_slice_approval_text_template() -> None:
         "first slice: proof-authority boundary characterization or adapter wrapper with no decision behavior change",
         "scope: verifier/proof-authority boundary only",
         "rollback: revert the single implementation commit",
+        "readiness evidence: Proof authority characterization readiness aggregate reviewed",
         "landing evidence: required",
     ):
         assert required_clause in section
@@ -2846,6 +2847,7 @@ def test_playbook_records_core_first_slice_approval_text_template() -> None:
         "this template is not approval by itself",
         "approval must be sent as a user message",
         "approval text must not authorize bundled core changes",
+        "readiness evidence does not approve implementation by itself",
     ):
         assert invariant in section
 
