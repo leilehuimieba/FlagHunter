@@ -3327,6 +3327,38 @@ def test_playbook_records_mcp_task_execution_behavior_equivalence_hardening() ->
         assert boundary in section
 
 
+def test_playbook_records_mcp_task_execution_post_wiring_source_guard() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "MCP task execution post-wiring source guard",
+    )
+
+    assert "Status: source guard landed, no production changes." in section
+    assert "test_mcp_task_execution_session_wiring_stays_inside_mcp_tools" in section
+    for locked_scope in (
+        "`AgentSession` task construction wiring stays in `flaghunter/mcp/server/mcp_tools.py`",
+        "`_build_mcp_task_components` stays in `flaghunter/mcp/server/mcp_tools.py`",
+        "MCP router and transport modules stay free of task execution construction",
+        "CTF dispatcher handoff stays in `mcp_tools.py::_drive_task`",
+    ):
+        assert locked_scope in section
+    for forbidden in (
+        "no MCP router changes",
+        "no MCP transport changes",
+        "no MCP server bootstrap changes",
+        "no Web/CLI/TUI task wiring changes",
+        "no ToolExecutor changes",
+        "no Verifier or proof authority behavior changes",
+        "no CTFState ownership split",
+        "no Dispatcher flow changes",
+        "no composition-root production wiring changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert forbidden in section
+
+
 def test_playbook_records_state_ownership_first_slice_approval_text_template() -> None:
     text = _playbook_text()
     section = _heading_section_text(

@@ -69,3 +69,28 @@ def test_mcp_task_execution_routes_construction_through_agent_session_after_appr
     assert "FlagHunterAgent(" in builder_source
     assert "runtime = _RuntimeClass(**_runtime_kwargs)" in builder_source
     assert "CTFTaskDispatcher(" in drive_task_source
+
+
+def test_mcp_task_execution_session_wiring_stays_inside_mcp_tools() -> None:
+    server_root = REPO_ROOT / "flaghunter" / "mcp" / "server"
+    offenders: list[tuple[str, str]] = []
+    forbidden_outside_mcp_tools = (
+        "AgentSession",
+        "_build_mcp_task_components",
+        "FlagHunterAgent(",
+        "CTFTaskDispatcher(",
+        "_RuntimeClass(",
+    )
+
+    for path in sorted(server_root.glob("*.py")):
+        relative = path.relative_to(REPO_ROOT).as_posix()
+        source = path.read_text(encoding="utf-8-sig")
+        if path.name == "mcp_tools.py":
+            continue
+        offenders.extend(
+            (relative, token)
+            for token in forbidden_outside_mcp_tools
+            if token in source
+        )
+
+    assert offenders == []

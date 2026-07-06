@@ -3931,6 +3931,43 @@ Boundary confirmation for this hardening:
 - no P5 implementation
 - no crew/recovery changes
 
+#### MCP task execution post-wiring source guard
+
+Status: source guard landed, no production changes.
+
+This guard prevents the approved MCP task execution construction wiring from
+spreading into MCP router, transport, or bootstrap modules after the first
+`AgentSession.create` slice.
+
+Locked source boundaries:
+
+- `AgentSession` task construction wiring stays in `flaghunter/mcp/server/mcp_tools.py`
+- `_build_mcp_task_components` stays in `flaghunter/mcp/server/mcp_tools.py`
+- MCP router and transport modules stay free of task execution construction
+- CTF dispatcher handoff stays in `mcp_tools.py::_drive_task`
+
+Evidence:
+
+- `test_mcp_task_execution_session_wiring_stays_inside_mcp_tools`
+
+Rollback command:
+
+- `git revert <MCP task execution post-wiring source guard commit>`
+
+Boundary confirmation for this guard:
+
+- no MCP router changes
+- no MCP transport changes
+- no MCP server bootstrap changes
+- no Web/CLI/TUI task wiring changes
+- no ToolExecutor changes
+- no Verifier or proof authority behavior changes
+- no CTFState ownership split
+- no Dispatcher flow changes
+- no composition-root production wiring changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Dispatcher production wiring approval package consistency guard
 
 Status: approval package consistency guard recorded, no production wiring.
