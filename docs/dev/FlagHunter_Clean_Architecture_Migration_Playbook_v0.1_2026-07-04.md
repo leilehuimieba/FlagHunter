@@ -3360,6 +3360,50 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### State ownership rollback placeholder consistency guard
+
+Status: rollback placeholder guard recorded, State implementation not approved.
+
+Rollback remains a placeholder until a single approved State implementation commit lands.
+Future State ownership implementation must record `git revert <State implementation commit>`
+as the rollback command in the same landing commit that updates implementation evidence.
+
+| Rollback surface | Required location | Rollback command present | Current implementation approved |
+|------------------|-------------------|--------------------------|---------------------------------|
+| approval package | `State ownership implementation approval package aggregate guard` | false | false |
+| approval transition evidence | `State ownership approval transition evidence consistency guard` | false | false |
+| landing status | `State ownership implementation landing status guard` | false | false |
+| implementation landing record | `State ownership split implementation landing record` | false | false |
+
+Required invariants:
+
+- State rollback point must be the single approved implementation commit
+- rollback placeholder must remain false before State implementation approval
+- rollback evidence must land with the implementation landing record
+- rollback placeholder must not authorize State ownership migration
+
+Required verification for this guard:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this guard:
+
+- no `CTFState` ownership migration
+- no state-store production wiring
+- no claim-store production wiring
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### State ownership first slice characterization landing record
 
 Status: first slice characterization landed; no ownership migration.
