@@ -3985,6 +3985,64 @@ Boundary confirmation for this characterization:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Claim store adapter production wiring characterization record
+
+Status: characterization recorded; claim-store adapter production wiring not approved.
+
+Approved user message: 批准 State ownership split 第五刀: claim-store adapter production wiring characterization
+
+Purpose:
+
+- Characterize the current claim-store adapter production wiring surface before
+  any future concrete claim-store binding.
+- Keep `ClaimStoreAdapter` as an adapter skeleton around an injected
+  `ClaimStorePort`.
+- Confirm the landed `CTFState.create_claim` seam is a legacy-state seam only,
+  not claim-store adapter production wiring.
+- Keep proof authority and verifier decisions unmoved while claim-store wiring
+  remains blocked.
+
+| Surface | Current state | Required guard | Production wiring approved |
+|---------|---------------|----------------|-----------------------------|
+| claim-store port skeleton | existing skeleton | `ClaimStorePort` contract remains port-only | false |
+| ClaimStoreAdapter import surface | guarded unwired | `test_p1_claim_store_adapter_stays_unwired_from_production_imports` | false |
+| ClaimStoreAdapter delegate body | direct delegate only | `test_claim_store_adapter_action_bodies_remain_direct_delegate_only` | false |
+| CTFState create_claim seam | landed legacy seam | `test_ctf_state_create_claim_delegates_to_claim_store_seam` | false |
+| composition root claim-store binding | blocked | future explicit composition-root approval | false |
+
+Required invariants:
+
+- ClaimStoreAdapter remains a skeleton around an injected ClaimStorePort
+- CTFState create_claim seam does not authorize ClaimStoreAdapter production wiring
+- production code must not import or construct ClaimStoreAdapter before explicit wiring approval
+- claim-store adapter wiring must not move proof authority or verifier decisions
+- this characterization does not approve composition-root claim-store binding
+
+Required verification for this characterization:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/agents/test_p1_source_guards.py tests/unit/test_claim_store_adapter.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/test_ports_contracts.py tests/unit/test_adapter_boundary_skeleton.py -q
+git diff --check
+```
+
+Boundary confirmation for this characterization:
+
+- no production code changes
+- no ClaimStoreAdapter production wiring
+- no StateStoreAdapter production wiring
+- no CTFState changes
+- no Dispatcher changes
+- no ToolExecutor changes
+- no verifier decision behavior changes
+- no proof-authority behavior changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### State ownership characterization landing reconciliation guard
 
 Status: reconciliation guard recorded, State core landing remains incomplete.
