@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import ast
+import inspect
 import json
 
 import pytest
@@ -22,10 +24,26 @@ from flaghunter.agents.pa_agent.task_dag_plan import (
     TaskDAGStatus,
     build_task_dag_plan_readback,
 )
+import flaghunter.agents.pa_agent.ctf_state as ctf_state_module
 
 
 def _enable_claims_v1(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("FLAGHUNTER_CTF_CLAIMS_V1", "1")
+
+
+def _single_return_call_name(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
+    statements = [
+        statement for statement in node.body if not isinstance(statement, ast.Expr)
+    ]
+    assert len(statements) == 1
+    statement = statements[0]
+    assert isinstance(statement, ast.Return)
+    assert isinstance(statement.value, ast.Call)
+    if isinstance(statement.value.func, ast.Name):
+        return statement.value.func.id
+    if isinstance(statement.value.func, ast.Attribute):
+        return statement.value.func.attr
+    return ""
 
 
 def test_ctf_state_exploration_agenda_defaults_to_empty():
@@ -174,6 +192,33 @@ def test_ctf_state_budget_overrides_survive_snapshot_round_trip():
 
     restored = CTFState.from_snapshot(state.to_snapshot())
     assert restored.effective_phase_budget(Phase.EXPLOIT) == 12
+
+
+def test_ctf_state_snapshot_methods_delegate_to_snapshot_seam() -> None:
+    state = CTFState(target="http://ctf.local", goal="get flag")
+    state.add_observation(
+        "derived_target",
+        "http://127.0.0.1:3000",
+        source="unit",
+        metadata={"safe": "visible"},
+    )
+
+    exported = ctf_state_module._export_state_snapshot(state)
+    restored = ctf_state_module._restore_state_snapshot(exported)
+
+    assert state.to_snapshot() == exported
+    assert CTFState.from_snapshot(exported).to_snapshot() == restored.to_snapshot()
+    assert restored.observations[0].kind == "derived_target"
+
+    source = inspect.getsource(ctf_state_module.CTFState)
+    tree = ast.parse(source)
+    methods = {
+        node.name: node
+        for node in tree.body[0].body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    assert _single_return_call_name(methods["to_snapshot"]) == "_export_state_snapshot"
+    assert _single_return_call_name(methods["from_snapshot"]) == "_restore_state_snapshot"
 
 
 def test_ctf_state_apply_profile_projects_entry_kind_and_budgets():

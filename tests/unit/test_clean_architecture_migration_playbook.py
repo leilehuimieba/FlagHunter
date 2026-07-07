@@ -4388,6 +4388,44 @@ def test_playbook_records_state_ownership_first_slice_characterization_landing()
         assert boundary in section
 
 
+def test_playbook_records_state_ownership_snapshot_seam_implementation_record() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "State ownership snapshot seam implementation record",
+    )
+
+    assert "Status: snapshot seam first slice implemented in the working tree." in section
+    assert "Approved user message: 批准 State ownership split 第一刀: snapshot ownership seam" in section
+    assert "`CTFState.to_snapshot` delegates to `_export_state_snapshot`" in section
+    assert "`CTFState.from_snapshot` delegates to `_restore_state_snapshot`" in section
+    assert "claim-store ownership migration remains unstarted" in section
+    assert "state-store production wiring remains unstarted" in section
+    for expected in (
+        "`flaghunter/agents/pa_agent/ctf_state.py`",
+        "`tests/unit/agents/test_ctf_state.py::test_ctf_state_snapshot_methods_delegate_to_snapshot_seam`",
+        "AttributeError: module 'flaghunter.agents.pa_agent.ctf_state' has no attribute '_export_state_snapshot'",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/agents/test_ctf_state.py::test_ctf_state_snapshot_methods_delegate_to_snapshot_seam -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/agents/test_ctf_state.py tests/unit/agents/test_p1_source_guards.py::test_p1_ctf_state_snapshot_ownership_stays_in_legacy_state_only tests/unit/agents/test_p1_source_guards.py::test_p1_ctf_state_stays_unwired_from_state_and_claim_store_ports -q",
+        "git diff --check",
+    ):
+        assert expected in section
+    for boundary in (
+        "no state-store production wiring",
+        "no claim-store production wiring",
+        "no proof-authority behavior changes",
+        "no verifier decision behavior changes",
+        "no Dispatcher changes",
+        "no ToolExecutor changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_state_ownership_characterization_landing_reconciliation_guard() -> None:
     text = _playbook_text()
     section = _heading_section_text(

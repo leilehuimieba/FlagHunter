@@ -1331,103 +1331,11 @@ class CTFState:
         return asdict(self)
 
     def to_snapshot(self) -> dict[str, Any]:
-        snapshot = self.to_dict()
-        snapshot["solve_node_graph"] = _coerce_solve_node_graph(
-            self.solve_node_graph
-        ).to_dict()
-        snapshot["task_briefs_by_id"] = {
-            brief_id: task_brief_to_dict(_p3_sanitize_task_brief(brief))
-            for brief_id, brief in self.task_briefs_by_id.items()
-        }
-        snapshot["solve_node_receipts_by_id"] = {
-            receipt_id: solve_node_receipt_to_dict(
-                _p3_sanitize_solve_node_receipt(receipt)
-            )
-            for receipt_id, receipt in self.solve_node_receipts_by_id.items()
-        }
-        snapshot["task_dag_plan"] = task_dag_plan_to_dict(
-            _coerce_task_dag_plan(self.task_dag_plan)
-        )
-        return snapshot
+        return _export_state_snapshot(self)
 
     @classmethod
     def from_snapshot(cls, data: dict[str, Any]) -> CTFState:
-        allowed_fields = {item.name for item in fields(cls)}
-        payload = {
-            key: value
-            for key, value in dict(data or {}).items()
-            if key in allowed_fields
-        }
-        payload["observations"] = [
-            item if isinstance(item, Observation) else Observation(**dict(item or {}))
-            for item in list(payload.get("observations") or [])
-        ]
-        payload["artifacts"] = [
-            item if isinstance(item, Artifact) else Artifact(**dict(item or {}))
-            for item in list(payload.get("artifacts") or [])
-        ]
-        payload["hypotheses"] = [
-            item if isinstance(item, Hypothesis) else Hypothesis(**dict(item or {}))
-            for item in list(payload.get("hypotheses") or [])
-        ]
-        payload["experiments"] = [
-            item if isinstance(item, Experiment) else Experiment(**dict(item or {}))
-            for item in list(payload.get("experiments") or [])
-        ]
-        payload["candidate_flags"] = [
-            _coerce_flag_record(item) for item in list(payload.get("candidate_flags") or [])
-        ]
-        payload["runtime_flags"] = [
-            _coerce_flag_record(item) for item in list(payload.get("runtime_flags") or [])
-        ]
-        payload["verified_flags"] = [
-            _coerce_flag_record(item) for item in list(payload.get("verified_flags") or [])
-        ]
-        payload["rejected_flags"] = [
-            _coerce_flag_record(item) for item in list(payload.get("rejected_flags") or [])
-        ]
-        raw_claims = dict(payload.get("claims_by_id") or {})
-        payload["claims_by_id"] = {
-            str(claim_id): _coerce_claim(item)
-            for claim_id, item in raw_claims.items()
-        }
-        raw_verifications = dict(payload.get("verification_records_by_id") or {})
-        payload["verification_records_by_id"] = {
-            str(record_id): _coerce_verification_record(item)
-            for record_id, item in raw_verifications.items()
-        }
-        raw_traces = dict(payload.get("execution_traces_by_id") or {})
-        payload["execution_traces_by_id"] = {
-            str(trace_id): _coerce_execution_trace(item)
-            for trace_id, item in raw_traces.items()
-        }
-        payload["solve_node_graph"] = _coerce_solve_node_graph(
-            payload.get("solve_node_graph")
-        )
-        payload["task_briefs_by_id"] = _coerce_task_brief_store(
-            payload.get("task_briefs_by_id")
-        )
-        payload["solve_node_receipts_by_id"] = _coerce_solve_node_receipt_store(
-            payload.get("solve_node_receipts_by_id")
-        )
-        payload["task_dag_plan"] = _coerce_task_dag_plan(
-            payload.get("task_dag_plan")
-        )
-        payload["claim_index_by_kind"] = _coerce_string_list_index(
-            payload.get("claim_index_by_kind")
-        )
-        payload["verification_index_by_claim"] = _coerce_string_list_index(
-            payload.get("verification_index_by_claim")
-        )
-        payload["exploration_agenda"] = [
-            item if isinstance(item, ExplorationItem) else ExplorationItem(**dict(item or {}))
-            for item in list(payload.get("exploration_agenda") or [])
-        ]
-        payload["llm_exploration_log"] = [
-            item if isinstance(item, LLMStepLog) else LLMStepLog(**dict(item or {}))
-            for item in list(payload.get("llm_exploration_log") or [])
-        ]
-        return cls(**payload)
+        return _restore_state_snapshot(data, cls)
 
     def _bucket_for_level(self, level: FlagLevel) -> list[FlagRecord]:
         mapping = {
@@ -1540,6 +1448,115 @@ class CTFState:
             ClaimLevel.VERIFIED: 3,
             ClaimLevel.RETRACTED: 0,
         }[normalized]
+
+
+def _export_state_snapshot(state: CTFState) -> dict[str, Any]:
+    snapshot = state.to_dict()
+    snapshot["solve_node_graph"] = _coerce_solve_node_graph(
+        state.solve_node_graph
+    ).to_dict()
+    snapshot["task_briefs_by_id"] = {
+        brief_id: task_brief_to_dict(_p3_sanitize_task_brief(brief))
+        for brief_id, brief in state.task_briefs_by_id.items()
+    }
+    snapshot["solve_node_receipts_by_id"] = {
+        receipt_id: solve_node_receipt_to_dict(
+            _p3_sanitize_solve_node_receipt(receipt)
+        )
+        for receipt_id, receipt in state.solve_node_receipts_by_id.items()
+    }
+    snapshot["task_dag_plan"] = task_dag_plan_to_dict(
+        _coerce_task_dag_plan(state.task_dag_plan)
+    )
+    return snapshot
+
+
+def _restore_state_snapshot(
+    data: dict[str, Any],
+    state_type: type[CTFState] = CTFState,
+) -> CTFState:
+    allowed_fields = {item.name for item in fields(state_type)}
+    payload = {
+        key: value
+        for key, value in dict(data or {}).items()
+        if key in allowed_fields
+    }
+    payload["observations"] = [
+        item if isinstance(item, Observation) else Observation(**dict(item or {}))
+        for item in list(payload.get("observations") or [])
+    ]
+    payload["artifacts"] = [
+        item if isinstance(item, Artifact) else Artifact(**dict(item or {}))
+        for item in list(payload.get("artifacts") or [])
+    ]
+    payload["hypotheses"] = [
+        item if isinstance(item, Hypothesis) else Hypothesis(**dict(item or {}))
+        for item in list(payload.get("hypotheses") or [])
+    ]
+    payload["experiments"] = [
+        item if isinstance(item, Experiment) else Experiment(**dict(item or {}))
+        for item in list(payload.get("experiments") or [])
+    ]
+    payload["candidate_flags"] = [
+        _coerce_flag_record(item)
+        for item in list(payload.get("candidate_flags") or [])
+    ]
+    payload["runtime_flags"] = [
+        _coerce_flag_record(item)
+        for item in list(payload.get("runtime_flags") or [])
+    ]
+    payload["verified_flags"] = [
+        _coerce_flag_record(item)
+        for item in list(payload.get("verified_flags") or [])
+    ]
+    payload["rejected_flags"] = [
+        _coerce_flag_record(item)
+        for item in list(payload.get("rejected_flags") or [])
+    ]
+    raw_claims = dict(payload.get("claims_by_id") or {})
+    payload["claims_by_id"] = {
+        str(claim_id): _coerce_claim(item)
+        for claim_id, item in raw_claims.items()
+    }
+    raw_verifications = dict(payload.get("verification_records_by_id") or {})
+    payload["verification_records_by_id"] = {
+        str(record_id): _coerce_verification_record(item)
+        for record_id, item in raw_verifications.items()
+    }
+    raw_traces = dict(payload.get("execution_traces_by_id") or {})
+    payload["execution_traces_by_id"] = {
+        str(trace_id): _coerce_execution_trace(item)
+        for trace_id, item in raw_traces.items()
+    }
+    payload["solve_node_graph"] = _coerce_solve_node_graph(
+        payload.get("solve_node_graph")
+    )
+    payload["task_briefs_by_id"] = _coerce_task_brief_store(
+        payload.get("task_briefs_by_id")
+    )
+    payload["solve_node_receipts_by_id"] = _coerce_solve_node_receipt_store(
+        payload.get("solve_node_receipts_by_id")
+    )
+    payload["task_dag_plan"] = _coerce_task_dag_plan(
+        payload.get("task_dag_plan")
+    )
+    payload["claim_index_by_kind"] = _coerce_string_list_index(
+        payload.get("claim_index_by_kind")
+    )
+    payload["verification_index_by_claim"] = _coerce_string_list_index(
+        payload.get("verification_index_by_claim")
+    )
+    payload["exploration_agenda"] = [
+        item
+        if isinstance(item, ExplorationItem)
+        else ExplorationItem(**dict(item or {}))
+        for item in list(payload.get("exploration_agenda") or [])
+    ]
+    payload["llm_exploration_log"] = [
+        item if isinstance(item, LLMStepLog) else LLMStepLog(**dict(item or {}))
+        for item in list(payload.get("llm_exploration_log") or [])
+    ]
+    return state_type(**payload)
 
 
 def _coerce_flag_record(item: FlagRecord | dict[str, Any]) -> FlagRecord:

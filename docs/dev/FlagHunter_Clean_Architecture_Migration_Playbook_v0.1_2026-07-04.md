@@ -3753,6 +3753,64 @@ Boundary confirmation for this landing:
 - no P5 implementation
 - no crew/recovery changes
 
+#### State ownership snapshot seam implementation record
+
+Status: snapshot seam first slice implemented in the working tree.
+
+Approved user message: 批准 State ownership split 第一刀: snapshot ownership seam
+
+Approved scope:
+
+- snapshot ownership seam only
+- `flaghunter/agents/pa_agent/ctf_state.py`
+- `tests/unit/agents/test_ctf_state.py`
+- this playbook governance record and its guard test
+- no storage ownership migration
+- no mutation ownership transfer
+
+Implementation summary:
+
+- `CTFState.to_snapshot` delegates to `_export_state_snapshot`.
+- `CTFState.from_snapshot` delegates to `_restore_state_snapshot`.
+- `_restore_state_snapshot` preserves the classmethod restore path by accepting
+  the calling state type while defaulting to `CTFState` for direct helper use.
+- The snapshot payload shape remains compatible with the existing round-trip
+  fixtures.
+- claim-store ownership migration remains unstarted.
+- state-store production wiring remains unstarted.
+
+Red test evidence:
+
+- `tests/unit/agents/test_ctf_state.py::test_ctf_state_snapshot_methods_delegate_to_snapshot_seam`
+  first failed with `AttributeError: module 'flaghunter.agents.pa_agent.ctf_state' has no attribute '_export_state_snapshot'`.
+
+Required verification for this implementation record:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/agents/test_ctf_state.py::test_ctf_state_snapshot_methods_delegate_to_snapshot_seam -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/agents/test_ctf_state.py tests/unit/agents/test_p1_source_guards.py::test_p1_ctf_state_snapshot_ownership_stays_in_legacy_state_only tests/unit/agents/test_p1_source_guards.py::test_p1_ctf_state_stays_unwired_from_state_and_claim_store_ports -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Rollback command:
+
+- `git revert <State ownership snapshot seam implementation commit>`
+
+Boundary confirmation for this implementation record:
+
+- no state-store production wiring
+- no claim-store production wiring
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no Dispatcher changes
+- no ToolExecutor changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### State ownership characterization landing reconciliation guard
 
 Status: reconciliation guard recorded, State core landing remains incomplete.
