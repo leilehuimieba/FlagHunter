@@ -4697,6 +4697,92 @@ def test_playbook_records_claim_store_adapter_production_wiring_characterization
         assert boundary in section
 
 
+def test_playbook_records_state_ownership_readiness_closeout_next_gate() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "State ownership readiness closeout and next approval gate",
+    )
+
+    assert "Status: readiness closeout recorded; next State wiring approval still required." in section
+    assert "Approved user message: 批准 State ownership split 第六刀: readiness closeout and next approval gate" in section
+    rows = {
+        row["State ownership surface"]: row
+        for row in _markdown_table_rows(section)
+    }
+    expected_rows = {
+        "snapshot ownership seam": {
+            "Required evidence": "`State ownership snapshot seam implementation record`",
+            "Current state": "landed",
+            "Next approval required": "none for seam",
+        },
+        "claim-store ownership seam": {
+            "Required evidence": "`State ownership claim-store seam implementation record`",
+            "Current state": "landed",
+            "Next approval required": "none for seam",
+        },
+        "seam aggregate transition": {
+            "Required evidence": "`State ownership seam aggregate transition guard`",
+            "Current state": "recorded",
+            "Next approval required": "store wiring choice",
+        },
+        "state-store adapter wiring characterization": {
+            "Required evidence": "`State store adapter production wiring characterization record`",
+            "Current state": "recorded",
+            "Next approval required": "explicit state-store wiring",
+        },
+        "claim-store adapter wiring characterization": {
+            "Required evidence": "`Claim store adapter production wiring characterization record`",
+            "Current state": "recorded",
+            "Next approval required": "explicit claim-store wiring",
+        },
+        "composition-root state binding": {
+            "Required evidence": "future explicit composition-root approval after store wiring",
+            "Current state": "blocked",
+            "Next approval required": "not next",
+        },
+    }
+    assert set(rows) == set(expected_rows)
+    for surface, expected_values in expected_rows.items():
+        for column, value in expected_values.items():
+            assert rows[surface][column] == value
+    for allowed_next in (
+        "批准 State ownership split 第七刀: state-store adapter production wiring",
+        "批准 State ownership split 第七刀: claim-store adapter production wiring",
+    ):
+        assert allowed_next in section
+    for invariant in (
+        "readiness closeout is not production wiring approval",
+        "next State implementation must choose exactly one store wiring surface",
+        "composition-root state binding remains blocked until after store wiring",
+        "state and claim store wiring must not land in the same implementation commit",
+        "proof authority and verifier decisions must remain unmoved by State wiring approval",
+    ):
+        assert invariant in section
+    for command in (
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_adapter_boundary_skeleton.py -q",
+        "git diff --check",
+    ):
+        assert command in section
+    for boundary in (
+        "no production code changes",
+        "no CTFState changes",
+        "no StateStoreAdapter production wiring",
+        "no ClaimStoreAdapter production wiring",
+        "no Dispatcher changes",
+        "no ToolExecutor changes",
+        "no verifier decision behavior changes",
+        "no proof-authority behavior changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_state_ownership_characterization_landing_reconciliation_guard() -> None:
     text = _playbook_text()
     section = _heading_section_text(

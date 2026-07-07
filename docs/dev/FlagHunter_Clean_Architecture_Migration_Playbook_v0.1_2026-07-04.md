@@ -4043,6 +4043,67 @@ Boundary confirmation for this characterization:
 - no P5 implementation
 - no crew/recovery changes
 
+#### State ownership readiness closeout and next approval gate
+
+Status: readiness closeout recorded; next State wiring approval still required.
+
+Approved user message: 批准 State ownership split 第六刀: readiness closeout and next approval gate
+
+Purpose:
+
+- Close out the current State ownership readiness sequence after the two legacy
+  seams and two adapter-wiring characterization records landed.
+- Keep production store wiring blocked until a future approval names exactly one
+  store wiring surface.
+- Keep composition-root state binding blocked until after an approved store
+  wiring implementation lands.
+
+| State ownership surface | Required evidence | Current state | Next approval required |
+|-------------------------|-------------------|---------------|------------------------|
+| snapshot ownership seam | `State ownership snapshot seam implementation record` | landed | none for seam |
+| claim-store ownership seam | `State ownership claim-store seam implementation record` | landed | none for seam |
+| seam aggregate transition | `State ownership seam aggregate transition guard` | recorded | store wiring choice |
+| state-store adapter wiring characterization | `State store adapter production wiring characterization record` | recorded | explicit state-store wiring |
+| claim-store adapter wiring characterization | `Claim store adapter production wiring characterization record` | recorded | explicit claim-store wiring |
+| composition-root state binding | future explicit composition-root approval after store wiring | blocked | not next |
+
+Allowed next State approval texts:
+
+- 批准 State ownership split 第七刀: state-store adapter production wiring
+- 批准 State ownership split 第七刀: claim-store adapter production wiring
+
+Required invariants:
+
+- readiness closeout is not production wiring approval
+- next State implementation must choose exactly one store wiring surface
+- composition-root state binding remains blocked until after store wiring
+- state and claim store wiring must not land in the same implementation commit
+- proof authority and verifier decisions must remain unmoved by State wiring approval
+
+Required verification for this closeout:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_adapter_boundary_skeleton.py -q
+git diff --check
+```
+
+Boundary confirmation for this closeout:
+
+- no production code changes
+- no CTFState changes
+- no StateStoreAdapter production wiring
+- no ClaimStoreAdapter production wiring
+- no Dispatcher changes
+- no ToolExecutor changes
+- no verifier decision behavior changes
+- no proof-authority behavior changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### State ownership characterization landing reconciliation guard
 
 Status: reconciliation guard recorded, State core landing remains incomplete.
