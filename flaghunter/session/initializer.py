@@ -50,6 +50,26 @@ def activate_workspace_for_target(
     return workspace_name
 
 
+def build_challenge_snapshot_service(
+    *,
+    state_store: Any = None,
+    read_model_store: Any = None,
+) -> Any:
+    """Build the challenge snapshot service with session-owned adapter wiring."""
+    from ..adapters.storage.state_store_adapter import StateStoreAdapter
+    from ..application.challenge.snapshot_service import BuildChallengeRunSnapshot
+
+    wired_state_store = (
+        StateStoreAdapter(state_store)
+        if state_store is not None
+        else None
+    )
+    return BuildChallengeRunSnapshot(
+        state_store=wired_state_store,
+        read_model_store=read_model_store,
+    )
+
+
 async def build_runtime(
     *,
     docker: bool = False,

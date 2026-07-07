@@ -3985,6 +3985,64 @@ Boundary confirmation for this characterization:
 - no P5 implementation
 - no crew/recovery changes
 
+#### State store adapter production wiring landing record
+
+Status: state-store adapter production wiring landed.
+
+Approved user message: 批准 State ownership split 第七刀: state-store adapter production wiring
+
+approved scope: session composition-root snapshot-service wiring only
+
+Purpose:
+
+- Add the first production wiring point for `StateStoreAdapter` in the
+  session-owned composition root.
+- Keep `BuildChallengeRunSnapshot` inside the application layer dependent only
+  on `StateStorePort` and `ReadModelStorePort`.
+- Preserve the concrete adapter as a direct delegate around an injected
+  `StateStorePort`.
+- Keep claim-store wiring, dispatcher flow, entrypoint task wiring, MCP
+  production wiring, and proof authority behavior out of scope.
+
+Landing details:
+
+- `flaghunter/session/initializer.py::build_challenge_snapshot_service`
+  constructs the snapshot application service.
+- `StateStoreAdapter` wraps the injected `StateStorePort` before passing it to
+  `BuildChallengeRunSnapshot`.
+- `BuildChallengeRunSnapshot` still depends only on ports.
+- `tests/unit/session/test_agent_session.py::test_build_challenge_snapshot_service_wires_state_store_adapter`
+  proves the session composition root wraps the injected state store and leaves
+  snapshot building read-only.
+- `tests/unit/agents/test_p1_source_guards.py::test_p1_state_store_adapter_is_wired_only_in_session_composition_root`
+  limits concrete adapter references to the adapter package and
+  `flaghunter/session/initializer.py`.
+
+Required verification for this landing:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/session/test_agent_session.py::test_build_challenge_snapshot_service_wires_state_store_adapter tests/unit/test_state_store_adapter.py tests/unit/test_application_challenge_snapshot_service.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/agents/test_p1_source_guards.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/test_ports_contracts.py tests/unit/test_adapter_boundary_skeleton.py -q
+git diff --check
+```
+
+Rollback command: git revert <State store adapter production wiring commit>
+
+Boundary confirmation for this landing:
+
+- no claim-store production wiring
+- no dispatcher flow changes
+- no `CTFState` ownership split
+- no ToolExecutor changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Claim store adapter production wiring characterization record
 
 Status: characterization recorded; claim-store adapter production wiring not approved.

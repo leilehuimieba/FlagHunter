@@ -135,6 +135,36 @@ def test_session_composition_root_characterizes_current_assembly_owner():
     assert interface_initializer.build_agent_components is session_initializer.build_agent_components
 
 
+def test_build_challenge_snapshot_service_wires_state_store_adapter():
+    """State-store adapter production wiring lives in the session composition root."""
+    from flaghunter.adapters.storage.state_store_adapter import StateStoreAdapter
+    from flaghunter.application.challenge.snapshot_service import BuildChallengeRunSnapshot
+    from flaghunter.session.initializer import build_challenge_snapshot_service
+
+    class RecordingStateStore:
+        def __init__(self):
+            self.loaded_run_ids = []
+            self.saved_snapshots = []
+
+        def load_snapshot(self, run_id):
+            self.loaded_run_ids.append(run_id)
+            return {"metadata": {"source": "session-wiring"}}
+
+        def save_snapshot(self, run_id, snapshot):
+            self.saved_snapshots.append((run_id, snapshot))
+
+    state_store = RecordingStateStore()
+
+    service = build_challenge_snapshot_service(state_store=state_store)
+    snapshot = service.build(run_id="run-7", challenge_id="challenge-7")
+
+    assert isinstance(service, BuildChallengeRunSnapshot)
+    assert isinstance(service._state_store, StateStoreAdapter)
+    assert state_store.loaded_run_ids == ["run-7"]
+    assert state_store.saved_snapshots == []
+    assert snapshot.metadata == {"source": "session-wiring"}
+
+
 @pytest.mark.asyncio
 async def test_run_drives_loop_emits_events_and_accumulates():
     messages = [

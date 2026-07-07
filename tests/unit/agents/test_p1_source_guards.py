@@ -768,10 +768,11 @@ def test_p1_ctf_state_stays_unwired_from_state_and_claim_store_ports() -> None:
     assert offenders == []
 
 
-def test_p1_state_store_adapter_stays_unwired_from_production_imports() -> None:
+def test_p1_state_store_adapter_is_wired_only_in_session_composition_root() -> None:
     allowed_paths = {
         "flaghunter/adapters/storage/__init__.py",
         "flaghunter/adapters/storage/state_store_adapter.py",
+        "flaghunter/session/initializer.py",
     }
     offenders: list[tuple[str, str, int]] = []
 
