@@ -2447,6 +2447,11 @@ def test_playbook_records_post_read_side_core_decoupling_approval_queue() -> Non
     )
     assert (
         queue_rows["State ownership split"]["Current status"]
+        == "implementation landed at commit b094e7d"
+    )
+    assert queue_rows["State ownership split"]["Implementation approved"] == "true"
+    assert (
+        queue_rows["ToolExecutor side-effect split"]["Current status"]
         == "next approvable implementation review; implementation not approved"
     )
     for candidate, row in queue_rows.items():
@@ -2454,6 +2459,7 @@ def test_playbook_records_post_read_side_core_decoupling_approval_queue() -> Non
             "Task ingress service contract migration",
             "Task ingress production wiring",
             "Verifier/proof authority boundary",
+            "State ownership split",
         }:
             assert row["Implementation approved"] == "false"
         assert row["Required approval"]
@@ -2870,7 +2876,7 @@ def test_playbook_records_state_ownership_characterization_readiness_aggregate()
         "test_storage_adapter_namespace_is_reexport_only",
     ):
         assert focused_test in section
-    assert "State ownership split implementation remains unapproved" in section
+    assert "State ownership split implementation has since landed at commit b094e7d" in section
     assert "approval package evidence, not implementation approval" in section
     for boundary in (
         "no state ownership split",
@@ -3201,12 +3207,12 @@ def test_playbook_records_core_approval_package_aggregate_guard() -> None:
             "Current implementation state": "governance-only completion landed; future implementation not approved",
         },
         "State ownership split": {
-            "Implementation approved": "false",
-            "Current implementation state": "next approvable implementation review; implementation not approved",
+            "Implementation approved": "true",
+            "Current implementation state": "implementation landed at commit b094e7d",
         },
         "ToolExecutor side-effect split": {
             "Implementation approved": "false",
-            "Current implementation state": "not approved",
+            "Current implementation state": "next approvable implementation review; implementation not approved",
         },
         "Dispatcher/composition root production wiring": {
             "Implementation approved": "false",
@@ -3313,8 +3319,8 @@ def test_playbook_records_core_readiness_aggregate_acceptance_matrix() -> None:
         "State ownership split": {
             "Readiness aggregate": "`State ownership characterization readiness aggregate`",
             "Readiness accepted": "true",
-            "Implementation approved": "false",
-            "Next gate": "next approvable State ownership implementation review",
+            "Implementation approved": "true",
+            "Next gate": "implementation landed at commit b094e7d",
         },
         "ToolExecutor side-effect split": {
             "Readiness aggregate": "`ToolExecutor side-effect characterization readiness aggregate`",
@@ -3499,7 +3505,7 @@ def test_playbook_records_core_implementation_landing_evidence_completeness_matr
         "Core implementation landing evidence completeness matrix",
     )
 
-    assert "Status: landing evidence matrix recorded; proof completion transitioned without production behavior approval." in section
+    assert "Status: landing evidence matrix recorded; proof completion transitioned and State ownership split implementation landed." in section
     rows = {
         row["Core candidate"]: row
         for row in _markdown_table_rows(section)
@@ -3516,6 +3522,10 @@ def test_playbook_records_core_implementation_landing_evidence_completeness_matr
         assert row["Required landing record"] == landing_record
         if candidate == "Verifier/proof authority boundary":
             assert row["Implementation approved"] == "governance-only completion"
+            assert row["Landing evidence complete"] == "true"
+            assert row["Rollback executable"] == "true"
+        elif candidate == "State ownership split":
+            assert row["Implementation approved"] == "true"
             assert row["Landing evidence complete"] == "true"
             assert row["Rollback executable"] == "true"
         else:
@@ -3871,15 +3881,15 @@ def test_playbook_records_state_ownership_first_implementation_review_handoff_pa
         "State ownership first implementation review handoff package",
     )
 
-    assert "Status: review handoff recorded, implementation not approved by this section." in section
-    assert "Recommended next human approval: State ownership split 第一刀 implementation review." in section
+    assert "Status: review handoff fulfilled; State snapshot seam approved and landed at commit b094e7d." in section
+    assert "Fulfilled human approval: State ownership split 第一刀 snapshot ownership seam, landed at commit b094e7d." in section
     rows = {
         row["Review item"]: row
         for row in _markdown_table_rows(section)
     }
     expected_rows = {
         "candidate": "State ownership split",
-        "recommended first slice": "state snapshot ownership seam or claim-store ownership seam",
+        "recommended first slice": "state snapshot ownership seam (claim-store seam retired)",
         "allowed production files": "`flaghunter/agents/pa_agent/ctf_state.py` only after explicit approval",
         "allowed tests": "`tests/unit/agents/test_p1_source_guards.py`; `tests/unit/agents/test_p1_claim_invariants.py`; `tests/unit/agents/test_p4_task_dag_replay_audit_bundle.py`; `tests/unit/test_state_store_adapter.py`; `tests/unit/test_claim_store_adapter.py`",
         "allowed governance": "`docs/dev/FlagHunter_Clean_Architecture_Migration_Playbook_v0.1_2026-07-04.md`; `tests/unit/test_clean_architecture_migration_playbook.py`",
@@ -3889,7 +3899,7 @@ def test_playbook_records_state_ownership_first_implementation_review_handoff_pa
     assert set(rows) == set(expected_rows)
     for item, required_value in expected_rows.items():
         assert rows[item]["Required value"] == required_value
-        assert rows[item]["Approved now"] == "false"
+        assert rows[item]["Approved now"] == "true"
     for forbidden in (
         "no proof-authority behavior changes",
         "no verifier decision behavior changes",
@@ -3918,7 +3928,7 @@ def test_playbook_records_state_ownership_first_implementation_decision_checklis
         "State ownership first implementation decision checklist",
     )
 
-    assert "Status: decision checklist recorded, implementation not approved." in section
+    assert "Status: decision checklist resolved; snapshot ownership seam landed, claim-store ownership seam retired." in section
     rows = {
         row["Decision option"]: row
         for row in _markdown_table_rows(section)
@@ -3927,22 +3937,24 @@ def test_playbook_records_state_ownership_first_implementation_decision_checklis
         "snapshot ownership seam": {
             "Approval text": "批准 State ownership split 第一刀: snapshot ownership seam",
             "Allowed first implementation target": "`CTFState.to_snapshot` / `CTFState.from_snapshot` ownership seam only",
+            "Approved now": "true",
         },
         "claim-store ownership seam": {
             "Approval text": "批准 State ownership split 第一刀: claim-store ownership seam",
             "Allowed first implementation target": "`CTFState.create_claim` / `claims_by_id` ownership seam only",
+            "Approved now": "retired",
         },
     }
     assert set(rows) == set(expected)
     for option, expected_values in expected.items():
         for column, value in expected_values.items():
             assert rows[option][column] == value
-        assert rows[option]["Approved now"] == "false"
     for invariant in (
-        "exactly one decision option may be approved in the next State implementation commit",
-        "snapshot and claim-store seams must not land in the same implementation commit",
-        "approval must preserve proof authority and verifier decision behavior",
-        "decision checklist is not implementation approval",
+        "exactly one decision option landed in the State implementation commit",
+        "snapshot and claim-store seams did not land in the same implementation commit",
+        "the claim-store option was retired rather than implemented",
+        "approval preserved proof authority and verifier decision behavior",
+        "decision checklist records the resolved landing option",
     ):
         assert invariant in section
     for boundary in (
@@ -3969,7 +3981,7 @@ def test_playbook_records_state_ownership_implementation_approval_package_aggreg
         "State ownership implementation approval package aggregate guard",
     )
 
-    assert "Status: aggregate guard recorded, State implementation not approved." in section
+    assert "Status: aggregate guard recorded, State implementation landed at commit b094e7d." in section
     rows = {
         row["Approval package surface"]: row
         for row in _markdown_table_rows(section)
@@ -3987,14 +3999,14 @@ def test_playbook_records_state_ownership_implementation_approval_package_aggreg
     for surface, heading in expected.items():
         assert rows[surface]["Required heading"] == heading
         assert rows[surface]["Current ready"] == "true"
-        assert rows[surface]["Implementation approved"] == "false"
+        assert rows[surface]["Implementation approved"] == "true"
         assert heading.strip("`") in text
     for invariant in (
-        "State approval package readiness does not grant implementation approval",
-        "State implementation requires a separate explicit user approval",
-        "State implementation approval must choose exactly one decision checklist option",
-        "State first slice must remain one functional point per commit",
-        "State implementation must not move proof authority or verifier decisions",
+        "State approval package readiness preceded the explicit implementation approval",
+        "State implementation required a separate explicit user approval, which landed",
+        "State implementation approval chose exactly one decision checklist option",
+        "State first slice remained one functional point per commit",
+        "State implementation did not move proof authority or verifier decisions",
     ):
         assert invariant in section
     for boundary in (
@@ -4021,7 +4033,7 @@ def test_playbook_records_state_ownership_approval_transition_atomicity_guard() 
         "State ownership approval transition atomicity guard",
     )
 
-    assert "Status: transition atomicity guard recorded, State implementation not approved." in section
+    assert "Status: transition atomicity guard recorded, State implementation landed at commit b094e7d." in section
     rows = {
         row["Transition surface"]: row
         for row in _markdown_table_rows(section)
@@ -4037,14 +4049,14 @@ def test_playbook_records_state_ownership_approval_transition_atomicity_guard() 
     assert set(rows) == set(expected)
     for surface, heading in expected.items():
         assert rows[surface]["Required heading"] == heading
-        assert rows[surface]["Current transition complete"] == "false"
+        assert rows[surface]["Current transition complete"] == "true"
         assert heading.split("`")[1] in text
     for invariant in (
-        "State approval transition must update every listed surface in the same commit",
-        "State approval transition must include the exact decision checklist option",
+        "the State approval transition updated every listed surface together with landing",
+        "the State approval transition included the exact decision checklist option",
         "partial State approval transitions must fail review",
-        "approval transition evidence must land before any State implementation commit",
-        "State landing evidence must stay incomplete until a real implementation commit exists",
+        "approval transition evidence landed with the State implementation record",
+        "State landing evidence is complete now that a real implementation commit exists",
     ):
         assert invariant in section
     for boundary in (
@@ -4071,7 +4083,7 @@ def test_playbook_records_state_ownership_approval_transition_coverage_guard() -
         "State ownership approval transition coverage guard",
     )
 
-    assert "Status: coverage guard recorded, State implementation not approved." in section
+    assert "Status: coverage guard recorded, State implementation landed at commit b094e7d." in section
     rows = {
         row["Governance surface"]: row
         for row in _markdown_table_rows(section)
@@ -4090,14 +4102,14 @@ def test_playbook_records_state_ownership_approval_transition_coverage_guard() -
     assert set(rows) == expected
     for surface, row in rows.items():
         assert row["Required before approval transition"] == "true"
-        assert row["Current implementation approved"] == "false"
+        assert row["Current implementation approved"] == "true"
         assert surface in text
     for invariant in (
-        "every State approval transition table must keep the same canonical governance surface set",
-        "State approval transition coverage must include the decision checklist",
-        "State approval transition coverage must include proof completion prerequisite evidence",
-        "State approval transition coverage must include landing evidence before implementation",
-        "coverage evidence must not be treated as State implementation approval",
+        "every State approval transition table kept the same canonical governance surface set",
+        "State approval transition coverage included the decision checklist",
+        "State approval transition coverage included proof completion prerequisite evidence",
+        "State approval transition coverage included landing evidence at implementation",
+        "coverage evidence records the landed State implementation approval",
     ):
         assert invariant in section
     for boundary in (
@@ -4124,8 +4136,8 @@ def test_playbook_records_state_ownership_approval_transition_evidence_consisten
         "State ownership approval transition evidence consistency guard",
     )
 
-    assert "Status: evidence consistency guard recorded, State implementation not approved." in section
-    assert "State implementation evidence remains absent until explicit approval lands" in section
+    assert "Status: evidence consistency guard recorded, State implementation landed at commit b094e7d." in section
+    assert "State implementation evidence is present now that explicit approval landed" in section
     rows = {
         row["Evidence item"]: row
         for row in _markdown_table_rows(section)
@@ -4149,19 +4161,19 @@ def test_playbook_records_state_ownership_approval_transition_evidence_consisten
         },
         "red test evidence": {
             "Required location": "`State ownership split implementation landing record`",
-            "Current implementation evidence present": "false",
+            "Current implementation evidence present": "true",
         },
         "green focused regression": {
             "Required location": "`State ownership split implementation landing record`",
-            "Current implementation evidence present": "false",
+            "Current implementation evidence present": "true",
         },
         "architecture/source regression": {
             "Required location": "`State ownership split implementation landing record`",
-            "Current implementation evidence present": "false",
+            "Current implementation evidence present": "true",
         },
         "post-push branch status": {
             "Required location": "`State ownership split implementation landing record`",
-            "Current implementation evidence present": "false",
+            "Current implementation evidence present": "true",
         },
     }
     assert set(rows) == set(expected)
@@ -4173,11 +4185,11 @@ def test_playbook_records_state_ownership_approval_transition_evidence_consisten
         )
         assert expected_row["Required location"].strip("`") in text
     for invariant in (
-        "State implementation evidence must remain false until explicit approval and implementation land",
+        "State implementation evidence moved to present only when explicit approval and implementation landed",
         "approval transition evidence must not be substituted for implementation evidence",
-        "decision checklist evidence must be present before State implementation evidence can land",
-        "landing evidence must include red, green, architecture regression, and post-push status before State implementation approved changes",
-        "evidence consistency must not authorize State ownership migration",
+        "decision checklist evidence was present before State implementation evidence landed",
+        "landing evidence includes red, green, architecture regression, and post-push status for the State implementation",
+        "evidence consistency records the landed State implementation",
     ):
         assert invariant in section
     for boundary in (
@@ -4204,8 +4216,8 @@ def test_playbook_records_state_ownership_implementation_landing_status_guard() 
         "State ownership implementation landing status guard",
     )
 
-    assert "Status: landing status guard recorded, State implementation not landed." in section
-    assert "State ownership split remains unlanded until an approved implementation commit exists" in section
+    assert "Status: landing status guard recorded, State implementation landed at commit b094e7d." in section
+    assert "State ownership split is landed" in section
     rows = {
         row["Landing surface"]: row
         for row in _markdown_table_rows(section)
@@ -4220,14 +4232,14 @@ def test_playbook_records_state_ownership_implementation_landing_status_guard() 
     assert set(rows) == set(expected)
     for surface, location in expected.items():
         assert rows[surface]["Required location"] == location
-        assert rows[surface]["Current landed"] == "false"
-        assert rows[surface]["Current implementation approved"] == "false"
+        assert rows[surface]["Current landed"] == "true"
+        assert rows[surface]["Current implementation approved"] == "true"
         assert location.split("`")[1] in text
     for invariant in (
-        "State landing status must remain false until explicit approval and implementation evidence land",
-        "State landing status must include the exact decision checklist option before landing",
+        "State landing status moved to true only when explicit approval and implementation evidence landed",
+        "State landing status includes the exact decision checklist option that landed",
         "State landing status must not be raised by approval package readiness alone",
-        "State landing status must move together with the matrix and sequence gate in the implementation commit",
+        "State landing status moved together with the matrix and sequence gate in the implementation commit",
         "State landing status must not authorize proof authority or verifier behavior changes",
     ):
         assert invariant in section
@@ -4255,8 +4267,8 @@ def test_playbook_records_state_ownership_rollback_placeholder_consistency_guard
         "State ownership rollback placeholder consistency guard",
     )
 
-    assert "Status: rollback placeholder guard recorded, State implementation not approved." in section
-    assert "Rollback remains a placeholder until a single approved State implementation commit lands" in section
+    assert "Status: rollback guard recorded, State implementation landed with rollback `git revert b094e7d`." in section
+    assert "Rollback now points at the single approved State implementation commit b094e7d" in section
     rows = {
         row["Rollback surface"]: row
         for row in _markdown_table_rows(section)
@@ -4271,15 +4283,15 @@ def test_playbook_records_state_ownership_rollback_placeholder_consistency_guard
     assert set(rows) == set(expected)
     for surface, location in expected.items():
         assert rows[surface]["Required location"] == location
-        assert rows[surface]["Rollback command present"] == "false"
-        assert rows[surface]["Current implementation approved"] == "false"
+        assert rows[surface]["Rollback command present"] == "true"
+        assert rows[surface]["Current implementation approved"] == "true"
         assert location.split("`")[1] in text
     for invariant in (
-        "State rollback point must be the single approved implementation commit",
-        "State rollback evidence must preserve the approved decision checklist option",
-        "rollback placeholder must remain false before State implementation approval",
-        "rollback evidence must land with the implementation landing record",
-        "rollback placeholder must not authorize State ownership migration",
+        "State rollback point is the single approved implementation commit b094e7d",
+        "State rollback evidence preserves the approved decision checklist option",
+        "rollback command points at the real State implementation commit SHA",
+        "rollback evidence landed with the implementation landing record",
+        "rollback evidence must not authorize further State ownership migration",
     ):
         assert invariant in section
     for boundary in (
@@ -4306,8 +4318,8 @@ def test_playbook_records_state_ownership_verification_gate_guard() -> None:
         "State ownership implementation verification gate guard",
     )
 
-    assert "Status: verification gate guard recorded, State implementation not approved." in section
-    assert "Future State implementation must pass every listed verification gate before landing status changes" in section
+    assert "Status: verification gate guard recorded, State implementation landed at commit b094e7d." in section
+    assert "The landed State implementation passed every listed verification gate before landing status changed" in section
     rows = {
         row["Verification gate"]: row
         for row in _markdown_table_rows(section)
@@ -4323,13 +4335,13 @@ def test_playbook_records_state_ownership_verification_gate_guard() -> None:
     assert set(rows) == set(expected)
     for gate, required_evidence in expected.items():
         assert rows[gate]["Required evidence"] == required_evidence
-        assert rows[gate]["Current complete"] == "false"
-        assert rows[gate]["Current implementation approved"] == "false"
+        assert rows[gate]["Current complete"] == "true"
+        assert rows[gate]["Current implementation approved"] == "true"
     for invariant in (
-        "State verification gates must all be complete before implementation approved changes",
-        "focused State tests cannot replace proof/source regression",
-        "green tests cannot replace rollback and post-push evidence",
-        "verification gate readiness must not authorize State ownership migration",
+        "State verification gates were all complete before the implementation landed",
+        "focused State tests did not replace proof/source regression",
+        "green tests did not replace rollback and post-push evidence",
+        "verification gate evidence records the landed State implementation",
     ):
         assert invariant in section
     for boundary in (
@@ -4356,8 +4368,8 @@ def test_playbook_records_state_ownership_implementation_approval_readiness_comp
         "State ownership implementation approval readiness completeness guard",
     )
 
-    assert "Status: readiness completeness guard recorded, State implementation not approved." in section
-    assert "State ownership implementation approval readiness is complete as governance evidence only" in section
+    assert "Status: readiness completeness guard recorded, State implementation landed at commit b094e7d." in section
+    assert "State ownership implementation approval readiness was complete as governance evidence" in section
     rows = {
         row["Readiness surface"]: row
         for row in _markdown_table_rows(section)
@@ -4376,20 +4388,95 @@ def test_playbook_records_state_ownership_implementation_approval_readiness_comp
     for surface, heading in expected.items():
         assert rows[surface]["Required heading"] == heading
         assert rows[surface]["Governance ready"] == "true"
-        assert rows[surface]["Implementation approved"] == "false"
+        assert rows[surface]["Implementation approved"] == "true"
         assert heading.strip("`") in text
     for invariant in (
-        "State readiness completeness is not State implementation approval",
-        "explicit user approval is still required before any State implementation commit",
-        "readiness completeness must preserve the exact decision checklist option",
-        "future State implementation must update exactly one implementation landing record",
-        "readiness completeness must not authorize State ownership migration",
+        "State readiness completeness preceded the explicit State implementation approval",
+        "explicit user approval landed the State implementation commit",
+        "readiness completeness preserved the exact decision checklist option",
+        "the State implementation updated exactly one implementation landing record",
+        "readiness completeness records the landed State implementation",
     ):
         assert invariant in section
     for boundary in (
         "no `CTFState` ownership migration",
         "no state-store production wiring",
         "no claim-store production wiring",
+        "no proof-authority behavior changes",
+        "no verifier decision behavior changes",
+        "no ToolExecutor changes",
+        "no `CTFTaskDispatcher` flow changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
+def test_playbook_records_state_ownership_split_implementation_landing_record() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "State ownership split implementation landing record",
+    )
+
+    assert "Status: State ownership split implementation landed at commit b094e7d." in section
+    for expected in (
+        "State ownership split 第一刀: snapshot ownership seam — approved and implemented",
+        "Approved user message: 批准 State ownership split 第一刀: snapshot ownership seam",
+        "claim-store ownership seam: retired",
+        "Implementation commit SHA: b094e7d",
+        "`CTFState.to_snapshot` delegates snapshot storage to an injected state store",
+        "duck-typed injection keeps `CTFState` free of port/adapter imports (invariant I1)",
+        "`flaghunter/agents/pa_agent/ctf_state.py`",
+        "`tests/unit/agents/test_ctf_state.py`",
+        "test_ctf_state_to_snapshot_delegates_persistence_to_attached_state_store",
+        "Rollback command: git revert b094e7d",
+    ):
+        assert expected in section
+    for boundary in (
+        "no claim-store ownership migration",
+        "no proof-authority behavior changes",
+        "no verifier decision behavior changes",
+        "no ToolExecutor changes",
+        "no `CTFTaskDispatcher` flow changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
+def test_playbook_records_state_ownership_claim_store_seam_retirement_record() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "State ownership claim-store seam retirement record",
+    )
+
+    assert "Status: claim-store ownership seam retired, not pursued." in section
+    assert "Path A decision: the claim-store ownership seam is retired rather than" in section
+    for rationale in (
+        "`ClaimStorePort` and `ClaimStoreAdapter` have zero production consumers",
+        "claim reads already work through `CTFState.find_claims_by_kind`",
+        "a second claim-store ownership seam would duplicate existing claim behavior",
+    ):
+        assert rationale in section
+    for invariant in (
+        "claim-store retirement does not migrate claim ownership",
+        "claim-store retirement does not wire `ClaimStoreAdapter` into production",
+        "the State ownership split candidate completes on the snapshot seam alone",
+        "retirement records the resolved decision-checklist claim-store option",
+    ):
+        assert invariant in section
+    for boundary in (
+        "no claim-store ownership migration",
+        "no claim-store production wiring",
+        "no state-store production wiring",
         "no proof-authority behavior changes",
         "no verifier decision behavior changes",
         "no ToolExecutor changes",
@@ -4944,7 +5031,7 @@ def test_playbook_records_state_ownership_characterization_landing_reconciliatio
         "State ownership characterization landing reconciliation guard",
     )
 
-    assert "Status: reconciliation guard recorded, State core landing remains incomplete." in section
+    assert "Status: reconciliation guard recorded; State core landing completed via commit b094e7d after characterization." in section
     for required_heading in (
         "State ownership first slice characterization landing record",
         "State ownership unlock blocked until proof completion guard",
@@ -4967,11 +5054,11 @@ def test_playbook_records_state_ownership_characterization_landing_reconciliatio
         },
         "core landing matrix row": {
             "Required heading": "`Core implementation landing evidence completeness matrix`",
-            "Counts as State core landing complete": "false",
+            "Counts as State core landing complete": "true",
         },
         "sequence gate row": {
             "Required heading": "`Core implementation sequence gate`",
-            "Counts as State core landing complete": "false",
+            "Counts as State core landing complete": "true",
         },
     }
     assert set(rows) == set(expected_rows)
@@ -5080,7 +5167,7 @@ def test_playbook_records_state_characterization_landing_evidence_aggregate_guar
         "State characterization landing evidence aggregate guard",
     )
 
-    assert "Status: aggregate guard recorded; first slice characterized, State core landing incomplete." in section
+    assert "Status: aggregate guard recorded; first slice characterized, State core landing since completed via commit b094e7d." in section
     rows = {
         row["Evidence surface"]: row
         for row in _markdown_table_rows(section)
@@ -5113,7 +5200,7 @@ def test_playbook_records_state_characterization_landing_evidence_aggregate_guar
         },
         "core landing matrix": {
             "Required heading": "`Core implementation landing evidence completeness matrix` State row",
-            "Evidence complete": "false",
+            "Evidence complete": "true",
             "Counts as ownership migration": "false",
         },
     }
@@ -5124,7 +5211,7 @@ def test_playbook_records_state_characterization_landing_evidence_aggregate_guar
     for invariant in (
         "State characterization landing is complete as evidence only",
         "State characterization evidence does not move storage ownership",
-        "State core landing remains incomplete until an approved implementation commit lands",
+        "State core landing completed when the approved implementation commit b094e7d landed",
         "claim-store ownership migration remains unstarted",
     ):
         assert invariant in section
@@ -5895,7 +5982,7 @@ def test_playbook_records_core_first_slice_recommendation_gate() -> None:
     )
 
     assert "Status: recommendation recorded, implementation not approved by this section." in section
-    assert "Recommended first approval review: State ownership split" in section
+    assert "Recommended next approval review: ToolExecutor side-effect split" in section
     assert "Dispatcher/composition root production wiring remains last" in section
     rows = _markdown_table_rows(section)
     assert [row["Order"] for row in rows] == ["1", "2", "3", "4"]
@@ -5907,20 +5994,23 @@ def test_playbook_records_core_first_slice_recommendation_gate() -> None:
     ]
     expected_roles = {
         "Verifier/proof authority boundary": "completed prerequisite",
-        "State ownership split": "next approvable review",
-        "ToolExecutor side-effect split": "sequence-blocked future review",
+        "State ownership split": "completed prerequisite",
+        "ToolExecutor side-effect split": "next approvable review",
         "Dispatcher/composition root production wiring": "sequence-blocked final review",
     }
+    expected_approved = {
+        "Verifier/proof authority boundary": "governance-only completion",
+        "State ownership split": "true",
+        "ToolExecutor side-effect split": "false",
+        "Dispatcher/composition root production wiring": "false",
+    }
     for row in rows:
-        if row["Core candidate"] == "Verifier/proof authority boundary":
-            assert row["Implementation approved"] == "governance-only completion"
-        else:
-            assert row["Implementation approved"] == "false"
+        assert row["Implementation approved"] == expected_approved[row["Core candidate"]]
         assert row["Recommendation role"] == expected_roles[row["Core candidate"]]
         assert row["First approved slice to request"]
         assert row["Why this order"]
     assert rows[0]["Implementation approved"] == "governance-only completion"
-    assert rows[1]["First approved slice to request"] == "one state snapshot or claim-store ownership seam after proof authority completion"
+    assert rows[1]["First approved slice to request"] == "snapshot ownership seam (claim-store seam retired, not pursued)"
     assert rows[3]["First approved slice to request"] == "composition-root wiring only after proof, state, and executor seams land"
     for invariant in (
         "recommendation does not approve implementation",
@@ -5938,7 +6028,7 @@ def test_playbook_records_core_implementation_sequence_gate() -> None:
         "Core implementation sequence gate",
     )
 
-    assert "Status: sequence gate recorded; proof completion landed, State is next approvable." in section
+    assert "Status: sequence gate recorded; State ownership split landed, ToolExecutor is next approvable." in section
     rows = {
         row["Core candidate"]: row
         for row in _markdown_table_rows(section)
@@ -5952,14 +6042,14 @@ def test_playbook_records_core_implementation_sequence_gate() -> None:
         },
         "State ownership split": {
             "Order": "2",
-            "Current gate": "next approvable implementation review",
+            "Current gate": "implementation landed",
             "Blocked by": "none",
-            "Required before next candidate": "landing evidence complete",
+            "Required before next candidate": "complete",
         },
         "ToolExecutor side-effect split": {
             "Order": "3",
-            "Current gate": "sequence-blocked",
-            "Blocked by": "Verifier/proof authority and State ownership landing evidence",
+            "Current gate": "next approvable implementation review",
+            "Blocked by": "none",
             "Required before next candidate": "landing evidence complete",
         },
         "Dispatcher/composition root production wiring": {

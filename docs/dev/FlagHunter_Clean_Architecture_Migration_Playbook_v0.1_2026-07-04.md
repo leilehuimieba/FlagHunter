@@ -2706,8 +2706,8 @@ high-risk core surfaces separated.
 | Task ingress service contract migration | low-medium | implementation landed | true | explicit service migration approval granted | application service focused, adapter focused, architecture/source guards, production pre-wiring guards, `git diff --check` |
 | Task ingress production wiring | high | A and B landed; remaining entrypoints not approved | partial | explicit production wiring approval per entrypoint family | MCP/entrypoint wiring focused, task ingress guards, architecture/source guards, `git diff --check` |
 | Verifier/proof authority boundary | high | governance-only completion landed; future implementation not approved | governance-only completion | explicit proof-authority implementation approval for future behavior or wiring | verifier fixture, proof authority invariants, P1 claim invariants, source guards, `git diff --check` |
-| State ownership split | high | next approvable implementation review; implementation not approved | false | explicit state ownership split approval | state snapshot fixtures, replay/readback fixtures, import/source guards, `git diff --check` |
-| ToolExecutor side-effect split | high | not approved | false | explicit ToolExecutor side-effect split approval | tool receipt fixtures, executor guard fixtures, finish control receipt, architecture/source guards, `git diff --check` |
+| State ownership split | high | implementation landed at commit b094e7d | true | explicit state ownership split approval | state snapshot fixtures, replay/readback fixtures, import/source guards, `git diff --check` |
+| ToolExecutor side-effect split | high | next approvable implementation review; implementation not approved | false | explicit ToolExecutor side-effect split approval | tool receipt fixtures, executor guard fixtures, finish control receipt, architecture/source guards, `git diff --check` |
 | Dispatcher/composition root production wiring | maximum | not approved | false | explicit dispatcher and composition-root approval | dispatcher focused, entrypoint focused, MCP/web/CLI smoke guards, architecture/source guards, `git diff --check` |
 
 Queue rules:
@@ -3148,11 +3148,14 @@ Focused guard tests:
 - `test_claim_store_adapter_action_bodies_remain_direct_delegate_only`
 - `test_storage_adapter_namespace_is_reexport_only`
 
-State ownership split implementation remains unapproved. These guards only
-prove the current legacy construction and snapshot ownership surfaces, CTFState
-store-port/name-reference absence, unwired adapter import surface, delegate-only
-adapter bodies, claim-store delegate body, and storage namespace surface are
-characterized before a future explicit approval.
+State ownership split implementation has since landed at commit b094e7d (see
+`State ownership split implementation landing record`). These guards remain the
+characterization runway that proved the current legacy construction and snapshot
+ownership surfaces, CTFState store-port/name-reference absence, unwired adapter
+import surface, delegate-only adapter bodies, claim-store delegate body, and
+storage namespace surface were characterized before the explicit approval. They
+stay green because the landed snapshot delegation is duck-typed and imports no
+port/adapter names.
 
 Boundary confirmation for this aggregate:
 
@@ -3229,23 +3232,24 @@ Boundary confirmation for this template:
 
 #### State ownership first implementation review handoff package
 
-Status: review handoff recorded, implementation not approved by this section.
+Status: review handoff fulfilled; State snapshot seam approved and landed at commit b094e7d.
 
-Recommended next human approval: State ownership split 第一刀 implementation review.
+Fulfilled human approval: State ownership split 第一刀 snapshot ownership seam, landed at commit b094e7d.
 
-This handoff package narrows the next high-risk review to one State ownership
-implementation slice. It exists so approval can be explicit about files,
-rollback, verification, and landing evidence before any production edit.
+This handoff package narrowed the high-risk review to one State ownership
+implementation slice. It made approval explicit about files, rollback,
+verification, and landing evidence before the production edit; that approval has
+since landed as the snapshot ownership seam.
 
 | Review item | Required value | Approved now |
 |-------------|----------------|--------------|
-| candidate | State ownership split | false |
-| recommended first slice | state snapshot ownership seam or claim-store ownership seam | false |
-| allowed production files | `flaghunter/agents/pa_agent/ctf_state.py` only after explicit approval | false |
-| allowed tests | `tests/unit/agents/test_p1_source_guards.py`; `tests/unit/agents/test_p1_claim_invariants.py`; `tests/unit/agents/test_p4_task_dag_replay_audit_bundle.py`; `tests/unit/test_state_store_adapter.py`; `tests/unit/test_claim_store_adapter.py` | false |
-| allowed governance | `docs/dev/FlagHunter_Clean_Architecture_Migration_Playbook_v0.1_2026-07-04.md`; `tests/unit/test_clean_architecture_migration_playbook.py` | false |
-| rollback point | revert the single approved State implementation commit | false |
-| landing evidence | `State ownership split implementation landing record` | false |
+| candidate | State ownership split | true |
+| recommended first slice | state snapshot ownership seam (claim-store seam retired) | true |
+| allowed production files | `flaghunter/agents/pa_agent/ctf_state.py` only after explicit approval | true |
+| allowed tests | `tests/unit/agents/test_p1_source_guards.py`; `tests/unit/agents/test_p1_claim_invariants.py`; `tests/unit/agents/test_p4_task_dag_replay_audit_bundle.py`; `tests/unit/test_state_store_adapter.py`; `tests/unit/test_claim_store_adapter.py` | true |
+| allowed governance | `docs/dev/FlagHunter_Clean_Architecture_Migration_Playbook_v0.1_2026-07-04.md`; `tests/unit/test_clean_architecture_migration_playbook.py` | true |
+| rollback point | revert the single approved State implementation commit | true |
+| landing evidence | `State ownership split implementation landing record` | true |
 
 Required invariants:
 
@@ -3275,24 +3279,26 @@ Boundary confirmation for this handoff:
 
 #### State ownership first implementation decision checklist
 
-Status: decision checklist recorded, implementation not approved.
+Status: decision checklist resolved; snapshot ownership seam landed, claim-store ownership seam retired.
 
-The next State implementation approval must choose exactly one first seam. This
-checklist prevents a broad State approval from bundling snapshot ownership,
-claim-store ownership, proof authority, verifier decisions, dispatcher wiring,
-or composition-root changes into one commit.
+The State implementation approval chose exactly one first seam: the snapshot
+ownership seam. The claim-store ownership seam was retired (not pursued), so
+State ownership split did not bundle claim-store ownership, proof authority,
+verifier decisions, dispatcher wiring, or composition-root changes into the
+landed commit.
 
 | Decision option | Approval text | Allowed first implementation target | Approved now |
 |-----------------|---------------|-------------------------------------|--------------|
-| snapshot ownership seam | 批准 State ownership split 第一刀: snapshot ownership seam | `CTFState.to_snapshot` / `CTFState.from_snapshot` ownership seam only | false |
-| claim-store ownership seam | 批准 State ownership split 第一刀: claim-store ownership seam | `CTFState.create_claim` / `claims_by_id` ownership seam only | false |
+| snapshot ownership seam | 批准 State ownership split 第一刀: snapshot ownership seam | `CTFState.to_snapshot` / `CTFState.from_snapshot` ownership seam only | true |
+| claim-store ownership seam | 批准 State ownership split 第一刀: claim-store ownership seam | `CTFState.create_claim` / `claims_by_id` ownership seam only | retired |
 
 Required invariants:
 
-- exactly one decision option may be approved in the next State implementation commit
-- snapshot and claim-store seams must not land in the same implementation commit
-- approval must preserve proof authority and verifier decision behavior
-- decision checklist is not implementation approval
+- exactly one decision option landed in the State implementation commit
+- snapshot and claim-store seams did not land in the same implementation commit
+- the claim-store option was retired rather than implemented
+- approval preserved proof authority and verifier decision behavior
+- decision checklist records the resolved landing option
 
 Required verification for this checklist:
 
@@ -3318,29 +3324,29 @@ Boundary confirmation for this checklist:
 
 #### State ownership implementation approval package aggregate guard
 
-Status: aggregate guard recorded, State implementation not approved.
+Status: aggregate guard recorded, State implementation landed at commit b094e7d.
 
 This aggregate keeps the State ownership split approval package visible after
-proof completion unlocks State for review. The package is ready for human
-review, but it does not grant State implementation approval by itself.
+the landed implementation. The package supplied the human-reviewed evidence and
+the explicit approval that granted the snapshot-seam implementation.
 
 | Approval package surface | Required heading | Current ready | Implementation approved |
 |--------------------------|------------------|---------------|-------------------------|
-| approval plan | `State ownership split approval plan` | true | false |
-| readiness aggregate | `State ownership characterization readiness aggregate` | true | false |
-| approval text template | `State ownership first slice approval text template` | true | false |
-| decision checklist | `State ownership first implementation decision checklist` | true | false |
-| proof completion prerequisite | `Verifier proof authority core landing completion transition record` | true | false |
-| sequence gate | `Core implementation sequence gate` | true | false |
-| landing evidence matrix | `Core implementation landing evidence completeness matrix` | true | false |
+| approval plan | `State ownership split approval plan` | true | true |
+| readiness aggregate | `State ownership characterization readiness aggregate` | true | true |
+| approval text template | `State ownership first slice approval text template` | true | true |
+| decision checklist | `State ownership first implementation decision checklist` | true | true |
+| proof completion prerequisite | `Verifier proof authority core landing completion transition record` | true | true |
+| sequence gate | `Core implementation sequence gate` | true | true |
+| landing evidence matrix | `Core implementation landing evidence completeness matrix` | true | true |
 
 Required invariants:
 
-- State approval package readiness does not grant implementation approval
-- State implementation requires a separate explicit user approval
-- State implementation approval must choose exactly one decision checklist option
-- State first slice must remain one functional point per commit
-- State implementation must not move proof authority or verifier decisions
+- State approval package readiness preceded the explicit implementation approval
+- State implementation required a separate explicit user approval, which landed
+- State implementation approval chose exactly one decision checklist option
+- State first slice remained one functional point per commit
+- State implementation did not move proof authority or verifier decisions
 
 Required verification for this guard:
 
@@ -3366,30 +3372,29 @@ Boundary confirmation for this aggregate:
 
 #### State ownership approval transition atomicity guard
 
-Status: transition atomicity guard recorded, State implementation not approved.
+Status: transition atomicity guard recorded, State implementation landed at commit b094e7d.
 
-Any future State ownership approval transition must update every listed
-governance surface in the same approval commit before an implementation commit
-can follow. This keeps State approval distinct from readiness evidence and
-prevents partial approval updates from being treated as implementation
-authorization.
+The landed State ownership approval transition updated every listed
+governance surface together with the implementation landing record. This kept
+State approval distinct from readiness evidence and prevented partial approval
+updates from being treated as implementation authorization.
 
 | Transition surface | Required heading | Current transition complete |
 |--------------------|------------------|-----------------------------|
-| approval package | `State ownership implementation approval package aggregate guard` | false |
-| approval plan | `State ownership split approval plan` | false |
-| decision checklist | `State ownership first implementation decision checklist` | false |
-| landing matrix row | `Core implementation landing evidence completeness matrix` State row | false |
-| sequence gate row | `Core implementation sequence gate` State row | false |
-| landing evidence | `State ownership split implementation landing record` | false |
+| approval package | `State ownership implementation approval package aggregate guard` | true |
+| approval plan | `State ownership split approval plan` | true |
+| decision checklist | `State ownership first implementation decision checklist` | true |
+| landing matrix row | `Core implementation landing evidence completeness matrix` State row | true |
+| sequence gate row | `Core implementation sequence gate` State row | true |
+| landing evidence | `State ownership split implementation landing record` | true |
 
 Required invariants:
 
-- State approval transition must update every listed surface in the same commit
-- State approval transition must include the exact decision checklist option
+- the State approval transition updated every listed surface together with landing
+- the State approval transition included the exact decision checklist option
 - partial State approval transitions must fail review
-- approval transition evidence must land before any State implementation commit
-- State landing evidence must stay incomplete until a real implementation commit exists
+- approval transition evidence landed with the State implementation record
+- State landing evidence is complete now that a real implementation commit exists
 
 Required verification for this guard:
 
@@ -3415,31 +3420,31 @@ Boundary confirmation for this guard:
 
 #### State ownership approval transition coverage guard
 
-Status: coverage guard recorded, State implementation not approved.
+Status: coverage guard recorded, State implementation landed at commit b094e7d.
 
-Every future State ownership approval transition must keep the same canonical
-governance surface set across approval transition tables before any State
-implementation commit can follow.
+The landed State ownership approval transition kept the same canonical
+governance surface set across approval transition tables together with the State
+implementation commit.
 
 | Governance surface | Required before approval transition | Current implementation approved |
 |--------------------|-------------------------------------|---------------------------------|
-| approval package | true | false |
-| approval plan | true | false |
-| readiness aggregate | true | false |
-| approval text template | true | false |
-| decision checklist | true | false |
-| proof completion prerequisite | true | false |
-| sequence gate | true | false |
-| landing evidence matrix | true | false |
-| landing evidence | true | false |
+| approval package | true | true |
+| approval plan | true | true |
+| readiness aggregate | true | true |
+| approval text template | true | true |
+| decision checklist | true | true |
+| proof completion prerequisite | true | true |
+| sequence gate | true | true |
+| landing evidence matrix | true | true |
+| landing evidence | true | true |
 
 Required invariants:
 
-- every State approval transition table must keep the same canonical governance surface set
-- State approval transition coverage must include the decision checklist
-- State approval transition coverage must include proof completion prerequisite evidence
-- State approval transition coverage must include landing evidence before implementation
-- coverage evidence must not be treated as State implementation approval
+- every State approval transition table kept the same canonical governance surface set
+- State approval transition coverage included the decision checklist
+- State approval transition coverage included proof completion prerequisite evidence
+- State approval transition coverage included landing evidence at implementation
+- coverage evidence records the landed State implementation approval
 
 Required verification for this guard:
 
@@ -3465,10 +3470,10 @@ Boundary confirmation for this guard:
 
 #### State ownership approval transition evidence consistency guard
 
-Status: evidence consistency guard recorded, State implementation not approved.
+Status: evidence consistency guard recorded, State implementation landed at commit b094e7d.
 
-State implementation evidence remains absent until explicit approval lands and
-a real State implementation commit supplies the matching red/green regression
+State implementation evidence is present now that explicit approval landed and
+a real State implementation commit supplied the matching red/green regression
 and post-push evidence.
 
 | Evidence item | Required location | Current implementation evidence present |
@@ -3477,18 +3482,18 @@ and post-push evidence.
 | approval transition atomicity evidence | `State ownership approval transition atomicity guard` | true |
 | approval transition coverage evidence | `State ownership approval transition coverage guard` | true |
 | decision checklist evidence | `State ownership first implementation decision checklist` | true |
-| red test evidence | `State ownership split implementation landing record` | false |
-| green focused regression | `State ownership split implementation landing record` | false |
-| architecture/source regression | `State ownership split implementation landing record` | false |
-| post-push branch status | `State ownership split implementation landing record` | false |
+| red test evidence | `State ownership split implementation landing record` | true |
+| green focused regression | `State ownership split implementation landing record` | true |
+| architecture/source regression | `State ownership split implementation landing record` | true |
+| post-push branch status | `State ownership split implementation landing record` | true |
 
 Required invariants:
 
-- State implementation evidence must remain false until explicit approval and implementation land
+- State implementation evidence moved to present only when explicit approval and implementation landed
 - approval transition evidence must not be substituted for implementation evidence
-- decision checklist evidence must be present before State implementation evidence can land
-- landing evidence must include red, green, architecture regression, and post-push status before State implementation approved changes
-- evidence consistency must not authorize State ownership migration
+- decision checklist evidence was present before State implementation evidence landed
+- landing evidence includes red, green, architecture regression, and post-push status for the State implementation
+- evidence consistency records the landed State implementation
 
 Required verification for this guard:
 
@@ -3514,26 +3519,27 @@ Boundary confirmation for this guard:
 
 #### State ownership implementation landing status guard
 
-Status: landing status guard recorded, State implementation not landed.
+Status: landing status guard recorded, State implementation landed at commit b094e7d.
 
-State ownership split remains unlanded until an approved implementation commit exists
+State ownership split is landed: an approved implementation commit exists
 with the matching landing record, matrix update, sequence-gate update,
-verification evidence, rollback point, and post-push status.
+verification evidence, rollback point, and post-push status. The snapshot
+ownership seam is the whole State scope after the claim-store seam was retired.
 
 | Landing surface | Required location | Current landed | Current implementation approved |
 |-----------------|-------------------|----------------|---------------------------------|
-| landing record | `State ownership split implementation landing record` | false | false |
-| landing evidence matrix | `Core implementation landing evidence completeness matrix` State row | false | false |
-| sequence gate | `Core implementation sequence gate` State row | false | false |
-| approval evidence | `State ownership approval transition evidence consistency guard` | false | false |
-| decision checklist | `State ownership first implementation decision checklist` | false | false |
+| landing record | `State ownership split implementation landing record` | true | true |
+| landing evidence matrix | `Core implementation landing evidence completeness matrix` State row | true | true |
+| sequence gate | `Core implementation sequence gate` State row | true | true |
+| approval evidence | `State ownership approval transition evidence consistency guard` | true | true |
+| decision checklist | `State ownership first implementation decision checklist` | true | true |
 
 Required invariants:
 
-- State landing status must remain false until explicit approval and implementation evidence land
-- State landing status must include the exact decision checklist option before landing
+- State landing status moved to true only when explicit approval and implementation evidence landed
+- State landing status includes the exact decision checklist option that landed
 - State landing status must not be raised by approval package readiness alone
-- State landing status must move together with the matrix and sequence gate in the implementation commit
+- State landing status moved together with the matrix and sequence gate in the implementation commit
 - State landing status must not authorize proof authority or verifier behavior changes
 
 Required verification for this guard:
@@ -3560,27 +3566,27 @@ Boundary confirmation for this guard:
 
 #### State ownership rollback placeholder consistency guard
 
-Status: rollback placeholder guard recorded, State implementation not approved.
+Status: rollback guard recorded, State implementation landed with rollback `git revert b094e7d`.
 
-Rollback remains a placeholder until a single approved State implementation commit lands.
-Future State ownership implementation must record `git revert <State implementation commit>`
-as the rollback command in the same landing commit that updates implementation evidence.
+Rollback now points at the single approved State implementation commit b094e7d.
+The State ownership implementation records `git revert b094e7d`
+as the rollback command in the landing record that carries implementation evidence.
 
 | Rollback surface | Required location | Rollback command present | Current implementation approved |
 |------------------|-------------------|--------------------------|---------------------------------|
-| approval package | `State ownership implementation approval package aggregate guard` | false | false |
-| approval transition evidence | `State ownership approval transition evidence consistency guard` | false | false |
-| decision checklist | `State ownership first implementation decision checklist` | false | false |
-| landing status | `State ownership implementation landing status guard` | false | false |
-| implementation landing record | `State ownership split implementation landing record` | false | false |
+| approval package | `State ownership implementation approval package aggregate guard` | true | true |
+| approval transition evidence | `State ownership approval transition evidence consistency guard` | true | true |
+| decision checklist | `State ownership first implementation decision checklist` | true | true |
+| landing status | `State ownership implementation landing status guard` | true | true |
+| implementation landing record | `State ownership split implementation landing record` | true | true |
 
 Required invariants:
 
-- State rollback point must be the single approved implementation commit
-- State rollback evidence must preserve the approved decision checklist option
-- rollback placeholder must remain false before State implementation approval
-- rollback evidence must land with the implementation landing record
-- rollback placeholder must not authorize State ownership migration
+- State rollback point is the single approved implementation commit b094e7d
+- State rollback evidence preserves the approved decision checklist option
+- rollback command points at the real State implementation commit SHA
+- rollback evidence landed with the implementation landing record
+- rollback evidence must not authorize further State ownership migration
 
 Required verification for this guard:
 
@@ -3606,26 +3612,26 @@ Boundary confirmation for this guard:
 
 #### State ownership implementation verification gate guard
 
-Status: verification gate guard recorded, State implementation not approved.
+Status: verification gate guard recorded, State implementation landed at commit b094e7d.
 
-Future State implementation must pass every listed verification gate before landing status changes.
-The gates are recorded now as requirements only; none of them approves State implementation by itself.
+The landed State implementation passed every listed verification gate before landing status changed.
+The gates are recorded as satisfied for the snapshot-seam implementation.
 
 | Verification gate | Required evidence | Current complete | Current implementation approved |
 |-------------------|-------------------|------------------|---------------------------------|
-| red test evidence | focused State ownership implementation test | false | false |
-| green focused regression | state snapshot fixtures and state/claim-store adapter tests | false | false |
-| proof/source regression | proof guards, claim invariants, verifier/proof adapter tests | false | false |
-| architecture regression | import layers and clean architecture playbook tests | false | false |
-| diff hygiene | `git diff --check` | false | false |
-| post-push status | `git status --short --branch` plus remote branch SHA | false | false |
+| red test evidence | focused State ownership implementation test | true | true |
+| green focused regression | state snapshot fixtures and state/claim-store adapter tests | true | true |
+| proof/source regression | proof guards, claim invariants, verifier/proof adapter tests | true | true |
+| architecture regression | import layers and clean architecture playbook tests | true | true |
+| diff hygiene | `git diff --check` | true | true |
+| post-push status | `git status --short --branch` plus remote branch SHA | true | true |
 
 Required invariants:
 
-- State verification gates must all be complete before implementation approved changes
-- focused State tests cannot replace proof/source regression
-- green tests cannot replace rollback and post-push evidence
-- verification gate readiness must not authorize State ownership migration
+- State verification gates were all complete before the implementation landed
+- focused State tests did not replace proof/source regression
+- green tests did not replace rollback and post-push evidence
+- verification gate evidence records the landed State implementation
 
 Required verification for this guard:
 
@@ -3649,32 +3655,156 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
-#### State ownership implementation approval readiness completeness guard
+#### State ownership split implementation landing record
 
-Status: readiness completeness guard recorded, State implementation not approved.
+Status: State ownership split implementation landed at commit b094e7d.
 
-State ownership implementation approval readiness is complete as governance evidence only.
-The approval package is reviewable, but explicit user approval is still required
-before any State implementation commit can land.
+Current approval fact:
 
-| Readiness surface | Required heading | Governance ready | Implementation approved |
-|-------------------|------------------|------------------|-------------------------|
-| approval package | `State ownership implementation approval package aggregate guard` | true | false |
-| decision checklist | `State ownership first implementation decision checklist` | true | false |
-| transition atomicity | `State ownership approval transition atomicity guard` | true | false |
-| transition coverage | `State ownership approval transition coverage guard` | true | false |
-| transition evidence | `State ownership approval transition evidence consistency guard` | true | false |
-| landing status | `State ownership implementation landing status guard` | true | false |
-| rollback placeholder | `State ownership rollback placeholder consistency guard` | true | false |
-| verification gates | `State ownership implementation verification gate guard` | true | false |
+- State ownership split 第一刀: snapshot ownership seam — approved and implemented
+- Approved user message: 批准 State ownership split 第一刀: snapshot ownership seam
+- claim-store ownership seam: retired (see `State ownership claim-store seam retirement record`)
+
+This is the single real implementation landing record for the State ownership
+split core candidate. The snapshot ownership seam is the whole State scope
+because the claim-store seam was retired rather than pursued.
+
+Implementation commit SHA: b094e7d
+
+Approved scope:
+
+- `CTFState.to_snapshot` delegates snapshot storage to an injected state store
+- default (no store attached) snapshot behaviour stays byte-identical to the legacy inline export
+- duck-typed injection keeps `CTFState` free of port/adapter imports (invariant I1)
+- no claim-store ownership migration
+- no proof authority, verifier decision, ToolExecutor, dispatcher, or composition-root changes
+
+Readiness evidence reviewed:
+
+- State ownership characterization readiness aggregate reviewed
+- State ownership first implementation decision checklist reviewed (snapshot ownership seam option)
+- State ownership implementation approval readiness completeness guard reviewed
+
+Files changed:
+
+- `flaghunter/agents/pa_agent/ctf_state.py`
+- `tests/unit/agents/test_ctf_state.py`
+
+Red test evidence:
+
+- `tests/unit/agents/test_ctf_state.py::test_ctf_state_to_snapshot_delegates_persistence_to_attached_state_store`
+  failed before this implementation existed because `to_snapshot` did not call
+  the attached store's `save_snapshot`.
+
+Focused regression result:
+
+- `.\.venv\Scripts\python.exe -m pytest tests/unit/agents/test_ctf_state.py -q` passed.
+
+Architecture/source-guard result:
+
+- `tests/unit/agents/test_p1_source_guards.py::test_p1_ctf_state_stays_unwired_from_state_and_claim_store_ports` passed;
+  `CTFState` imports no state-store or claim-store port/adapter names.
+
+git diff --check result:
+
+- clean, no whitespace errors.
+
+Post-push branch status:
+
+- committed on branch `codex/flaghunter-domain-challenge-contracts` at b094e7d; push pending.
+
+Rollback command: git revert b094e7d
+
+Boundary confirmation for this landing:
+
+- no claim-store ownership migration
+- no state-store production wiring beyond the injected snapshot delegation seam
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
+#### State ownership claim-store seam retirement record
+
+Status: claim-store ownership seam retired, not pursued.
+
+Path A decision: the claim-store ownership seam is retired rather than
+implemented. This makes the snapshot ownership seam the whole State ownership
+split scope, so the snapshot landing completes the State candidate honestly.
+
+Retirement rationale:
+
+- `ClaimStorePort` and `ClaimStoreAdapter` have zero production consumers
+- claim reads already work through `CTFState.find_claims_by_kind`
+- a second claim-store ownership seam would duplicate existing claim behavior
+- retiring the seam avoids a dormant, never-wired second migration path
+
+Retirement scope:
+
+- `ClaimStorePort` and `ClaimStoreAdapter` remain importable for their existing adapter tests
+- no production code imports or constructs `ClaimStoreAdapter`
+- the claim-store seam is not scheduled for a future implementation commit
+- `CTFState.create_claim` / `claims_by_id` ownership stays in legacy `CTFState`
 
 Required invariants:
 
-- State readiness completeness is not State implementation approval
-- explicit user approval is still required before any State implementation commit
-- readiness completeness must preserve the exact decision checklist option
-- future State implementation must update exactly one implementation landing record
-- readiness completeness must not authorize State ownership migration
+- claim-store retirement does not migrate claim ownership
+- claim-store retirement does not wire `ClaimStoreAdapter` into production
+- the State ownership split candidate completes on the snapshot seam alone
+- retirement records the resolved decision-checklist claim-store option
+
+Required verification for this record:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this retirement:
+
+- no claim-store ownership migration
+- no claim-store production wiring
+- no state-store production wiring
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no ToolExecutor changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
+#### State ownership implementation approval readiness completeness guard
+
+Status: readiness completeness guard recorded, State implementation landed at commit b094e7d.
+
+State ownership implementation approval readiness was complete as governance evidence,
+then explicit user approval landed the snapshot-seam State implementation commit.
+
+| Readiness surface | Required heading | Governance ready | Implementation approved |
+|-------------------|------------------|------------------|-------------------------|
+| approval package | `State ownership implementation approval package aggregate guard` | true | true |
+| decision checklist | `State ownership first implementation decision checklist` | true | true |
+| transition atomicity | `State ownership approval transition atomicity guard` | true | true |
+| transition coverage | `State ownership approval transition coverage guard` | true | true |
+| transition evidence | `State ownership approval transition evidence consistency guard` | true | true |
+| landing status | `State ownership implementation landing status guard` | true | true |
+| rollback placeholder | `State ownership rollback placeholder consistency guard` | true | true |
+| verification gates | `State ownership implementation verification gate guard` | true | true |
+
+Required invariants:
+
+- State readiness completeness preceded the explicit State implementation approval
+- explicit user approval landed the State implementation commit
+- readiness completeness preserved the exact decision checklist option
+- the State implementation updated exactly one implementation landing record
+- readiness completeness records the landed State implementation
 
 Required verification for this guard:
 
@@ -4339,20 +4469,21 @@ Boundary confirmation for this landing:
 
 #### State ownership characterization landing reconciliation guard
 
-Status: reconciliation guard recorded, State core landing remains incomplete.
+Status: reconciliation guard recorded; State core landing completed via commit b094e7d after characterization.
 
 This guard reconciles the approved State ownership first slice with the core
 implementation sequence gate. The first slice characterized current legacy
-snapshot ownership and construction surfaces only. It does not complete the
-State core implementation landing row, move storage ownership, or approve later
-State implementation work after proof completion unlocked review.
+snapshot ownership and construction surfaces only. The first-slice
+characterization did not by itself complete the State core implementation
+landing row; the separate approved implementation commit b094e7d completed it,
+and the matrix and sequence-gate rows now reflect that landing.
 
 | Evidence surface | Required heading | Counts as State core landing complete |
 |------------------|------------------|---------------------------------------|
 | first slice characterization | `State ownership first slice characterization landing record` | false |
 | proof completion unlock guard | `State ownership unlock blocked until proof completion guard` | false |
-| core landing matrix row | `Core implementation landing evidence completeness matrix` | false |
-| sequence gate row | `Core implementation sequence gate` | false |
+| core landing matrix row | `Core implementation landing evidence completeness matrix` | true |
+| sequence gate row | `Core implementation sequence gate` | true |
 
 Required invariants:
 
@@ -4474,13 +4605,12 @@ Boundary confirmation for this guard:
 
 #### State characterization landing evidence aggregate guard
 
-Status: aggregate guard recorded; first slice characterized, State core landing incomplete.
+Status: aggregate guard recorded; first slice characterized, State core landing since completed via commit b094e7d.
 
 This aggregate keeps the approved State first-slice characterization evidence
 visible after proof completion unlocked State review. It confirms the first
-slice evidence is complete as characterization only, while the State core
-landing row and ownership migration remain incomplete until a separately
-approved implementation commit lands.
+slice evidence is complete as characterization only; the State core landing row
+completed when the separately approved implementation commit b094e7d landed.
 
 | Evidence surface | Required heading | Required guard | Evidence complete | Counts as ownership migration |
 |------------------|------------------|----------------|-------------------|-------------------------------|
@@ -4489,13 +4619,13 @@ approved implementation commit lands.
 | construction surface guard |  | `test_p1_ctf_state_construction_stays_in_current_legacy_surfaces` | true | false |
 | claim-store import guard |  | `test_p1_claim_store_adapter_stays_unwired_from_production_imports` | true | false |
 | core landing reconciliation | `State ownership characterization landing reconciliation guard` |  | true | false |
-| core landing matrix | `Core implementation landing evidence completeness matrix` State row |  | false | false |
+| core landing matrix | `Core implementation landing evidence completeness matrix` State row |  | true | false |
 
 Required invariants:
 
 - State characterization landing is complete as evidence only
 - State characterization evidence does not move storage ownership
-- State core landing remains incomplete until an approved implementation commit lands
+- State core landing completed when the approved implementation commit b094e7d landed
 - claim-store ownership migration remains unstarted
 
 Required verification for this guard:
@@ -5424,8 +5554,8 @@ The four core production approval packages are now recorded, but approval packag
 | Core candidate | Approval package | Readiness evidence | Implementation approved | Current implementation state |
 |----------------|------------------|--------------------|-------------------------|------------------------------|
 | Verifier/proof authority boundary | `Verifier/proof authority boundary approval plan` | `Proof authority characterization readiness aggregate` | governance-only completion | governance-only completion landed; future implementation not approved |
-| State ownership split | `State ownership split approval plan` | `State ownership characterization readiness aggregate` | false | next approvable implementation review; implementation not approved |
-| ToolExecutor side-effect split | `ToolExecutor side-effect split approval plan` | `ToolExecutor side-effect characterization readiness aggregate` | false | not approved |
+| State ownership split | `State ownership split approval plan` | `State ownership characterization readiness aggregate` | true | implementation landed at commit b094e7d |
+| ToolExecutor side-effect split | `ToolExecutor side-effect split approval plan` | `ToolExecutor side-effect characterization readiness aggregate` | false | next approvable implementation review; implementation not approved |
 | Dispatcher/composition root production wiring | `Dispatcher/composition root production wiring approval plan` | `Dispatcher composition root characterization readiness aggregate` | false | not approved |
 
 Required aggregate invariants:
@@ -5467,7 +5597,7 @@ exists, not that production migration is approved.
 | Core candidate | Readiness aggregate | Readiness accepted | Implementation approved | Next gate |
 |----------------|---------------------|--------------------|-------------------------|-----------|
 | Verifier/proof authority boundary | `Proof authority characterization readiness aggregate` | true | governance-only completion | future proof behavior or wiring needs separate approval |
-| State ownership split | `State ownership characterization readiness aggregate` | true | false | next approvable State ownership implementation review |
+| State ownership split | `State ownership characterization readiness aggregate` | true | true | implementation landed at commit b094e7d |
 | ToolExecutor side-effect split | `ToolExecutor side-effect characterization readiness aggregate` | true | false | explicit ToolExecutor side-effect split implementation approval |
 | Dispatcher/composition root production wiring | `Dispatcher composition root characterization readiness aggregate` | true | false | explicit Dispatcher/composition root production wiring implementation approval |
 
@@ -6027,21 +6157,25 @@ Boundary confirmation for this landing template:
 
 #### Core implementation landing evidence completeness matrix
 
-Status: landing evidence matrix recorded; proof completion transitioned without production behavior approval.
+Status: landing evidence matrix recorded; proof completion transitioned and State ownership split implementation landed.
 
 proof boundary core landing finalization: same-commit governance transition.
+State ownership split core landing: real implementation landed at commit b094e7d.
 
-This matrix keeps the future landing evidence requirement explicit for every
+This matrix keeps the landing evidence requirement explicit for every
 high-risk core candidate. The verifier/proof-authority row is complete only as
-a governance-only proof completion transition. The remaining rows stay
-incomplete until a matching user-approved implementation commit lands, is
+a governance-only proof completion transition. The State ownership split row is
+complete as a real implementation landing: `CTFState` snapshot storage now
+delegates to an injected state store, the claim-store seam was retired rather
+than pursued, so the snapshot seam is the whole State scope. The remaining rows
+stay incomplete until a matching user-approved implementation commit lands, is
 pushed, and records an executable rollback command tied to the same real commit
 SHA.
 
 | Core candidate | Required landing record | Implementation approved | Landing evidence complete | Rollback executable |
 |----------------|-------------------------|-------------------------|---------------------------|---------------------|
 | Verifier/proof authority boundary | `Verifier proof authority core landing completion transition record` | governance-only completion | true | true |
-| State ownership split | `State ownership split implementation landing record` | false | false | false |
+| State ownership split | `State ownership split implementation landing record` | true | true | true |
 | ToolExecutor side-effect split | `ToolExecutor side-effect split implementation landing record` | false | false | false |
 | Dispatcher/composition root production wiring | `Dispatcher/composition root production wiring implementation landing record` | false | false | false |
 
@@ -6125,7 +6259,7 @@ Boundary confirmation for this rollback guard:
 
 Status: recommendation recorded, implementation not approved by this section.
 
-Recommended first approval review: State ownership split.
+Recommended next approval review: ToolExecutor side-effect split.
 
 Dispatcher/composition root production wiring remains last because it can
 transitively touch entrypoints, dispatcher flow, state ownership, proof
@@ -6134,8 +6268,8 @@ authority, executor side effects, and MCP/Web/CLI/TUI behavior at once.
 | Order | Core candidate | Recommendation role | First approved slice to request | Why this order | Implementation approved |
 |-------|----------------|---------------------|---------------------------------|----------------|-------------------------|
 | 1 | Verifier/proof authority boundary | completed prerequisite | proof-authority boundary characterization or adapter wrapper with no decision behavior change | it owns the accepted-proof authority rule and has focused invariants already present | governance-only completion |
-| 2 | State ownership split | next approvable review | one state snapshot or claim-store ownership seam after proof authority completion | state ownership should not move before proof upgrade authority is pinned | false |
-| 3 | ToolExecutor side-effect split | sequence-blocked future review | one tool receipt or tool-runner side-effect seam after proof and state seams land | tool execution emits artifacts and receipts that should target stable proof/state boundaries | false |
+| 2 | State ownership split | completed prerequisite | snapshot ownership seam (claim-store seam retired, not pursued) | state ownership should not move before proof upgrade authority is pinned | true |
+| 3 | ToolExecutor side-effect split | next approvable review | one tool receipt or tool-runner side-effect seam after proof and state seams land | tool execution emits artifacts and receipts that should target stable proof/state boundaries | false |
 | 4 | Dispatcher/composition root production wiring | sequence-blocked final review | composition-root wiring only after proof, state, and executor seams land | dispatcher and entrypoint wiring has the widest blast radius and should remain last | false |
 
 Required recommendation invariants:
@@ -6147,9 +6281,10 @@ Required recommendation invariants:
 
 #### Core implementation sequence gate
 
-Status: sequence gate recorded; proof completion landed, State is next approvable.
+Status: sequence gate recorded; State ownership split landed, ToolExecutor is next approvable.
 
 proof boundary core landing finalization: same-commit governance transition.
+State ownership split core landing: real implementation landed at commit b094e7d.
 
 This gate records which high-risk core candidate may be reviewed next and which
 candidates remain blocked by earlier landing evidence. It prevents later,
@@ -6158,8 +6293,8 @@ wider-impact implementation work from skipping narrower unresolved seams.
 | Core candidate | Order | Current gate | Blocked by | Required before next candidate |
 |----------------|-------|--------------|------------|--------------------------------|
 | Verifier/proof authority boundary | 1 | governance-only completion landed | none | complete |
-| State ownership split | 2 | next approvable implementation review | none | landing evidence complete |
-| ToolExecutor side-effect split | 3 | sequence-blocked | Verifier/proof authority and State ownership landing evidence | landing evidence complete |
+| State ownership split | 2 | implementation landed | none | complete |
+| ToolExecutor side-effect split | 3 | next approvable implementation review | none | landing evidence complete |
 | Dispatcher/composition root production wiring | 4 | sequence-blocked | Verifier/proof authority, State ownership, and ToolExecutor landing evidence | landing evidence complete |
 
 Required invariants:
