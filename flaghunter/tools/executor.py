@@ -609,6 +609,22 @@ class ToolExecutor:
         # P3 provenance: a per-executor run id groups all calls that ran
         # together — the basis for later "used alone vs chained" analysis (P6).
         self.run_id = uuid.uuid4().hex[:12]
+        # ToolExecutor side-effect split (第一刀): optional neutral receipt sink.
+        # With no sink attached (the default) execution is byte-identical to the
+        # legacy path. See attach_receipt_sink.
+        self._receipt_sink: Any = None
+
+    def attach_receipt_sink(self, sink: Any | None) -> None:
+        """Route neutral tool receipts through an injected sink.
+
+        ToolExecutor side-effect split landing: with a sink attached, ``_finalize``
+        (the single收口 for every execution path) also emits a neutral receipt
+        through the sink's ``record`` method. With no sink attached (the default)
+        behaviour is byte-identical to the legacy path, so every live path is
+        unchanged. Duck-typed on purpose to keep this module free of
+        port/adapter imports (invariant I1).
+        """
+        self._receipt_sink = sink
 
     def _finalize(
         self,
@@ -652,7 +668,45 @@ class ToolExecutor:
             )
         except Exception:
             pass
+        self._emit_receipt_to_sink(result, tool, cache_hit=cache_hit)
         return result
+
+    def _emit_receipt_to_sink(
+        self,
+        result: ExecutionResult,
+        tool: Optional["Tool"] = None,
+        *,
+        cache_hit: bool = False,
+    ) -> None:
+        """Emit a neutral receipt through the attached sink (best-effort).
+
+        Additive over the legacy path: a sink error must never affect tool
+        execution (same discipline as the receipt/provenance recorders above).
+        """
+        sink = getattr(self, "_receipt_sink", None)
+        if sink is None:
+            return
+        try:
+            output = result.stdout_clean if result.stdout_clean is not None else result.result
+            if not output and result.error:
+                output = result.error
+            sink.record(
+                receipt_id=result.receipt_id or result.trace_id or "",
+                task_id=self.run_id,
+                tool_name=result.tool_name,
+                outcome=result.status or ("success" if result.success else "error"),
+                summary=_sanitize_tool_output_summary(output),
+                metadata={
+                    "error_class": result.error_class or "none",
+                    "duration_ms": float(result.duration_ms or 0.0),
+                    "cache_hit": bool(cache_hit),
+                    "tool_category": getattr(tool, "category", "") or "",
+                    "run_id": self.run_id,
+                },
+                run_id=self.run_id,
+            )
+        except Exception:
+            pass
 
     def _ctf_state(self) -> Any:
         return getattr(self.runtime, "ctf_state", None) or getattr(

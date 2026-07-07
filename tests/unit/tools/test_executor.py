@@ -654,3 +654,107 @@ class TestHistoryManagement:
     def test_get_last_result_empty_history(self):
         executor = _make_executor()
         assert executor.get_last_result() is None
+
+
+# ---------------------------------------------------------------------------
+# ToolExecutor side-effect split — receipt-emission seam (第一刀)
+#
+# Mirrors the landed State snapshot seam (CTFState.to_snapshot delegates to an
+# injected store): _finalize is the single收口 for every execution path, so an
+# attached receipt sink also receives a neutral receipt. With no sink attached
+# (the default) behaviour is byte-identical to the legacy path. Duck-typed on
+# purpose — executor.py imports no port/adapter types (invariant I1). No
+# production consumer is wired; this test is the only proof of the seam.
+# ---------------------------------------------------------------------------
+
+class _RecordingReceiptSink:
+    def __init__(self):
+        self.calls: list[dict] = []
+
+    def record(self, **kwargs):
+        self.calls.append(kwargs)
+        return kwargs
+
+
+class TestToolExecutorReceiptEmissionSeam:
+    @pytest.mark.asyncio
+    async def test_finalize_emits_receipt_through_attached_sink(self):
+        executor = _make_executor()
+        sink = _RecordingReceiptSink()
+        executor.attach_receipt_sink(sink)
+        tool = _make_tool(name="probe")
+
+        result = await executor.execute(tool, {"cmd": "x"})
+
+        assert len(sink.calls) == 1
+        emitted = sink.calls[0]
+        assert emitted["tool_name"] == "probe"
+        assert emitted["outcome"] == "success"
+        assert emitted["run_id"] == executor.run_id
+        # default path is preserved regardless of the sink
+        assert result.success is True
+        assert len(executor.execution_history) == 1
+
+    @pytest.mark.asyncio
+    async def test_finalize_emits_error_outcome_through_sink(self):
+        executor = _make_executor()
+        sink = _RecordingReceiptSink()
+        executor.attach_receipt_sink(sink)
+        tool = _make_tool(name="boom", success=False)
+
+        result = await executor.execute(tool, {"cmd": "x"})
+
+        assert result.success is False
+        assert sink.calls and sink.calls[-1]["outcome"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_receipt_sink_feeds_prebuilt_record_tool_receipt_service(self):
+        # The pre-built application service is a valid duck-typed sink: this
+        # makes the tool-receipt service concrete without wiring production.
+        from flaghunter.application.challenge.tool_receipt_service import (
+            RecordToolReceipt,
+        )
+
+        events: list[dict] = []
+
+        class _FakeAuditStore:
+            def append_event(self, event):
+                events.append(event)
+
+        executor = _make_executor()
+        executor.attach_receipt_sink(
+            RecordToolReceipt(audit_store=_FakeAuditStore())
+        )
+        tool = _make_tool(name="nuclei")
+
+        await executor.execute(tool, {"cmd": "scan"})
+
+        assert len(events) == 1
+        assert events[0]["eventType"] == "toolReceiptRecorded"
+        assert events[0]["traceRef"]["toolName"] == "nuclei"
+
+    @pytest.mark.asyncio
+    async def test_no_sink_leaves_execution_unaffected(self):
+        executor = _make_executor()
+        tool = _make_tool(name="plain")
+
+        result = await executor.execute(tool, {"cmd": "x"})
+
+        assert getattr(executor, "_receipt_sink", None) is None
+        assert result.success is True
+        assert len(executor.execution_history) == 1
+
+    @pytest.mark.asyncio
+    async def test_sink_failure_never_breaks_execution(self):
+        class _ExplodingSink:
+            def record(self, **kwargs):
+                raise RuntimeError("sink down")
+
+        executor = _make_executor()
+        executor.attach_receipt_sink(_ExplodingSink())
+        tool = _make_tool(name="resilient")
+
+        result = await executor.execute(tool, {"cmd": "x"})
+
+        assert result.success is True
+        assert len(executor.execution_history) == 1
