@@ -2452,6 +2452,11 @@ def test_playbook_records_post_read_side_core_decoupling_approval_queue() -> Non
     assert queue_rows["State ownership split"]["Implementation approved"] == "true"
     assert (
         queue_rows["ToolExecutor side-effect split"]["Current status"]
+        == "implementation landed at commit 0195218"
+    )
+    assert queue_rows["ToolExecutor side-effect split"]["Implementation approved"] == "true"
+    assert (
+        queue_rows["Dispatcher/composition root production wiring"]["Current status"]
         == "next approvable implementation review; implementation not approved"
     )
     for candidate, row in queue_rows.items():
@@ -2460,6 +2465,7 @@ def test_playbook_records_post_read_side_core_decoupling_approval_queue() -> Non
             "Task ingress production wiring",
             "Verifier/proof authority boundary",
             "State ownership split",
+            "ToolExecutor side-effect split",
         }:
             assert row["Implementation approved"] == "false"
         assert row["Required approval"]
@@ -2945,7 +2951,8 @@ def test_playbook_records_tool_executor_side_effect_split_approval_plan() -> Non
         "ToolExecutor side-effect split approval plan",
     )
 
-    assert "Status: approval plan recorded, implementation not approved." in section
+    assert "Status: approval plan recorded; receipt-emission seam approved and landed at commit 0195218." in section
+    assert "the receipt-emission seam landed at commit 0195218" in section
     assert "flaghunter/tools/executor.py" in section
     assert "flaghunter/adapters/tools/tool_runner_adapter.py" in section
     assert "tests/unit/tools/test_executor.py" in section
@@ -3211,12 +3218,12 @@ def test_playbook_records_core_approval_package_aggregate_guard() -> None:
             "Current implementation state": "implementation landed at commit b094e7d",
         },
         "ToolExecutor side-effect split": {
-            "Implementation approved": "false",
-            "Current implementation state": "next approvable implementation review; implementation not approved",
+            "Implementation approved": "true",
+            "Current implementation state": "implementation landed at commit 0195218",
         },
         "Dispatcher/composition root production wiring": {
             "Implementation approved": "false",
-            "Current implementation state": "not approved",
+            "Current implementation state": "next approvable implementation review; implementation not approved",
         },
     }
     for candidate, plan_heading in expected_plans.items():
@@ -3325,8 +3332,8 @@ def test_playbook_records_core_readiness_aggregate_acceptance_matrix() -> None:
         "ToolExecutor side-effect split": {
             "Readiness aggregate": "`ToolExecutor side-effect characterization readiness aggregate`",
             "Readiness accepted": "true",
-            "Implementation approved": "false",
-            "Next gate": "explicit ToolExecutor side-effect split implementation approval",
+            "Implementation approved": "true",
+            "Next gate": "implementation landed at commit 0195218",
         },
         "Dispatcher/composition root production wiring": {
             "Readiness aggregate": "`Dispatcher composition root characterization readiness aggregate`",
@@ -3505,7 +3512,7 @@ def test_playbook_records_core_implementation_landing_evidence_completeness_matr
         "Core implementation landing evidence completeness matrix",
     )
 
-    assert "Status: landing evidence matrix recorded; proof completion transitioned and State ownership split implementation landed." in section
+    assert "Status: landing evidence matrix recorded; proof completion transitioned, State ownership split and ToolExecutor side-effect split implementations landed." in section
     rows = {
         row["Core candidate"]: row
         for row in _markdown_table_rows(section)
@@ -3524,7 +3531,7 @@ def test_playbook_records_core_implementation_landing_evidence_completeness_matr
             assert row["Implementation approved"] == "governance-only completion"
             assert row["Landing evidence complete"] == "true"
             assert row["Rollback executable"] == "true"
-        elif candidate == "State ownership split":
+        elif candidate in ("State ownership split", "ToolExecutor side-effect split"):
             assert row["Implementation approved"] == "true"
             assert row["Landing evidence complete"] == "true"
             assert row["Rollback executable"] == "true"
@@ -5383,7 +5390,7 @@ def test_playbook_records_tool_executor_side_effect_characterization_readiness_a
         "ToolExecutor side-effect characterization readiness aggregate",
     )
 
-    assert "Status: aggregate guard recorded, production migration not approved." in section
+    assert "Status: aggregate guard recorded; side-effect split has since landed at commit 0195218." in section
     for required_guard in (
         "ToolExecutor legacy construction characterization guard",
         "ToolExecutor first slice characterization landing record",
@@ -5409,8 +5416,8 @@ def test_playbook_records_tool_executor_side_effect_characterization_readiness_a
         "`execute_batch`",
     ):
         assert retained_surface in section
-    assert "ToolExecutor side-effect migration remains unapproved" in section
-    assert "approval package evidence, not production migration approval" in section
+    assert "ToolExecutor side-effect split has since landed at commit 0195218" in section
+    assert "visible as approval package evidence" in section
     for boundary in (
         "no ToolExecutor side-effect migration",
         "no tool-runner production wiring",
@@ -5435,7 +5442,7 @@ def test_playbook_records_tool_executor_approval_transition_atomicity_guard() ->
         "ToolExecutor approval transition atomicity guard",
     )
 
-    assert "Status: approval transition atomicity guard recorded, ToolExecutor migration not approved." in section
+    assert "Status: approval transition atomicity guard recorded; ToolExecutor side-effect split landed at commit 0195218." in section
     rows = {
         row["Transition surface"]: row
         for row in _markdown_table_rows(section)
@@ -5451,13 +5458,13 @@ def test_playbook_records_tool_executor_approval_transition_atomicity_guard() ->
     assert set(rows) == set(expected)
     for surface, heading in expected.items():
         assert rows[surface]["Required heading"] == heading
-        assert rows[surface]["Current transition complete"] == "false"
+        assert rows[surface]["Current transition complete"] == "true"
         assert heading.split("`")[1] in text
     for invariant in (
         "ToolExecutor approval transition must update every listed surface in the same commit",
         "partial ToolExecutor approval transitions must fail review",
         "approval transition evidence must land before any ToolExecutor migration commit",
-        "ToolExecutor landing evidence must stay incomplete until a real implementation commit exists",
+        "ToolExecutor landing evidence completed when the real implementation commit 0195218 landed",
     ):
         assert invariant in section
     for boundary in (
@@ -5484,7 +5491,7 @@ def test_playbook_records_tool_executor_approval_transition_coverage_guard() -> 
         "ToolExecutor approval transition coverage guard",
     )
 
-    assert "Status: coverage guard recorded, ToolExecutor migration not approved." in section
+    assert "Status: coverage guard recorded; ToolExecutor side-effect split landed at commit 0195218." in section
     rows = {
         row["Governance surface"]: row
         for row in _markdown_table_rows(section)
@@ -5502,7 +5509,7 @@ def test_playbook_records_tool_executor_approval_transition_coverage_guard() -> 
     assert set(rows) == expected
     for surface, row in rows.items():
         assert row["Required before approval transition"] == "true"
-        assert row["Current implementation approved"] == "false"
+        assert row["Current implementation approved"] == "true"
         assert surface in section
     for invariant in (
         "every ToolExecutor approval transition table must keep the same canonical governance surface set",
@@ -5535,8 +5542,8 @@ def test_playbook_records_tool_executor_approval_transition_evidence_consistency
         "ToolExecutor approval transition evidence consistency guard",
     )
 
-    assert "Status: evidence consistency guard recorded, ToolExecutor migration not approved." in section
-    assert "ToolExecutor migration evidence remains absent until explicit approval lands" in section
+    assert "Status: evidence consistency guard recorded; ToolExecutor migration evidence landed at commit 0195218." in section
+    assert "ToolExecutor migration evidence landed when explicit approval and the real" in section
     rows = {
         row["Evidence item"]: row
         for row in _markdown_table_rows(section)
@@ -5556,19 +5563,19 @@ def test_playbook_records_tool_executor_approval_transition_evidence_consistency
         },
         "red test evidence": {
             "Required location": "`ToolExecutor side-effect split implementation landing record`",
-            "Current migration evidence present": "false",
+            "Current migration evidence present": "true",
         },
         "green focused regression": {
             "Required location": "`ToolExecutor side-effect split implementation landing record`",
-            "Current migration evidence present": "false",
+            "Current migration evidence present": "true",
         },
         "architecture/source regression": {
             "Required location": "`ToolExecutor side-effect split implementation landing record`",
-            "Current migration evidence present": "false",
+            "Current migration evidence present": "true",
         },
         "post-push branch status": {
             "Required location": "`ToolExecutor side-effect split implementation landing record`",
-            "Current migration evidence present": "false",
+            "Current migration evidence present": "true",
         },
     }
     assert set(rows) == set(expected)
@@ -5577,10 +5584,10 @@ def test_playbook_records_tool_executor_approval_transition_evidence_consistency
         assert rows[item]["Current migration evidence present"] == expected_row["Current migration evidence present"]
         assert expected_row["Required location"].strip("`") in text
     for invariant in (
-        "ToolExecutor migration evidence must remain false until explicit approval and implementation land",
+        "ToolExecutor migration evidence completed when explicit approval and implementation commit 0195218 landed",
         "approval transition evidence must not be substituted for migration evidence",
         "landing evidence must include red, green, architecture regression, and post-push status before ToolExecutor migration approved changes",
-        "evidence consistency must not authorize ToolExecutor side-effect migration",
+        "evidence consistency must not authorize further ToolExecutor side-effect migration beyond the landed receipt seam",
     ):
         assert invariant in section
     for boundary in (
@@ -5607,8 +5614,8 @@ def test_playbook_records_tool_executor_implementation_landing_status_guard() ->
         "ToolExecutor implementation landing status guard",
     )
 
-    assert "Status: landing status guard recorded, ToolExecutor migration not landed." in section
-    assert "ToolExecutor side-effect split remains unlanded until an approved implementation commit exists" in section
+    assert "Status: landing status guard recorded; ToolExecutor side-effect split landed at commit 0195218." in section
+    assert "ToolExecutor side-effect split landed when the approved implementation commit" in section
     rows = {
         row["Landing surface"]: row
         for row in _markdown_table_rows(section)
@@ -5622,11 +5629,11 @@ def test_playbook_records_tool_executor_implementation_landing_status_guard() ->
     assert set(rows) == set(expected)
     for surface, location in expected.items():
         assert rows[surface]["Required location"] == location
-        assert rows[surface]["Current landed"] == "false"
-        assert rows[surface]["Current migration approved"] == "false"
+        assert rows[surface]["Current landed"] == "true"
+        assert rows[surface]["Current migration approved"] == "true"
         assert location.split("`")[1] in text
     for invariant in (
-        "ToolExecutor landing status must remain false until explicit approval and migration evidence land",
+        "ToolExecutor landing status completed when explicit approval and migration evidence landed at commit 0195218",
         "ToolExecutor landing status must not be raised by characterization readiness alone",
         "ToolExecutor landing status must move together with the matrix and sequence gate in the migration commit",
         "ToolExecutor landing status must not authorize runtime construction or tool-runner production wiring",
@@ -5656,8 +5663,8 @@ def test_playbook_records_tool_executor_rollback_placeholder_consistency_guard()
         "ToolExecutor rollback placeholder consistency guard",
     )
 
-    assert "Status: rollback placeholder guard recorded, ToolExecutor migration not approved." in section
-    assert "Rollback remains a placeholder until a single approved ToolExecutor migration commit lands" in section
+    assert "Status: rollback placeholder guard recorded; ToolExecutor rollback is `git revert 0195218`." in section
+    assert "Rollback landed as `git revert 0195218` when the single approved ToolExecutor" in section
     rows = {
         row["Rollback surface"]: row
         for row in _markdown_table_rows(section)
@@ -5671,14 +5678,14 @@ def test_playbook_records_tool_executor_rollback_placeholder_consistency_guard()
     assert set(rows) == set(expected)
     for surface, location in expected.items():
         assert rows[surface]["Required location"] == location
-        assert rows[surface]["Rollback command present"] == "false"
-        assert rows[surface]["Current migration approved"] == "false"
+        assert rows[surface]["Rollback command present"] == "true"
+        assert rows[surface]["Current migration approved"] == "true"
         assert location.split("`")[1] in text
     for invariant in (
         "ToolExecutor rollback point must be the single approved migration commit",
-        "rollback placeholder must remain false before ToolExecutor migration approval",
+        "ToolExecutor rollback point landed as `git revert 0195218` with migration approval",
         "rollback evidence must land with the ToolExecutor implementation landing record",
-        "rollback placeholder must not authorize ToolExecutor side-effect migration",
+        "rollback placeholder must not authorize further ToolExecutor side-effect migration beyond the landed receipt seam",
     ):
         assert invariant in section
     for boundary in (
@@ -5705,8 +5712,8 @@ def test_playbook_records_tool_executor_verification_gate_guard() -> None:
         "ToolExecutor implementation verification gate guard",
     )
 
-    assert "Status: verification gate guard recorded, ToolExecutor migration not approved." in section
-    assert "Future ToolExecutor migration must pass every listed verification gate before landing status changes" in section
+    assert "Status: verification gate guard recorded; ToolExecutor migration passed every gate at commit 0195218." in section
+    assert "The ToolExecutor migration passed every listed verification gate at commit" in section
     rows = {
         row["Verification gate"]: row
         for row in _markdown_table_rows(section)
@@ -5722,13 +5729,13 @@ def test_playbook_records_tool_executor_verification_gate_guard() -> None:
     assert set(rows) == set(expected)
     for gate, required_evidence in expected.items():
         assert rows[gate]["Required evidence"] == required_evidence
-        assert rows[gate]["Current complete"] == "false"
-        assert rows[gate]["Current migration approved"] == "false"
+        assert rows[gate]["Current complete"] == "true"
+        assert rows[gate]["Current migration approved"] == "true"
     for invariant in (
         "ToolExecutor verification gates must all be complete before migration approved changes",
         "focused ToolExecutor tests cannot replace legacy executor regression",
         "green tests cannot replace rollback and post-push evidence",
-        "verification gate readiness must not authorize ToolExecutor side-effect migration",
+        "verification gate readiness must not authorize further ToolExecutor side-effect migration beyond the landed receipt seam",
     ):
         assert invariant in section
     for boundary in (
@@ -5755,7 +5762,7 @@ def test_playbook_records_tool_executor_implementation_approval_readiness_comple
         "ToolExecutor implementation approval readiness completeness guard",
     )
 
-    assert "Status: readiness completeness guard recorded, ToolExecutor migration not approved." in section
+    assert "Status: readiness completeness guard recorded; ToolExecutor migration approved and landed at commit 0195218." in section
     rows = {
         row["Readiness surface"]: row
         for row in _markdown_table_rows(section)
@@ -5773,13 +5780,13 @@ def test_playbook_records_tool_executor_implementation_approval_readiness_comple
     for surface, heading in expected.items():
         assert rows[surface]["Required heading"] == heading
         assert rows[surface]["Governance ready"] == "true"
-        assert rows[surface]["Migration approved"] == "false"
+        assert rows[surface]["Migration approved"] == "true"
         assert heading.split("`")[1] in text
     for invariant in (
-        "ToolExecutor readiness completeness is not ToolExecutor migration approval",
-        "explicit user approval is still required before any ToolExecutor migration commit",
-        "future ToolExecutor migration must update exactly one implementation landing record",
-        "readiness completeness must not authorize ToolExecutor side-effect migration",
+        "ToolExecutor readiness completeness landed as migration approval at commit 0195218",
+        "explicit user approval was required and granted before the ToolExecutor migration commit",
+        "the ToolExecutor migration updated exactly one implementation landing record",
+        "readiness completeness must not authorize further ToolExecutor side-effect migration beyond the landed receipt seam",
     ):
         assert invariant in section
     for boundary in (
@@ -5790,6 +5797,86 @@ def test_playbook_records_tool_executor_implementation_approval_readiness_comple
         "no `CTFVerifier` decision behavior changes",
         "no proof-authority behavior changes",
         "no Dispatcher changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
+def test_playbook_records_tool_executor_side_effect_split_implementation_landing_record() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "ToolExecutor side-effect split implementation landing record",
+    )
+
+    assert "Status: ToolExecutor side-effect split implementation landed at commit 0195218." in section
+    for expected in (
+        "ToolExecutor side-effect split 第一刀: receipt-emission seam — approved and implemented",
+        "Approved user message: 批准 ToolExecutor side-effect split 第一刀 (receipt-emission seam)",
+        "tool-runner / runtime-action / audit-store / artifact side-effect seams: retired",
+        "Implementation commit SHA: 0195218",
+        "`ToolExecutor._finalize` emits a neutral tool receipt through an injected sink (`attach_receipt_sink`)",
+        "default (no sink attached) execution stays byte-identical to the legacy path",
+        "a sink error never affects tool execution",
+        "duck-typed injection keeps `flaghunter/tools/executor.py` free of port/adapter imports (invariant I1)",
+        "`RecordToolReceipt` service is a valid sink",
+        "`flaghunter/tools/executor.py`",
+        "`tests/unit/tools/test_executor.py`",
+        "TestToolExecutorReceiptEmissionSeam",
+        "Rollback command: git revert 0195218",
+    ):
+        assert expected in section
+    for boundary in (
+        "no tool-runner, runtime-action, audit-store, or artifact side-effect migration",
+        "no runtime construction changes",
+        "no `CTFState` ownership changes",
+        "no proof-authority behavior changes",
+        "no verifier decision behavior changes",
+        "no `CTFTaskDispatcher` flow changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no composition root changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
+def test_playbook_records_tool_executor_side_effect_seam_retirement_record() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "ToolExecutor side-effect seam retirement record",
+    )
+
+    assert "Status: tool-runner, runtime-action, audit-store, and artifact side-effect seams retired, not pursued." in section
+    assert "Path A decision: the remaining ToolExecutor side-effect adapter seams are" in section
+    for rationale in (
+        "`ToolRunnerPort`, `RuntimeActionPort`, `AuditStorePort`, and the artifact adapter skeletons have zero production consumers",
+        "tool execution already funnels every side effect through `_finalize`",
+        "scope check, cookie auto-inject, stealth mode, flag scanning, missing-tool detection, `execute_batch`",
+        "retiring the seams avoids dormant, never-wired migration paths",
+    ):
+        assert rationale in section
+    for invariant in (
+        "ToolExecutor seam retirement does not migrate the retained legacy side effects",
+        "ToolExecutor seam retirement does not wire the retired adapters into production",
+        "the ToolExecutor side-effect split candidate completes on the receipt seam alone",
+        "retirement records the resolved side-effect split scope decision",
+    ):
+        assert invariant in section
+    for boundary in (
+        "no tool-runner, runtime-action, audit-store, or artifact side-effect migration",
+        "no retired-adapter production wiring",
+        "no runtime construction changes",
+        "no `CTFState` ownership changes",
+        "no proof-authority behavior changes",
+        "no verifier decision behavior changes",
+        "no `CTFTaskDispatcher` flow changes",
         "no MCP production wiring",
         "no Web/CLI/TUI task wiring changes",
         "no composition root changes",
@@ -5852,15 +5939,15 @@ def test_playbook_records_core_first_slice_template_coverage_guard() -> None:
         },
         "State ownership split": {
             "Approval template": "State ownership first slice approval text template",
-            "Template role": "next approvable review template",
+            "Template role": "historical audit template",
         },
         "ToolExecutor side-effect split": {
             "Approval template": "ToolExecutor first slice approval text template",
-            "Template role": "sequence-blocked future template",
+            "Template role": "historical audit template",
         },
         "Dispatcher/composition root production wiring": {
             "Approval template": "Dispatcher composition root first slice approval text template",
-            "Template role": "sequence-blocked final template",
+            "Template role": "next approvable final template",
         },
     }
     rows = {
@@ -5982,7 +6069,7 @@ def test_playbook_records_core_first_slice_recommendation_gate() -> None:
     )
 
     assert "Status: recommendation recorded, implementation not approved by this section." in section
-    assert "Recommended next approval review: ToolExecutor side-effect split" in section
+    assert "Recommended next approval review: Dispatcher/composition root production wiring" in section
     assert "Dispatcher/composition root production wiring remains last" in section
     rows = _markdown_table_rows(section)
     assert [row["Order"] for row in rows] == ["1", "2", "3", "4"]
@@ -5995,13 +6082,13 @@ def test_playbook_records_core_first_slice_recommendation_gate() -> None:
     expected_roles = {
         "Verifier/proof authority boundary": "completed prerequisite",
         "State ownership split": "completed prerequisite",
-        "ToolExecutor side-effect split": "next approvable review",
-        "Dispatcher/composition root production wiring": "sequence-blocked final review",
+        "ToolExecutor side-effect split": "completed prerequisite",
+        "Dispatcher/composition root production wiring": "next approvable final review",
     }
     expected_approved = {
         "Verifier/proof authority boundary": "governance-only completion",
         "State ownership split": "true",
-        "ToolExecutor side-effect split": "false",
+        "ToolExecutor side-effect split": "true",
         "Dispatcher/composition root production wiring": "false",
     }
     for row in rows:
@@ -6028,7 +6115,7 @@ def test_playbook_records_core_implementation_sequence_gate() -> None:
         "Core implementation sequence gate",
     )
 
-    assert "Status: sequence gate recorded; State ownership split landed, ToolExecutor is next approvable." in section
+    assert "Status: sequence gate recorded; State and ToolExecutor split landed, Dispatcher is next approvable." in section
     rows = {
         row["Core candidate"]: row
         for row in _markdown_table_rows(section)
@@ -6048,14 +6135,14 @@ def test_playbook_records_core_implementation_sequence_gate() -> None:
         },
         "ToolExecutor side-effect split": {
             "Order": "3",
-            "Current gate": "next approvable implementation review",
+            "Current gate": "implementation landed",
             "Blocked by": "none",
-            "Required before next candidate": "landing evidence complete",
+            "Required before next candidate": "complete",
         },
         "Dispatcher/composition root production wiring": {
             "Order": "4",
-            "Current gate": "sequence-blocked",
-            "Blocked by": "Verifier/proof authority, State ownership, and ToolExecutor landing evidence",
+            "Current gate": "next approvable implementation review",
+            "Blocked by": "none",
             "Required before next candidate": "landing evidence complete",
         },
     }

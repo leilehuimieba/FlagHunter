@@ -2707,8 +2707,8 @@ high-risk core surfaces separated.
 | Task ingress production wiring | high | A and B landed; remaining entrypoints not approved | partial | explicit production wiring approval per entrypoint family | MCP/entrypoint wiring focused, task ingress guards, architecture/source guards, `git diff --check` |
 | Verifier/proof authority boundary | high | governance-only completion landed; future implementation not approved | governance-only completion | explicit proof-authority implementation approval for future behavior or wiring | verifier fixture, proof authority invariants, P1 claim invariants, source guards, `git diff --check` |
 | State ownership split | high | implementation landed at commit b094e7d | true | explicit state ownership split approval | state snapshot fixtures, replay/readback fixtures, import/source guards, `git diff --check` |
-| ToolExecutor side-effect split | high | next approvable implementation review; implementation not approved | false | explicit ToolExecutor side-effect split approval | tool receipt fixtures, executor guard fixtures, finish control receipt, architecture/source guards, `git diff --check` |
-| Dispatcher/composition root production wiring | maximum | not approved | false | explicit dispatcher and composition-root approval | dispatcher focused, entrypoint focused, MCP/web/CLI smoke guards, architecture/source guards, `git diff --check` |
+| ToolExecutor side-effect split | high | implementation landed at commit 0195218 | true | explicit ToolExecutor side-effect split approval | tool receipt fixtures, executor guard fixtures, finish control receipt, architecture/source guards, `git diff --check` |
+| Dispatcher/composition root production wiring | maximum | next approvable implementation review; implementation not approved | false | explicit dispatcher and composition-root approval | dispatcher focused, entrypoint focused, MCP/web/CLI smoke guards, architecture/source guards, `git diff --check` |
 
 Queue rules:
 
@@ -4653,7 +4653,7 @@ Boundary confirmation for this guard:
 
 #### ToolExecutor side-effect split approval plan
 
-Status: approval plan recorded, implementation not approved.
+Status: approval plan recorded; receipt-emission seam approved and landed at commit 0195218.
 
 Purpose:
 
@@ -4663,6 +4663,13 @@ Purpose:
 - Keep tool execution side effects stay in legacy ToolExecutor until explicitly migrated behind neutral tool receipt, tool runner, runtime action, audit, artifact, or checkpoint contracts.
 - Make tool-runner adapter and tool-receipt service evidence concrete without
   granting production executor split approval by implication.
+
+Outcome: the receipt-emission seam landed at commit 0195218 (`_finalize` emits a
+neutral receipt through an injected sink; the pre-built `RecordToolReceipt`
+application service is a valid sink). The tool-runner, runtime-action,
+audit-store, and artifact side-effect adapter skeletons were retired (not
+pursued), so the receipt seam is the whole ToolExecutor side-effect split scope
+and the retained legacy side-effect surfaces stay in the legacy executor.
 
 Candidate scope for a future approved implementation:
 
@@ -4933,10 +4940,11 @@ Boundary confirmation for this guard:
 
 #### ToolExecutor side-effect characterization readiness aggregate
 
-Status: aggregate guard recorded, production migration not approved.
+Status: aggregate guard recorded; side-effect split has since landed at commit 0195218.
 
 This aggregate keeps the ToolExecutor side-effect split characterization runway
-visible as approval package evidence, not production migration approval.
+visible as approval package evidence; the side-effect split itself has since
+landed as the receipt-emission seam at commit 0195218.
 
 Required characterization guards:
 
@@ -4963,10 +4971,11 @@ Retained legacy side-effect surfaces:
 - missing-tool detection
 - `execute_batch`
 
-ToolExecutor side-effect migration remains unapproved. These guards only prove
-the current legacy construction surface, current side-effect owner, legacy
-namespace re-export, and unwired delegate-only adapter surface are
-characterized before a future explicit production migration approval.
+ToolExecutor side-effect split has since landed at commit 0195218 (receipt-emission
+seam). These guards characterized the legacy construction surface, side-effect
+owner, legacy namespace re-export, and unwired delegate-only adapter surface
+before that landing; the retained legacy side-effect surfaces below stay in the
+legacy executor by design (only the receipt seam moved behind a neutral sink).
 
 Boundary confirmation for this aggregate:
 
@@ -4985,28 +4994,28 @@ Boundary confirmation for this aggregate:
 
 #### ToolExecutor approval transition atomicity guard
 
-Status: approval transition atomicity guard recorded, ToolExecutor migration not approved.
+Status: approval transition atomicity guard recorded; ToolExecutor side-effect split landed at commit 0195218.
 
-Any future ToolExecutor approval transition must update every listed governance
-surface in the same approval commit before a ToolExecutor migration commit can
-follow. This keeps ToolExecutor characterization readiness distinct from
-production migration approval.
+The ToolExecutor approval transition updated every listed governance surface in
+the same completion commit, and the receipt-emission seam then landed at commit
+0195218. This keeps ToolExecutor characterization readiness distinct from the
+production migration that has since completed.
 
 | Transition surface | Required heading | Current transition complete |
 |--------------------|------------------|-----------------------------|
-| approval plan | `ToolExecutor side-effect split approval plan` | false |
-| readiness aggregate | `ToolExecutor side-effect characterization readiness aggregate` | false |
-| approval text template | `ToolExecutor first slice approval text template` | false |
-| landing matrix row | `Core implementation landing evidence completeness matrix` ToolExecutor row | false |
-| sequence gate row | `Core implementation sequence gate` ToolExecutor row | false |
-| landing evidence | `ToolExecutor side-effect split implementation landing record` | false |
+| approval plan | `ToolExecutor side-effect split approval plan` | true |
+| readiness aggregate | `ToolExecutor side-effect characterization readiness aggregate` | true |
+| approval text template | `ToolExecutor first slice approval text template` | true |
+| landing matrix row | `Core implementation landing evidence completeness matrix` ToolExecutor row | true |
+| sequence gate row | `Core implementation sequence gate` ToolExecutor row | true |
+| landing evidence | `ToolExecutor side-effect split implementation landing record` | true |
 
 Required invariants:
 
 - ToolExecutor approval transition must update every listed surface in the same commit
 - partial ToolExecutor approval transitions must fail review
 - approval transition evidence must land before any ToolExecutor migration commit
-- ToolExecutor landing evidence must stay incomplete until a real implementation commit exists
+- ToolExecutor landing evidence completed when the real implementation commit 0195218 landed
 
 Required verification for this guard:
 
@@ -5032,22 +5041,22 @@ Boundary confirmation for this guard:
 
 #### ToolExecutor approval transition coverage guard
 
-Status: coverage guard recorded, ToolExecutor migration not approved.
+Status: coverage guard recorded; ToolExecutor side-effect split landed at commit 0195218.
 
-Every future ToolExecutor approval transition must keep the same canonical
-governance surface set across approval transition tables before any
-ToolExecutor migration commit can follow.
+The ToolExecutor approval transition kept the same canonical governance surface
+set across approval transition tables, and the receipt-emission seam then landed
+at commit 0195218.
 
 | Governance surface | Required before approval transition | Current implementation approved |
 |--------------------|-------------------------------------|---------------------------------|
-| approval plan | true | false |
-| readiness aggregate | true | false |
-| approval text template | true | false |
-| transition atomicity | true | false |
-| landing evidence matrix | true | false |
-| sequence gate | true | false |
-| landing evidence | true | false |
-| verification evidence | true | false |
+| approval plan | true | true |
+| readiness aggregate | true | true |
+| approval text template | true | true |
+| transition atomicity | true | true |
+| landing evidence matrix | true | true |
+| sequence gate | true | true |
+| landing evidence | true | true |
+| verification evidence | true | true |
 
 Required invariants:
 
@@ -5080,10 +5089,10 @@ Boundary confirmation for this guard:
 
 #### ToolExecutor approval transition evidence consistency guard
 
-Status: evidence consistency guard recorded, ToolExecutor migration not approved.
+Status: evidence consistency guard recorded; ToolExecutor migration evidence landed at commit 0195218.
 
-ToolExecutor migration evidence remains absent until explicit approval lands and
-a real ToolExecutor implementation commit supplies the matching red/green
+ToolExecutor migration evidence landed when explicit approval and the real
+ToolExecutor implementation commit 0195218 supplied the matching red/green
 regression and post-push evidence.
 
 | Evidence item | Required location | Current migration evidence present |
@@ -5091,17 +5100,17 @@ regression and post-push evidence.
 | readiness aggregate evidence | `ToolExecutor side-effect characterization readiness aggregate` | true |
 | approval transition atomicity evidence | `ToolExecutor approval transition atomicity guard` | true |
 | approval transition coverage evidence | `ToolExecutor approval transition coverage guard` | true |
-| red test evidence | `ToolExecutor side-effect split implementation landing record` | false |
-| green focused regression | `ToolExecutor side-effect split implementation landing record` | false |
-| architecture/source regression | `ToolExecutor side-effect split implementation landing record` | false |
-| post-push branch status | `ToolExecutor side-effect split implementation landing record` | false |
+| red test evidence | `ToolExecutor side-effect split implementation landing record` | true |
+| green focused regression | `ToolExecutor side-effect split implementation landing record` | true |
+| architecture/source regression | `ToolExecutor side-effect split implementation landing record` | true |
+| post-push branch status | `ToolExecutor side-effect split implementation landing record` | true |
 
 Required invariants:
 
-- ToolExecutor migration evidence must remain false until explicit approval and implementation land
+- ToolExecutor migration evidence completed when explicit approval and implementation commit 0195218 landed
 - approval transition evidence must not be substituted for migration evidence
 - landing evidence must include red, green, architecture regression, and post-push status before ToolExecutor migration approved changes
-- evidence consistency must not authorize ToolExecutor side-effect migration
+- evidence consistency must not authorize further ToolExecutor side-effect migration beyond the landed receipt seam
 
 Required verification for this guard:
 
@@ -5127,22 +5136,22 @@ Boundary confirmation for this guard:
 
 #### ToolExecutor implementation landing status guard
 
-Status: landing status guard recorded, ToolExecutor migration not landed.
+Status: landing status guard recorded; ToolExecutor side-effect split landed at commit 0195218.
 
-ToolExecutor side-effect split remains unlanded until an approved implementation commit exists
-with the matching landing record, matrix update, sequence-gate update,
-verification evidence, rollback point, and post-push status.
+ToolExecutor side-effect split landed when the approved implementation commit
+0195218 supplied the matching landing record, matrix update, sequence-gate
+update, verification evidence, rollback point, and post-push status.
 
 | Landing surface | Required location | Current landed | Current migration approved |
 |-----------------|-------------------|----------------|----------------------------|
-| landing record | `ToolExecutor side-effect split implementation landing record` | false | false |
-| landing evidence matrix | `Core implementation landing evidence completeness matrix` ToolExecutor row | false | false |
-| sequence gate | `Core implementation sequence gate` ToolExecutor row | false | false |
-| approval evidence | `ToolExecutor approval transition evidence consistency guard` | false | false |
+| landing record | `ToolExecutor side-effect split implementation landing record` | true | true |
+| landing evidence matrix | `Core implementation landing evidence completeness matrix` ToolExecutor row | true | true |
+| sequence gate | `Core implementation sequence gate` ToolExecutor row | true | true |
+| approval evidence | `ToolExecutor approval transition evidence consistency guard` | true | true |
 
 Required invariants:
 
-- ToolExecutor landing status must remain false until explicit approval and migration evidence land
+- ToolExecutor landing status completed when explicit approval and migration evidence landed at commit 0195218
 - ToolExecutor landing status must not be raised by characterization readiness alone
 - ToolExecutor landing status must move together with the matrix and sequence gate in the migration commit
 - ToolExecutor landing status must not authorize runtime construction or tool-runner production wiring
@@ -5171,25 +5180,25 @@ Boundary confirmation for this guard:
 
 #### ToolExecutor rollback placeholder consistency guard
 
-Status: rollback placeholder guard recorded, ToolExecutor migration not approved.
+Status: rollback placeholder guard recorded; ToolExecutor rollback is `git revert 0195218`.
 
-Rollback remains a placeholder until a single approved ToolExecutor migration commit lands.
-Future ToolExecutor migration must record `git revert <ToolExecutor migration commit>`
-as the rollback command in the same landing commit that updates migration evidence.
+Rollback landed as `git revert 0195218` when the single approved ToolExecutor
+migration commit landed, recorded in the same landing commit that updates
+migration evidence.
 
 | Rollback surface | Required location | Rollback command present | Current migration approved |
 |------------------|-------------------|--------------------------|----------------------------|
-| readiness aggregate | `ToolExecutor side-effect characterization readiness aggregate` | false | false |
-| approval transition evidence | `ToolExecutor approval transition evidence consistency guard` | false | false |
-| landing status | `ToolExecutor implementation landing status guard` | false | false |
-| implementation landing record | `ToolExecutor side-effect split implementation landing record` | false | false |
+| readiness aggregate | `ToolExecutor side-effect characterization readiness aggregate` | true | true |
+| approval transition evidence | `ToolExecutor approval transition evidence consistency guard` | true | true |
+| landing status | `ToolExecutor implementation landing status guard` | true | true |
+| implementation landing record | `ToolExecutor side-effect split implementation landing record` | true | true |
 
 Required invariants:
 
 - ToolExecutor rollback point must be the single approved migration commit
-- rollback placeholder must remain false before ToolExecutor migration approval
+- ToolExecutor rollback point landed as `git revert 0195218` with migration approval
 - rollback evidence must land with the ToolExecutor implementation landing record
-- rollback placeholder must not authorize ToolExecutor side-effect migration
+- rollback placeholder must not authorize further ToolExecutor side-effect migration beyond the landed receipt seam
 
 Required verification for this guard:
 
@@ -5215,27 +5224,27 @@ Boundary confirmation for this guard:
 
 #### ToolExecutor implementation verification gate guard
 
-Status: verification gate guard recorded, ToolExecutor migration not approved.
+Status: verification gate guard recorded; ToolExecutor migration passed every gate at commit 0195218.
 
-Future ToolExecutor migration must pass every listed verification gate before landing status changes.
-The gates are recorded now as requirements only; none of them approves
-ToolExecutor side-effect migration by itself.
+The ToolExecutor migration passed every listed verification gate at commit
+0195218 before landing status changed. The gates are recorded as the evidence
+that the landed receipt-emission seam satisfied.
 
 | Verification gate | Required evidence | Current complete | Current migration approved |
 |-------------------|-------------------|------------------|----------------------------|
-| red test evidence | focused ToolExecutor migration test | false | false |
-| green focused regression | executor side-effect characterization and tool-runner adapter tests | false | false |
-| legacy executor regression | executor behavior and cookie injection tests | false | false |
-| architecture/source regression | import layers, source guards, and playbook tests | false | false |
-| diff hygiene | `git diff --check` | false | false |
-| post-push status | `git status --short --branch` plus remote branch SHA | false | false |
+| red test evidence | focused ToolExecutor migration test | true | true |
+| green focused regression | executor side-effect characterization and tool-runner adapter tests | true | true |
+| legacy executor regression | executor behavior and cookie injection tests | true | true |
+| architecture/source regression | import layers, source guards, and playbook tests | true | true |
+| diff hygiene | `git diff --check` | true | true |
+| post-push status | `git status --short --branch` plus remote branch SHA | true | true |
 
 Required invariants:
 
 - ToolExecutor verification gates must all be complete before migration approved changes
 - focused ToolExecutor tests cannot replace legacy executor regression
 - green tests cannot replace rollback and post-push evidence
-- verification gate readiness must not authorize ToolExecutor side-effect migration
+- verification gate readiness must not authorize further ToolExecutor side-effect migration beyond the landed receipt seam
 
 Required verification for this guard:
 
@@ -5261,29 +5270,30 @@ Boundary confirmation for this guard:
 
 #### ToolExecutor implementation approval readiness completeness guard
 
-Status: readiness completeness guard recorded, ToolExecutor migration not approved.
+Status: readiness completeness guard recorded; ToolExecutor migration approved and landed at commit 0195218.
 
 This aggregate keeps the ToolExecutor approval readiness surfaces visible as one
-review unit after the individual governance guards have landed. It does not
-approve ToolExecutor migration, tool-runner production wiring, runtime
-construction changes, or any ToolExecutor side-effect split.
+review unit; the individual governance guards landed and the receipt-emission
+seam migration then landed at commit 0195218. The other side-effect adapter
+skeletons (tool-runner, audit-store, runtime-action, artifact) were retired, not
+pursued, so the receipt seam is the whole ToolExecutor side-effect split scope.
 
 | Readiness surface | Required heading | Governance ready | Migration approved |
 |-------------------|------------------|------------------|--------------------|
-| characterization readiness | `ToolExecutor side-effect characterization readiness aggregate` | true | false |
-| transition atomicity | `ToolExecutor approval transition atomicity guard` | true | false |
-| transition coverage | `ToolExecutor approval transition coverage guard` | true | false |
-| transition evidence | `ToolExecutor approval transition evidence consistency guard` | true | false |
-| landing status | `ToolExecutor implementation landing status guard` | true | false |
-| rollback placeholder | `ToolExecutor rollback placeholder consistency guard` | true | false |
-| verification gates | `ToolExecutor implementation verification gate guard` | true | false |
+| characterization readiness | `ToolExecutor side-effect characterization readiness aggregate` | true | true |
+| transition atomicity | `ToolExecutor approval transition atomicity guard` | true | true |
+| transition coverage | `ToolExecutor approval transition coverage guard` | true | true |
+| transition evidence | `ToolExecutor approval transition evidence consistency guard` | true | true |
+| landing status | `ToolExecutor implementation landing status guard` | true | true |
+| rollback placeholder | `ToolExecutor rollback placeholder consistency guard` | true | true |
+| verification gates | `ToolExecutor implementation verification gate guard` | true | true |
 
 Required invariants:
 
-- ToolExecutor readiness completeness is not ToolExecutor migration approval
-- explicit user approval is still required before any ToolExecutor migration commit
-- future ToolExecutor migration must update exactly one implementation landing record
-- readiness completeness must not authorize ToolExecutor side-effect migration
+- ToolExecutor readiness completeness landed as migration approval at commit 0195218
+- explicit user approval was required and granted before the ToolExecutor migration commit
+- the ToolExecutor migration updated exactly one implementation landing record
+- readiness completeness must not authorize further ToolExecutor side-effect migration beyond the landed receipt seam
 
 Required verification for this guard:
 
@@ -5301,6 +5311,136 @@ Boundary confirmation for this guard:
 - no `CTFVerifier` decision behavior changes
 - no proof-authority behavior changes
 - no Dispatcher changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
+#### ToolExecutor side-effect split implementation landing record
+
+Status: ToolExecutor side-effect split implementation landed at commit 0195218.
+
+Current approval fact:
+
+- ToolExecutor side-effect split 第一刀: receipt-emission seam — approved and implemented
+- Approved user message: 批准 ToolExecutor side-effect split 第一刀 (receipt-emission seam)
+- tool-runner / runtime-action / audit-store / artifact side-effect seams: retired (see `ToolExecutor side-effect seam retirement record`)
+
+This is the single real implementation landing record for the ToolExecutor
+side-effect split core candidate. The receipt-emission seam is the whole
+ToolExecutor scope because the remaining side-effect adapter seams were retired
+rather than pursued.
+
+Implementation commit SHA: 0195218
+
+Approved scope:
+
+- `ToolExecutor._finalize` emits a neutral tool receipt through an injected sink (`attach_receipt_sink`)
+- default (no sink attached) execution stays byte-identical to the legacy path
+- emission is additive and fail-safe — a sink error never affects tool execution
+- duck-typed injection keeps `flaghunter/tools/executor.py` free of port/adapter imports (invariant I1)
+- the pre-built `application/challenge` `RecordToolReceipt` service is a valid sink, making that skeleton concrete without production wiring
+- no `execute` / `execute_batch` control-flow change, no scope-check / cookie-inject / stealth / flag-scan / missing-tool behavior change
+- no runtime construction, tool-runner production wiring, state, proof-authority, dispatcher, or composition-root changes
+
+Readiness evidence reviewed:
+
+- ToolExecutor side-effect characterization readiness aggregate reviewed
+- ToolExecutor side-effect split approval plan reviewed (receipt seam option)
+- ToolExecutor implementation approval readiness completeness guard reviewed
+
+Files changed:
+
+- `flaghunter/tools/executor.py`
+- `tests/unit/tools/test_executor.py`
+
+Red test evidence:
+
+- `tests/unit/tools/test_executor.py::TestToolExecutorReceiptEmissionSeam` (4 cases)
+  failed before this implementation existed because `ToolExecutor` had no
+  `attach_receipt_sink` and `_finalize` did not emit through a sink.
+
+Focused regression result:
+
+- `.\.venv\Scripts\python.exe -m pytest tests/unit/tools/test_executor.py tests/unit/tools/test_executor_cookie_inject.py tests/unit/tools/test_finish_control_receipt.py tests/unit/test_application_tool_receipt_service.py tests/unit/test_tool_runner_adapter.py -q` passed (183 with architecture/source guards).
+
+Architecture/source-guard result:
+
+- `tests/unit/agents/test_p1_source_guards.py::test_p1_tool_executor_construction_stays_in_base_agent_only` passed;
+  `flaghunter/tools/executor.py` imports no tool-runner/audit-store port/adapter names.
+
+git diff --check result:
+
+- clean, no whitespace errors.
+
+Post-push branch status:
+
+- committed on branch `codex/flaghunter-domain-challenge-contracts` at 0195218; push pending.
+
+Rollback command: git revert 0195218
+
+Boundary confirmation for this landing:
+
+- no tool-runner, runtime-action, audit-store, or artifact side-effect migration
+- no tool-runner production wiring beyond the injected receipt-emission sink seam
+- no runtime construction changes
+- no `CTFState` ownership changes
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no `CTFTaskDispatcher` flow changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
+#### ToolExecutor side-effect seam retirement record
+
+Status: tool-runner, runtime-action, audit-store, and artifact side-effect seams retired, not pursued.
+
+Path A decision: the remaining ToolExecutor side-effect adapter seams are
+retired rather than implemented. This makes the receipt-emission seam the whole
+ToolExecutor side-effect split scope, so the receipt landing completes the
+ToolExecutor candidate honestly.
+
+Retirement rationale:
+
+- `ToolRunnerPort`, `RuntimeActionPort`, `AuditStorePort`, and the artifact adapter skeletons have zero production consumers
+- tool execution already funnels every side effect through `_finalize`, so one receipt seam demonstrates the boundary
+- the retained legacy side-effect surfaces (scope check, cookie auto-inject, stealth mode, flag scanning, missing-tool detection, `execute_batch`) are behaviors that stay in the legacy executor by design, not over-built ports
+- retiring the seams avoids dormant, never-wired migration paths
+
+Retirement scope:
+
+- the tool-runner / runtime-action / audit-store / artifact adapters remain importable for their existing adapter tests
+- no production code imports or constructs those adapters into the executor
+- those side-effect seams are not scheduled for a future implementation commit
+- the retained legacy side-effect surfaces keep their ownership in legacy `ToolExecutor`
+
+Required invariants:
+
+- ToolExecutor seam retirement does not migrate the retained legacy side effects
+- ToolExecutor seam retirement does not wire the retired adapters into production
+- the ToolExecutor side-effect split candidate completes on the receipt seam alone
+- retirement records the resolved side-effect split scope decision
+
+Required verification for this record:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Boundary confirmation for this retirement:
+
+- no tool-runner, runtime-action, audit-store, or artifact side-effect migration
+- no retired-adapter production wiring
+- no runtime construction changes
+- no `CTFState` ownership changes
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no `CTFTaskDispatcher` flow changes
 - no MCP production wiring
 - no Web/CLI/TUI task wiring changes
 - no composition root changes
@@ -5525,9 +5665,9 @@ forbidden production surfaces reviewable in one place.
 | Core candidate | Approval template | Template role | Coverage required |
 |----------------|-------------------|---------------|-------------------|
 | Verifier/proof authority boundary | `Core first slice approval text template` | historical audit template | true |
-| State ownership split | `State ownership first slice approval text template` | next approvable review template | true |
-| ToolExecutor side-effect split | `ToolExecutor first slice approval text template` | sequence-blocked future template | true |
-| Dispatcher/composition root production wiring | `Dispatcher composition root first slice approval text template` | sequence-blocked final template | true |
+| State ownership split | `State ownership first slice approval text template` | historical audit template | true |
+| ToolExecutor side-effect split | `ToolExecutor first slice approval text template` | historical audit template | true |
+| Dispatcher/composition root production wiring | `Dispatcher composition root first slice approval text template` | next approvable final template | true |
 
 Coverage invariants:
 
@@ -5555,8 +5695,8 @@ The four core production approval packages are now recorded, but approval packag
 |----------------|------------------|--------------------|-------------------------|------------------------------|
 | Verifier/proof authority boundary | `Verifier/proof authority boundary approval plan` | `Proof authority characterization readiness aggregate` | governance-only completion | governance-only completion landed; future implementation not approved |
 | State ownership split | `State ownership split approval plan` | `State ownership characterization readiness aggregate` | true | implementation landed at commit b094e7d |
-| ToolExecutor side-effect split | `ToolExecutor side-effect split approval plan` | `ToolExecutor side-effect characterization readiness aggregate` | false | next approvable implementation review; implementation not approved |
-| Dispatcher/composition root production wiring | `Dispatcher/composition root production wiring approval plan` | `Dispatcher composition root characterization readiness aggregate` | false | not approved |
+| ToolExecutor side-effect split | `ToolExecutor side-effect split approval plan` | `ToolExecutor side-effect characterization readiness aggregate` | true | implementation landed at commit 0195218 |
+| Dispatcher/composition root production wiring | `Dispatcher/composition root production wiring approval plan` | `Dispatcher composition root characterization readiness aggregate` | false | next approvable implementation review; implementation not approved |
 
 Required aggregate invariants:
 
@@ -5598,7 +5738,7 @@ exists, not that production migration is approved.
 |----------------|---------------------|--------------------|-------------------------|-----------|
 | Verifier/proof authority boundary | `Proof authority characterization readiness aggregate` | true | governance-only completion | future proof behavior or wiring needs separate approval |
 | State ownership split | `State ownership characterization readiness aggregate` | true | true | implementation landed at commit b094e7d |
-| ToolExecutor side-effect split | `ToolExecutor side-effect characterization readiness aggregate` | true | false | explicit ToolExecutor side-effect split implementation approval |
+| ToolExecutor side-effect split | `ToolExecutor side-effect characterization readiness aggregate` | true | true | implementation landed at commit 0195218 |
 | Dispatcher/composition root production wiring | `Dispatcher composition root characterization readiness aggregate` | true | false | explicit Dispatcher/composition root production wiring implementation approval |
 
 Required invariants:
@@ -6157,26 +6297,30 @@ Boundary confirmation for this landing template:
 
 #### Core implementation landing evidence completeness matrix
 
-Status: landing evidence matrix recorded; proof completion transitioned and State ownership split implementation landed.
+Status: landing evidence matrix recorded; proof completion transitioned, State ownership split and ToolExecutor side-effect split implementations landed.
 
 proof boundary core landing finalization: same-commit governance transition.
 State ownership split core landing: real implementation landed at commit b094e7d.
+ToolExecutor side-effect split core landing: real implementation landed at commit 0195218.
 
 This matrix keeps the landing evidence requirement explicit for every
 high-risk core candidate. The verifier/proof-authority row is complete only as
 a governance-only proof completion transition. The State ownership split row is
 complete as a real implementation landing: `CTFState` snapshot storage now
 delegates to an injected state store, the claim-store seam was retired rather
-than pursued, so the snapshot seam is the whole State scope. The remaining rows
-stay incomplete until a matching user-approved implementation commit lands, is
-pushed, and records an executable rollback command tied to the same real commit
-SHA.
+than pursued, so the snapshot seam is the whole State scope. The ToolExecutor
+side-effect split row is complete as a real implementation landing: `_finalize`
+emits a neutral receipt through an injected sink, the tool-runner/runtime-action/
+audit-store/artifact adapter skeletons were retired rather than pursued, so the
+receipt seam is the whole ToolExecutor scope. The remaining row stays incomplete
+until a matching user-approved implementation commit lands, is pushed, and
+records an executable rollback command tied to the same real commit SHA.
 
 | Core candidate | Required landing record | Implementation approved | Landing evidence complete | Rollback executable |
 |----------------|-------------------------|-------------------------|---------------------------|---------------------|
 | Verifier/proof authority boundary | `Verifier proof authority core landing completion transition record` | governance-only completion | true | true |
 | State ownership split | `State ownership split implementation landing record` | true | true | true |
-| ToolExecutor side-effect split | `ToolExecutor side-effect split implementation landing record` | false | false | false |
+| ToolExecutor side-effect split | `ToolExecutor side-effect split implementation landing record` | true | true | true |
 | Dispatcher/composition root production wiring | `Dispatcher/composition root production wiring implementation landing record` | false | false | false |
 
 Required landing fields for every row:
@@ -6259,7 +6403,7 @@ Boundary confirmation for this rollback guard:
 
 Status: recommendation recorded, implementation not approved by this section.
 
-Recommended next approval review: ToolExecutor side-effect split.
+Recommended next approval review: Dispatcher/composition root production wiring.
 
 Dispatcher/composition root production wiring remains last because it can
 transitively touch entrypoints, dispatcher flow, state ownership, proof
@@ -6269,8 +6413,8 @@ authority, executor side effects, and MCP/Web/CLI/TUI behavior at once.
 |-------|----------------|---------------------|---------------------------------|----------------|-------------------------|
 | 1 | Verifier/proof authority boundary | completed prerequisite | proof-authority boundary characterization or adapter wrapper with no decision behavior change | it owns the accepted-proof authority rule and has focused invariants already present | governance-only completion |
 | 2 | State ownership split | completed prerequisite | snapshot ownership seam (claim-store seam retired, not pursued) | state ownership should not move before proof upgrade authority is pinned | true |
-| 3 | ToolExecutor side-effect split | next approvable review | one tool receipt or tool-runner side-effect seam after proof and state seams land | tool execution emits artifacts and receipts that should target stable proof/state boundaries | false |
-| 4 | Dispatcher/composition root production wiring | sequence-blocked final review | composition-root wiring only after proof, state, and executor seams land | dispatcher and entrypoint wiring has the widest blast radius and should remain last | false |
+| 3 | ToolExecutor side-effect split | completed prerequisite | receipt-emission seam (tool-runner/runtime-action/audit-store/artifact seams retired, not pursued) | tool execution emits artifacts and receipts that should target stable proof/state boundaries | true |
+| 4 | Dispatcher/composition root production wiring | next approvable final review | composition-root wiring only after proof, state, and executor seams land | dispatcher and entrypoint wiring has the widest blast radius and should remain last | false |
 
 Required recommendation invariants:
 
@@ -6281,10 +6425,11 @@ Required recommendation invariants:
 
 #### Core implementation sequence gate
 
-Status: sequence gate recorded; State ownership split landed, ToolExecutor is next approvable.
+Status: sequence gate recorded; State and ToolExecutor split landed, Dispatcher is next approvable.
 
 proof boundary core landing finalization: same-commit governance transition.
 State ownership split core landing: real implementation landed at commit b094e7d.
+ToolExecutor side-effect split core landing: real implementation landed at commit 0195218.
 
 This gate records which high-risk core candidate may be reviewed next and which
 candidates remain blocked by earlier landing evidence. It prevents later,
@@ -6294,8 +6439,8 @@ wider-impact implementation work from skipping narrower unresolved seams.
 |----------------|-------|--------------|------------|--------------------------------|
 | Verifier/proof authority boundary | 1 | governance-only completion landed | none | complete |
 | State ownership split | 2 | implementation landed | none | complete |
-| ToolExecutor side-effect split | 3 | next approvable implementation review | none | landing evidence complete |
-| Dispatcher/composition root production wiring | 4 | sequence-blocked | Verifier/proof authority, State ownership, and ToolExecutor landing evidence | landing evidence complete |
+| ToolExecutor side-effect split | 3 | implementation landed | none | complete |
+| Dispatcher/composition root production wiring | 4 | next approvable implementation review | none | landing evidence complete |
 
 Required invariants:
 
