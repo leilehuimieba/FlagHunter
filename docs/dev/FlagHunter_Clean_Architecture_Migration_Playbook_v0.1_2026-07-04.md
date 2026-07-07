@@ -4043,6 +4043,61 @@ Boundary confirmation for this landing:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Claim store adapter production wiring landing record
+
+Status: claim-store adapter production wiring landed.
+
+Approved user message: 批准 State ownership split 第八刀: claim-store adapter production wiring
+
+approved scope: session composition-root claim-store wiring only
+
+Purpose:
+
+- Add the first production wiring point for `ClaimStoreAdapter` in the
+  session-owned composition root.
+- Keep `ClaimStoreAdapter` as a direct delegate around an injected
+  `ClaimStorePort`.
+- Keep `CTFState` claim-store ownership, dispatcher flow, entrypoint task
+  wiring, MCP production wiring, and proof authority behavior out of scope.
+
+Landing details:
+
+- `flaghunter/session/initializer.py::build_challenge_claim_store` constructs the
+  claim-store adapter from an injected `ClaimStorePort`.
+- `ClaimStoreAdapter` wraps the injected `ClaimStorePort` and remains a direct
+  delegate; no injected store means the composition root wires nothing.
+- `tests/unit/session/test_agent_session.py::test_build_challenge_claim_store_wires_claim_store_adapter`
+  proves the session composition root wraps the injected claim store and leaves
+  claim access delegating.
+- `tests/unit/agents/test_p1_source_guards.py::test_p1_claim_store_adapter_is_wired_only_in_session_composition_root`
+  limits concrete adapter references to the adapter package and
+  `flaghunter/session/initializer.py`.
+
+Required verification for this landing:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/session/test_agent_session.py::test_build_challenge_claim_store_wires_claim_store_adapter tests/unit/test_claim_store_adapter.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/agents/test_p1_source_guards.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/test_ports_contracts.py tests/unit/test_adapter_boundary_skeleton.py -q
+git diff --check
+```
+
+Rollback command: git revert <Claim store adapter production wiring commit>
+
+Boundary confirmation for this landing:
+
+- no state-store production wiring changes
+- no dispatcher flow changes
+- no `CTFState` ownership split
+- no ToolExecutor changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Claim store adapter production wiring characterization record
 
 Status: characterization recorded; claim-store adapter production wiring not approved.

@@ -2673,6 +2673,34 @@ def test_playbook_records_state_store_adapter_production_wiring_landing() -> Non
         assert boundary in section
 
 
+def test_playbook_records_claim_store_adapter_production_wiring_landing() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Claim store adapter production wiring landing record",
+    )
+
+    assert "Status: claim-store adapter production wiring landed." in section
+    assert "approved scope: session composition-root claim-store wiring only" in section
+    assert "`flaghunter/session/initializer.py::build_challenge_claim_store`" in section
+    assert "`ClaimStoreAdapter` wraps the injected `ClaimStorePort`" in section
+    assert "test_build_challenge_claim_store_wires_claim_store_adapter" in section
+    assert "test_p1_claim_store_adapter_is_wired_only_in_session_composition_root" in section
+    for boundary in (
+        "no state-store production wiring changes",
+        "no dispatcher flow changes",
+        "no `CTFState` ownership split",
+        "no ToolExecutor changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no proof-authority behavior changes",
+        "no verifier decision behavior changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_claim_store_adapter_import_unwired_guard() -> None:
     text = _playbook_text()
     section = _heading_section_text(

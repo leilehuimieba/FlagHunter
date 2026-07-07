@@ -165,6 +165,50 @@ def test_build_challenge_snapshot_service_wires_state_store_adapter():
     assert snapshot.metadata == {"source": "session-wiring"}
 
 
+def test_build_challenge_claim_store_wires_claim_store_adapter():
+    """Claim-store adapter production wiring lives in the session composition root."""
+    from flaghunter.adapters.storage.claim_store_adapter import ClaimStoreAdapter
+    from flaghunter.session.initializer import build_challenge_claim_store
+
+    class RecordingClaimStore:
+        def __init__(self):
+            self.created_claims = []
+            self.queried = []
+            self.appended_evidence = []
+
+        def create_candidate_claim(self, kind, content):
+            self.created_claims.append((kind, content))
+            return {"claimId": "claim-8", "kind": kind}
+
+        def find_claims(self, *, kind=None, status=None):
+            self.queried.append((kind, status))
+            return []
+
+        def append_evidence_trace(self, claim_id, evidence):
+            self.appended_evidence.append((claim_id, evidence))
+            return {"claimId": claim_id}
+
+    claim_store = RecordingClaimStore()
+
+    wired = build_challenge_claim_store(claim_store=claim_store)
+
+    assert isinstance(wired, ClaimStoreAdapter)
+    assert wired._store is claim_store
+    created = wired.create_candidate_claim("flag_found", {"value": "FLAG{8}"})
+    assert created == {"claimId": "claim-8", "kind": "flag_found"}
+    assert claim_store.created_claims == [("flag_found", {"value": "FLAG{8}"})]
+    assert claim_store.queried == []
+    assert claim_store.appended_evidence == []
+
+
+def test_build_challenge_claim_store_without_store_returns_none():
+    """No injected claim store means the composition root wires nothing."""
+    from flaghunter.session.initializer import build_challenge_claim_store
+
+    assert build_challenge_claim_store() is None
+    assert build_challenge_claim_store(claim_store=None) is None
+
+
 @pytest.mark.asyncio
 async def test_run_drives_loop_emits_events_and_accumulates():
     messages = [

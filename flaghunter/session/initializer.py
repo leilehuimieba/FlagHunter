@@ -70,6 +70,18 @@ def build_challenge_snapshot_service(
     )
 
 
+def build_challenge_claim_store(
+    *,
+    claim_store: Any = None,
+) -> Any:
+    """Build the challenge claim store with session-owned adapter wiring."""
+    from ..adapters.storage.claim_store_adapter import ClaimStoreAdapter
+
+    if claim_store is None:
+        return None
+    return ClaimStoreAdapter(claim_store)
+
+
 async def build_runtime(
     *,
     docker: bool = False,
