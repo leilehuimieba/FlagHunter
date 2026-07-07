@@ -3927,6 +3927,64 @@ Boundary confirmation for this guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### State store adapter production wiring characterization record
+
+Status: characterization recorded; state-store adapter production wiring not approved.
+
+Approved user message: 批准 State ownership split 第四刀: state-store adapter production wiring characterization
+
+Purpose:
+
+- Characterize the current state-store adapter production wiring surface before
+  any future concrete store binding.
+- Keep `StateStoreAdapter` as an adapter skeleton around an injected
+  `StateStorePort`.
+- Confirm application services may consume `StateStorePort` contracts without
+  constructing or importing the concrete adapter in production paths.
+- Keep `CTFState`, dispatcher, entrypoints, and composition root unwired from
+  concrete state-store adapters.
+
+| Surface | Current state | Required guard | Production wiring approved |
+|---------|---------------|----------------|-----------------------------|
+| state-store port application-service injection | existing skeleton | `BuildChallengeRunSnapshot` accepts injected `StateStorePort` only | false |
+| StateStoreAdapter import surface | guarded unwired | `test_p1_state_store_adapter_stays_unwired_from_production_imports` | false |
+| StateStoreAdapter delegate body | direct delegate only | `test_state_store_adapter_action_bodies_remain_direct_delegate_only` | false |
+| CTFState store dependency | unwired | `test_p1_ctf_state_stays_unwired_from_state_and_claim_store_ports` | false |
+| composition root state-store binding | blocked | future explicit composition-root approval | false |
+
+Required invariants:
+
+- StateStoreAdapter remains a skeleton around an injected StateStorePort
+- application services may depend on StateStorePort without constructing StateStoreAdapter
+- production code must not import or construct StateStoreAdapter before explicit wiring approval
+- CTFState must remain unwired from state-store ports and adapters
+- this characterization does not approve composition-root state-store binding
+
+Required verification for this characterization:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/agents/test_p1_source_guards.py tests/unit/test_state_store_adapter.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/test_ports_contracts.py tests/unit/test_adapter_boundary_skeleton.py -q
+git diff --check
+```
+
+Boundary confirmation for this characterization:
+
+- no production code changes
+- no StateStoreAdapter production wiring
+- no ClaimStoreAdapter production wiring
+- no CTFState changes
+- no Dispatcher changes
+- no ToolExecutor changes
+- no verifier decision behavior changes
+- no proof-authority behavior changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### State ownership characterization landing reconciliation guard
 
 Status: reconciliation guard recorded, State core landing remains incomplete.
