@@ -4217,6 +4217,62 @@ Boundary confirmation for this closeout:
 - no P5 implementation
 - no crew/recovery changes
 
+#### State ownership production wiring closeout and next approval gate
+
+Status: production wiring closeout recorded; composition-root binding approval still required.
+
+Approved user message: 批准 State ownership split 第九刀
+
+Purpose:
+
+- Close out the State ownership production wiring sequence after both store
+  adapter production wirings landed in the session composition root.
+- Keep composition-root state binding into a production consumer blocked until a
+  future approval names exactly one binding surface.
+- Keep the concrete adapters as session-owned composition-root wiring only.
+
+| State ownership surface | Required evidence | Current state | Next approval required |
+|-------------------------|-------------------|---------------|------------------------|
+| state-store adapter production wiring | `State store adapter production wiring landing record` | landed | none for wiring |
+| claim-store adapter production wiring | `Claim store adapter production wiring landing record` | landed | none for wiring |
+| composition-root state binding | future explicit composition-root binding approval after production wiring | blocked | binding surface choice |
+
+Allowed next State approval texts:
+
+- 批准 State ownership split 第十刀: composition-root state binding
+
+Required invariants:
+
+- production wiring closeout is not composition-root binding approval
+- next State implementation must choose exactly one composition-root binding surface
+- composition-root binding must connect an existing composition-root builder to exactly one production consumer
+- composition-root binding must not move proof authority or verifier decisions
+- state and claim store wiring remain separate landed commits
+
+Required verification for this closeout:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_adapter_boundary_skeleton.py -q
+git diff --check
+```
+
+Boundary confirmation for this closeout:
+
+- no production code changes
+- no CTFState changes
+- no StateStoreAdapter production wiring changes
+- no ClaimStoreAdapter production wiring changes
+- no Dispatcher changes
+- no ToolExecutor changes
+- no verifier decision behavior changes
+- no proof-authority behavior changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### State ownership characterization landing reconciliation guard
 
 Status: reconciliation guard recorded, State core landing remains incomplete.
