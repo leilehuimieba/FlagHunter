@@ -713,50 +713,26 @@ class CTFState:
         tags: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> Claim:
-        self._require_claim_store_writes_enabled()
-        normalized_kind = _coerce_claim_kind(_require_text(kind, "kind"))
-        if normalized_kind.value not in P1_CLAIM_KIND_ALLOWLIST:
-            raise ValueError(f"claim kind is not enabled for P1: {normalized_kind.value}")
-        normalized_level = _coerce_claim_level(level)
-        if normalized_level == ClaimLevel.VERIFIED:
-            raise ValueError("create_claim cannot directly create verified claims")
-        normalized_content = self._normalize_claim_content(normalized_kind, content)
-        if not normalized_content:
-            raise ValueError("claim content is required")
-        normalized_trace = _require_text(primary_trace_id, "primary_trace_id")
-        normalized_producer_type = _require_text(producer_type, "producer_type")
-        normalized_producer_id = _require_text(producer_id, "producer_id")
-
-        now = _now_ts()
-        claim = Claim(
-            id=_new_id("claim"),
-            run_id=str(run_id or "").strip(),
-            node_id=str(node_id).strip() if node_id is not None and str(node_id).strip() else None,
-            parent_claim_ids=[str(item).strip() for item in (parent_claim_ids or []) if str(item).strip()],
-            content=str(content or "").strip(),
-            normalized_content=normalized_content,
-            kind=normalized_kind,
-            level=normalized_level,
-            status=ClaimStatus.ACTIVE,
-            producer_type=normalized_producer_type,
-            producer_id=normalized_producer_id,
-            source_channel=str(source_channel or "").strip(),
-            primary_trace_id=normalized_trace,
-            evidence_trace_ids=[
-                str(item).strip() for item in (evidence_trace_ids or []) if str(item).strip()
-            ],
-            artifact_refs=[str(item).strip() for item in (artifact_refs or []) if str(item).strip()],
-            confidence=max(0.0, min(1.0, float(confidence or 0.0))),
-            confidence_reason=str(confidence_reason or ""),
-            replayable=bool(replayable),
-            tags=[str(item).strip() for item in (tags or []) if str(item).strip()],
-            metadata=dict(metadata or {}),
-            created_at=now,
-            updated_at=now,
+        return _create_claim(
+            self,
+            kind=kind,
+            content=content,
+            producer_type=producer_type,
+            producer_id=producer_id,
+            primary_trace_id=primary_trace_id,
+            run_id=run_id,
+            node_id=node_id,
+            parent_claim_ids=parent_claim_ids,
+            level=level,
+            source_channel=source_channel,
+            evidence_trace_ids=evidence_trace_ids,
+            artifact_refs=artifact_refs,
+            confidence=confidence,
+            confidence_reason=confidence_reason,
+            replayable=replayable,
+            tags=tags,
+            metadata=metadata,
         )
-        self.claims_by_id[claim.id] = claim
-        self._index_claim(claim)
-        return claim
 
     def append_verification_record(
         self,
@@ -1469,6 +1445,87 @@ def _export_state_snapshot(state: CTFState) -> dict[str, Any]:
         _coerce_task_dag_plan(state.task_dag_plan)
     )
     return snapshot
+
+
+def _create_claim(
+    state: CTFState,
+    *,
+    kind: ClaimKind | str,
+    content: str,
+    producer_type: str,
+    producer_id: str,
+    primary_trace_id: str,
+    run_id: str | None = None,
+    node_id: str | None = None,
+    parent_claim_ids: list[str] | None = None,
+    level: ClaimLevel | str = ClaimLevel.CONJECTURE,
+    source_channel: str = "",
+    evidence_trace_ids: list[str] | None = None,
+    artifact_refs: list[str] | None = None,
+    confidence: float = 0.0,
+    confidence_reason: str = "",
+    replayable: bool = False,
+    tags: list[str] | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> Claim:
+    state._require_claim_store_writes_enabled()
+    normalized_kind = _coerce_claim_kind(_require_text(kind, "kind"))
+    if normalized_kind.value not in P1_CLAIM_KIND_ALLOWLIST:
+        raise ValueError(f"claim kind is not enabled for P1: {normalized_kind.value}")
+    normalized_level = _coerce_claim_level(level)
+    if normalized_level == ClaimLevel.VERIFIED:
+        raise ValueError("create_claim cannot directly create verified claims")
+    normalized_content = state._normalize_claim_content(normalized_kind, content)
+    if not normalized_content:
+        raise ValueError("claim content is required")
+    normalized_trace = _require_text(primary_trace_id, "primary_trace_id")
+    normalized_producer_type = _require_text(producer_type, "producer_type")
+    normalized_producer_id = _require_text(producer_id, "producer_id")
+
+    now = _now_ts()
+    claim = Claim(
+        id=_new_id("claim"),
+        run_id=str(run_id or "").strip(),
+        node_id=(
+            str(node_id).strip()
+            if node_id is not None and str(node_id).strip()
+            else None
+        ),
+        parent_claim_ids=[
+            str(item).strip()
+            for item in (parent_claim_ids or [])
+            if str(item).strip()
+        ],
+        content=str(content or "").strip(),
+        normalized_content=normalized_content,
+        kind=normalized_kind,
+        level=normalized_level,
+        status=ClaimStatus.ACTIVE,
+        producer_type=normalized_producer_type,
+        producer_id=normalized_producer_id,
+        source_channel=str(source_channel or "").strip(),
+        primary_trace_id=normalized_trace,
+        evidence_trace_ids=[
+            str(item).strip()
+            for item in (evidence_trace_ids or [])
+            if str(item).strip()
+        ],
+        artifact_refs=[
+            str(item).strip()
+            for item in (artifact_refs or [])
+            if str(item).strip()
+        ],
+        confidence=max(0.0, min(1.0, float(confidence or 0.0))),
+        confidence_reason=str(confidence_reason or ""),
+        replayable=bool(replayable),
+        tags=[str(item).strip() for item in (tags or []) if str(item).strip()],
+        metadata=dict(metadata or {}),
+        created_at=now,
+        updated_at=now,
+    )
+    state.claims_by_id[claim.id] = claim
+    state._index_claim(claim)
+    return claim
 
 
 def _restore_state_snapshot(

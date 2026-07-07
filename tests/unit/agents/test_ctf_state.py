@@ -484,6 +484,34 @@ def test_ctf_state_can_create_canonical_claim(monkeypatch):
     assert state.active_claims() == [claim]
 
 
+def test_ctf_state_create_claim_delegates_to_claim_store_seam(monkeypatch) -> None:
+    _enable_claims_v1(monkeypatch)
+    state = CTFState(target="http://ctf.local", goal="get flag")
+
+    claim = ctf_state_module._create_claim(
+        state,
+        kind=ClaimKind.FLAG_FOUND,
+        content=" flag{seam} ",
+        producer_type="solver",
+        producer_id="unit-test",
+        primary_trace_id="trace-claim-seam",
+        confidence=0.42,
+    )
+
+    assert claim.content == "flag{seam}"
+    assert state.claims_by_id[claim.id] is claim
+    assert state.claim_index_by_kind[ClaimKind.FLAG_FOUND.value] == [claim.id]
+
+    source = inspect.getsource(ctf_state_module.CTFState)
+    tree = ast.parse(source)
+    methods = {
+        node.name: node
+        for node in tree.body[0].body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    assert _single_return_call_name(methods["create_claim"]) == "_create_claim"
+
+
 def test_ctf_state_can_append_verification_record(monkeypatch):
     _enable_claims_v1(monkeypatch)
     state = CTFState(target="http://ctf.local", goal="拿到flag")

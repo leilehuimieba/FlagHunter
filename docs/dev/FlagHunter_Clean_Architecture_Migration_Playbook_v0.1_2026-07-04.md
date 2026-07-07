@@ -3811,6 +3811,67 @@ Boundary confirmation for this implementation record:
 - no P5 implementation
 - no crew/recovery changes
 
+#### State ownership claim-store seam implementation record
+
+Status: claim-store seam second slice implemented in the working tree.
+
+Approved user message: 批准 State ownership split 第二刀: claim-store ownership seam
+
+Approved scope:
+
+- claim-store ownership seam only
+- `CTFState.create_claim` / `claims_by_id` insertion seam
+- `flaghunter/agents/pa_agent/ctf_state.py`
+- `tests/unit/agents/test_ctf_state.py`
+- this playbook governance record and its guard test
+- no claim-store adapter production wiring
+- no storage ownership migration
+
+Implementation summary:
+
+- `CTFState.create_claim` delegates to `_create_claim`.
+- `_create_claim` owns `claims_by_id` insertion and claim kind indexing.
+- The existing claim validation, normalization, confidence clamping,
+  direct-verified guard, feature-flag guard, and returned `Claim` shape remain
+  unchanged.
+- snapshot seam remains landed.
+- state-store production wiring remains unstarted.
+- claim-store adapter production wiring remains unstarted.
+
+Red test evidence:
+
+- `tests/unit/agents/test_ctf_state.py::test_ctf_state_create_claim_delegates_to_claim_store_seam`
+  first failed with `AttributeError: module 'flaghunter.agents.pa_agent.ctf_state' has no attribute '_create_claim'`.
+
+Required verification for this implementation record:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/agents/test_ctf_state.py::test_ctf_state_create_claim_delegates_to_claim_store_seam -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/agents/test_ctf_state.py tests/unit/agents/test_p1_claim_invariants.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/agents/test_p1_source_guards.py::test_p1_ctf_state_stays_unwired_from_state_and_claim_store_ports tests/unit/test_claim_store_adapter.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Rollback command:
+
+- `git revert <State ownership claim-store seam implementation commit>`
+
+Boundary confirmation for this implementation record:
+
+- no ClaimStoreAdapter production wiring
+- no ClaimStorePort production wiring
+- no state-store production wiring
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no Dispatcher changes
+- no ToolExecutor changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### State ownership characterization landing reconciliation guard
 
 Status: reconciliation guard recorded, State core landing remains incomplete.
