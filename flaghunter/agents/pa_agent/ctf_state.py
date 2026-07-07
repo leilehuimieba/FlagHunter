@@ -1306,8 +1306,27 @@ class CTFState:
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
+    def attach_state_store(self, store: Any | None) -> None:
+        """Delegate snapshot storage ownership to an injected state store.
+
+        State ownership split landing: with a store attached, ``to_snapshot``
+        also persists the exported snapshot through the store's
+        ``save_snapshot``. With no store attached (the default) snapshot
+        behaviour is byte-identical to the legacy inline export, so every live
+        path is unchanged. Duck-typed on purpose to keep this module free of
+        port/adapter imports (invariant I1).
+        """
+        self._state_store = store
+
+    def _snapshot_storage_key(self) -> str:
+        return self.submit_challenge_id or self.target or ""
+
     def to_snapshot(self) -> dict[str, Any]:
-        return _export_state_snapshot(self)
+        snapshot = _export_state_snapshot(self)
+        store = getattr(self, "_state_store", None)
+        if store is not None:
+            store.save_snapshot(self._snapshot_storage_key(), snapshot)
+        return snapshot
 
     @classmethod
     def from_snapshot(cls, data: dict[str, Any]) -> CTFState:

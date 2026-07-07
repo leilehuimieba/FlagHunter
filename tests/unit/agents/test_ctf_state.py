@@ -217,8 +217,50 @@ def test_ctf_state_snapshot_methods_delegate_to_snapshot_seam() -> None:
         for node in tree.body[0].body
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     }
-    assert _single_return_call_name(methods["to_snapshot"]) == "_export_state_snapshot"
+    to_snapshot_calls = {
+        node.func.id
+        for node in ast.walk(methods["to_snapshot"])
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+    assert "_export_state_snapshot" in to_snapshot_calls
     assert _single_return_call_name(methods["from_snapshot"]) == "_restore_state_snapshot"
+
+
+def test_ctf_state_to_snapshot_delegates_persistence_to_attached_state_store() -> None:
+    """State ownership split landing: snapshot persistence delegates to the store."""
+    state = CTFState(target="10.0.0.5", submit_challenge_id="chal-42")
+
+    class RecordingStore:
+        def __init__(self) -> None:
+            self.saved: list[tuple[str, dict]] = []
+
+        def load_snapshot(self, run_id):
+            return None
+
+        def save_snapshot(self, run_id, snapshot):
+            self.saved.append((run_id, snapshot))
+
+    store = RecordingStore()
+    state.attach_state_store(store)
+
+    snapshot = state.to_snapshot()
+
+    assert len(store.saved) == 1
+    saved_key, saved_snapshot = store.saved[0]
+    assert saved_key == "chal-42"
+    # The exact exported snapshot is what gets delegated to the store.
+    assert saved_snapshot is snapshot
+    assert snapshot["target"] == "10.0.0.5"
+
+
+def test_ctf_state_to_snapshot_without_store_stays_inline() -> None:
+    """Default (no attached store) keeps snapshot behaviour byte-identical."""
+    state = CTFState(target="10.0.0.5", submit_challenge_id="chal-42")
+
+    snapshot = state.to_snapshot()
+
+    assert snapshot == ctf_state_module._export_state_snapshot(state)
+    assert snapshot["target"] == "10.0.0.5"
 
 
 def test_ctf_state_apply_profile_projects_entry_kind_and_budgets():
