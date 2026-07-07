@@ -4907,6 +4907,36 @@ def test_playbook_records_state_ownership_production_wiring_closeout_next_gate()
         assert boundary in section
 
 
+def test_playbook_records_state_ownership_composition_root_binding_landing() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "State ownership composition-root binding landing record",
+    )
+
+    assert "Status: composition-root state binding landed." in section
+    assert "approved scope: session composition-root snapshot-to-board read binding only" in section
+    assert "`flaghunter/session/initializer.py::build_challenge_board_read_model`" in section
+    assert "It reuses `build_challenge_snapshot_service`; no new adapter reference is" in section
+    assert "`BuildChallengeBoardReadModel` remains an application service" in section
+    assert "The binding stays a proven seam: no live path calls it yet." in section
+    assert "test_build_challenge_board_read_model_binds_snapshot_service_to_board_read_model" in section
+    for boundary in (
+        "no state-store production wiring changes",
+        "no claim-store production wiring changes",
+        "no dispatcher flow changes",
+        "no `CTFState` ownership split",
+        "no ToolExecutor changes",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no proof-authority behavior changes",
+        "no verifier decision behavior changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_state_ownership_characterization_landing_reconciliation_guard() -> None:
     text = _playbook_text()
     section = _heading_section_text(

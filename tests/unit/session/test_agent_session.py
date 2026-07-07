@@ -209,6 +209,68 @@ def test_build_challenge_claim_store_without_store_returns_none():
     assert build_challenge_claim_store(claim_store=None) is None
 
 
+def test_build_challenge_board_read_model_binds_snapshot_service_to_board_read_model():
+    """Composition root binds the state-store-wired snapshot service to the board read model."""
+    from flaghunter.domain.challenge.contracts import ChallengeBoardReadModel
+    from flaghunter.session.initializer import build_challenge_board_read_model
+
+    class RecordingStateStore:
+        def __init__(self):
+            self.loaded_run_ids = []
+            self.saved_snapshots = []
+
+        def load_snapshot(self, run_id):
+            self.loaded_run_ids.append(run_id)
+            return {
+                "claims": [
+                    {
+                        "claimId": "claim-10",
+                        "claimType": "flag_found",
+                        "claimValue": "FLAG{10}",
+                        "status": "candidate",
+                    }
+                ],
+                "metadata": {"source": "session-binding"},
+            }
+
+        def save_snapshot(self, run_id, snapshot):
+            self.saved_snapshots.append((run_id, snapshot))
+
+    state_store = RecordingStateStore()
+
+    read_model = build_challenge_board_read_model(
+        run_id="run-10",
+        challenge_id="challenge-10",
+        state_store=state_store,
+    )
+
+    assert isinstance(read_model, ChallengeBoardReadModel)
+    assert read_model.run_id == "run-10"
+    assert read_model.challenge_id == "challenge-10"
+    assert state_store.loaded_run_ids == ["run-10"]
+    assert state_store.saved_snapshots == []
+    # The snapshot claim flowed end-to-end into the board read model facts.
+    assert [item.item_type for item in read_model.facts] == ["claim:flag_found"]
+    assert [item.value for item in read_model.facts] == ["FLAG{10}"]
+    assert read_model.metadata == {"source": "session-binding"}
+
+
+def test_build_challenge_board_read_model_without_state_store_yields_empty_board():
+    """No injected state store yields an empty read-only board for the requested ids."""
+    from flaghunter.domain.challenge.contracts import ChallengeBoardReadModel
+    from flaghunter.session.initializer import build_challenge_board_read_model
+
+    read_model = build_challenge_board_read_model(
+        run_id="run-10b",
+        challenge_id="challenge-10b",
+    )
+
+    assert isinstance(read_model, ChallengeBoardReadModel)
+    assert read_model.run_id == "run-10b"
+    assert read_model.challenge_id == "challenge-10b"
+    assert read_model.facts == []
+
+
 @pytest.mark.asyncio
 async def test_run_drives_loop_emits_events_and_accumulates():
     messages = [

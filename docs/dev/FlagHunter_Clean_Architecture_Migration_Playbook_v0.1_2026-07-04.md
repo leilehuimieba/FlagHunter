@@ -4273,6 +4273,70 @@ Boundary confirmation for this closeout:
 - no P5 implementation
 - no crew/recovery changes
 
+#### State ownership composition-root binding landing record
+
+Status: composition-root state binding landed.
+
+Approved user message: 批准 State ownership split 第十刀: composition-root state binding
+
+approved scope: session composition-root snapshot-to-board read binding only
+
+Scouting note: no in-scope live consumer exists for either store builder. Every
+live consumer of the challenge-contracts layer reaches it through the
+`build_task_board_projection` dict path behind the Web/MCP/TUI/Dispatcher
+boundary, and the `ClaimStorePort` methods have no production caller. The only
+in-scope binding is composing the two application read services inside the
+session composition root, so this binding stays a proven seam.
+
+Purpose:
+
+- Add the first composition-root binding that connects an existing
+  composition-root builder to exactly one consumer.
+- Reuse `build_challenge_snapshot_service` to produce a `ChallengeRunSnapshot`
+  and feed it into `BuildChallengeBoardReadModel`.
+- Keep the binding read-only: the snapshot service never saves.
+- Keep the concrete adapters, dispatcher flow, entrypoint task wiring, MCP,
+  Web/CLI/TUI paths, and proof authority behavior out of scope.
+
+Landing details:
+
+- `flaghunter/session/initializer.py::build_challenge_board_read_model` binds the
+  snapshot service to the board read model consumer.
+- It reuses `build_challenge_snapshot_service`; no new adapter reference is
+  introduced.
+- `BuildChallengeBoardReadModel` remains an application service depending only on
+  domain contracts.
+- The binding stays a proven seam: no live path calls it yet.
+- `tests/unit/session/test_agent_session.py::test_build_challenge_board_read_model_binds_snapshot_service_to_board_read_model`
+  proves a snapshot claim flows end-to-end into the board read model facts and
+  the injected state store stays read-only.
+
+Required verification for this landing:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/session/test_agent_session.py::test_build_challenge_board_read_model_binds_snapshot_service_to_board_read_model tests/unit/test_application_challenge_snapshot_service.py tests/unit/test_application_board_read_model_service.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/agents/test_p1_source_guards.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/test_ports_contracts.py tests/unit/test_adapter_boundary_skeleton.py -q
+git diff --check
+```
+
+Rollback command: git revert <Composition-root binding commit>
+
+Boundary confirmation for this landing:
+
+- no state-store production wiring changes
+- no claim-store production wiring changes
+- no dispatcher flow changes
+- no `CTFState` ownership split
+- no ToolExecutor changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### State ownership characterization landing reconciliation guard
 
 Status: reconciliation guard recorded, State core landing remains incomplete.

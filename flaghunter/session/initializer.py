@@ -82,6 +82,31 @@ def build_challenge_claim_store(
     return ClaimStoreAdapter(claim_store)
 
 
+def build_challenge_board_read_model(
+    *,
+    run_id: str,
+    challenge_id: str,
+    state_store: Any = None,
+    read_model_store: Any = None,
+) -> Any:
+    """Bind the state-store-wired snapshot service to the board read model.
+
+    Session composition-root binding: reuses ``build_challenge_snapshot_service``
+    to produce a ``ChallengeRunSnapshot`` and feeds it into the board read model
+    consumer. Read-only; the snapshot service never saves.
+    """
+    from ..application.challenge.board_read_model_service import (
+        BuildChallengeBoardReadModel,
+    )
+
+    snapshot_service = build_challenge_snapshot_service(
+        state_store=state_store,
+        read_model_store=read_model_store,
+    )
+    snapshot = snapshot_service.build(run_id=run_id, challenge_id=challenge_id)
+    return BuildChallengeBoardReadModel().build(snapshot)
+
+
 async def build_runtime(
     *,
     docker: bool = False,
