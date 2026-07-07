@@ -3872,6 +3872,61 @@ Boundary confirmation for this implementation record:
 - no P5 implementation
 - no crew/recovery changes
 
+#### State ownership seam aggregate transition guard
+
+Status: seam aggregate guard recorded; production store wiring still blocked.
+
+Approved user message: 批准 State ownership split 第三刀: seam aggregate transition guard
+
+Purpose:
+
+- Record that the snapshot and claim-store ownership seams are now established
+  inside legacy `CTFState`.
+- Keep production state-store and claim-store adapter wiring blocked until a
+  future explicit approval names exactly one store wiring surface.
+- Prevent the seam work from being treated as composition-root, dispatcher, or
+  entrypoint production wiring approval by implication.
+
+| State surface | Required evidence | Current state | Counts as production store wiring |
+|---------------|-------------------|---------------|-----------------------------------|
+| snapshot ownership seam | `State ownership snapshot seam implementation record` | landed | false |
+| claim-store ownership seam | `State ownership claim-store seam implementation record` | landed | false |
+| state-store adapter production wiring | future explicit State store wiring approval | blocked | true |
+| claim-store adapter production wiring | future explicit Claim store wiring approval | blocked | true |
+| composition root state wiring | future explicit composition-root approval after store wiring | blocked | true |
+
+Required invariants:
+
+- snapshot and claim-store seams are established inside legacy CTFState only
+- seam aggregate transition is not StateStoreAdapter production wiring approval
+- seam aggregate transition is not ClaimStoreAdapter production wiring approval
+- composition root must not wire state or claim stores from this guard
+- next State implementation approval must name exactly one store wiring surface
+
+Required verification for this guard:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_import_layers.py tests/unit/agents/test_p1_source_guards.py tests/unit/test_ports_contracts.py tests/unit/test_adapter_boundary_skeleton.py -q
+git diff --check
+```
+
+Boundary confirmation for this guard:
+
+- no production code changes
+- no CTFState changes
+- no StateStoreAdapter production wiring
+- no ClaimStoreAdapter production wiring
+- no proof-authority behavior changes
+- no verifier decision behavior changes
+- no Dispatcher changes
+- no ToolExecutor changes
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no composition root changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### State ownership characterization landing reconciliation guard
 
 Status: reconciliation guard recorded, State core landing remains incomplete.
