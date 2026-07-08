@@ -2708,7 +2708,7 @@ high-risk core surfaces separated.
 | Verifier/proof authority boundary | high | governance-only completion landed; future implementation not approved | governance-only completion | explicit proof-authority implementation approval for future behavior or wiring | verifier fixture, proof authority invariants, P1 claim invariants, source guards, `git diff --check` |
 | State ownership split | high | implementation landed at commit b094e7d | true | explicit state ownership split approval | state snapshot fixtures, replay/readback fixtures, import/source guards, `git diff --check` |
 | ToolExecutor side-effect split | high | implementation landed at commit 0195218 | true | explicit ToolExecutor side-effect split approval | tool receipt fixtures, executor guard fixtures, finish control receipt, architecture/source guards, `git diff --check` |
-| Dispatcher/composition root production wiring | maximum | next approvable implementation review; implementation not approved | false | explicit dispatcher and composition-root approval | dispatcher focused, entrypoint focused, MCP/web/CLI smoke guards, architecture/source guards, `git diff --check` |
+| Dispatcher/composition root production wiring | maximum | governance-only completion landed; production dispatcher rewire retired, not pursued | governance-only completion | explicit dispatcher and composition-root approval | dispatcher focused, entrypoint focused, MCP/web/CLI smoke guards, architecture/source guards, `git diff --check` |
 
 Queue rules:
 
@@ -5667,14 +5667,14 @@ forbidden production surfaces reviewable in one place.
 | Verifier/proof authority boundary | `Core first slice approval text template` | historical audit template | true |
 | State ownership split | `State ownership first slice approval text template` | historical audit template | true |
 | ToolExecutor side-effect split | `ToolExecutor first slice approval text template` | historical audit template | true |
-| Dispatcher/composition root production wiring | `Dispatcher composition root first slice approval text template` | next approvable final template | true |
+| Dispatcher/composition root production wiring | `Dispatcher composition root first slice approval text template` | historical audit template | true |
 
 Coverage invariants:
 
 - all core candidates must keep one copyable first-slice approval template
 - template role must identify historical, next-review, or sequence-blocked status
 - templates do not approve implementation by themselves
-- dispatcher/composition-root remains last until proof, state, and executor seams land
+- dispatcher/composition-root stayed last and closed via governance-only completion after proof, state, and executor seams landed
 - missing or renamed templates must fail review
 - every future implementation still needs explicit human approval and a landing record
 
@@ -5696,7 +5696,7 @@ The four core production approval packages are now recorded, but approval packag
 | Verifier/proof authority boundary | `Verifier/proof authority boundary approval plan` | `Proof authority characterization readiness aggregate` | governance-only completion | governance-only completion landed; future implementation not approved |
 | State ownership split | `State ownership split approval plan` | `State ownership characterization readiness aggregate` | true | implementation landed at commit b094e7d |
 | ToolExecutor side-effect split | `ToolExecutor side-effect split approval plan` | `ToolExecutor side-effect characterization readiness aggregate` | true | implementation landed at commit 0195218 |
-| Dispatcher/composition root production wiring | `Dispatcher/composition root production wiring approval plan` | `Dispatcher composition root characterization readiness aggregate` | false | next approvable implementation review; implementation not approved |
+| Dispatcher/composition root production wiring | `Dispatcher/composition root production wiring approval plan` | `Dispatcher composition root characterization readiness aggregate` | governance-only completion | governance-only completion landed; production dispatcher rewire retired, not pursued |
 
 Required aggregate invariants:
 
@@ -5739,7 +5739,7 @@ exists, not that production migration is approved.
 | Verifier/proof authority boundary | `Proof authority characterization readiness aggregate` | true | governance-only completion | future proof behavior or wiring needs separate approval |
 | State ownership split | `State ownership characterization readiness aggregate` | true | true | implementation landed at commit b094e7d |
 | ToolExecutor side-effect split | `ToolExecutor side-effect characterization readiness aggregate` | true | true | implementation landed at commit 0195218 |
-| Dispatcher/composition root production wiring | `Dispatcher composition root characterization readiness aggregate` | true | false | explicit Dispatcher/composition root production wiring implementation approval |
+| Dispatcher/composition root production wiring | `Dispatcher composition root characterization readiness aggregate` | true | governance-only completion | closed via governance-only completion (Path A); future proof/state/executor-touching wiring needs separate approval |
 
 Required invariants:
 
@@ -6297,11 +6297,12 @@ Boundary confirmation for this landing template:
 
 #### Core implementation landing evidence completeness matrix
 
-Status: landing evidence matrix recorded; proof completion transitioned, State ownership split and ToolExecutor side-effect split implementations landed.
+Status: landing evidence matrix recorded; proof completion transitioned, State ownership split and ToolExecutor side-effect split implementations landed, Dispatcher/composition root closed via governance-only completion.
 
 proof boundary core landing finalization: same-commit governance transition.
 State ownership split core landing: real implementation landed at commit b094e7d.
 ToolExecutor side-effect split core landing: real implementation landed at commit 0195218.
+Dispatcher/composition root core landing: governance-only completion transition (Path A); no production dispatcher rewire pursued.
 
 This matrix keeps the landing evidence requirement explicit for every
 high-risk core candidate. The verifier/proof-authority row is complete only as
@@ -6312,16 +6313,20 @@ than pursued, so the snapshot seam is the whole State scope. The ToolExecutor
 side-effect split row is complete as a real implementation landing: `_finalize`
 emits a neutral receipt through an injected sink, the tool-runner/runtime-action/
 audit-store/artifact adapter skeletons were retired rather than pursued, so the
-receipt seam is the whole ToolExecutor scope. The remaining row stays incomplete
-until a matching user-approved implementation commit lands, is pushed, and
-records an executable rollback command tied to the same real commit SHA.
+receipt seam is the whole ToolExecutor scope. The Dispatcher/composition root row
+is complete only as a governance-only completion transition: the composition root
+(`build_agent_components`) already assembles concrete production implementations
+and the neutral application/read-model layer (`SubmitTaskIngress`,
+`build_task_board_projection`) is already load-bearing in production, so the
+remaining dispatcher-flow rewire and port-based snapshot-builder consumption were
+retired rather than pursued. No core candidate row remains incomplete.
 
 | Core candidate | Required landing record | Implementation approved | Landing evidence complete | Rollback executable |
 |----------------|-------------------------|-------------------------|---------------------------|---------------------|
 | Verifier/proof authority boundary | `Verifier proof authority core landing completion transition record` | governance-only completion | true | true |
 | State ownership split | `State ownership split implementation landing record` | true | true | true |
 | ToolExecutor side-effect split | `ToolExecutor side-effect split implementation landing record` | true | true | true |
-| Dispatcher/composition root production wiring | `Dispatcher/composition root production wiring implementation landing record` | false | false | false |
+| Dispatcher/composition root production wiring | `Dispatcher composition root core landing completion transition record` | governance-only completion | true | true |
 
 Required landing fields for every row:
 
@@ -6340,8 +6345,9 @@ Required landing fields for every row:
 Required invariants:
 
 - proof completion landing evidence is governance-only and does not approve production behavior
-- later landing evidence complete stays false until the matching implementation commit is pushed
-- later rollback executable stays false until a real commit SHA replaces the placeholder
+- governance-only completion landing evidence closes a row without approving production behavior
+- a real implementation row's landing evidence stays false until the matching implementation commit is pushed
+- a real implementation row's rollback executable stays false until a real commit SHA replaces the placeholder
 - each landing record must name exactly one core candidate
 - implementation approval and landing evidence must move together for one functional point
 
@@ -6360,25 +6366,30 @@ Boundary confirmation for this matrix:
 
 #### Dispatcher landing evidence rollback guard
 
-Status: rollback guard recorded, no production wiring approved.
+Status: rollback guard recorded; candidate closed via governance-only completion, no production wiring pursued.
 
-Future dispatcher/composition-root production wiring landing evidence must
-record an executable rollback path tied to the same real implementation commit.
-Placeholders are planning aids only and do not count as rollback evidence.
+The Dispatcher/composition root candidate was closed via governance-only
+completion (Path A); its rollback is `git revert <Dispatcher composition root
+core landing completion transition commit>`. No production dispatcher rewire was
+pursued, so no production-wiring implementation commit exists. Any *future*
+production dispatcher/composition-root wiring landing evidence must still record
+an executable rollback path tied to the same real implementation commit;
+placeholders are planning aids only and do not count as rollback evidence.
 
 | Landing field | Required value | Current complete |
 |---------------|----------------|------------------|
-| implementation commit SHA | real full commit SHA | false |
-| rollback command | `git revert <dispatcher production wiring implementation commit>` | false |
-| post-push branch status | `git status --short --branch` after push | false |
-| scope confirmation | one dispatcher/composition-root functional point | false |
+| governance-only completion rollback | `git revert <Dispatcher composition root core landing completion transition commit>` | true |
+| production wiring implementation commit SHA | real full commit SHA (only if future production wiring is approved) | false |
+| production wiring rollback command | `git revert <dispatcher production wiring implementation commit>` | false |
+| production wiring scope confirmation | one dispatcher/composition-root functional point | false |
 
 Required invariants:
 
 - placeholder rollback commands are not executable rollback evidence
-- rollback command must point at the same real implementation commit SHA
-- dispatcher landing evidence cannot be recorded before explicit production wiring approval
-- landing evidence must remain incomplete until implementation is pushed
+- a future production wiring rollback command must point at the same real implementation commit SHA
+- production dispatcher landing evidence cannot be recorded before explicit production wiring approval
+- production wiring landing evidence must remain incomplete until implementation is pushed
+- governance-only completion rollback points at the governance completion transition commit, not a production implementation commit
 
 Required verification for this rollback guard:
 
@@ -6399,48 +6410,145 @@ Boundary confirmation for this rollback guard:
 - no P5 implementation
 - no crew/recovery changes
 
+#### Dispatcher composition root core landing completion transition record
+
+Status: governance-only completion transition landed after explicit approval.
+
+Current approval fact:
+
+- Dispatcher/composition root production wiring core landing completion: approved (Path A)
+
+Approved scope:
+
+- approval type: governance-only completion transition (Path A)
+- no production dispatcher flow changed
+- no composition root production rewire pursued
+- no MCP/Web/CLI/TUI task execution path switched
+- no ToolExecutor, `CTFState`, or proof-authority behavior changed
+
+Completion rationale (Path A):
+
+- the composition root `build_agent_components` already assembles every concrete production implementation (runtime, LLM, tools, agent, session store, metrics, MCP)
+- the neutral application/read-model layer is already load-bearing in production: `SubmitTaskIngress().submit(...)` runs at `flaghunter/interface/web_server.py` and `flaghunter/mcp/server/mcp_tools.py`, and `build_task_board_projection` is consumed by `blackboard_lite.py`, `web_control_decision.py`, `web_serialize_task.py`, and `web_trace_timeline.py`
+- the remaining dispatcher-flow rewire and the port-based snapshot builders in `flaghunter/session/initializer.py` are retired rather than pursued (see `Dispatcher composition root snapshot builder retirement record`)
+- closing this candidate via governance-only completion completes the core-candidate migration series without replacing the working dispatcher loop
+
+Governance surfaces updated in the same commit:
+
+- Core production approval package aggregate guard
+- Core readiness aggregate acceptance matrix
+- Post read-side core decoupling approval queue
+- Core implementation landing evidence completeness matrix
+- Core implementation sequence gate
+- Core first implementation slice recommendation
+- Dispatcher landing evidence rollback guard
+
+Required verification for this transition:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_clean_architecture_migration_playbook.py -q
+git diff --check
+```
+
+Rollback command: git revert <Dispatcher composition root core landing completion transition commit>
+
+Boundary confirmation for this transition:
+
+- no `CTFTaskDispatcher` flow changes
+- no composition root production wiring
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no ToolExecutor changes
+- no `CTFState` ownership split
+- no proof-authority behavior changes
+- no P5 implementation
+- no crew/recovery changes
+
+#### Dispatcher composition root snapshot builder retirement record
+
+Status: dispatcher-flow rewire and port-based snapshot builder consumption retired, not pursued.
+
+Path A decision: the Dispatcher/composition root candidate is completed by
+retiring the two remaining unconsumed production-wiring surfaces rather than
+implementing them, because the migration's architectural goal is already met in
+production.
+
+Retired surfaces and rationale:
+
+- dispatcher main-flow rewire — retired: Phase 5 always deferred the dispatcher main flow to last; the legacy `CTFTaskDispatcher` loop works and rewiring it has the widest blast radius for zero functional gain
+- `build_challenge_snapshot_service` and `build_challenge_board_read_model` forced production consumption in `flaghunter/session/initializer.py` — retired: their only candidate consumers are the two best-effort `ctfStateSnapshot` inspection reads (`flaghunter/interface/web_server.py`, `flaghunter/mcp/server/mcp_tools.py`), which read live `CTFState.to_snapshot()`; the builders read a persisted state-store port instead, so forcing them in would change an observable inspection field for zero functional gain
+
+Retained, already load-bearing (not retired):
+
+- composition root `build_agent_components` assembly of concrete production implementations
+- `SubmitTaskIngress` production consumption at the Web and MCP task-ingress entrypoints
+- `build_task_board_projection` production consumption in the Web/blackboard read paths
+- the port-based snapshot builders remain available as optional, unit-tested seams for any future approved wiring slice
+
+Required invariants:
+
+- retiring a surface is a governance decision, not a production code change
+- retired surfaces may be revived only under a future explicit dispatcher/composition-root approval naming one entrypoint family and one rollback commit
+- the legacy dispatcher and entrypoints remain the production task-execution path
+
+Boundary confirmation for this retirement record:
+
+- no `CTFTaskDispatcher` flow changes
+- no composition root production wiring
+- no MCP production wiring
+- no Web/CLI/TUI task wiring changes
+- no ToolExecutor changes
+- no `CTFState` ownership split
+- no proof-authority behavior changes
+- no P5 implementation
+- no crew/recovery changes
+
 #### Core first implementation slice recommendation
 
-Status: recommendation recorded, implementation not approved by this section.
+Status: recommendation recorded; all core candidates closed, no further approval review pending.
 
-Recommended next approval review: Dispatcher/composition root production wiring.
+Recommended next approval review: none; all four core candidates are closed.
 
-Dispatcher/composition root production wiring remains last because it can
+Dispatcher/composition root production wiring remained last because it can
 transitively touch entrypoints, dispatcher flow, state ownership, proof
-authority, executor side effects, and MCP/Web/CLI/TUI behavior at once.
+authority, executor side effects, and MCP/Web/CLI/TUI behavior at once; it was
+closed via governance-only completion (Path A) rather than a production rewire.
 
 | Order | Core candidate | Recommendation role | First approved slice to request | Why this order | Implementation approved |
 |-------|----------------|---------------------|---------------------------------|----------------|-------------------------|
 | 1 | Verifier/proof authority boundary | completed prerequisite | proof-authority boundary characterization or adapter wrapper with no decision behavior change | it owns the accepted-proof authority rule and has focused invariants already present | governance-only completion |
 | 2 | State ownership split | completed prerequisite | snapshot ownership seam (claim-store seam retired, not pursued) | state ownership should not move before proof upgrade authority is pinned | true |
 | 3 | ToolExecutor side-effect split | completed prerequisite | receipt-emission seam (tool-runner/runtime-action/audit-store/artifact seams retired, not pursued) | tool execution emits artifacts and receipts that should target stable proof/state boundaries | true |
-| 4 | Dispatcher/composition root production wiring | next approvable final review | composition-root wiring only after proof, state, and executor seams land | dispatcher and entrypoint wiring has the widest blast radius and should remain last | false |
+| 4 | Dispatcher/composition root production wiring | completed via governance-only completion | composition-root already assembles concrete implementations; dispatcher-flow rewire retired, not pursued | dispatcher and entrypoint wiring has the widest blast radius and was closed last via Path A | governance-only completion |
 
 Required recommendation invariants:
 
 - recommendation does not approve implementation
 - recommendation role must match the core implementation sequence gate
 - human approval must name exactly one core candidate and one first slice
-- dispatcher/composition root work must stay last until narrower core seams land
+- dispatcher/composition root work stayed last and closed via governance-only completion after narrower core seams landed
 
 #### Core implementation sequence gate
 
-Status: sequence gate recorded; State and ToolExecutor split landed, Dispatcher is next approvable.
+Status: sequence gate recorded; all core candidates closed (Verifier/State/ToolExecutor/Dispatcher).
 
 proof boundary core landing finalization: same-commit governance transition.
 State ownership split core landing: real implementation landed at commit b094e7d.
 ToolExecutor side-effect split core landing: real implementation landed at commit 0195218.
+Dispatcher/composition root core landing: governance-only completion transition (Path A); no production dispatcher rewire pursued.
 
 This gate records which high-risk core candidate may be reviewed next and which
 candidates remain blocked by earlier landing evidence. It prevents later,
-wider-impact implementation work from skipping narrower unresolved seams.
+wider-impact implementation work from skipping narrower unresolved seams. With
+the fourth candidate closed via governance-only completion, no core candidate
+remains open for implementation review.
 
 | Core candidate | Order | Current gate | Blocked by | Required before next candidate |
 |----------------|-------|--------------|------------|--------------------------------|
 | Verifier/proof authority boundary | 1 | governance-only completion landed | none | complete |
 | State ownership split | 2 | implementation landed | none | complete |
 | ToolExecutor side-effect split | 3 | implementation landed | none | complete |
-| Dispatcher/composition root production wiring | 4 | next approvable implementation review | none | landing evidence complete |
+| Dispatcher/composition root production wiring | 4 | governance-only completion landed | none | complete |
 
 Required invariants:
 

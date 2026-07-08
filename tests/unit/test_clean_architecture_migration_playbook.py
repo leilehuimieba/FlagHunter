@@ -2457,7 +2457,11 @@ def test_playbook_records_post_read_side_core_decoupling_approval_queue() -> Non
     assert queue_rows["ToolExecutor side-effect split"]["Implementation approved"] == "true"
     assert (
         queue_rows["Dispatcher/composition root production wiring"]["Current status"]
-        == "next approvable implementation review; implementation not approved"
+        == "governance-only completion landed; production dispatcher rewire retired, not pursued"
+    )
+    assert (
+        queue_rows["Dispatcher/composition root production wiring"]["Implementation approved"]
+        == "governance-only completion"
     )
     for candidate, row in queue_rows.items():
         if candidate not in {
@@ -2466,6 +2470,7 @@ def test_playbook_records_post_read_side_core_decoupling_approval_queue() -> Non
             "Verifier/proof authority boundary",
             "State ownership split",
             "ToolExecutor side-effect split",
+            "Dispatcher/composition root production wiring",
         }:
             assert row["Implementation approved"] == "false"
         assert row["Required approval"]
@@ -3222,8 +3227,8 @@ def test_playbook_records_core_approval_package_aggregate_guard() -> None:
             "Current implementation state": "implementation landed at commit 0195218",
         },
         "Dispatcher/composition root production wiring": {
-            "Implementation approved": "false",
-            "Current implementation state": "next approvable implementation review; implementation not approved",
+            "Implementation approved": "governance-only completion",
+            "Current implementation state": "governance-only completion landed; production dispatcher rewire retired, not pursued",
         },
     }
     for candidate, plan_heading in expected_plans.items():
@@ -3338,8 +3343,8 @@ def test_playbook_records_core_readiness_aggregate_acceptance_matrix() -> None:
         "Dispatcher/composition root production wiring": {
             "Readiness aggregate": "`Dispatcher composition root characterization readiness aggregate`",
             "Readiness accepted": "true",
-            "Implementation approved": "false",
-            "Next gate": "explicit Dispatcher/composition root production wiring implementation approval",
+            "Implementation approved": "governance-only completion",
+            "Next gate": "closed via governance-only completion (Path A); future proof/state/executor-touching wiring needs separate approval",
         },
     }
     assert set(rows) == set(expected)
@@ -3512,7 +3517,7 @@ def test_playbook_records_core_implementation_landing_evidence_completeness_matr
         "Core implementation landing evidence completeness matrix",
     )
 
-    assert "Status: landing evidence matrix recorded; proof completion transitioned, State ownership split and ToolExecutor side-effect split implementations landed." in section
+    assert "Status: landing evidence matrix recorded; proof completion transitioned, State ownership split and ToolExecutor side-effect split implementations landed, Dispatcher/composition root closed via governance-only completion." in section
     rows = {
         row["Core candidate"]: row
         for row in _markdown_table_rows(section)
@@ -3521,24 +3526,23 @@ def test_playbook_records_core_implementation_landing_evidence_completeness_matr
         "Verifier/proof authority boundary": "`Verifier proof authority core landing completion transition record`",
         "State ownership split": "`State ownership split implementation landing record`",
         "ToolExecutor side-effect split": "`ToolExecutor side-effect split implementation landing record`",
-        "Dispatcher/composition root production wiring": "`Dispatcher/composition root production wiring implementation landing record`",
+        "Dispatcher/composition root production wiring": "`Dispatcher composition root core landing completion transition record`",
     }
     assert set(rows) == set(expected)
     for candidate, landing_record in expected.items():
         row = rows[candidate]
         assert row["Required landing record"] == landing_record
-        if candidate == "Verifier/proof authority boundary":
+        if candidate in (
+            "Verifier/proof authority boundary",
+            "Dispatcher/composition root production wiring",
+        ):
             assert row["Implementation approved"] == "governance-only completion"
             assert row["Landing evidence complete"] == "true"
             assert row["Rollback executable"] == "true"
-        elif candidate in ("State ownership split", "ToolExecutor side-effect split"):
+        else:
             assert row["Implementation approved"] == "true"
             assert row["Landing evidence complete"] == "true"
             assert row["Rollback executable"] == "true"
-        else:
-            assert row["Implementation approved"] == "false"
-            assert row["Landing evidence complete"] == "false"
-            assert row["Rollback executable"] == "false"
     for required_field in (
         "implementation commit SHA",
         "approved scope",
@@ -3555,8 +3559,9 @@ def test_playbook_records_core_implementation_landing_evidence_completeness_matr
         assert required_field in section
     for invariant in (
         "proof completion landing evidence is governance-only and does not approve production behavior",
-        "later landing evidence complete stays false until the matching implementation commit is pushed",
-        "later rollback executable stays false until a real commit SHA replaces the placeholder",
+        "governance-only completion landing evidence closes a row without approving production behavior",
+        "a real implementation row's landing evidence stays false until the matching implementation commit is pushed",
+        "a real implementation row's rollback executable stays false until a real commit SHA replaces the placeholder",
         "each landing record must name exactly one core candidate",
         "implementation approval and landing evidence must move together for one functional point",
     ):
@@ -5947,7 +5952,7 @@ def test_playbook_records_core_first_slice_template_coverage_guard() -> None:
         },
         "Dispatcher/composition root production wiring": {
             "Approval template": "Dispatcher composition root first slice approval text template",
-            "Template role": "next approvable final template",
+            "Template role": "historical audit template",
         },
     }
     rows = {
@@ -5965,7 +5970,7 @@ def test_playbook_records_core_first_slice_template_coverage_guard() -> None:
         "all core candidates must keep one copyable first-slice approval template",
         "template role must identify historical, next-review, or sequence-blocked status",
         "templates do not approve implementation by themselves",
-        "dispatcher/composition-root remains last until proof, state, and executor seams land",
+        "dispatcher/composition-root stayed last and closed via governance-only completion after proof, state, and executor seams landed",
         "missing or renamed templates must fail review",
     ):
         assert invariant in section
@@ -6025,26 +6030,39 @@ def test_playbook_records_dispatcher_landing_evidence_rollback_guard() -> None:
         "Dispatcher landing evidence rollback guard",
     )
 
-    assert "Status: rollback guard recorded, no production wiring approved." in section
+    assert "Status: rollback guard recorded; candidate closed via governance-only completion, no production wiring pursued." in section
     rows = {
         row["Landing field"]: row
         for row in _markdown_table_rows(section)
     }
     expected_rows = {
-        "implementation commit SHA": "real full commit SHA",
-        "rollback command": "`git revert <dispatcher production wiring implementation commit>`",
-        "post-push branch status": "`git status --short --branch` after push",
-        "scope confirmation": "one dispatcher/composition-root functional point",
+        "governance-only completion rollback": (
+            "`git revert <Dispatcher composition root core landing completion transition commit>`",
+            "true",
+        ),
+        "production wiring implementation commit SHA": (
+            "real full commit SHA (only if future production wiring is approved)",
+            "false",
+        ),
+        "production wiring rollback command": (
+            "`git revert <dispatcher production wiring implementation commit>`",
+            "false",
+        ),
+        "production wiring scope confirmation": (
+            "one dispatcher/composition-root functional point",
+            "false",
+        ),
     }
     assert set(rows) == set(expected_rows)
-    for field, requirement in expected_rows.items():
+    for field, (requirement, complete) in expected_rows.items():
         assert rows[field]["Required value"] == requirement
-        assert rows[field]["Current complete"] == "false"
+        assert rows[field]["Current complete"] == complete
     for invariant in (
         "placeholder rollback commands are not executable rollback evidence",
-        "rollback command must point at the same real implementation commit SHA",
-        "dispatcher landing evidence cannot be recorded before explicit production wiring approval",
-        "landing evidence must remain incomplete until implementation is pushed",
+        "a future production wiring rollback command must point at the same real implementation commit SHA",
+        "production dispatcher landing evidence cannot be recorded before explicit production wiring approval",
+        "production wiring landing evidence must remain incomplete until implementation is pushed",
+        "governance-only completion rollback points at the governance completion transition commit, not a production implementation commit",
     ):
         assert invariant in section
     for boundary in (
@@ -6061,6 +6079,87 @@ def test_playbook_records_dispatcher_landing_evidence_rollback_guard() -> None:
         assert boundary in section
 
 
+def test_playbook_records_dispatcher_composition_root_core_landing_completion_transition_record() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Dispatcher composition root core landing completion transition record",
+    )
+
+    assert "Status: governance-only completion transition landed after explicit approval." in section
+    assert "Dispatcher/composition root production wiring core landing completion: approved (Path A)" in section
+    assert "approval type: governance-only completion transition (Path A)" in section
+    assert "no production dispatcher flow changed" in section
+    assert "no composition root production rewire pursued" in section
+    # Completion rationale: composition root already wires concrete implementations
+    assert "`build_agent_components` already assembles every concrete production implementation" in section
+    # The neutral application/read-model layer is already load-bearing in production
+    assert "`SubmitTaskIngress().submit(...)` runs at `flaghunter/interface/web_server.py` and `flaghunter/mcp/server/mcp_tools.py`" in section
+    assert "`build_task_board_projection` is consumed by `blackboard_lite.py`, `web_control_decision.py`, `web_serialize_task.py`, and `web_trace_timeline.py`" in section
+    assert "Dispatcher composition root snapshot builder retirement record" in section
+    assert "completes the core-candidate migration series without replacing the working dispatcher loop" in section
+    for surface in (
+        "Core production approval package aggregate guard",
+        "Core readiness aggregate acceptance matrix",
+        "Post read-side core decoupling approval queue",
+        "Core implementation landing evidence completeness matrix",
+        "Core implementation sequence gate",
+        "Core first implementation slice recommendation",
+        "Dispatcher landing evidence rollback guard",
+    ):
+        assert surface in section
+    assert "Rollback command: git revert <Dispatcher composition root core landing completion transition commit>" in section
+    for boundary in (
+        "no `CTFTaskDispatcher` flow changes",
+        "no composition root production wiring",
+        "no MCP production wiring",
+        "no Web/CLI/TUI task wiring changes",
+        "no ToolExecutor changes",
+        "no `CTFState` ownership split",
+        "no proof-authority behavior changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
+def test_playbook_records_dispatcher_composition_root_snapshot_builder_retirement_record() -> None:
+    text = _playbook_text()
+    section = _heading_section_text(
+        text,
+        "Dispatcher composition root snapshot builder retirement record",
+    )
+
+    assert "Status: dispatcher-flow rewire and port-based snapshot builder consumption retired, not pursued." in section
+    assert "Path A decision" in section
+    assert "dispatcher main-flow rewire — retired" in section
+    assert (
+        "`build_challenge_snapshot_service` and `build_challenge_board_read_model` forced production consumption"
+        in section
+    )
+    assert "would change an observable inspection field for zero functional gain" in section
+    # Retained, already load-bearing
+    assert "`SubmitTaskIngress` production consumption at the Web and MCP task-ingress entrypoints" in section
+    assert "`build_task_board_projection` production consumption in the Web/blackboard read paths" in section
+    assert "remain available as optional, unit-tested seams for any future approved wiring slice" in section
+    for invariant in (
+        "retiring a surface is a governance decision, not a production code change",
+        "retired surfaces may be revived only under a future explicit dispatcher/composition-root approval naming one entrypoint family and one rollback commit",
+        "the legacy dispatcher and entrypoints remain the production task-execution path",
+    ):
+        assert invariant in section
+    for boundary in (
+        "no `CTFTaskDispatcher` flow changes",
+        "no composition root production wiring",
+        "no ToolExecutor changes",
+        "no `CTFState` ownership split",
+        "no proof-authority behavior changes",
+        "no P5 implementation",
+        "no crew/recovery changes",
+    ):
+        assert boundary in section
+
+
 def test_playbook_records_core_first_slice_recommendation_gate() -> None:
     text = _playbook_text()
     section = _heading_section_text(
@@ -6068,9 +6167,9 @@ def test_playbook_records_core_first_slice_recommendation_gate() -> None:
         "Core first implementation slice recommendation",
     )
 
-    assert "Status: recommendation recorded, implementation not approved by this section." in section
-    assert "Recommended next approval review: Dispatcher/composition root production wiring" in section
-    assert "Dispatcher/composition root production wiring remains last" in section
+    assert "Status: recommendation recorded; all core candidates closed, no further approval review pending." in section
+    assert "Recommended next approval review: none; all four core candidates are closed." in section
+    assert "Dispatcher/composition root production wiring remained last" in section
     rows = _markdown_table_rows(section)
     assert [row["Order"] for row in rows] == ["1", "2", "3", "4"]
     assert [row["Core candidate"] for row in rows] == [
@@ -6083,13 +6182,13 @@ def test_playbook_records_core_first_slice_recommendation_gate() -> None:
         "Verifier/proof authority boundary": "completed prerequisite",
         "State ownership split": "completed prerequisite",
         "ToolExecutor side-effect split": "completed prerequisite",
-        "Dispatcher/composition root production wiring": "next approvable final review",
+        "Dispatcher/composition root production wiring": "completed via governance-only completion",
     }
     expected_approved = {
         "Verifier/proof authority boundary": "governance-only completion",
         "State ownership split": "true",
         "ToolExecutor side-effect split": "true",
-        "Dispatcher/composition root production wiring": "false",
+        "Dispatcher/composition root production wiring": "governance-only completion",
     }
     for row in rows:
         assert row["Implementation approved"] == expected_approved[row["Core candidate"]]
@@ -6098,12 +6197,12 @@ def test_playbook_records_core_first_slice_recommendation_gate() -> None:
         assert row["Why this order"]
     assert rows[0]["Implementation approved"] == "governance-only completion"
     assert rows[1]["First approved slice to request"] == "snapshot ownership seam (claim-store seam retired, not pursued)"
-    assert rows[3]["First approved slice to request"] == "composition-root wiring only after proof, state, and executor seams land"
+    assert rows[3]["First approved slice to request"] == "composition-root already assembles concrete implementations; dispatcher-flow rewire retired, not pursued"
     for invariant in (
         "recommendation does not approve implementation",
         "recommendation role must match the core implementation sequence gate",
         "human approval must name exactly one core candidate and one first slice",
-        "dispatcher/composition root work must stay last until narrower core seams land",
+        "dispatcher/composition root work stayed last and closed via governance-only completion after narrower core seams landed",
     ):
         assert invariant in section
 
@@ -6115,7 +6214,7 @@ def test_playbook_records_core_implementation_sequence_gate() -> None:
         "Core implementation sequence gate",
     )
 
-    assert "Status: sequence gate recorded; State and ToolExecutor split landed, Dispatcher is next approvable." in section
+    assert "Status: sequence gate recorded; all core candidates closed (Verifier/State/ToolExecutor/Dispatcher)." in section
     rows = {
         row["Core candidate"]: row
         for row in _markdown_table_rows(section)
@@ -6141,9 +6240,9 @@ def test_playbook_records_core_implementation_sequence_gate() -> None:
         },
         "Dispatcher/composition root production wiring": {
             "Order": "4",
-            "Current gate": "next approvable implementation review",
+            "Current gate": "governance-only completion landed",
             "Blocked by": "none",
-            "Required before next candidate": "landing evidence complete",
+            "Required before next candidate": "complete",
         },
     }
     assert set(rows) == set(expected)
