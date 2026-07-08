@@ -20,62 +20,18 @@ from typing import Any
 from flaghunter.application.challenge.board_read_model_service import (
     build_task_board_projection,
 )
-from flaghunter.domain.challenge.contracts import BoardItem, ChallengeBoardReadModel
+from flaghunter.domain.challenge.contracts import ChallengeBoardReadModel
 
-from .blackboard_lite import build_task_blackboard_snapshot
+from .blackboard_lite import (
+    _board_item_from_snapshot,
+    _board_items_from_snapshot,
+    build_task_blackboard_snapshot,
+)
 from .control_contract import build_decision_record, resolve_control_decision
 from .web_serialize_task import (
     _merge_blackboard_snapshots,
     _normalized_blackboard_snapshot,
 )
-
-
-def _board_item_from_snapshot(
-    item: dict[str, Any],
-    *,
-    item_id: str,
-    board_bucket: str = "",
-) -> BoardItem | None:
-    kind = str(item.get("kind") or "").strip()
-    if not kind:
-        return None
-    metadata: dict[str, Any] = {}
-    if item.get("rationale") is not None:
-        metadata["rationale"] = item.get("rationale")
-    if board_bucket:
-        metadata["boardBucket"] = board_bucket
-    return BoardItem(
-        item_id=item_id,
-        item_type=kind,
-        value=item.get("value"),
-        source_ref=(
-            str(item.get("source"))
-            if item.get("source") is not None
-            else None
-        ),
-        confidence=item.get("confidence"),
-        metadata=metadata,
-    )
-
-
-def _board_items_from_snapshot(
-    items: list[Any],
-    *,
-    prefix: str,
-    board_bucket: str = "",
-) -> list[BoardItem]:
-    board_items: list[BoardItem] = []
-    for index, item in enumerate(items):
-        if not isinstance(item, dict):
-            continue
-        board_item = _board_item_from_snapshot(
-            item,
-            item_id=f"{prefix}-{index}",
-            board_bucket=board_bucket,
-        )
-        if board_item is not None:
-            board_items.append(board_item)
-    return board_items
 
 
 def _project_control_decision_board(snapshot: dict[str, Any]) -> dict[str, Any]:

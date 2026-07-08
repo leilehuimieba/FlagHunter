@@ -717,6 +717,54 @@ def _board_items_from_projection(
     return board_items
 
 
+def _board_item_from_snapshot(
+    item: dict[str, Any],
+    *,
+    item_id: str,
+    board_bucket: str = "",
+) -> BoardItem | None:
+    kind = str(item.get("kind") or "").strip()
+    if not kind:
+        return None
+    metadata: dict[str, Any] = {}
+    if item.get("rationale") is not None:
+        metadata["rationale"] = item.get("rationale")
+    if board_bucket:
+        metadata["boardBucket"] = board_bucket
+    return BoardItem(
+        item_id=item_id,
+        item_type=kind,
+        value=item.get("value"),
+        source_ref=(
+            str(item.get("source"))
+            if item.get("source") is not None
+            else None
+        ),
+        confidence=item.get("confidence"),
+        metadata=metadata,
+    )
+
+
+def _board_items_from_snapshot(
+    items: list[Any],
+    *,
+    prefix: str,
+    board_bucket: str = "",
+) -> list[BoardItem]:
+    board_items: list[BoardItem] = []
+    for index, item in enumerate(items):
+        if not isinstance(item, dict):
+            continue
+        board_item = _board_item_from_snapshot(
+            item,
+            item_id=f"{prefix}-{index}",
+            board_bucket=board_bucket,
+        )
+        if board_item is not None:
+            board_items.append(board_item)
+    return board_items
+
+
 def _project_candidate_a_board(
     snapshot: dict[str, Any],
 ) -> dict[str, Any]:
