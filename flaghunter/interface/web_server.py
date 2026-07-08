@@ -144,6 +144,7 @@ from .web_control_decision import (
 )
 from .web_dispatcher_hint import _ctf_dispatcher_hint, _latest_user_hint
 from .web_ingress_handoff import _build_ingress_handoff
+from .web_attachment_routes import make_attachment_handlers
 from .web_memory_routes import make_memory_handlers
 from .web_settings_routes import make_settings_handlers
 from ..agents.pa_agent.session_context import build_workspace_run_context
@@ -2201,73 +2202,7 @@ def _make_handlers(project_root: Path):
 
     # ── Attachment upload ─────────────────────────────────────────────────────
 
-    async def post_attachments(req: web.Request) -> web.Response:
-        """POST /api/tasks/{taskId}/attachments  — multipart/form-data
-        Saves uploaded files to loot/uploads/{taskId}/ and returns metadata.
-        """
-        task_id = req.match_info.get("taskId", "").strip()
-        if not task_id:
-            return web.Response(status=400, text="taskId required")
-
-        upload_dir = project_root / "loot" / "uploads" / task_id
-        upload_dir.mkdir(parents=True, exist_ok=True)
-
-        saved: list[dict] = []
-        try:
-            reader = await req.multipart()
-            async for part in reader:
-                if part.name != "files":
-                    continue
-                filename = part.filename or f"file_{len(saved)}"
-                # Sanitise filename: strip path separators
-                filename = Path(filename).name or f"file_{len(saved)}"
-                dest = upload_dir / filename
-                # Avoid overwrite: append suffix if exists
-                stem, suffix = dest.stem, dest.suffix
-                counter = 1
-                while dest.exists():
-                    dest = upload_dir / f"{stem}_{counter}{suffix}"
-                    counter += 1
-
-                size = 0
-                with dest.open("wb") as fh:
-                    while True:
-                        chunk = await part.read_chunk(65536)
-                        if not chunk:
-                            break
-                        fh.write(chunk)
-                        size += len(chunk)
-
-                saved.append({
-                    "name": filename,
-                    "saved_as": dest.name,
-                    "size": size,
-                    "path": str(dest.relative_to(project_root)),
-                })
-                logger.info("Attachment saved: %s (%d bytes) for task %s", dest, size, task_id)
-
-        except Exception as exc:
-            logger.exception("post_attachments error for task %s: %s", task_id, exc)
-            return web.Response(status=500, text=str(exc))
-
-        return web.json_response({"taskId": task_id, "files": saved})
-
-    async def get_attachments(req: web.Request) -> web.Response:
-        """GET /api/tasks/{taskId}/attachments — list uploaded files for a task."""
-        task_id = req.match_info.get("taskId", "").strip()
-        upload_dir = project_root / "loot" / "uploads" / task_id
-        if not upload_dir.exists():
-            return web.json_response({"taskId": task_id, "files": []})
-        files = []
-        for p in sorted(upload_dir.iterdir()):
-            if p.is_file():
-                files.append({
-                    "name": p.name,
-                    "saved_as": p.name,
-                    "size": p.stat().st_size,
-                    "path": str(p.relative_to(project_root)),
-                })
-        return web.json_response({"taskId": task_id, "files": files})
+    attachment_handlers = make_attachment_handlers(project_root)
 
     # ── Memory API ────────────────────────────────────────────────────────────
 
@@ -2319,8 +2254,7 @@ def _make_handlers(project_root: Path):
         "open_knowledge_doc": open_knowledge_doc,
         "get_knowledge_doc_content": get_knowledge_doc_content,
         "post_knowledge_document": post_knowledge_document,
-        "post_attachments": post_attachments,
-        "get_attachments": get_attachments,
+        **attachment_handlers,
         **memory_handlers,
         "sse_stream": sse_stream,
     }
