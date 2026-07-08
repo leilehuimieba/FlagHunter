@@ -428,6 +428,54 @@ async def test_blackboard_loop_cold_memory_adds_no_cross_run_hints(monkeypatch):
     assert "PREFER — this chain solved SIMILAR" not in llm.seen_user
 
 
+@pytest.mark.asyncio
+async def test_strategy_memory_contract_populates_fingerprint_for_pheromone_recall(
+    tmp_path, monkeypatch
+):
+    # 5b cut-7 (②) LIVE-WIRE guard. The two cut-7 tests above both SHORTCUT the
+    # fingerprint: one force-sets ``_current_fingerprint = object()``, the other leaves
+    # it None. Neither pins the invariant the positive-pheromone hint actually rides on —
+    # that the coordinator's setup contract populates ``_current_fingerprint`` BEFORE the
+    # solve loop, or the recall (guarded by ``if fingerprint is not None``) silently goes
+    # dead and ② stops reaching the brain while every other test stays green. Drive the
+    # REAL setup contract (the same call execute() makes at coordinator.py:2019, before it
+    # hands off to _run_solve_loop at :2036), then confirm the recall→brain wire fires off
+    # that real fingerprint — no ``object()`` stand-in.
+    from flaghunter.agents.pa_agent.strategy_memory import StrategyMemoryStore
+
+    llm = _CapturingLLM()
+    disp = _dispatcher(llm)
+    disp.strategy_memory = StrategyMemoryStore(path=tmp_path / "strategy_memory.json")
+
+    await disp.coordinator._apply_strategy_memory_contract(
+        disp, target="ex.com", page_features={"content": "login username password"}
+    )
+    # The load-bearing invariant neither existing cut-7 test covers.
+    assert disp._current_fingerprint is not None
+
+    monkeypatch.setattr(
+        disp.strategy_memory,
+        "recall_chain_pheromone",
+        lambda fingerprint, **kw: {"sqli_dump_win": 0.91},
+    )
+
+    async def _identity(result):
+        return result
+
+    monkeypatch.setattr(disp, "_finalize_solve_result", _identity)
+    monkeypatch.setattr(
+        disp, "_chain_handler_map", lambda *, target, page_features, hint: {"web": (lambda: None)}
+    )
+
+    await disp._run_blackboard_loop(
+        target="ex.com", hint="", page_features={}, result=SolveResult(success=False)
+    )
+
+    # PREFER hint reached the brain off a fingerprint the REAL setup contract built.
+    assert "PREFER — this chain solved SIMILAR past challenges" in llm.seen_user
+    assert "sqli_dump_win" in llm.seen_user
+
+
 # --- 5b cut-6: wrong-flag feedback — prune recoverable before finalize -------
 
 
