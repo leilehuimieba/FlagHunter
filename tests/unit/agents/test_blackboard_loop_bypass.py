@@ -2,8 +2,9 @@
 
 Pins the cutover wiring: behind ``FLAGHUNTER_BLACKBOARD_LOOP`` the dispatcher drives
 the solve with the model-driven Shape-A loop (chains-as-tools + CTFState seams + LLM
-brain) and maps its ``SolveOutcome`` onto a ``SolveResult``. Default-OFF means the
-chain-order harness is byte-unchanged (guarded by the 705-test suite staying green).
+brain) and maps its ``SolveOutcome`` onto a ``SolveResult``. As of the 5b cutover this
+loop is the DEFAULT driver; ``=false`` falls back to the chain-order harness (kept as a
+reversible escape hatch until it is retired).
 """
 
 from __future__ import annotations
@@ -42,8 +43,16 @@ def _dispatcher(llm):
 # --- env flag --------------------------------------------------------------
 
 
-def test_flag_defaults_off(monkeypatch):
+def test_flag_defaults_on(monkeypatch):
+    # 5b cutover: the blackboard loop is now the DEFAULT driver (parity pinned by this
+    # module + test_blackboard_finalize_parity.py). Unset env → enabled.
     monkeypatch.delenv("FLAGHUNTER_BLACKBOARD_LOOP", raising=False)
+    assert _blackboard_loop_enabled() is True
+
+
+def test_flag_reads_falsy_escape_hatch(monkeypatch):
+    # The chain-order harness stays reachable as a reversible fallback: =false disables.
+    monkeypatch.setenv("FLAGHUNTER_BLACKBOARD_LOOP", "false")
     assert _blackboard_loop_enabled() is False
 
 

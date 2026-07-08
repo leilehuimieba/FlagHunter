@@ -260,12 +260,17 @@ def _canonical_verified_flag_claim_value(state: CTFState) -> str | None:
 
 
 def _blackboard_loop_enabled() -> bool:
-    """Slice 5a opt-in flag for the model-driven solve loop (default OFF).
+    """Flag for the model-driven solve loop (default ON as of the 5b cutover).
 
     Same ``FLAGHUNTER_*`` truthy convention as the other dispatcher env flags
-    (e.g. ``FLAGHUNTER_AUTO_INSTALL``). Off → the chain-order harness runs unchanged.
+    (e.g. ``FLAGHUNTER_AUTO_INSTALL``). The blackboard loop is now the default
+    driver — contract parity with the retired chain-order harness is pinned by
+    test_blackboard_loop_bypass.py (per-cut mapping) and
+    test_blackboard_finalize_parity.py (terminal-verdict + no_progress derivation).
+    Set ``FLAGHUNTER_BLACKBOARD_LOOP=false`` to fall back to the chain-order harness
+    (kept as a reversible escape hatch until it is retired).
     """
-    return os.getenv("FLAGHUNTER_BLACKBOARD_LOOP", "false").strip().lower() == "true"
+    return os.getenv("FLAGHUNTER_BLACKBOARD_LOOP", "true").strip().lower() == "true"
 
 
 @dataclass
@@ -544,15 +549,18 @@ class CTFTaskDispatcher(
         if self.state is not None:
             self.state.enter_phase(Phase.EXPLOIT)
             self.state.apply_profile(self.profile)
-        # Slice 5a (strangler cutover, default OFF): when FLAGHUNTER_BLACKBOARD_LOOP
-        # is enabled, hand the solve to the model-driven Shape-A loop instead of the
-        # chain-order harness below. Strictly additive and reversible — when the flag
-        # is off (or the run lacks state/llm) this is a no-op and the old path is
-        # byte-unchanged. The recovery/terminal/experiment contracts below are NOT yet
-        # replicated by the new loop (migrated incrementally in 5b); this bypass exists
-        # to validate the driver on live runs, not to retire them. The new loop is the
-        # eventual sole driver (then choose_chain_order is deleted) only once it covers
-        # them. See [[project_flaghunter_blackboard_pivot]].
+        # 5b cutover (default ON): the model-driven Shape-A loop is now the DEFAULT
+        # driver — hand the solve to it whenever the run has state+llm. The per-chain /
+        # terminal contracts it once lacked are now migrated (5b cuts 1-7) and their
+        # parity with this chain-order harness is pinned by test_blackboard_loop_bypass.py
+        # (per-cut mapping) + test_blackboard_finalize_parity.py (terminal-verdict +
+        # no_progress_count derivation). The chain-order harness below is retained ONLY as
+        # a reversible escape hatch (FLAGHUNTER_BLACKBOARD_LOOP=false) pending its
+        # retirement (cutover step 4, when choose_chain_order is deleted). The
+        # experiment-feedback / hypothesis-ranking machinery this harness runs is
+        # deliberately NOT replicated: it feeds choose_chain_order, which the brain-driven
+        # loop replaces — re-attaching it would re-cage the LLM
+        # ([[feedback_less_is_more_dont_cage_llm]]). See [[project_flaghunter_blackboard_pivot]].
         if self.state is not None and self.llm is not None and _blackboard_loop_enabled():
             # F1 (P0 fatal-bug hardening): the blackboard loop was invoked unguarded.
             # Any exception (LLM 5xx, brain init, ChainHands crash, strategy_memory
