@@ -24,12 +24,32 @@ from ...interface.control_contract import (
 from ...interface.mode_router import resolve_mode_contract
 from ...session.event_bus import EventBus
 from .mcp_core import ToolRegistry
+from .mcp_task_contracts import (
+    _apply_local_asset_contract,
+    _apply_resume_contract,
+    _assign_ctf_run_artifacts,
+    _mark_entry_blocked,
+    _normalize_string_list,
+)
 from .mcp_task_presentation import (
     _append_derived_target_context_lines,
     _append_minimal_decision_record_lines,
     _append_run_context_lines,
     _derived_target_origin,
 )
+
+
+def _resolve_ingress_mode_contract(args: dict[str, object]) -> dict[str, str]:
+    # Stays in this module (not moved to mcp_task_contracts): it calls
+    # resolve_mode_contract, which tests monkeypatch in the mcp_tools namespace,
+    # so a sibling copy would resolve resolve_mode_contract in its own namespace
+    # and silently ignore that patch (the from-import rebind trap).
+    payload = {
+        key: args[key]
+        for key in ("task", "target", "mode", "ctfType", "resumeContext", "challengePath", "artifactPaths")
+        if key in args
+    }
+    return resolve_mode_contract(payload)
 
 if TYPE_CHECKING:
     from flaghunter.agents.pa_agent import FlagHunterAgent
@@ -278,42 +298,6 @@ def _resolve_target_scope(args: dict[str, object]) -> tuple[Optional[str], list[
     return target, scope
 
 
-def _resolve_ingress_mode_contract(args: dict[str, object]) -> dict[str, str]:
-    payload = {
-        key: args[key]
-        for key in ("task", "target", "mode", "ctfType", "resumeContext", "challengePath", "artifactPaths")
-        if key in args
-    }
-    return resolve_mode_contract(payload)
-
-
-def _normalize_string_list(value: object) -> list[str]:
-    if not isinstance(value, list):
-        return []
-    normalized: list[str] = []
-    for item in value:
-        text = str(item or "").strip()
-        if text:
-            normalized.append(text)
-    return normalized
-
-
-def _apply_local_asset_contract(entry: TaskEntry, args: dict[str, object]) -> None:
-    challenge_path = str(args.get("challengePath") or "").strip()
-    entry.challengePath = challenge_path or None
-    entry.artifactPaths = _normalize_string_list(args.get("artifactPaths"))
-
-
-def _apply_resume_contract(entry: TaskEntry, args: dict[str, object]) -> None:
-    raw = args.get("resumeContext")
-    if not isinstance(raw, dict):
-        entry.resumeFromRunId = None
-        entry.resumeFromCheckpointId = None
-        entry.resumeSummary = None
-        return
-    entry.resumeFromRunId = str(raw.get("runId") or "").strip() or None
-    entry.resumeFromCheckpointId = str(raw.get("checkpointId") or "").strip() or None
-    entry.resumeSummary = str(raw.get("summary") or "").strip() or None
 
 
 def _normalized_blackboard_snapshot(snapshot: dict[str, object] | None) -> dict[str, object]:
@@ -653,26 +637,6 @@ def _append_next_action_explanation_lines(lines: list[str], entry: TaskEntry) ->
         lines.append(f"next_action_summary: {summary}")
 
 
-def _mark_entry_blocked(entry: TaskEntry, reason: str | None = None) -> None:
-    entry.status = "blocked"
-    entry.result = None
-    if reason:
-        entry.error = reason
-
-
-def _assign_ctf_run_artifacts(entry: TaskEntry) -> None:
-    if str(entry.mode or "").strip() != "ctf":
-        return
-    if not entry.runId:
-        entry.runId = f"mcp-ctf-{entry.id}"
-
-    from ...harness.checkpoint_store import CheckpointStore
-    from ...harness.session_ledger import SessionLedger
-
-    ledger_path = SessionLedger(Path("loot") / "session_ledgers").path_for_run(entry.runId)
-    checkpoint_path = CheckpointStore(Path("loot") / "checkpoints").path_for_run(entry.runId)
-    entry.ledgerPath = str(ledger_path).replace("\\", "/")
-    entry.checkpointPath = str(checkpoint_path).replace("\\", "/")
 
 
 async def _submit_task_ingress(entry: TaskEntry, *, entry_point: str) -> None:
