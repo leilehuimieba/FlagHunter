@@ -12,6 +12,11 @@ from .task_dag_plan import (
     task_dag_plan_from_dict,
     task_dag_plan_to_dict,
 )
+from .task_dag_shared import (
+    _clamp_float,
+    _is_sensitive_key,
+    _redact_text,
+)
 
 
 TASK_DAG_RECOVERY_PROPOSAL_SCHEMA_VERSION = "p4c.task_dag_recovery_proposal.v1"
@@ -558,36 +563,6 @@ def _preview(value: Any, *, limit: int) -> str:
     return text[: max(0, int(limit))]
 
 
-def _redact_text(value: Any) -> str:
-    text = str(value or "")
-    if not text:
-        return ""
-    text = re.sub(r"(?im)^\s*set-cookie\s*:.*$", "<redacted>", text)
-    text = re.sub(r"(?im)^\s*cookie\s*:.*$", "<redacted>", text)
-    text = re.sub(r"(?im)^\s*authorization\s*:.*$", "<redacted>", text)
-    text = re.sub(
-        r"(?i)\bauthorization\s*:\s*bearer\s+[^\s,;&]+",
-        "authorization=<redacted>",
-        text,
-    )
-    text = re.sub(
-        r"(?i)\bauthorization\s*=\s*bearer\s+[^\s,;&]+",
-        "authorization=<redacted>",
-        text,
-    )
-    text = re.sub(
-        r"(?i)\b(token|api[_-]?key|password|secret|session|sessionid|cookie|authorization)\b\s*[:=]\s*(\"[^\"]*\"|'[^']*'|[^\s,;&]+)",
-        r"\1=<redacted>",
-        text,
-    )
-    text = re.sub(
-        r"(?i)([\"'])(token|api[_-]?key|password|secret|session|sessionid|cookie|authorization)[\"']\s*:\s*([\"'])(.*?)\3",
-        r'\1\2\1: \3<redacted>\3',
-        text,
-    )
-    return text
-
-
 def _looks_like_raw_body(text: str) -> bool:
     if not text:
         return False
@@ -605,23 +580,6 @@ def _looks_like_raw_body(text: str) -> bool:
             r"(?im)^\s*gid=\d+\(",
         )
     )
-
-
-def _is_sensitive_key(value: Any) -> bool:
-    return bool(
-        re.search(
-            r"(?i)(token|api[_-]?key|password|secret|session|sessionid|cookie|authorization)",
-            str(value or ""),
-        )
-    )
-
-
-def _clamp_float(value: Any, *, minimum: float, maximum: float) -> float:
-    try:
-        result = float(value)
-    except (TypeError, ValueError):
-        result = minimum
-    return max(minimum, min(maximum, result))
 
 
 def _validate_input_tree(label: str, value: Any) -> None:

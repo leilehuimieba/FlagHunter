@@ -10,6 +10,9 @@ from .task_dag_outcome_source import (
     build_manual_task_dag_outcome,
 )
 from .task_dag_receipt_factory import TaskDAGReceiptOutcome
+from .task_dag_shared import (
+    _coerce_str_list,
+)
 
 
 _SUCCESS_STATUSES = {"completed", "success", "succeeded", "ok"}
@@ -162,18 +165,6 @@ def _safe_metadata(value: Any) -> dict[str, Any]:
         "outcome_kind": metadata.get("outcome_kind", "dry_executor_like"),
         "source_kind": metadata.get("source_kind", "dry_result_adapter"),
     }
-
-
-def _coerce_str_list(value: Any) -> list[str]:
-    if value is None:
-        return []
-    if isinstance(value, str):
-        items = [value]
-    elif isinstance(value, (list, tuple, set)):
-        items = list(value)
-    else:
-        return []
-    return [str(item).strip() for item in items if str(item or "").strip()]
 
 
 def _optional_int(value: Any) -> int | None:

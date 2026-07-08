@@ -7,6 +7,11 @@ import re
 from typing import Any
 
 from .solve_node import SolveNodeReceipt
+from .task_dag_shared import (
+    _coerce_str_list,
+    _dedupe,
+    _redact_text,
+)
 
 
 RECEIPT_FACTORY_VERSION = "p4.task_dag_receipt_factory.v1"
@@ -151,26 +156,6 @@ def _safe_refs(values: Any) -> list[str]:
     return [_preview(item, limit=160) for item in _dedupe(_coerce_str_list(values))]
 
 
-def _dedupe(values: list[str]) -> list[str]:
-    result: list[str] = []
-    for item in values:
-        if item and item not in result:
-            result.append(item)
-    return result
-
-
-def _coerce_str_list(value: Any) -> list[str]:
-    if value is None:
-        return []
-    if isinstance(value, str):
-        items = [value]
-    elif isinstance(value, (list, tuple, set)):
-        items = list(value)
-    else:
-        return []
-    return [str(item).strip() for item in items if str(item or "").strip()]
-
-
 def _optional_float(value: Any) -> float | None:
     if value is None:
         return None
@@ -215,32 +200,3 @@ def _looks_like_raw_body(text: str) -> bool:
         )
     )
 
-
-def _redact_text(value: Any) -> str:
-    text = str(value or "")
-    if not text:
-        return ""
-    text = re.sub(r"(?im)^\s*set-cookie\s*:.*$", "<redacted>", text)
-    text = re.sub(r"(?im)^\s*cookie\s*:.*$", "<redacted>", text)
-    text = re.sub(r"(?im)^\s*authorization\s*:.*$", "<redacted>", text)
-    text = re.sub(
-        r"(?i)\bauthorization\s*:\s*bearer\s+[^\s,;&]+",
-        "authorization=<redacted>",
-        text,
-    )
-    text = re.sub(
-        r"(?i)\bauthorization\s*=\s*bearer\s+[^\s,;&]+",
-        "authorization=<redacted>",
-        text,
-    )
-    text = re.sub(
-        r"(?i)\b(token|api[_-]?key|password|secret|session|sessionid|cookie|authorization)\b\s*[:=]\s*(\"[^\"]*\"|'[^']*'|[^\s,;&]+)",
-        r"\1=<redacted>",
-        text,
-    )
-    text = re.sub(
-        r"(?i)([\"'])(token|api[_-]?key|password|secret|session|sessionid|cookie|authorization)[\"']\s*:\s*([\"'])(.*?)\3",
-        r'\1\2\1: \3<redacted>\3',
-        text,
-    )
-    return text

@@ -23,6 +23,12 @@ from .task_dag_replay_audit_view import (
     TaskDAGReplayAuditViewItem,
     build_task_dag_replay_audit_view,
 )
+from .task_dag_shared import (
+    _is_sensitive_key,
+    _nonnegative_int,
+    _payload,
+    _redact_text,
+)
 
 
 TASK_DAG_REPLAY_AUDIT_BUNDLE_SCHEMA_VERSION = "p4e.task_dag_replay_audit_bundle.v1"
@@ -333,16 +339,6 @@ def _bundle_id(
     return f"task_dag_replay_bundle_{digest}"
 
 
-def _payload(value: Any) -> dict[str, Any]:
-    if isinstance(value, dict):
-        return dict(value)
-    to_dict = getattr(value, "to_dict", None)
-    if callable(to_dict):
-        result = to_dict()
-        return dict(result or {}) if isinstance(result, dict) else {}
-    return {}
-
-
 def _coerce_sequence(value: Any) -> list[Any]:
     if value is None:
         return []
@@ -426,36 +422,6 @@ def _preview(value: Any, *, limit: int) -> str:
     return text[: max(0, int(limit))]
 
 
-def _redact_text(value: Any) -> str:
-    text = str(value or "")
-    if not text:
-        return ""
-    text = re.sub(r"(?im)^\s*set-cookie\s*:.*$", "<redacted>", text)
-    text = re.sub(r"(?im)^\s*cookie\s*:.*$", "<redacted>", text)
-    text = re.sub(r"(?im)^\s*authorization\s*:.*$", "<redacted>", text)
-    text = re.sub(
-        r"(?i)\bauthorization\s*:\s*bearer\s+[^\s,;&]+",
-        "authorization=<redacted>",
-        text,
-    )
-    text = re.sub(
-        r"(?i)\bauthorization\s*=\s*bearer\s+[^\s,;&]+",
-        "authorization=<redacted>",
-        text,
-    )
-    text = re.sub(
-        r"(?i)\b(token|api[_-]?key|password|secret|session|sessionid|cookie|authorization)\b\s*[:=]\s*(\"[^\"]*\"|'[^']*'|[^\s,;&]+)",
-        r"\1=<redacted>",
-        text,
-    )
-    text = re.sub(
-        r"(?i)([\"'])(token|api[_-]?key|password|secret|session|sessionid|cookie|authorization)[\"']\s*:\s*([\"'])(.*?)\3",
-        r'\1\2\1: \3<redacted>\3',
-        text,
-    )
-    return text
-
-
 def _looks_like_raw_body(text: str) -> bool:
     if not text:
         return False
@@ -471,15 +437,6 @@ def _looks_like_raw_body(text: str) -> bool:
             r"(?im)^\s*\d+\s+bytes\s+from\s+",
             r"(?im)^\s*uid=\d+\(",
             r"(?im)^\s*gid=\d+\(",
-        )
-    )
-
-
-def _is_sensitive_key(value: Any) -> bool:
-    return bool(
-        re.search(
-            r"(?i)(token|api[_-]?key|password|secret|session|sessionid|cookie|authorization)",
-            str(value or ""),
         )
     )
 
@@ -506,9 +463,3 @@ def _contains_proof_like_value(value: Any) -> bool:
         re.search(r"(?i)\b(?:flag|ctf)\{[^}\s]{1,160}\}", text)
     )
 
-
-def _nonnegative_int(value: Any) -> int:
-    try:
-        return max(0, int(value or 0))
-    except (TypeError, ValueError):
-        return 0

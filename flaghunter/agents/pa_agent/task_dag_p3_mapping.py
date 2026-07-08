@@ -26,6 +26,9 @@ from .task_dag_plan import (
     task_dag_plan_from_dict,
     task_dag_plan_to_dict,
 )
+from .task_dag_shared import (
+    _dedupe,
+)
 
 
 class TaskDAGMappingError(TaskDAGTransitionError):
@@ -232,10 +235,3 @@ def _metadata_value(node: TaskDAGNode, key: str) -> str:
 def _safe_list(values: Any) -> list[str]:
     return [_preview(item, limit=160) for item in _coerce_str_list(values)]
 
-
-def _dedupe(values: list[str]) -> list[str]:
-    result: list[str] = []
-    for item in values:
-        if item and item not in result:
-            result.append(item)
-    return result
