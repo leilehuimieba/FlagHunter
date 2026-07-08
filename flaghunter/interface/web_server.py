@@ -146,6 +146,7 @@ from .web_attachment_routes import make_attachment_handlers
 from .web_knowledge_routes import make_knowledge_handlers
 from .web_memory_routes import make_memory_handlers
 from .web_settings_routes import make_settings_handlers
+from .web_trace_routes import make_trace_handlers
 from ..agents.pa_agent.session_context import build_workspace_run_context
 
 logger = logging.getLogger(__name__)
@@ -1974,55 +1975,7 @@ def _make_handlers(project_root: Path):
             "alerts": alerts[:6],
         })
 
-    async def get_traces(req: web.Request) -> web.Response:
-        window_filter = str(req.rel_url.query.get("window") or "24h").lower()
-        if window_filter not in {"24h", "all"}:
-            window_filter = "24h"
-        target_filter = str(req.rel_url.query.get("target") or "all").strip()
-
-        now_dt = datetime.now(timezone.utc)
-        window_tasks: list[dict[str, Any]] = []
-        for task in _tasks.values():
-            if window_filter == "24h":
-                task_time = _parse_iso(task.get("startedAt")) or _parse_iso(task.get("createdAt"))
-                if not task_time or (now_dt - task_time) > timedelta(hours=24):
-                    continue
-            window_tasks.append(task)
-
-        available_targets = sorted(
-            {
-                str(task.get("target") or "").strip()
-                for task in window_tasks
-                if str(task.get("target") or "").strip()
-            }
-        )
-        target_options = ["all", *available_targets]
-        if target_filter not in target_options:
-            target_filter = "all"
-
-        filtered_tasks = [
-            task
-            for task in window_tasks
-            if target_filter == "all" or str(task.get("target") or "").strip() == target_filter
-        ]
-
-        filtered_tasks.sort(key=lambda t: t.get("createdAt") or t.get("startedAt") or "", reverse=True)
-        traces = [_build_trace_payload(project_root, t, include_timeline=False) for t in filtered_tasks]
-        return web.json_response({
-            "items": traces,
-            "filters": {
-                "window": window_filter,
-                "target": target_filter,
-                "targets": target_options,
-            },
-        })
-
-    async def get_trace(req: web.Request) -> web.Response:
-        run_id = req.match_info["runId"]
-        task = next((t for t in _tasks.values() if t.get("currentRunId", t.get("id")) == run_id), None)
-        if not task:
-            return web.json_response({"error": "not found"}, status=404)
-        return web.json_response(_build_trace_payload(project_root, task, include_timeline=True))
+    trace_handlers = make_trace_handlers(project_root, _tasks, _build_trace_payload)
 
     async def _collect_log_entries() -> list[dict[str, Any]]:
         import re
@@ -2103,8 +2056,7 @@ def _make_handlers(project_root: Path):
         "continue_task": continue_task,
         "post_hint": post_hint,
         "get_dashboard": get_dashboard,
-        "get_traces": get_traces,
-        "get_trace": get_trace,
+        **trace_handlers,
         "replay_trace": replay_trace,
         "get_logs": get_logs,
         **knowledge_handlers,
