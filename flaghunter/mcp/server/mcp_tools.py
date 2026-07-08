@@ -4,7 +4,6 @@ import asyncio
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Optional, Type
 
@@ -24,6 +23,7 @@ from ...interface.control_contract import (
 from ...interface.mode_router import resolve_mode_contract
 from ...session.event_bus import EventBus
 from .mcp_core import ToolRegistry
+from .mcp_model_readiness import _current_model_readiness, _read_local_env
 from .mcp_task_contracts import (
     _apply_local_asset_contract,
     _apply_resume_contract,
@@ -113,47 +113,6 @@ def get_outgoing_queue() -> asyncio.Queue:
     return _outgoing_queue
 
 
-def _read_local_env() -> dict[str, str]:
-    env_path = Path(".env")
-    result: dict[str, str] = {}
-    if env_path.exists():
-        for raw_line in env_path.read_text(encoding="utf-8").splitlines():
-            line = raw_line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, _, value = line.partition("=")
-            result[key.strip()] = value.strip()
-    return result
-
-
-def _current_model_readiness() -> dict[str, Any]:
-    from ...config.settings import (
-        get_settings,
-        resolve_model_provider,
-        resolve_model_readiness,
-    )
-
-    env = _read_local_env()
-    settings = get_settings()
-    api_base = env.get(
-        "LITELLM_API_BASE",
-        env.get("OPENAI_API_BASE", os.getenv("LITELLM_API_BASE") or os.getenv("OPENAI_API_BASE") or os.getenv("OPENAI_BASE_URL") or ""),
-    )
-    anthropic_api_key = env.get("ANTHROPIC_API_KEY") or settings.anthropic_api_key
-    openai_api_key = env.get("OPENAI_API_KEY") or settings.openai_api_key
-    provider = resolve_model_provider(
-        explicit_provider=env.get("FH_PROVIDER", os.getenv("FH_PROVIDER", "")),
-        api_base=api_base,
-        openai_api_key=openai_api_key,
-        anthropic_api_key=anthropic_api_key,
-    )
-    active_api_key = anthropic_api_key if provider == "anthropic" else openai_api_key
-    return resolve_model_readiness(
-        provider=provider,
-        model=env.get("FLAGHUNTER_MODEL") or settings.model or "",
-        api_base=api_base,
-        api_key=active_api_key,
-    )
 
 
 # ---------------------------------------------------------------------------
