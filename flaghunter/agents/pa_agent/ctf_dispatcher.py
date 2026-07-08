@@ -554,13 +554,22 @@ class CTFTaskDispatcher(
         # terminal contracts it once lacked are now migrated (5b cuts 1-7) and their
         # parity with this chain-order harness is pinned by test_blackboard_loop_bypass.py
         # (per-cut mapping) + test_blackboard_finalize_parity.py (terminal-verdict +
-        # no_progress_count derivation). The chain-order harness below is retained ONLY as
-        # a reversible escape hatch (FLAGHUNTER_BLACKBOARD_LOOP=false) pending its
-        # retirement (cutover step 4, when choose_chain_order is deleted). The
-        # experiment-feedback / hypothesis-ranking machinery this harness runs is
-        # deliberately NOT replicated: it feeds choose_chain_order, which the brain-driven
-        # loop replaces — re-attaching it would re-cage the LLM
-        # ([[feedback_less_is_more_dont_cage_llm]]). See [[project_flaghunter_blackboard_pivot]].
+        # no_progress_count derivation).
+        #
+        # CUTOVER CLOSED as governance-only completion (2026-07-08): the blackboard loop
+        # is LLM-gated (`self.llm is not None`), so it structurally CANNOT replace the
+        # chain-order harness below on the no-LLM path. That path is load-bearing — the
+        # deterministic replay eval (flaghunter/eval/replay.py builds the dispatcher with
+        # llm=None) and ~29 dispatcher tests drive it, and it is what proves the very
+        # parity this comment cites. So the chain-order harness is NOT a retirement-track
+        # escape hatch: it is the permanent no-LLM deterministic substrate. `choose_chain_order`
+        # stays for the same reason (no-LLM coordinator solve + pheromone dedup + recovery
+        # rerank all consume it). What the flag toggles is only *which driver runs when an
+        # LLM is present*. The experiment-feedback / hypothesis-ranking machinery this
+        # harness runs is deliberately NOT replicated into the brain path: it feeds
+        # choose_chain_order, which the brain-driven loop replaces — re-attaching it would
+        # re-cage the LLM ([[feedback_less_is_more_dont_cage_llm]]).
+        # See [[project_flaghunter_blackboard_pivot]].
         if self.state is not None and self.llm is not None and _blackboard_loop_enabled():
             # F1 (P0 fatal-bug hardening): the blackboard loop was invoked unguarded.
             # Any exception (LLM 5xx, brain init, ChainHands crash, strategy_memory
