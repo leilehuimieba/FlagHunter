@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Type
 from flaghunter.application.challenge.task_ingress_service import SubmitTaskIngress
 
 from ...interface.blackboard_lite import (
+    _board_item_from_snapshot,
     build_entry_blackboard_snapshot,
     format_blackboard_snapshot_lines,
     normalize_blackboard_snapshot,
@@ -419,33 +420,6 @@ def _append_blackboard_snapshot_lines(
         session_context=session_context,
     )
 
-    def _board_item(
-        item: dict[str, Any],
-        *,
-        item_id: str,
-        board_bucket: str = "",
-    ) -> BoardItem | None:
-        kind = str(item.get("kind") or "").strip()
-        if not kind:
-            return None
-        metadata: dict[str, Any] = {}
-        if item.get("rationale") is not None:
-            metadata["rationale"] = item.get("rationale")
-        if board_bucket:
-            metadata["boardBucket"] = board_bucket
-        return BoardItem(
-            item_id=item_id,
-            item_type=kind,
-            value=item.get("value"),
-            source_ref=(
-                str(item.get("source"))
-                if item.get("source") is not None
-                else None
-            ),
-            confidence=item.get("confidence"),
-            metadata=metadata,
-        )
-
     def _board_items(
         items: object,
         *,
@@ -456,7 +430,7 @@ def _append_blackboard_snapshot_lines(
         for index, item in enumerate(list(items or [])):
             if not isinstance(item, dict):
                 continue
-            board_item = _board_item(
+            board_item = _board_item_from_snapshot(
                 item,
                 item_id=f"{prefix}-{index}",
                 board_bucket=board_bucket,
