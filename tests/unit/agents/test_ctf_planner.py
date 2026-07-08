@@ -5,13 +5,14 @@ from types import SimpleNamespace
 import pytest
 
 from flaghunter.agents.pa_agent.ctf_planner import (
+    CTF_QUICK_PATHS,
     CTF_TOOL_CHAINS,
     build_ctf_convergence_hint,
     build_ctf_system_prompt,
     detect_type,
     get_ctf_quick_path,
 )
-from flaghunter.agents.pa_agent.pa_agent import FlagHunterAgent
+from flaghunter.agents.pa_agent.pa_agent import _WEBISH_CTF_TYPES, FlagHunterAgent
 from flaghunter.harness.artifact_registry import ArtifactRegistry
 
 
@@ -163,6 +164,40 @@ def test_ctf_tool_chains_have_payloads():
         chain = CTF_TOOL_CHAINS[vuln_type]
         assert chain["tools"]
         assert chain["payloads"]
+
+
+def test_ctf_quick_paths_cover_tool_chain_types():
+    """Guard against the CTF_QUICK_PATHS / CTF_TOOL_CHAINS type-map drift.
+
+    Both maps are keyed by CTF challenge type. CTF_QUICK_PATHS is the live map
+    consumed by get_ctf_quick_path -> build_ctf_system_prompt; if it drifts to a
+    subset of the canonical types, a challenge whose ``Challenge type:`` header
+    (or keyword classification) names a missing type silently falls through to
+    the generic ``web`` quick-path — wrong step-by-step guidance. Pin coverage.
+    """
+    missing = set(CTF_TOOL_CHAINS) - set(CTF_QUICK_PATHS)
+    assert not missing, f"CTF_QUICK_PATHS missing quick-paths for: {sorted(missing)}"
+
+    # Types that previously drifted must resolve to their own path, not web.
+    web_path = get_ctf_quick_path("web")
+    for chtype in ("ssrf", "upload", "cmdi"):
+        assert get_ctf_quick_path(chtype) != web_path, (
+            f"{chtype!r} still falls through to the generic web quick-path"
+        )
+
+
+def test_ctf_quick_paths_cover_planner_challenge_types():
+    """Every challenge type the planner can emit must have a quick-path.
+
+    ``_WEBISH_CTF_TYPES`` (pa_agent) and the keyword classifier use the
+    planner-side ``cmd`` spelling; both must resolve to a real quick-path.
+    """
+    missing = _WEBISH_CTF_TYPES - set(CTF_QUICK_PATHS)
+    assert not missing, f"CTF_QUICK_PATHS missing planner types: {sorted(missing)}"
+
+    # The keyword classifier emits "cmd"; the chain side supplies "cmdi". Both
+    # must map to the same command-injection quick-path.
+    assert get_ctf_quick_path("cmd") == get_ctf_quick_path("cmdi")
 
 
 @pytest.mark.asyncio
