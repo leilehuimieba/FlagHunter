@@ -24,6 +24,7 @@ from ...interface.mode_router import resolve_mode_contract
 from ...session.event_bus import EventBus
 from .mcp_core import ToolRegistry
 from .mcp_model_readiness import _current_model_readiness, _read_local_env
+from .mcp_task_context import _entry_challenge_context, _entry_session_context
 from .mcp_task_contracts import (
     _apply_local_asset_contract,
     _apply_resume_contract,
@@ -399,33 +400,6 @@ def _build_ingress_handoff(
     return handoff
 
 
-def _entry_session_context(entry: TaskEntry) -> dict[str, object]:
-    run_id = str(getattr(entry, "runId", "") or "").strip()
-    if not run_id:
-        return {}
-    try:
-        from ...agents.pa_agent.session_context import build_workspace_run_context
-
-        ledger_path = str(getattr(entry, "ledgerPath", "") or "").strip()
-        checkpoint_path = str(getattr(entry, "checkpointPath", "") or "").strip()
-        workspace_root = (
-            Path(ledger_path).parent.parent.parent
-            if ledger_path and len(Path(ledger_path).parts) >= 3
-            else Path.cwd()
-        )
-        if checkpoint_path and len(Path(checkpoint_path).parts) >= 3:
-            checkpoint_workspace_root = Path(checkpoint_path).parent.parent.parent
-            if checkpoint_workspace_root.exists():
-                workspace_root = checkpoint_workspace_root
-        context = build_workspace_run_context(
-            workspace_root,
-            run_id,
-            event_limit=20,
-            artifact_limit=20,
-        )
-    except Exception:
-        return {}
-    return dict(context) if isinstance(context, dict) else {}
 
 
 def _append_blackboard_snapshot_lines(
@@ -612,18 +586,6 @@ async def _submit_task_ingress(entry: TaskEntry, *, entry_point: str) -> None:
     )
 
 
-def _entry_challenge_context(entry: TaskEntry) -> dict[str, object]:
-    context: dict[str, object] = {
-        "challengePath": entry.challengePath,
-        "artifactPaths": list(entry.artifactPaths or []),
-    }
-    if entry.resumeFromRunId or entry.resumeFromCheckpointId or entry.resumeSummary:
-        context["resumeContext"] = {
-            "runId": str(entry.resumeFromRunId or "").strip(),
-            "checkpointId": str(entry.resumeFromCheckpointId or "").strip(),
-            "summary": str(entry.resumeSummary or "").strip(),
-        }
-    return context
 
 
 def _sync_runtime_challenge_context(entry: TaskEntry, dispatcher: object) -> None:
