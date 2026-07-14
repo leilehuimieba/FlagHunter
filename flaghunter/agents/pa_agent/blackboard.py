@@ -35,6 +35,16 @@ from .ctf_state import CTFState, FlagRecord
 _REFUTED_HYPOTHESIS_STATUSES = {"rejected", "exhausted"}
 
 
+# Observation kinds that are NOT substantive world-state progress:
+#   • tool_result — the call marker itself (handled separately below);
+#   • model_fact / model_intent — the brain's own narration / stated direction
+#     (source="brain"). Counting these as progress would let the model fabricate
+#     "advancement" by narrating a new sentence each spin — the exact fixation gap-B
+#     is meant to close. Substance must be WORLD-derived (chain findings, artifacts,
+#     signal_met detections, discovered endpoints), not model self-talk.
+_NON_SUBSTANTIVE_OBS_KINDS = frozenset({"tool_result", "model_fact", "model_intent"})
+
+
 def _project_attempts(state: CTFState) -> list[BoardAttempt]:
     """Tally already-run tool actions from the ledger — the negative-feedback trail.
 
@@ -42,31 +52,59 @@ def _project_attempts(state: CTFState) -> list[BoardAttempt]:
     run many times keeps a complete tally even after its individual results scroll off
     the recent-facts view — that persistence is the whole point: the smoke test showed
     the brain re-running one chain a dozen times because each result aged out and it
-    never saw the pile-up. Aggregated per tool: total calls, how many made *distinct*
-    progress, and the last outcome summary. A ``tool_result`` value is productive when it
-    carries a flag or ``progress=true`` (the summary shape from ``hands.summarize_outcome``)
-    — but only *distinct* productive results count: ``summarize_outcome`` is deterministic,
-    so a chain that keeps REPLAYING the same ``progress=true reason=…`` line collapses to a
-    single distinct result. That is the "progress=true spinning" the third smoke test exposed
-    (lfi hammered six times, each an identical productive-looking line): total calls climb
-    while distinct progress stays at one, which :attr:`BoardAttempt.stalled` reads as a switch
-    signal instead of mistaking repetition for advancement.
+    never saw the pile-up. Aggregated per tool: total calls, how many made *substantive*
+    progress, and the last outcome summary.
+
+    **Progress = SUBSTANCE, not a new result string (gap-B).** The earlier version counted
+    *distinct* ``tool_result`` value strings as progress. But ``summarize_outcome`` emits
+    ``progress=true reason=<text>`` where ``reason`` is the chain's free-text self-report,
+    and a spinning chain varies that text every call ("auth form response changed",
+    "commands exhausted", …) — so distinct strings kept pace with the call count and
+    :attr:`BoardAttempt.stalled` never fired. The LoveSQL live run exposed this: 24 steps,
+    the cross-tool spinning cue never triggered because each tool looked like it was
+    advancing. A varying reason string is NOT advancement.
+
+    A call now counts as productive iff it actually moved WORLD state:
+
+    * its ``tool_result`` value carries a ``flag=`` (a real extraction — the strongest
+      signal, and the only substance the summary itself encodes), OR
+    * its execution window introduced at least one **globally-new world-derived
+      observation** — a chain finding / artifact / discovered endpoint / ``signal_met``
+      detection (kind ∉ :data:`_NON_SUBSTANTIVE_OBS_KINDS`), deduped by ``(kind, value)``
+      across the whole run so a chain that re-emits the SAME fact each call does not
+      re-count. ``progress=true`` with no flag and no new world observation is the chain
+      claiming progress it cannot show on the board — treated as non-productive, which is
+      exactly what makes a varying-reason spin read as stalled.
+
+    Chain execution appends its findings to ``state.observations`` before the loop's
+    ``record_tool_result`` seam appends the ``tool_result`` marker, so the substance for
+    call *k* lands in the window preceding call *k*'s marker; that window is attributed to
+    call *k*.
     """
     by_tool: dict[str, list] = {}
+    seen_substance: set[tuple[str, str]] = set()
+    window_has_new_substance = False
     for obs in state.observations:
-        if str(getattr(obs, "kind", "") or "") != "tool_result":
+        kind = str(getattr(obs, "kind", "") or "")
+        if kind != "tool_result":
+            if kind not in _NON_SUBSTANTIVE_OBS_KINDS:
+                sig = (kind, str(getattr(obs, "value", "") or ""))
+                if sig not in seen_substance:
+                    seen_substance.add(sig)
+                    window_has_new_substance = True
             continue
         meta = getattr(obs, "metadata", {}) or {}
         tool = str(meta.get("tool") or getattr(obs, "source", "") or "").strip() or "?"
         value = str(getattr(obs, "value", "") or "")
-        entry = by_tool.setdefault(tool, [0, set(), ""])
+        entry = by_tool.setdefault(tool, [0, 0, ""])
         entry[0] += 1
-        if value.startswith("flag=") or "progress=true" in value:
-            entry[1].add(value)
+        if value.startswith("flag=") or window_has_new_substance:
+            entry[1] += 1
         entry[2] = value
+        window_has_new_substance = False
     attempts = [
-        BoardAttempt(tool=tool, count=c, progress_count=len(distinct), last_result=v[:120])
-        for tool, (c, distinct, v) in by_tool.items()
+        BoardAttempt(tool=tool, count=c, progress_count=p, last_result=v[:120])
+        for tool, (c, p, v) in by_tool.items()
     ]
     # Most-repeated first; among equal counts, dead ends (no progress) first so the
     # brain reads the strongest "switch away" signal at the top.

@@ -194,13 +194,21 @@ def _tool_result(tool: str, value: str) -> Observation:
     return Observation(kind="tool_result", value=value, source=tool, metadata={"tool": tool})
 
 
+def _world_obs(kind: str, value: str, source: str = "chain") -> Observation:
+    # A world-derived substantive observation (chain finding / artifact / endpoint /
+    # signal_met) — NOT a tool_result marker and NOT brain narration (model_fact/intent).
+    return Observation(kind=kind, value=value, source=source)
+
+
 def test_attempts_tally_per_tool_with_progress_detection():
     from flaghunter.agents.pa_agent.blackboard import project_board
 
     state = CTFState(target="t", goal="g")
     state.observations.append(_tool_result("web", "progress=false reason=exhausted"))
     state.observations.append(_tool_result("web", "progress=false reason=nothing"))
-    state.observations.append(_tool_result("sqli", "progress=true"))
+    # sqli's call moved world state (a new endpoint surfaced) before its marker.
+    state.observations.append(_world_obs("endpoint", "/admin"))
+    state.observations.append(_tool_result("sqli", "progress=true reason=probed"))
     state.observations.append(_tool_result("lfi", "flag=flag{x}"))
 
     attempts = {a.tool: a for a in project_board(state).attempts}
@@ -211,9 +219,9 @@ def test_attempts_tally_per_tool_with_progress_detection():
 
 
 def test_attempts_replayed_progress_counts_once_and_reads_as_spinning():
-    # The third smoke test's "progress=true spinning": lfi run six times, each an
-    # IDENTICAL productive line. Distinct progress must stay at 1 (not 6) and the
-    # tool must read as stalled so the brain switches instead of hammering it.
+    # "progress=true spinning": lfi run six times, each an IDENTICAL productive-looking
+    # line but no flag and no new world observation. Productive calls stay at 0 and the
+    # tool reads as stalled so the brain switches instead of hammering it.
     from flaghunter.agents.pa_agent.blackboard import project_board
 
     state = CTFState(target="t", goal="g")
@@ -221,22 +229,53 @@ def test_attempts_replayed_progress_counts_once_and_reads_as_spinning():
         state.observations.append(_tool_result("lfi", "progress=true reason=commands"))
     lfi = next(a for a in project_board(state).attempts if a.tool == "lfi")
     assert lfi.count == 6
-    assert lfi.progress_count == 1  # six identical results collapse to one distinct
+    assert lfi.progress_count == 0  # no flag, no new world substance
     assert lfi.stalled is True
 
 
-def test_attempts_distinct_progress_not_flagged_spinning():
-    # A tool making genuine, DIFFERENT progress each call is not spinning even when
-    # run several times — distinct results keep pace with the call count.
+def test_attempts_varying_reason_without_substance_reads_as_spinning():
+    # gap-B (LoveSQL): a spinning chain VARIES its reason text every call, so the old
+    # distinct-string tally mistook it for progress and never stalled. Substance-based
+    # counting ignores the reason string — with no flag and no new world observation the
+    # varying-reason spin is non-productive and stalls.
     from flaghunter.agents.pa_agent.blackboard import project_board
 
     state = CTFState(target="t", goal="g")
-    state.observations.append(_tool_result("sqli", "progress=true reason=dbs"))
-    state.observations.append(_tool_result("sqli", "progress=true reason=tables"))
-    state.observations.append(_tool_result("sqli", "progress=true reason=dump"))
+    for reason in ("changed", "exhausted", "budget", "generic", "retry", "again"):
+        state.observations.append(_tool_result("sqli", f"progress=true reason={reason}"))
+    sqli = next(a for a in project_board(state).attempts if a.tool == "sqli")
+    assert sqli.count == 6 and sqli.progress_count == 0
+    assert sqli.stalled is True
+
+
+def test_attempts_distinct_progress_not_flagged_spinning():
+    # A tool making genuine, DIFFERENT progress each call is not spinning — each call
+    # moves WORLD state (a distinct new observation), so productive calls keep pace with
+    # the call count even though the reason strings alone would be indistinguishable.
+    from flaghunter.agents.pa_agent.blackboard import project_board
+
+    state = CTFState(target="t", goal="g")
+    for marker in ("db=shop", "table=users", "col=password"):
+        state.observations.append(_world_obs("sqli_dump", marker))
+        state.observations.append(_tool_result("sqli", "progress=true reason=dump"))
     sqli = next(a for a in project_board(state).attempts if a.tool == "sqli")
     assert sqli.count == 3 and sqli.progress_count == 3
     assert sqli.stalled is False
+
+
+def test_attempts_replayed_world_observation_does_not_recount():
+    # A chain that re-emits the SAME world observation each call is still spinning:
+    # (kind, value) dedup means the repeat introduces no NEW substance.
+    from flaghunter.agents.pa_agent.blackboard import project_board
+
+    state = CTFState(target="t", goal="g")
+    for _ in range(5):
+        state.observations.append(_world_obs("sqli_dump", "table=users"))  # identical
+        state.observations.append(_tool_result("sqli", "progress=true reason=dump"))
+    sqli = next(a for a in project_board(state).attempts if a.tool == "sqli")
+    assert sqli.count == 5
+    assert sqli.progress_count == 1  # only the first emission is new substance
+    assert sqli.stalled is True
 
 
 def test_attempts_scan_full_history_beyond_observation_limit():

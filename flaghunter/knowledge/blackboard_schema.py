@@ -203,17 +203,22 @@ class BoardAttempt:
 
     @property
     def stalled(self) -> bool:
-        """Repeated with no NEW progress — the salient dead-end / spinning signal.
+        """Repeated with no NEW substantive progress — the dead-end / spinning signal.
 
-        ``progress_count`` counts *distinct* productive results, so this fires on two
-        shapes the smoke tests exposed:
+        ``progress_count`` is the number of this tool's calls that moved WORLD state (a
+        ``flag=`` result or a globally-new world-derived observation — see
+        ``_project_attempts``); ``count - progress_count`` is therefore the number of
+        calls that showed nothing new on the board. This fires on two shapes:
 
         * **dead end** — run several times, never moved the needle
           (``progress_count == 0``), the original signal; and
-        * **spinning** — kept REPLAYING the same result (``progress=true`` with an
-          identical summary) so distinct progress lags far behind the call count.
-          Gated on ``>= 3`` stale repeats so a tool making genuine but slow progress
-          (e.g. 3 calls, 1 distinct result) is never mislabeled as a dead end.
+        * **spinning** — kept claiming ``progress=true`` (often with a *varying* reason
+          string) while producing no new flag or world observation, so productive calls
+          lag far behind the call count. Gated on ``>= 3`` non-productive calls so a tool
+          making genuine but slow progress (e.g. 3 calls, 1 real advance) is never
+          mislabeled. Basing this on substance, not on distinct result *strings*, is what
+          stops a chain that varies its reason text every call from masquerading as
+          advancement (gap-B, the LoveSQL spinning failure).
         """
         return self.count >= 2 and (
             self.progress_count == 0 or (self.count - self.progress_count) >= 3
