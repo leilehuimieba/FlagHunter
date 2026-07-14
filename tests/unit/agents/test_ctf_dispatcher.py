@@ -5652,6 +5652,62 @@ async def test_web_chain_reaches_jwt_manipulation_when_token_only_in_cookie(monk
 
 
 @pytest.mark.asyncio
+async def test_web_chain_reaches_auth_form_sqli_when_login_form_present(monkeypatch, tmp_path):
+    """detect_type only inspects body/URL, so a SQLi login form on a page with no
+    ?param= injection signal is classified "web"; the web chain must still reach
+    auth_form_sqli (the POST login-form counterpart to generic_param_sqli). This
+    is the EasySQL directness gap: without this the web chain spins on GET-param
+    strategies and never tries the login-form SQLi that actually solves it."""
+    monkeypatch.setattr(
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_auth_form_reach.json")
+    notes_module._notes.clear()
+
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+
+    dispatcher = CTFTaskDispatcher(runtime=_DispatcherAll404Runtime(), progress_callback=None)
+    dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="web")
+
+    calls: list[dict] = []
+
+    async def _fake_auth_form_sqli(target, auth_form):
+        calls.append(auth_form)
+        return _ChainOutcome(progress=True, flag="DASCTF{auth-form-sqli-via-web-chain}")
+
+    monkeypatch.setattr(dispatcher, "_attempt_auth_form_sqli", _fake_auth_form_sqli)
+
+    login_form = {
+        "action": "/check.php",
+        "method": "post",
+        "inputs": [
+            {"name": "username", "type": "text"},
+            {"name": "password", "type": "password"},
+        ],
+    }
+    features_with_login = {
+        "forms": [login_form],
+        "endpoints": [],
+        "raw_links": [],
+    }
+    outcome = await dispatcher._execute_web_chain("http://ctf.local/", features_with_login, "")
+    assert outcome.flag == "DASCTF{auth-form-sqli-via-web-chain}"
+    assert calls, "auth_form_sqli should run when a login form is present"
+
+    # Negative: no auth form -> precondition gates it out, strategy not called.
+    calls.clear()
+    dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="web")
+    features_no_form = {"forms": [], "endpoints": [], "raw_links": []}
+    await dispatcher._execute_web_chain("http://ctf.local/", features_no_form, "")
+    assert not calls, "auth_form_sqli must not fire without an auth form (precondition gate)"
+
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
 async def test_ctf_dispatcher_backup_source_leak_analyzes_inline_source_on_current_page(
     monkeypatch, tmp_path
 ):

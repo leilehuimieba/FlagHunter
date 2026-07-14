@@ -16,6 +16,15 @@ from .base import _ChainOutcome
 # `file_read_endpoint`, so listing it here only produced a silently-skipped no-op
 # (strategy_registry.get → None → `continue`). A distinct path-traversal technique
 # is a capability-layer gap, not a reachability bug.
+# `auth_form_sqli` is the login-form (POST) counterpart to `generic_param_sqli`
+# (GET params). It is registered under chain_name="sqli", so a challenge
+# classified "web" (via --ctf-type web or auto, when detect_type sees no sqli
+# signal) never reached it — the exact "strong capability that can't be reached"
+# reachability gap that once hid generic_param_sqli, jwt, cmdi and ssrf. It is
+# appended LAST so any challenge already solved by an earlier strategy returns
+# its flag first (only `flag` short-circuits `_run_strategy_sequence`, not
+# `progress`); its precondition (find_auth_form → username+password fields or an
+# auth action) gates it out of non-auth pages, and its flag is verification-gated.
 WEB_STRATEGY_ORDER = [
     "hint_chain_followup",
     "file_read_endpoint",
@@ -39,6 +48,7 @@ WEB_STRATEGY_ORDER = [
     "reflected_xss",
     "idor_sequential",
     "open_redirect",
+    "auth_form_sqli",
 ]
 
 
