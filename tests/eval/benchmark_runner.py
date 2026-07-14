@@ -106,17 +106,32 @@ def _benchmark_runtime_env() -> Iterator[None]:
     previous = {
         "CPA_M1_API_HUB": os.environ.get("CPA_M1_API_HUB"),
         "LITELLM_LOCAL_MODEL_COST_MAP": os.environ.get("LITELLM_LOCAL_MODEL_COST_MAP"),
+        # Strategy memory is now a shared, global cross-challenge store
+        # (workspaces.utils.get_strategy_memory_file). A standalone benchmark /
+        # model-matrix run builds REAL dispatchers, which query AND save to that
+        # store — polluting the production memory with synthetic fixture entries
+        # (ctf.local / 127.0.0.1 targets) that then mislead live pheromone recall.
+        # Redirect it to a throwaway file for the run's duration so the benchmark
+        # stays side-effect-free. (Under pytest, conftest's autouse fixture
+        # already sets this; this covers the __main__ / script path.)
+        "FLAGHUNTER_STRATEGY_MEMORY_PATH": os.environ.get(
+            "FLAGHUNTER_STRATEGY_MEMORY_PATH"
+        ),
     }
     os.environ["CPA_M1_API_HUB"] = "false"
     os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "true"
-    try:
-        yield
-    finally:
-        for key, value in previous.items():
-            if value is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = value
+    with tempfile.TemporaryDirectory() as _sm_dir:
+        os.environ["FLAGHUNTER_STRATEGY_MEMORY_PATH"] = str(
+            Path(_sm_dir) / "strategy_memory.json"
+        )
+        try:
+            yield
+        finally:
+            for key, value in previous.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
 
 
 @contextmanager

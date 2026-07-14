@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -158,12 +159,21 @@ async def run_replay(
     original_require = _disp_mod.ToolGuard.require
     prev_custom = getattr(notes_module, "_custom_notes_file", None)
     prev_loaded = getattr(notes_module, "_loaded_notes_file", None)
+    prev_strategy_env = os.environ.get("FLAGHUNTER_STRATEGY_MEMORY_PATH")
 
     _disp_mod.ToolGuard.require = lambda self, tools: {}  # type: ignore[assignment]
     try:
         with tempfile.TemporaryDirectory() as tmp:
             notes_module.set_notes_file(Path(tmp) / "notes.json")
             notes_module._notes.clear()
+            # Strategy memory is a shared global cross-challenge store; a replay
+            # builds a REAL dispatcher that queries AND saves to it. Redirect it
+            # into the temp dir so re-driving a fixture never writes synthetic
+            # entries into the production memory (keeps replay side-effect-free,
+            # same guarantee already given for the notes store above).
+            os.environ["FLAGHUNTER_STRATEGY_MEMORY_PATH"] = str(
+                Path(tmp) / "strategy_memory.json"
+            )
             runtime = ReplayRuntime(fixture)
             effective_profile = profile if profile is not None else fixture.profile
             dispatcher = CTFTaskDispatcher(
@@ -194,3 +204,7 @@ async def run_replay(
         notes_module._notes.clear()
         notes_module._custom_notes_file = prev_custom
         notes_module._loaded_notes_file = prev_loaded
+        if prev_strategy_env is None:
+            os.environ.pop("FLAGHUNTER_STRATEGY_MEMORY_PATH", None)
+        else:
+            os.environ["FLAGHUNTER_STRATEGY_MEMORY_PATH"] = prev_strategy_env
