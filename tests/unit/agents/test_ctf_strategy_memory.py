@@ -331,6 +331,81 @@ def test_recall_failed_payloads_empty_on_cold_or_low_similarity():
     assert store.recall_failed_payloads([(has_failures, 0.44)]) == []
 
 
+def test_recall_failed_hypothesis_kinds_surfaces_net_negative_only():
+    """The vector-precise negative recall surfaces a kind ONLY when its losses
+    net-outweigh its wins across similar entries — the granularity guard that keeps
+    it from hard-avoiding a vector that also paid off nearby."""
+    store = StrategyMemoryStore()
+    fp = ChallengeFingerprint(detected_type="sqli")
+    # ``backup_source_leak``: fails on the two closest challenges, wins on one → net
+    # negative (−0.10 −0.10 +0.15 = −0.05, ≤ threshold) → surfaced.
+    # ``llm_driven_exploration``: fails on all, never wins → strongly negative.
+    # ``auth_form_sqli``: only ever wins → positive → NOT surfaced.
+    lost_a = StrategyMemoryEntry(
+        id="mem_lost_a",
+        fingerprint=fp,
+        winning_hypothesis_kinds=["auth_form_sqli"],
+        failed_hypothesis_kinds=["backup_source_leak", "llm_driven_exploration"],
+        solved=True,
+        metadata=StrategyMemoryEntryMetadata(manual_status="active"),
+    )
+    lost_b = StrategyMemoryEntry(
+        id="mem_lost_b",
+        fingerprint=fp,
+        winning_hypothesis_kinds=["auth_form_sqli"],
+        failed_hypothesis_kinds=["backup_source_leak", "llm_driven_exploration"],
+        solved=True,
+        metadata=StrategyMemoryEntryMetadata(manual_status="active"),
+    )
+    won = StrategyMemoryEntry(
+        id="mem_won",
+        fingerprint=fp,
+        winning_hypothesis_kinds=["backup_source_leak"],
+        failed_hypothesis_kinds=[],
+        solved=True,
+        metadata=StrategyMemoryEntryMetadata(manual_status="active"),
+    )
+
+    recalled = store.recall_failed_hypothesis_kinds(
+        [(lost_a, 0.9), (lost_b, 0.9), (won, 0.9)]
+    )
+
+    # Most-negative first; the net-positive winning vector is never surfaced.
+    assert recalled[0] == "llm_driven_exploration"
+    assert "backup_source_leak" in recalled
+    assert "auth_form_sqli" not in recalled
+
+
+def test_recall_failed_hypothesis_kinds_netting_guard_and_cold():
+    """A kind that wins as much as it loses on equally-similar challenges cancels
+    out and is NOT surfaced; cold memory yields nothing."""
+    store = StrategyMemoryStore()
+    fp = ChallengeFingerprint(detected_type="sqli")
+    assert store.recall_failed_hypothesis_kinds([]) == []
+
+    balanced_win = StrategyMemoryEntry(
+        id="mem_bw",
+        fingerprint=fp,
+        winning_hypothesis_kinds=["ambiguous_kind"],
+        failed_hypothesis_kinds=[],
+        solved=True,
+        metadata=StrategyMemoryEntryMetadata(manual_status="active"),
+    )
+    balanced_loss = StrategyMemoryEntry(
+        id="mem_bl",
+        fingerprint=fp,
+        winning_hypothesis_kinds=[],
+        failed_hypothesis_kinds=["ambiguous_kind"],
+        solved=True,
+        metadata=StrategyMemoryEntryMetadata(manual_status="active"),
+    )
+    # +0.15 (win, sim>0.75) −0.10 (loss, sim>0.60) = +0.05 net → not surfaced.
+    recalled = store.recall_failed_hypothesis_kinds(
+        [(balanced_win, 0.9), (balanced_loss, 0.9)]
+    )
+    assert "ambiguous_kind" not in recalled
+
+
 def test_strategy_memory_build_entry_filters_non_generalizable_rules():
     store = StrategyMemoryStore()
     state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="sqli")

@@ -404,6 +404,34 @@ async def test_blackboard_loop_surfaces_positive_repertoire_pheromone_to_brain(m
 
 
 @pytest.mark.asyncio
+async def test_blackboard_loop_surfaces_negative_hypothesis_kinds_to_brain(monkeypatch):
+    # ① negative-feedback granularity: hypothesis KINDS that net-failed on similar
+    # past challenges must reach the brain as a DEPRIORITIZE hint — the vector-precise
+    # dual of the pheromone PREFER hint. Without it the brain flew blind to the SAME
+    # negatives the chain-order engine already consumes (hypothesis_memory_adjustments),
+    # and a warm-memory run chased a recorded red-herring hypothesis (backup_source_leak)
+    # for a dozen steps instead of the winning vector.
+    llm = _CapturingLLM()
+    disp = _dispatcher(llm)
+    disp._recalled_failed_hypothesis_kinds = ["backup_source_leak", "llm_driven_exploration"]
+
+    async def _identity(result):
+        return result
+
+    monkeypatch.setattr(disp, "_finalize_solve_result", _identity)
+    monkeypatch.setattr(
+        disp, "_chain_handler_map", lambda *, target, page_features, hint: {"web": (lambda: None)}
+    )
+
+    await disp._run_blackboard_loop(
+        target="ex.com", hint="", page_features={}, result=SolveResult(success=False)
+    )
+
+    assert "DEPRIORITIZE — hypothesis 'backup_source_leak' NET-FAILED" in llm.seen_user
+    assert "llm_driven_exploration" in llm.seen_user
+
+
+@pytest.mark.asyncio
 async def test_blackboard_loop_cold_memory_adds_no_cross_run_hints(monkeypatch):
     # Byte-identical empty: cold memory → no cross-run hint lines injected. No fingerprint
     # was built (_current_fingerprint stays None), so the positive pheromone recall is
@@ -426,6 +454,7 @@ async def test_blackboard_loop_cold_memory_adds_no_cross_run_hints(monkeypatch):
     assert "AVOID — payload FAILED" not in llm.seen_user
     assert "PREFER — this tool-chain" not in llm.seen_user
     assert "PREFER — this chain solved SIMILAR" not in llm.seen_user
+    assert "DEPRIORITIZE — hypothesis" not in llm.seen_user
 
 
 @pytest.mark.asyncio

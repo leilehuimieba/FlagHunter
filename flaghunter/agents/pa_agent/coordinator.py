@@ -49,6 +49,7 @@ class CoordinatorDispatcherServices(Protocol):
     _current_fingerprint: Any
     _memory_match_ids: list[Any]
     _known_failed_payloads: list[str]
+    _recalled_failed_hypothesis_kinds: list[str]
     _emergent_chain_hints: dict[str, list[str]]
     _source_audit_findings: list[str]
     _pending_wrong_flag_feedback: list[dict[str, Any]]
@@ -741,6 +742,7 @@ class CTFCoordinator:
         dispatcher._current_fingerprint = None
         dispatcher._memory_match_ids = []
         dispatcher._known_failed_payloads = []
+        dispatcher._recalled_failed_hypothesis_kinds = []
         dispatcher._emergent_chain_hints = {}
         dispatcher._source_audit_findings = []
         dispatcher._pending_wrong_flag_feedback = []
@@ -1373,6 +1375,13 @@ class CTFCoordinator:
         # (no extra IO); empty on a cold memory → no behaviour change.
         dispatcher._known_failed_payloads = strategy_memory.recall_failed_payloads(
             memory_matches
+        )
+        # The vector-precise dual: hypothesis KINDS that net-failed on similar past
+        # challenges. Same matches, same netting the engine already uses — this seeds
+        # the blackboard brain's negative HINT so it hears what the chain-order engine
+        # gets via hypothesis_memory_adjustments. Empty on cold memory → no change.
+        dispatcher._recalled_failed_hypothesis_kinds = (
+            strategy_memory.recall_failed_hypothesis_kinds(memory_matches)
         )
         if memory_matches:
             state.meta_reasonings.append(

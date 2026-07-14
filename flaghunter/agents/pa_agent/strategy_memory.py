@@ -725,6 +725,47 @@ class StrategyMemoryStore:
                     return collected
         return collected
 
+    def recall_failed_hypothesis_kinds(
+        self,
+        matches: list[tuple[StrategyMemoryEntry, float]],
+        *,
+        threshold: float = -0.05,
+        limit: int = 5,
+    ) -> list[str]:
+        """Negative-feedback recall at HYPOTHESIS-KIND granularity — the
+        vector-precise dual of the positive pheromone PREFER hint.
+
+        ``compute_hypothesis_adjustments`` already nets each kind's
+        similarity-weighted wins (+) against its failures (−) across the recalled
+        entries. Surface the kinds whose NET adjustment is meaningfully negative:
+        they FAILED on fingerprint-similar past challenges and were NOT redeemed by
+        a win on an equally-similar one. **The netting IS the granularity guard** — a
+        kind that both won and lost on similar challenges cancels out and is NOT
+        surfaced, so we never hard-avoid a vector that has paid off nearby (e.g. a
+        ``backup_source_leak`` that won one challenge only surfaces here when its
+        losses on the closer ones outweigh that win).
+
+        Pure (reuses the ``matches`` the strategy-memory contract already fetched →
+        no extra IO); empty on cold memory or when no kind nets negative. Sorted
+        most-negative first, capped at ``limit``.
+
+        The chain-order / hypothesis-engine path consumes the same signal directly
+        via ``state.hypothesis_memory_adjustments`` (it reorders hypotheses by it).
+        This recall is what lets the blackboard brain — which only sees the rendered
+        HINTS board — hear the SAME negatives, instead of re-investing steps in a
+        kind memory already knows fails here (the asymmetry that let a warm-memory
+        run chase a recorded red-herring hypothesis; see
+        ``ctf_dispatcher._cross_run_hints``).
+        """
+        adjustments = self.compute_hypothesis_adjustments(matches)
+        negatives = [
+            (str(kind).strip(), value)
+            for kind, value in adjustments.items()
+            if str(kind or "").strip() and value <= threshold
+        ]
+        negatives.sort(key=lambda item: item[1])  # most-negative first
+        return [kind for kind, _ in negatives[:limit]]
+
     def build_entry(
         self,
         *,

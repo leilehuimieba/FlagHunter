@@ -371,6 +371,12 @@ class CTFTaskDispatcher(
         # failed on similar past challenges, surfaced to the planner so it avoids
         # re-proposing them. Empty until the strategy-memory contract populates it.
         self._known_failed_payloads: list[str] = []
+        # Vector-precise negative recall: hypothesis KINDS that net-failed on
+        # fingerprint-similar past challenges (losses outweigh wins). The dual of the
+        # positive pheromone PREFER hint; empty until the strategy-memory contract
+        # populates it. Surfaced to the blackboard brain so it does not re-invest
+        # steps in a kind memory already knows is a red herring here.
+        self._recalled_failed_hypothesis_kinds: list[str] = []
         # P8 回灌: cross-run tool-chain hints {"reuse":[...], "avoid":[...]} mined
         # from provenance + P7-scored, surfaced to the next-action planner.
         self._emergent_chain_hints: dict[str, list[str]] = {}
@@ -868,6 +874,21 @@ class CTFTaskDispatcher(
                     hints.append(
                         f"AVOID — payload FAILED on similar past challenges, do not "
                         f"re-propose (try a materially different approach): {text}"
+                    )
+            # Vector-precise negatives (the dual of the pheromone PREFER block below):
+            # hypothesis KINDS whose losses net-outweigh their wins on fingerprint-
+            # similar past challenges. The chain-order engine already deprioritises
+            # these via state.hypothesis_memory_adjustments; surface the SAME signal to
+            # the brain so a warm memory stops it re-investing steps in a recorded red
+            # herring (e.g. hunting a backup-source leak memory knows failed here).
+            # Advisory only — never removes a tool ([[feedback_less_is_more]]).
+            for kind in list(self._recalled_failed_hypothesis_kinds or [])[:5]:
+                text = str(kind or "").strip()
+                if text:
+                    hints.append(
+                        f"DEPRIORITIZE — hypothesis '{text}' NET-FAILED on fingerprint-"
+                        f"similar past challenges (its losses outweigh any nearby wins); "
+                        f"do not re-invest steps here unless direct live evidence points to it"
                     )
             chain_hints = self._emergent_chain_hints or {}
             for chain in list(chain_hints.get("reuse") or [])[:5]:
