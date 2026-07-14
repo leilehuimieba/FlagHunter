@@ -49,6 +49,16 @@ WEB_STRATEGY_ORDER = [
     "idor_sequential",
     "open_redirect",
     "auth_form_sqli",
+    # auth_form_union_sqli (reachability-bridge #6): auth_form_sqli only tries
+    # login-bypass payloads (' or 1=1#). A LoveSQL-class challenge exposes a
+    # login form whose flag lives IN the database and must be UNION-extracted —
+    # bypass alone logs in but never dumps the flag. This kind runs a full UNION
+    # pipeline (column-count/echo-position discovery → information_schema table/
+    # column dump → group_concat row extraction → flag scan) against the form's
+    # username field. Appended after auth_form_sqli so a bypass-solvable flag
+    # short-circuits first; same chain_name="sqli", same find_auth_form gate,
+    # flag verification-gated.
+    "auth_form_union_sqli",
 ]
 
 

@@ -5776,6 +5776,142 @@ async def test_auth_form_sqli_returns_runtime_flag_not_only_verified(monkeypatch
 
 
 @pytest.mark.asyncio
+async def test_auth_form_union_sqli_extracts_flag_from_database(monkeypatch, tmp_path):
+    """UNION-extraction on a login form recovers a flag that lives in the DB.
+
+    LoveSQL-class gap: auth_form_sqli only *logs in* (bypass payloads); the flag
+    is a row in a table and must be UNION-extracted. This drives the full
+    pipeline against a simulated vulnerable DB: column-count/echo-position
+    discovery (3 columns, pos 1 reflected) -> information_schema table dump ->
+    column dump -> group_concat row dump carrying the flag. A runtime-decision
+    flag must be surfaced with strategy_kind="auth_form_union_sqli"."""
+    import re as _re
+    from types import SimpleNamespace
+    from flaghunter.agents.pa_agent.sqli_executor import _SQLI_UNION_MARKER_HEX
+
+    monkeypatch.setattr(
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_auth_form_union.json")
+    notes_module._notes.clear()
+
+    dispatcher = CTFTaskDispatcher(runtime=_DispatcherAll404Runtime(), progress_callback=None)
+    dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="web")
+
+    db_flag = "flag{lovesql_union_extract_win}"
+    url = "http://ctf.local/check.php"
+
+    async def _fake_scan_and_store(*args, **kwargs):
+        return None
+
+    async def _fake_submit_form_request(target, form, fields, **kwargs):
+        payload = fields.get("username", "")
+        # Extraction payloads carry the hex marker; column-count probes do not.
+        if _SQLI_UNION_MARKER_HEX in payload:
+            if "information_schema.tables" in payload:
+                return {"body": "T=<<FHU>>users,l0ve1ysql<<FHU>>"}, url
+            if "information_schema.columns" in payload:
+                return {"body": "C=<<FHU>>id,username,password<<FHU>>"}, url
+            if "concat_ws" in payload:
+                return {"body": f"R=<<FHU>>1~admin~{db_flag}<<FHU>>"}, url
+            return {"body": "no data"}, url
+        # Column-count probe: the vulnerable query has exactly 3 columns, so only a
+        # 3-sentinel UNION stops erroring and reflects the row.
+        sentinels = _re.findall(r"9182\d\d", payload)
+        if "union select" in payload and len(sentinels) == 3:
+            return {"body": "Row: " + " | ".join(sentinels)}, url
+        return {"body": "Login Failed"}, url
+
+    observe_calls: list[dict] = []
+
+    async def _fake_observe_flag(flag, target, **kwargs):
+        observe_calls.append({"flag": flag, **kwargs})
+        return SimpleNamespace(decision="runtime", flag=flag)
+
+    monkeypatch.setattr(dispatcher, "_scan_and_store", _fake_scan_and_store)
+    monkeypatch.setattr(dispatcher, "_submit_form_request", _fake_submit_form_request)
+    monkeypatch.setattr(dispatcher, "_observe_flag", _fake_observe_flag)
+
+    login_form = {
+        "action": "/check.php",
+        "method": "post",
+        "inputs": [
+            {"name": "username", "type": "text"},
+            {"name": "password", "type": "password"},
+        ],
+    }
+
+    outcome = await dispatcher._attempt_auth_form_union_sqli("http://ctf.local/", login_form)
+
+    assert outcome.flag == db_flag, "UNION-extracted DB flag must be surfaced"
+    assert outcome.progress is True
+    assert observe_calls and observe_calls[-1].get("strategy_kind") == "auth_form_union_sqli"
+    assert observe_calls[-1].get("evidence_url") == url
+
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
+async def test_web_chain_reaches_auth_form_union_sqli_when_login_form_present(monkeypatch, tmp_path):
+    """auth_form_union_sqli is registered under chain_name="sqli" (like its bypass
+    sibling), so a "web"-classified login-form challenge must still reach it via
+    WEB_STRATEGY_ORDER (reachability-bridge #6). Without this a LoveSQL-class flag
+    that only UNION-extraction can recover is structurally unreachable."""
+    monkeypatch.setattr(
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_union_reach.json")
+    notes_module._notes.clear()
+
+    from flaghunter.agents.pa_agent.ctf_dispatcher import _ChainOutcome
+
+    dispatcher = CTFTaskDispatcher(runtime=_DispatcherAll404Runtime(), progress_callback=None)
+    dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="web")
+
+    calls: list[dict] = []
+
+    # auth_form_sqli (bypass) runs first and makes no progress -> chain continues
+    # to auth_form_union_sqli, which returns the DB-resident flag.
+    async def _fake_auth_form_sqli(target, auth_form):
+        return _ChainOutcome(progress=False, reason="bypass logged in but no flag on page")
+
+    async def _fake_auth_form_union_sqli(target, auth_form):
+        calls.append(auth_form)
+        return _ChainOutcome(progress=True, flag="flag{union_via_web_chain}")
+
+    monkeypatch.setattr(dispatcher, "_attempt_auth_form_sqli", _fake_auth_form_sqli)
+    monkeypatch.setattr(dispatcher, "_attempt_auth_form_union_sqli", _fake_auth_form_union_sqli)
+
+    login_form = {
+        "action": "/check.php",
+        "method": "post",
+        "inputs": [
+            {"name": "username", "type": "text"},
+            {"name": "password", "type": "password"},
+        ],
+    }
+    features_with_login = {"forms": [login_form], "endpoints": [], "raw_links": []}
+    outcome = await dispatcher._execute_web_chain("http://ctf.local/", features_with_login, "")
+    assert outcome.flag == "flag{union_via_web_chain}"
+    assert calls, "auth_form_union_sqli should run when a login form is present"
+
+    # Negative: no auth form -> precondition gates it out.
+    calls.clear()
+    dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="web")
+    features_no_form = {"forms": [], "endpoints": [], "raw_links": []}
+    await dispatcher._execute_web_chain("http://ctf.local/", features_no_form, "")
+    assert not calls, "auth_form_union_sqli must not fire without an auth form (precondition gate)"
+
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
 async def test_ctf_dispatcher_backup_source_leak_analyzes_inline_source_on_current_page(
     monkeypatch, tmp_path
 ):

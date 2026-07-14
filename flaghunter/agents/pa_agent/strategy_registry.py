@@ -34,6 +34,8 @@ class StrategyServices(Protocol):
 
     async def _attempt_auth_form_sqli(self, target: str, auth_form: dict[str, Any]) -> _ChainOutcome: ...
 
+    async def _attempt_auth_form_union_sqli(self, target: str, auth_form: dict[str, Any]) -> _ChainOutcome: ...
+
     async def _attempt_generic_param_sqli(self, target: str, page_features: dict[str, Any]) -> _ChainOutcome: ...
 
     async def _attempt_generic_param_cmdi(self, target: str, page_features: dict[str, Any]) -> _ChainOutcome: ...
@@ -858,6 +860,23 @@ def _register_injection_strategies(registry: "StrategyRegistry") -> None:
             escalation_condition="auth-form 最短链未直接出 flag 时，升级到 sqlmap 或其他 SQLi 侦察。",
             precondition=lambda ctx: find_auth_form(ctx.page_features.get("forms") or []) is not None,
             execute=lambda ctx: ctx.services._attempt_auth_form_sqli(  # noqa: SLF001
+                ctx.target,
+                find_auth_form(ctx.page_features.get("forms") or []),
+            ),
+        )
+    )
+
+    registry.register(
+        StrategyDefinition(
+            kind="auth_form_union_sqli",
+            chain_name="sqli",
+            precondition_description="存在可识别的认证表单（可定位 username 字段），适合 UNION 提取库内 flag。",
+            minimal_experiment="对登录框 username 字段做 UNION SELECT：先探列数与回显位，再 dump 表/列/行数据并扫 flag。",
+            success_signal="回显位反射出 group_concat 的库内数据，且其中出现 verified/runtime flag。",
+            failure_signal="探不到可回显的 UNION 列，或 dump 完候选表仍无 flag。",
+            escalation_condition="UNION 提取确认注入但未取回 flag 时，升级到 sqlmap 做更深的枚举。",
+            precondition=lambda ctx: find_auth_form(ctx.page_features.get("forms") or []) is not None,
+            execute=lambda ctx: ctx.services._attempt_auth_form_union_sqli(  # noqa: SLF001
                 ctx.target,
                 find_auth_form(ctx.page_features.get("forms") or []),
             ),
