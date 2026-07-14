@@ -224,8 +224,17 @@ class SQLiExecutorMixin:
                     target,
                     evidence_source="http-response",
                     rationale="auth form SQLi bypass",
+                    evidence_url=request_url,
+                    evidence_snippet=body[:240],
+                    strategy_kind="auth_form_sqli",
                 )
-                if verification.decision == "verified":
+                # Mirror _attempt_generic_param_sqli: surface the flag on both
+                # "verified" and "runtime" decisions. A live-exploit flag that
+                # literally appears in the auth-bypass response is a real
+                # near-solve; dropping it on "runtime" (as the old `continue`
+                # did) loses the win for remote CTF instances that the verifier
+                # cannot auto-verify without a prior platform submit.
+                if verification.decision in {"verified", "runtime"}:
                     await self._store_note(
                         key="ctf_sqli_auth_bypass",
                         value=f"auth form bypass succeeded via {username_field}={payload}",
@@ -244,9 +253,9 @@ class SQLiExecutorMixin:
                         flag=verification.flag,
                         reason="auth form SQLi bypass",
                     )
-                if verification.decision in {"runtime", "candidate"}:
+                if verification.decision == "candidate":
                     progress = True
-                    reasons.append(f"auth form produced {verification.decision} flag")
+                    reasons.append("auth form produced candidate flag")
                     continue
 
             if _looks_like_successful_auth_change(response, baseline_resp):

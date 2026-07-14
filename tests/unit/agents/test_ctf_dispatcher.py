@@ -5708,6 +5708,74 @@ async def test_web_chain_reaches_auth_form_sqli_when_login_form_present(monkeypa
 
 
 @pytest.mark.asyncio
+async def test_auth_form_sqli_returns_runtime_flag_not_only_verified(monkeypatch, tmp_path):
+    """A live-exploit flag that appears in the auth-bypass response must be
+    surfaced on decision=="runtime", mirroring _attempt_generic_param_sqli.
+
+    Remote CTF instances cannot be auto-verified without a prior platform
+    submit, so the verifier returns "runtime" (not "verified") for the flag
+    that literally appears in the response. The old code did `continue` on
+    "runtime", dropping the win — the EasySQL live re-run then spun to budget
+    exhaustion despite auth_form_sqli having found the flag. This regression
+    pins that a "runtime" decision returns the flag."""
+    from types import SimpleNamespace
+    from flaghunter.agents.pa_agent.sqli_executor import _SQLI_AUTH_BYPASS_PAYLOADS
+
+    monkeypatch.setattr(
+        "flaghunter.agents.pa_agent.ctf_dispatcher.ToolGuard.require",
+        lambda self, tools: {},
+    )
+    set_notes_file(tmp_path / "notes_auth_form_runtime.json")
+    notes_module._notes.clear()
+
+    dispatcher = CTFTaskDispatcher(runtime=_DispatcherAll404Runtime(), progress_callback=None)
+    dispatcher.state = CTFState(target="http://ctf.local", goal="拿到flag", detected_type="web")
+
+    runtime_flag = "flag{auth_form_runtime_win}"
+
+    async def _fake_scan_and_store(*args, **kwargs):
+        return None
+
+    async def _fake_submit_form_request(target, form, fields, **kwargs):
+        # Only the SQLi bypass payload yields the flag; the baseline probe does not.
+        if fields.get("username") in _SQLI_AUTH_BYPASS_PAYLOADS:
+            return {"body": f"Login Success! {runtime_flag}"}, "http://ctf.local/check.php"
+        return {"body": "Login Failed"}, "http://ctf.local/check.php"
+
+    observe_calls: list[dict] = []
+
+    async def _fake_observe_flag(flag, target, **kwargs):
+        observe_calls.append({"flag": flag, **kwargs})
+        return SimpleNamespace(decision="runtime", flag=flag)
+
+    monkeypatch.setattr(dispatcher, "_scan_and_store", _fake_scan_and_store)
+    monkeypatch.setattr(dispatcher, "_submit_form_request", _fake_submit_form_request)
+    monkeypatch.setattr(dispatcher, "_observe_flag", _fake_observe_flag)
+
+    login_form = {
+        "action": "/check.php",
+        "method": "post",
+        "inputs": [
+            {"name": "username", "type": "text"},
+            {"name": "password", "type": "password"},
+        ],
+    }
+
+    outcome = await dispatcher._attempt_auth_form_sqli("http://ctf.local/", login_form)
+
+    assert outcome.flag == runtime_flag, "runtime-decision auth-form flag must be surfaced, not dropped"
+    assert outcome.progress is True
+    # Attribution: the verifier must be told which strategy produced the flag,
+    # matching _attempt_generic_param_sqli (strategy_kind + evidence url/snippet).
+    assert observe_calls and observe_calls[0].get("strategy_kind") == "auth_form_sqli"
+    assert observe_calls[0].get("evidence_url") == "http://ctf.local/check.php"
+
+    notes_module._notes.clear()
+    notes_module._custom_notes_file = None
+    notes_module._loaded_notes_file = None
+
+
+@pytest.mark.asyncio
 async def test_ctf_dispatcher_backup_source_leak_analyzes_inline_source_on_current_page(
     monkeypatch, tmp_path
 ):
