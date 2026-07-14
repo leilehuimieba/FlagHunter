@@ -125,6 +125,16 @@ def _playwright_missing_error() -> dict[str, str]:
 async def test_ctf_dispatcher_acceptance_unknown_web_uses_llm_fallback(
     tmp_path: Path, monkeypatch, isolated_notes, unknown_web_server
 ):
+    # This is a characterization test of the chain-order harness's LLM-exploration
+    # fallback (Phase 5.7). The 5b cutover flipped FLAGHUNTER_BLACKBOARD_LOOP default
+    # ON (30a55ac), routing the with-LLM path through the blackboard loop, whose
+    # proposal schema (Intent/Hint) and state fields differ from the artifacts this
+    # test asserts (llm_exploration_steps / pre_action_reasonings / http_request
+    # exploration replies). The chain-order path is the permanent no-LLM substrate
+    # (7f134e0) and stays exercisable behind the escape hatch — so pin this legacy
+    # path characterization to =false. (Coverage of unknown-web LLM fallback under
+    # the DEFAULT blackboard loop is a separate follow-up, not covered here.)
+    monkeypatch.setenv("FLAGHUNTER_BLACKBOARD_LOOP", "false")
     monkeypatch.chdir(tmp_path)
 
     runtime = LocalRuntime()
