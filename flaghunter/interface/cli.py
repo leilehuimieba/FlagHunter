@@ -638,6 +638,7 @@ async def run_cli(
                     progress_callback=lambda message: print_status(str(message), PA_DIM),
                     llm=llm,
                     profile=profile,
+                    max_loops=max_loops,
                 )
                 solve_result = await dispatcher.run(
                     target=target,

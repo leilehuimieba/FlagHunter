@@ -233,11 +233,12 @@ async def test_run_cli_routes_ctf_mode_into_dispatcher_with_local_asset_hint(mon
     _patch_agent_session(monkeypatch, agent=_NeverRunAgent())
 
     class _FakeDispatcher:
-        def __init__(self, runtime, progress_callback=None, verification_callback=None, llm=None, profile="ctf"):
+        def __init__(self, runtime, progress_callback=None, verification_callback=None, llm=None, profile="ctf", max_loops=None):
             captured["runtime"] = runtime
             captured["progress_callback"] = progress_callback
             captured["llm"] = llm
             captured["profile"] = profile
+            captured["max_loops"] = max_loops
 
         async def run(self, target, goal, type=None, hint=None, submit_profile=None, challenge_context=None):
             captured["target"] = target
@@ -278,6 +279,9 @@ async def test_run_cli_routes_ctf_mode_into_dispatcher_with_local_asset_hint(mon
     assert r"D:\webstudy\CTF\2026\CTF比赛题\easy_login" in captured["hint"]
     assert r"D:\webstudy\CTF\2026\CTF比赛题\easy_login\docker-compose.yml" in captured["hint"]
     assert captured["llm"].model == "gpt-5"
+    # gap-C: the CLI must forward its --max-loops ceiling into the dispatcher (default =
+    # AGENT_MAX_ITERATIONS when the flag is omitted) so the blackboard loop can honour it.
+    assert captured["max_loops"] == interface_cli.AGENT_MAX_ITERATIONS
 
 
 @pytest.mark.asyncio
@@ -293,7 +297,7 @@ async def test_run_cli_preserves_auto_ctf_subtype_for_dispatcher(monkeypatch, _m
     _patch_agent_session(monkeypatch, agent=_NeverRunAgent())
 
     class _FakeDispatcher:
-        def __init__(self, runtime, progress_callback=None, verification_callback=None, llm=None, profile="ctf"):
+        def __init__(self, runtime, progress_callback=None, verification_callback=None, llm=None, profile="ctf", max_loops=None):
             captured["runtime"] = runtime
             captured["llm"] = llm
 
@@ -340,7 +344,7 @@ async def test_run_cli_syncs_derived_target_into_challenge_context_when_target_m
     _patch_agent_session(monkeypatch, agent=_NeverRunAgent())
 
     class _FakeDispatcher:
-        def __init__(self, runtime, progress_callback=None, verification_callback=None, llm=None, profile="ctf"):
+        def __init__(self, runtime, progress_callback=None, verification_callback=None, llm=None, profile="ctf", max_loops=None):
             self._challenge_context = {}
             captured["llm"] = llm
 

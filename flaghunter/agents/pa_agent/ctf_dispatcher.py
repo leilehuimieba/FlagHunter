@@ -322,11 +322,21 @@ class CTFTaskDispatcher(
         llm: Any | None = None,
         exploitation_mode: str | None = None,
         profile: Profile | str | None = None,
+        max_loops: int | None = None,
     ):
         self.runtime = runtime
         self.progress_callback = progress_callback
         self.collector_port = collector_port
         self.llm = llm
+        # gap-C: an explicit CLI ``--max-loops`` ceiling on the model-driven blackboard
+        # loop's step budget. ``None`` = no override (the profile's EXPLOIT phase budget
+        # governs). When set it can only TIGHTEN the budget (a ``min`` in
+        # ``_run_blackboard_loop``), never loosen it past the profile's safety cap — so the
+        # displayed "Max loops: N" becomes a real upper bound the loop never exceeds, rather
+        # than a cosmetic number the loop's own budget silently overran.
+        self._max_step_ceiling = (
+            int(max_loops) if max_loops is not None and int(max_loops) > 0 else None
+        )
         # P5: the active project-type Profile (CTF / code_audit / …). Always a
         # resolved Profile — ``None`` / unknown names resolve to CTF, so callers
         # that pass nothing keep the byte-identical CTF default.
@@ -941,6 +951,13 @@ class CTFTaskDispatcher(
         # Cost boundary, not a scripted step count: reuse the EXPLOIT phase round
         # budget (profile override, else the module default) — §3.2 不把大模型关进笼子.
         budget_steps = self.state.effective_phase_budget(Phase.EXPLOIT) or 24
+        # gap-C: an explicit CLI ``--max-loops N`` is a hard user ceiling on the loop's
+        # step count. Apply it as a floor-preserving ``min`` so it only ever TIGHTENS the
+        # profile budget (all profiles budget <= the CLI default of 50, so the default is a
+        # no-op here) — the displayed "Max loops: N" is then a bound the loop respects.
+        ceiling = getattr(self, "_max_step_ceiling", None)
+        if ceiling is not None and int(ceiling) > 0:
+            budget_steps = min(int(budget_steps), int(ceiling))
         outcome = await run_blackboard_solve(
             brain=LLMBrain.from_llm(self.llm),
             hands=ChainHands(

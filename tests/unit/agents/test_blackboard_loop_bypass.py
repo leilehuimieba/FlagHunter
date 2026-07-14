@@ -562,6 +562,81 @@ async def test_blackboard_loop_keeps_non_recoverable_wrong_flag(monkeypatch):
     assert disp._pending_wrong_flag_feedback[0]["flag"] == "flag{hardreject}"
 
 
+# --- gap-C: --max-loops ceiling on the loop's step budget -------------------
+
+
+def _capture_step_budget(monkeypatch):
+    """Replace run_blackboard_solve with a stub that records the Budget.max_steps the
+    loop hands it and returns an unsolved outcome (the give-up mapping then runs with
+    the identity finalize each caller installs). Returns the capture dict."""
+    import flaghunter.agents.pa_agent.blackboard_loop as bl
+
+    captured: dict[str, int] = {}
+
+    async def _fake_solve(*, brain, hands, tools, budget, on_step, **seams):
+        captured["max_steps"] = int(budget.max_steps)
+        return type(
+            "O", (), {"stopped": "brain_stop", "steps": 0, "solved": False, "flag": None}
+        )()
+
+    monkeypatch.setattr(bl, "run_blackboard_solve", _fake_solve)
+    return captured
+
+
+def _budget_dispatcher(monkeypatch, *, max_loops):
+    disp = CTFTaskDispatcher(runtime=_FakeRuntime(), llm=_FakeLLM([]), max_loops=max_loops)
+    # A bare CTFState (no profile applied) → the module-default EXPLOIT budget of 24.
+    disp.state = CTFState(target="ex.com", goal="flag")
+
+    async def _identity(result):
+        return result
+
+    monkeypatch.setattr(disp, "_finalize_solve_result", _identity)
+    monkeypatch.setattr(
+        disp, "_chain_handler_map", lambda *, target, page_features, hint: {"web": (lambda: None)}
+    )
+    return disp
+
+
+@pytest.mark.asyncio
+async def test_blackboard_loop_explicit_max_loops_caps_step_budget(monkeypatch):
+    # gap-C: an explicit --max-loops BELOW the profile EXPLOIT budget (24) must TIGHTEN the
+    # loop's step ceiling, so "Max loops: 5" is a bound the loop respects — not a cosmetic
+    # number the loop overruns on its own phase budget (the LoveSQL 24-steps-past-15 bug).
+    disp = _budget_dispatcher(monkeypatch, max_loops=5)
+    captured = _capture_step_budget(monkeypatch)
+
+    await disp._run_blackboard_loop(
+        target="ex.com", hint="", page_features={}, result=SolveResult(success=False)
+    )
+
+    assert captured["max_steps"] == 5
+
+
+@pytest.mark.asyncio
+async def test_blackboard_loop_default_max_loops_leaves_phase_budget(monkeypatch):
+    # The CLI default (50) exceeds every profile's EXPLOIT budget (<=24), so passing it is a
+    # no-op — the profile phase budget (24 for CTF) still governs. Guards against the ceiling
+    # silently shrinking a default run.
+    disp = _budget_dispatcher(monkeypatch, max_loops=50)
+    captured = _capture_step_budget(monkeypatch)
+
+    await disp._run_blackboard_loop(
+        target="ex.com", hint="", page_features={}, result=SolveResult(success=False)
+    )
+
+    assert captured["max_steps"] == 24
+
+
+def test_dispatcher_normalizes_max_loops_ceiling():
+    # None / non-positive → no ceiling (profile budget governs); positive → stored as-is.
+    assert CTFTaskDispatcher(runtime=_FakeRuntime(), max_loops=None)._max_step_ceiling is None
+    assert CTFTaskDispatcher(runtime=_FakeRuntime(), max_loops=0)._max_step_ceiling is None
+    assert CTFTaskDispatcher(runtime=_FakeRuntime(), max_loops=15)._max_step_ceiling == 15
+    # Default construction (no arg) is byte-identical to the pre-gap-C behaviour.
+    assert CTFTaskDispatcher(runtime=_FakeRuntime())._max_step_ceiling is None
+
+
 @pytest.mark.asyncio
 async def test_blackboard_loop_emits_step_breadcrumbs(monkeypatch):
     """5b cut-2: the loop must not be a black box live — each brain decision is
