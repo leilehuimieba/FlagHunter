@@ -111,6 +111,40 @@ def test_render_surfaces_spinning_attempt_as_switch_signal():
     assert "NO progress" not in prompt
 
 
+def test_render_surfaces_cross_tool_spinning_when_multiple_tools_stalled():
+    # The EasySQL warm-run gap (D-c): the brain ROTATES between exhausted tools so no
+    # single per-tool "switch" cue breaks the cycle. When >=2 distinct tools are
+    # stalled, an aggregate cue must ride at the top of the trail telling it to escalate.
+    view = BoardView(
+        attempts=[
+            BoardAttempt(tool="web", count=12, progress_count=1),  # spinning (11 stale)
+            BoardAttempt(tool="lfi", count=6, progress_count=1),   # spinning (5 stale)
+            BoardAttempt(tool="misc", count=3, progress_count=2),  # NOT stalled (1 stale)
+        ]
+    )
+    prompt = render_user_prompt(view, [])
+    assert "CROSS-TOOL SPINNING" in prompt
+    # Only the two genuinely-stalled tools are named; the still-progressing one is not.
+    assert "web" in prompt and "lfi" in prompt
+    assert "2 tools all stalled" in prompt
+    assert "Escalate" in prompt
+    # The aggregate cue sits ABOVE the per-tool lines (strongest signal first).
+    assert prompt.index("CROSS-TOOL SPINNING") < prompt.index("- web:")
+
+
+def test_render_omits_cross_tool_spinning_when_only_one_tool_stalled():
+    # Single-tool spinning is already the per-tool signal — no aggregate cue, no noise.
+    view = BoardView(
+        attempts=[
+            BoardAttempt(tool="lfi", count=6, progress_count=1),   # stalled
+            BoardAttempt(tool="sqli", count=3, progress_count=2),  # progressing
+        ]
+    )
+    prompt = render_user_prompt(view, [])
+    assert "CROSS-TOOL SPINNING" not in prompt
+    assert "lfi: 6x but only 1 distinct result(s) -> spinning, switch" in prompt
+
+
 # --- parse_action ----------------------------------------------------------
 
 

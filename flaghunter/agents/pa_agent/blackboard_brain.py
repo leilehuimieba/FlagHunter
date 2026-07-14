@@ -101,6 +101,39 @@ def _fmt_attempt(attempt: Any) -> str:
     return f"- {tool}: {status}{tail}"
 
 
+def _cross_tool_spinning_note(attempts: list[Any]) -> Optional[str]:
+    """Aggregate cue for *cross-tool* spinning — rotating between exhausted tools.
+
+    The per-tool ``stalled`` line tells the brain to switch away from one dead-end
+    tool. But a brain that ROTATES (web -> lfi -> misc -> web ...) satisfies "switch"
+    on every single step while the loop as a whole advances nothing: each per-tool
+    line still reads as its own switch cue, so the brain plays whack-a-mole and never
+    escalates. The per-tool signal (f0eaa69) only catches *one* tool hammered in a row;
+    it is blind to the alternation the EasySQL warm run exposed (web x12 interleaved
+    with lfi/misc, each individually "switch"-flagged, yet 24 steps with no terminal).
+
+    When two or more DISTINCT tools are simultaneously stalled, "switch tools" is no
+    longer useful advice — the whole rotation is exhausted. Surface one aggregate line
+    so the brain escalates or tries a fundamentally different vector instead of cycling
+    back. Advisory only (see [[feedback_less_is_more_dont_cage_llm]]): a hint the model
+    reads, never a rule the code enforces. Order-independent; derived purely from the
+    already-bucketed per-tool tally.
+    """
+    stalled_tools = [
+        str(getattr(a, "tool", "") or "?")
+        for a in attempts
+        if bool(getattr(a, "stalled", False))
+    ]
+    if len(stalled_tools) < 2:
+        return None
+    joined = ", ".join(stalled_tools)
+    return (
+        f"⚠ CROSS-TOOL SPINNING: {len(stalled_tools)} tools all stalled with no new "
+        f"progress ({joined}) — rotating between them is NOT advancing. Escalate or try "
+        f"a fundamentally different vector; do not cycle back through these."
+    )
+
+
 def render_user_prompt(view: BoardView, tools: list[ToolSpec]) -> str:
     """Render the board + tools into the brain's user prompt (pure)."""
     facts = list(getattr(view, "facts", []) or [])
@@ -116,9 +149,16 @@ def render_user_prompt(view: BoardView, tools: list[ToolSpec]) -> str:
     # salient (the fixation the smoke test exposed). Omitted entirely when nothing has
     # run yet, to keep the cold-start prompt low-noise.
     if attempts:
+        body = "\n".join(_fmt_attempt(a) for a in attempts)
+        # A cross-tool spinning cue rides at the TOP of the trail when the brain is
+        # rotating between >=2 exhausted tools — the alternation the per-tool switch
+        # signal is blind to. Absent (empty string) when at most one tool is stalled.
+        spin = _cross_tool_spinning_note(attempts)
+        if spin:
+            body = spin + "\n" + body
         sections.append(
             "ATTEMPTS SO FAR (tools already run; a repeated NO-progress tool is a dead "
-            "end — switch, don't repeat):\n" + "\n".join(_fmt_attempt(a) for a in attempts)
+            "end — switch, don't repeat):\n" + body
         )
     sections.append(
         "INTENTS (ranked; do not re-try REFUTED):\n"
