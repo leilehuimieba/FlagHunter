@@ -1,12 +1,19 @@
-"""Guard tests for Bug2: strategy-memory writer and learned-rules reader must
-resolve to the SAME workspace-routed file.
+"""Guard tests for the strategy-memory routing contract.
 
-Before the fix the writer (StrategyMemoryStore) defaulted to a CWD-relative
-``loot/strategy_memory.json`` while the reader (ProjectMemory) read
-``<project_root>/loot/strategy_memory.json``. Once notes/loot were routed into
-an isolated workspace, the two halves wrote and read different files, so
-learned-rule injection silently lost the workspace's memory. Both now resolve
-through ``workspaces.utils.get_strategy_memory_file``.
+Two invariants are pinned here:
+
+1. **Reader/writer agreement (the original Bug2 fix).** The writer
+   (``StrategyMemoryStore``) and the learned-rules reader (``ProjectMemory``)
+   must resolve to the SAME file, so learned-rule injection never reads a stale
+   store. Both resolve through ``workspaces.utils.get_strategy_memory_file``.
+
+2. **Cross-challenge sharing (the design gap ① fix).** Strategy memory is
+   *cross-challenge* by construction — pheromone / failed-payload / fingerprint
+   recall aggregate learning ACROSS challenges. It is therefore deliberately
+   NOT workspace-routed: it resolves to the global project-root
+   ``loot/strategy_memory.json`` regardless of the active workspace, so every
+   ephemeral CTF instance shares one warm store instead of a cold per-workspace
+   silo. Per-engagement isolation stays opt-in via the env override.
 """
 
 from __future__ import annotations
@@ -23,7 +30,7 @@ from flaghunter.workspaces.utils import get_strategy_memory_file
 
 @pytest.fixture(autouse=True)
 def _no_env_override(monkeypatch):
-    # Exercise workspace/global routing, not conftest's env isolation path.
+    # Exercise the default (global) routing, not conftest's env isolation path.
     monkeypatch.delenv("FLAGHUNTER_STRATEGY_MEMORY_PATH", raising=False)
 
 
@@ -35,29 +42,30 @@ def _activate_workspace(root: Path, name: str) -> Path:
     return root / "workspaces" / name / "loot"
 
 
-def test_writer_default_follows_active_workspace(tmp_path, monkeypatch):
-    """A default-constructed store lands under the active workspace's loot."""
+def test_writer_default_resolves_to_global_loot(tmp_path, monkeypatch):
+    """A default-constructed store lands in the GLOBAL project-root loot, NOT the
+    active workspace's loot — strategy memory is shared across challenges."""
     ws_loot = _activate_workspace(tmp_path, "ws1")
     monkeypatch.chdir(tmp_path)
 
     store = StrategyMemoryStore()
 
-    # Writer resolves root=None (CWD-relative); compare resolved against the
-    # absolute workspace loot dir — same file after chdir.
-    assert store.path.resolve() == (ws_loot / "strategy_memory.json").resolve()
+    global_path = (tmp_path / "loot" / "strategy_memory.json").resolve()
+    assert store.path.resolve() == global_path
+    # Explicitly NOT siloed under the active workspace.
+    assert store.path.resolve() != (ws_loot / "strategy_memory.json").resolve()
 
 
-def test_writer_and_reader_agree_under_workspace(tmp_path, monkeypatch):
-    """The reader injects exactly what the writer persisted in the same
-    workspace — the end-to-end Bug2 regression."""
+def test_writer_and_reader_agree(tmp_path, monkeypatch):
+    """The reader injects exactly what the writer persisted — reader/writer
+    resolve the same global file (the preserved Bug2 agreement)."""
     _activate_workspace(tmp_path, "ws1")
     monkeypatch.chdir(tmp_path)
 
-    # Writer path (workspace-routed) and a hand-written JSONL entry there.
     writer_path = get_strategy_memory_file()
     writer_path.parent.mkdir(parents=True, exist_ok=True)
     writer_path.write_text(
-        json.dumps({"id": "e1", "learned_rules": ["ws1-rule"]}) + "\n",
+        json.dumps({"id": "e1", "learned_rules": ["global-rule"]}) + "\n",
         encoding="utf-8",
     )
 
@@ -66,11 +74,12 @@ def test_writer_and_reader_agree_under_workspace(tmp_path, monkeypatch):
     assert reader_path.resolve() == writer_path.resolve()
 
     pm = ProjectMemory(project_root=tmp_path)
-    assert pm._load_learned_rules() == ["ws1-rule"]
+    assert pm._load_learned_rules() == ["global-rule"]
 
 
-def test_distinct_workspaces_keep_separate_memory(tmp_path, monkeypatch):
-    """Switching the active workspace switches the resolved memory file."""
+def test_distinct_workspaces_share_cross_challenge_memory(tmp_path, monkeypatch):
+    """Switching the active workspace does NOT switch the resolved memory file:
+    cross-challenge learning is shared, not siloed per workspace."""
     _activate_workspace(tmp_path, "ws1")
     monkeypatch.chdir(tmp_path)
     p1 = get_strategy_memory_file()
@@ -78,13 +87,13 @@ def test_distinct_workspaces_keep_separate_memory(tmp_path, monkeypatch):
     _activate_workspace(tmp_path, "ws2")
     p2 = get_strategy_memory_file()
 
-    assert p1 != p2
-    assert p1.parent.parent.name == "ws1"
-    assert p2.parent.parent.name == "ws2"
+    assert p1.resolve() == p2.resolve()
+    assert p1.resolve() == (tmp_path / "loot" / "strategy_memory.json").resolve()
 
 
-def test_env_override_wins_over_workspace(tmp_path, monkeypatch):
-    """Explicit ops/test env override still takes precedence over routing."""
+def test_env_override_wins_over_default(tmp_path, monkeypatch):
+    """Explicit ops/test env override still takes precedence — the opt-in path
+    for per-engagement isolation."""
     _activate_workspace(tmp_path, "ws1")
     monkeypatch.chdir(tmp_path)
     override = tmp_path / "elsewhere" / "mem.json"

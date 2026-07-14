@@ -86,19 +86,36 @@ def get_strategy_memory_file(root: Optional[Path] = None) -> Path:
     """Resolve the cross-challenge strategy-memory file path (single source).
 
     Precedence: ``FLAGHUNTER_STRATEGY_MEMORY_PATH`` env override (ops / test
-    isolation) > active-workspace-routed loot file > global ``loot/``.
+    isolation) > global project-root ``loot/strategy_memory.json``.
+
+    SHARED, not workspace-routed. Strategy memory is *cross-challenge* by design
+    — pheromone recall ("this chain solved SIMILAR past challenges"), failed-
+    payload recall, and fingerprint-similarity queries all aggregate learning
+    ACROSS challenges. Routing it into the active workspace's loot (as the loot/
+    notes stores correctly are) siloed it per target: every ephemeral CTF
+    instance gets a fresh workspace → a cold store → cross-run recall (②) never
+    warms across instances of the same challenge shape. So this store is
+    deliberately global. Per-engagement isolation, when wanted, is opt-in via the
+    env override.
 
     Both the writer (``StrategyMemoryStore``) and the learned-rules reader
     (``ProjectMemory._load_learned_rules``) MUST resolve through this one
-    function so they always agree on which file holds the active workspace's
-    memory. Routing only the writer through the workspace while the reader kept
-    a CWD/project-root path is exactly the Bug2 split that left learned-rule
-    injection reading a stale file under an isolated workspace.
+    function so they always agree on which file holds the memory — that
+    reader/writer agreement is the actual Bug2 fix and is preserved here; only
+    the routing target moves from the workspace loot to the shared global loot.
+    Cross-target leakage of *learned_rules* (a per-target concept that now lives
+    in a shared store) is bounded two ways: the CTF path reads memory through
+    ``StrategyMemoryStore.query(fingerprint)`` (fingerprint-scoped by
+    construction), and only ``_is_generalizable_rule``-filtered rules are ever
+    persisted for the fingerprint-less general-agent injection path.
     """
     env = os.environ.get("FLAGHUNTER_STRATEGY_MEMORY_PATH")
     if env:
         return Path(env)
-    return get_loot_file("strategy_memory.json", root=root)
+    root = Path(root or "./")
+    path = root / "loot" / "strategy_memory.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def resolve_knowledge_paths(root: Optional[Path] = None) -> dict:
