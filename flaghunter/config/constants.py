@@ -18,7 +18,7 @@ apply_legacy_env_aliases()
 
 # Application Info
 APP_NAME = "FlagHunter"
-APP_VERSION = "0.4.0"
+APP_VERSION = "0.4.1"
 APP_DESCRIPTION = "AI-powered CTF & authorised penetration testing automation framework"
 
 # Agent States

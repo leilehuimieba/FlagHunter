@@ -1,6 +1,6 @@
 [project]
 name = "flaghunter"
-version = "0.4.0"
+version = "0.4.1"
 description = "FlagHunter — AI-powered CTF & authorised penetration testing automation framework"
 readme = "README.md"
 license = {text = "MIT"}
