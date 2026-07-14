@@ -1850,6 +1850,16 @@ class CTFCoordinator:
     ):
         if not getattr(outcome, "flag", None):
             return None
+        # A chain that asserts a flag but marks it unverified (``verified=False`` —
+        # a SQLi runtime near-solve the verifier could not confirm for a remote
+        # instance) is NOT an unconditional terminal success. Return None so it
+        # routes through progress-eval -> recovery.finalize -> wait_for_verification;
+        # the value is already in state.runtime_flags (via _observe_flag), so the
+        # near-solve is surfaced there rather than fabricated as a verified win
+        # (P1). Genuine terminal wins (upload webshell read, verified SQLi, every
+        # other chain) keep ``verified=True`` (the default) and solve as before.
+        if not bool(getattr(outcome, "verified", True)):
+            return None
         result.success = True
         result.flag = outcome.flag
         result.reason = outcome.reason or "拿到 flag"

@@ -814,8 +814,15 @@ class CTFTaskDispatcher(
                     rationale=str(getattr(outcome, "reason", "") or "") or "blackboard chain win",
                     confidence=0.9,
                 )
-                terminal_win["asserted"] = True
-                terminal_win["flag"] = flag
+                # Only a chain that asserts a VERIFIED terminal win records provenance
+                # as a terminal assertion (→ clean success at 977-985). A runtime
+                # near-solve (``verified=False``) is still added above so make_goal
+                # stops the loop, but it must route through recovery.finalize ->
+                # wait_for_verification, not be claimed as a solve (P1) — same gate as
+                # the chain-order terminal-success contract.
+                if bool(getattr(outcome, "verified", True)):
+                    terminal_win["asserted"] = True
+                    terminal_win["flag"] = flag
 
         # 5b cut-4 (missing-tool contract): a chain needing an uninstalled binary raises
         # ToolMissingError; ChainHands catches it and reports the names here so the
