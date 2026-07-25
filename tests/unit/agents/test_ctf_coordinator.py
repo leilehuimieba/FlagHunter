@@ -4468,6 +4468,112 @@ def test_coordinator_applies_progress_evaluation_contract_with_effective_progres
     ]
 
 
+def test_progress_contract_demotes_output_only_spinning_when_trajectory_stuck():
+    # Loose-progress masking (baseline sweep): a chain emits output so outcome.progress
+    # is True, but it moved NO flag-state (delta "none") AND the trajectory is objectively
+    # replaying the same observation (>=3 identical watched obs in the last 6). That must
+    # NOT count as progress — otherwise no_progress_rounds resets and the deterministic
+    # loop spins to budget. It should be demoted to no-progress.
+    coordinator = CTFCoordinator()
+
+    class _State:
+        def __init__(self):
+            self.progress_markers: list[str] = []
+            self.no_progress_markers: list[str] = []
+            # 3 identical recon_url observations in the last 6 -> stuck trajectory.
+            self.observations = [
+                SimpleNamespace(kind="recon_url", value="http://x/same")
+                for _ in range(3)
+            ]
+
+        def mark_progress(self, marker: str):
+            self.progress_markers.append(marker)
+
+        def mark_no_progress(self, marker: str):
+            self.no_progress_markers.append(marker)
+
+    class _Dispatcher:
+        def __init__(self):
+            self.state = _State()
+
+        def _derive_progress_delta(self, before_state, *, chain_outcome):
+            return "none"
+
+        def _emit(self, message: str):
+            return None
+
+    dispatcher = _Dispatcher()
+    # chain_name outside the stuck_trajectory stop-report set ("misc") isolates the
+    # effective_progress demotion from the separate stop_report side-path.
+    outcome = SimpleNamespace(progress=True, reason="commands exhausted")
+    contract = coordinator._apply_progress_evaluation_contract(
+        dispatcher,
+        chain_name="misc",
+        before_state={"runtime": 0},
+        outcome=outcome,
+        no_progress_rounds=2,
+        active_hypothesis=None,
+        experiment=None,
+    )
+
+    assert contract["progress_delta"] == "none"
+    assert contract["effective_progress"] is False
+    assert contract["no_progress_rounds"] == 3  # incremented, not reset
+    assert dispatcher.state.progress_markers == []
+    assert dispatcher.state.no_progress_markers == ["misc"]
+
+
+def test_progress_contract_keeps_progress_for_fresh_recon_not_stuck():
+    # Guard against premature stops: a chain that emits output with delta "none" but is
+    # NOT stuck (distinct observations = genuine recon expansion) must STILL count as
+    # progress — the demotion is gated on the stuck-trajectory detector precisely so
+    # healthy exploration is never penalised.
+    coordinator = CTFCoordinator()
+
+    class _State:
+        def __init__(self):
+            self.progress_markers: list[str] = []
+            self.no_progress_markers: list[str] = []
+            # All-distinct recon observations -> NOT stuck.
+            self.observations = [
+                SimpleNamespace(kind="recon_url", value=f"http://x/page{i}")
+                for i in range(4)
+            ]
+
+        def mark_progress(self, marker: str):
+            self.progress_markers.append(marker)
+
+        def mark_no_progress(self, marker: str):
+            self.no_progress_markers.append(marker)
+
+    class _Dispatcher:
+        def __init__(self):
+            self.state = _State()
+
+        def _derive_progress_delta(self, before_state, *, chain_outcome):
+            return "none"
+
+        def _emit(self, message: str):
+            return None
+
+    dispatcher = _Dispatcher()
+    outcome = SimpleNamespace(progress=True, reason="found new endpoints")
+    contract = coordinator._apply_progress_evaluation_contract(
+        dispatcher,
+        chain_name="misc",
+        before_state={"runtime": 0},
+        outcome=outcome,
+        no_progress_rounds=2,
+        active_hypothesis=None,
+        experiment=None,
+    )
+
+    assert contract["effective_progress"] is True
+    assert contract["no_progress_rounds"] == 0  # reset — recon advanced
+    assert dispatcher.state.progress_markers == ["found new endpoints"]
+    assert dispatcher.state.no_progress_markers == []
+
+
 @pytest.mark.asyncio
 async def test_coordinator_applies_after_chain_recovery_contract_stop(tmp_path: Path):
     coordinator = CTFCoordinator()

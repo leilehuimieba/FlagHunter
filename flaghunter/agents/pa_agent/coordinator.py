@@ -1650,6 +1650,26 @@ class CTFCoordinator:
             else "none"
         )
         effective_progress = bool(outcome.progress) and progress_delta != "rejected"
+        # Loose-progress masking (baseline cold/warm sweep). ``outcome.progress`` is set
+        # True on ANY chain output (ctf_dispatcher._execute_terminal_commands emits it for
+        # any stdout/stderr), so a chain that produces text but moves NO flag-state
+        # (progress_delta == "none") still counts as progress here — resetting
+        # ``no_progress_rounds`` and defeating the stop_no_progress early-stop, so the
+        # deterministic loop spins to its full budget on a repertoire it has exhausted.
+        # Demote that masking, but ONLY when the independent stuck-trajectory detector
+        # confirms the run is objectively replaying the same observations (>=3 identical
+        # watched observations in the last 6). Genuine recon — new facts, delta "none",
+        # trajectory NOT stuck — still counts, so this cannot premature-stop a healthy
+        # exploration; it only unmasks output-only spinning. Advisory scope: the live
+        # blackboard loop uses run_blackboard_solve (substance-based progress_count), not
+        # this gate — this fix is confined to the no-LLM substrate / replay-eval path.
+        if (
+            effective_progress
+            and progress_delta == "none"
+            and dispatcher.state is not None
+            and _is_stuck_trajectory(dispatcher.state)
+        ):
+            effective_progress = False
 
         if effective_progress:
             no_progress_rounds = 0
