@@ -84,6 +84,36 @@ available databases [2]:
 
 
 @pytest.mark.asyncio
+async def test_run_sqlmap_default_pass_does_not_dump():
+    # Detection-only pass must never enumerate/dump — that is the expensive path.
+    runtime = _FakeRuntime(
+        [
+            _CommandResult(0, stdout="1.8.5"),
+            _CommandResult(0, stdout="Parameter: id (GET)\nType: boolean-based blind\n"),
+        ]
+    )
+    await run_sqlmap("http://example.com?id=1", runtime=runtime)
+    scan_cmd = runtime.commands[-1][0]
+    assert "--dump-all" not in scan_cmd
+    assert "--exclude-sysdbs" not in scan_cmd
+
+
+@pytest.mark.asyncio
+async def test_run_sqlmap_dump_mode_enumerates_non_system_data():
+    # Boolean-blind flags live in a DB cell; only a dump pass can reach them.
+    runtime = _FakeRuntime(
+        [
+            _CommandResult(0, stdout="1.8.5"),
+            _CommandResult(0, stdout="Parameter: id (GET)\nType: boolean-based blind\n"),
+        ]
+    )
+    await run_sqlmap("http://example.com?id=1", runtime=runtime, dump=True)
+    scan_cmd = runtime.commands[-1][0]
+    assert "--dump-all" in scan_cmd
+    assert "--exclude-sysdbs" in scan_cmd
+
+
+@pytest.mark.asyncio
 async def test_registered_tool_returns_json_string():
     clear_tools()
     import flaghunter.tools.sqlmap as sqlmap_module

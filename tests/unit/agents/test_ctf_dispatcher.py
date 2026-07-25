@@ -4045,7 +4045,7 @@ async def test_ctf_dispatcher_auto_primes_capabilities_for_generic_get_sqli(monk
 
     observed_sqlmap_call: dict[str, object] = {}
 
-    async def _fake_run_sqlmap(*, url, data, level, risk, runtime):
+    async def _fake_run_sqlmap(*, url, data, level, risk, runtime, dump=False, **_):
         observed_sqlmap_call.update(
             {"url": url, "data": data, "level": level, "risk": risk, "runtime": runtime}
         )
@@ -4113,7 +4113,7 @@ async def test_ctf_dispatcher_falls_back_to_stacked_query_generic_get_sqli(monke
         )
         return self
 
-    async def _fake_run_sqlmap(*, url, data, level, risk, runtime):
+    async def _fake_run_sqlmap(*, url, data, level, risk, runtime, dump=False, **_):
         return {
             "vulnerable": True,
             "injection_points": [{"parameter": "inject", "type": "GET"}],
@@ -6418,7 +6418,7 @@ async def test_ctf_dispatcher_uses_strategy_registry_for_generic_param_sqli(
         )
         return self
 
-    async def _fake_run_sqlmap(*, url, data, level, risk, runtime):
+    async def _fake_run_sqlmap(*, url, data, level, risk, runtime, dump=False, **_):
         return {
             "vulnerable": True,
             "injection_points": [{"parameter": "inject", "type": "GET"}],

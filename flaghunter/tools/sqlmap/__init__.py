@@ -247,11 +247,17 @@ async def run_sqlmap(
     dbms: str = "",
     headers: dict[str, Any] | None = None,
     runtime=None,
+    dump: bool = False,
 ) -> dict:
     """
     Run sqlmap and return structured results.
 
     The registered tool wrapper serializes the returned dictionary to JSON.
+
+    When ``dump`` is set, sqlmap is asked to enumerate and dump application data
+    (``--dump-all --exclude-sysdbs``) in addition to detecting the injection. The
+    default detection-only pass never dumps table contents, so a flag stored in a
+    DB cell — the boolean-blind case — is only reachable via a dump pass.
     """
     try:
         level = int(level)
@@ -299,6 +305,11 @@ async def run_sqlmap(
         cmd_parts.extend(["--cookie", _shell_quote(cookie)])
     if dbms:
         cmd_parts.extend(["--dbms", _shell_quote(dbms)])
+    if dump:
+        # Enumerate and dump non-system data so a flag sitting in a table cell
+        # (the boolean-blind case) actually reaches stdout/artifacts. --threads
+        # keeps blind char-by-char extraction tractable within the timeout.
+        cmd_parts.extend(["--dump-all", "--exclude-sysdbs", "--threads=4"])
 
     normalized_headers = _normalize_headers(headers)
     if normalized_headers:

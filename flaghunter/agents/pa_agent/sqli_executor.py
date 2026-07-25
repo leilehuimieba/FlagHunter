@@ -541,6 +541,38 @@ class SQLiExecutorMixin:
                     reason="sqlmap extracted flag",
                 )
 
+        # Detection confirmed an injection but the flag never appeared: the
+        # detection-only pass does not dump table data, so a boolean-blind flag
+        # in a DB cell is structurally unreachable. Escalate to a bounded dump.
+        if vulnerable or injection_points:
+            dump_result = await run_sqlmap(
+                url=sqlmap_url,
+                data=sqlmap_data,
+                level=1,
+                risk=1,
+                runtime=self.runtime,
+                dump=True,
+            )
+            dump_raw = str(dump_result.get("raw") or "")
+            if dump_raw:
+                await self._scan_and_store(
+                    dump_raw, target, evidence_source="command-output"
+                )
+            dumped_flag = self._extract_flag(dump_raw)
+            if dumped_flag:
+                verification = await self._observe_flag(
+                    dumped_flag,
+                    target,
+                    evidence_source="command-output",
+                    rationale="sqlmap dumped flag",
+                )
+                if verification.decision == "verified":
+                    return _ChainOutcome(
+                        progress=True,
+                        flag=verification.flag,
+                        reason="sqlmap dumped flag",
+                    )
+
         return _ChainOutcome(
             progress=bool(vulnerable or injection_points or databases),
             reason="sqlmap finished without direct flag",
