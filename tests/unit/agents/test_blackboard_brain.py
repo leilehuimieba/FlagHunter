@@ -176,6 +176,69 @@ def test_cross_tool_spinning_sanctions_stop_only_on_broad_repertoire_exhaustion(
     assert "`stop` is the correct action" not in narrow_prompt
 
 
+def test_broad_breadth_exhaustion_sanctions_stop_even_with_no_stalled_tool():
+    # Live hackworld run (2026-07-26 baseline sweep) burned the full 16-loop budget: the
+    # brain ROTATED across ~10 tools with LOW per-tool counts, so no single tool reached
+    # the count>=2 "stalled" bar until the very last step and the depth sanction never got
+    # a chance. Breadth is exhaustion too: 5+ DISTINCT dead vectors (tried, never moved
+    # world state) must surface the give-up sanction even with zero individually-stalled
+    # tools — this is the shape the earlier >=3-stalled rule was blind to.
+    breadth = BoardView(
+        attempts=[
+            # two tools that actually found something (progress_count>=1) — NOT dead
+            BoardAttempt(tool="web", count=1, progress_count=1),
+            BoardAttempt(tool="lfi", count=1, progress_count=1),
+            # five distinct single-try dead vectors — the hackworld breadth signal
+            BoardAttempt(tool="cmdi", count=1, progress_count=0),
+            BoardAttempt(tool="sqli", count=1, progress_count=0),
+            BoardAttempt(tool="upload", count=1, progress_count=0),
+            BoardAttempt(tool="misc", count=1, progress_count=0),
+            BoardAttempt(tool="ssrf", count=1, progress_count=0),
+        ]
+    )
+    prompt = render_user_prompt(breadth, [])
+    # No tool is individually "stalled" (all count==1), so the depth cue stays silent...
+    assert "CROSS-TOOL SPINNING" not in prompt
+    # ...but the breadth cue fires and carries the give-up sanction.
+    assert "BROAD REPERTOIRE EXHAUSTION" in prompt
+    assert "5 distinct vectors" in prompt
+    assert "`stop` is the correct action" in prompt
+
+
+def test_breadth_exhaustion_silent_when_dead_vectors_below_threshold():
+    # Four distinct single-try dead ends is normal breadth-first probing, not exhaustion.
+    # The sanction must NOT fire — we don't want to quit a run that has barely started.
+    view = BoardView(
+        attempts=[
+            BoardAttempt(tool="cmdi", count=1, progress_count=0),
+            BoardAttempt(tool="sqli", count=1, progress_count=0),
+            BoardAttempt(tool="upload", count=1, progress_count=0),
+            BoardAttempt(tool="misc", count=1, progress_count=0),
+        ]
+    )
+    prompt = render_user_prompt(view, [])
+    assert "BROAD REPERTOIRE EXHAUSTION" not in prompt
+    assert "`stop` is the correct action" not in prompt
+
+
+def test_breadth_exhaustion_ignores_productive_vectors():
+    # Healthy breadth-first recon: five distinct tools, but every one surfaced NEW world
+    # state (progress_count>=1). These are not dead vectors, so a run that keeps finding
+    # things is never told to give up — the signal is substance-gated, not count-gated.
+    view = BoardView(
+        attempts=[
+            BoardAttempt(tool="web", count=1, progress_count=1),
+            BoardAttempt(tool="lfi", count=1, progress_count=1),
+            BoardAttempt(tool="ssrf", count=1, progress_count=1),
+            BoardAttempt(tool="xxe", count=1, progress_count=1),
+            BoardAttempt(tool="idor", count=1, progress_count=1),
+        ]
+    )
+    prompt = render_user_prompt(view, [])
+    assert "BROAD REPERTOIRE EXHAUSTION" not in prompt
+    assert "`stop` is the correct action" not in prompt
+
+
 # --- parse_action ----------------------------------------------------------
 
 

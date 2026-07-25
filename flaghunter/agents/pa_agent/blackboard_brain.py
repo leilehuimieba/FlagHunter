@@ -37,6 +37,13 @@ LLMCall = Callable[[str, str], Awaitable[str]]
 
 _VALID_KINDS = {"call_tool", "write_fact", "declare_intent", "stop"}
 
+# Breadth-exhaustion threshold: this many DISTINCT dead vectors (tools tried, none moved
+# world state) reads as true repertoire exhaustion and licenses the give-up sanction, even
+# when no single tool repeated enough to individually "stall". Sized from the live hackworld
+# run (broad rotation across ~10 tools) so the sanction becomes available mid-run instead of
+# at the final step. A boundary signal, not a cap — the cue stays advisory.
+_BREADTH_EXHAUSTION_MIN = 5
+
 _SYSTEM_PROMPT = (
     "You are the decision brain of a CTF solving loop driving a shared blackboard.\n"
     "Each turn you see the board (confirmed FACTS, ranked INTENTS with already-refuted "
@@ -123,27 +130,60 @@ def _cross_tool_spinning_note(attempts: list[Any]) -> Optional[str]:
     cue alone never lets a run END. On a genuine capability/depth gap there IS no better
     vector, so the brain keeps hunting one until ``budget_exhausted`` — burning the whole
     loop budget on every failing run (a north-star wall-time cost). Once the rotation is
-    broad enough to read as true repertoire exhaustion (>=3 distinct dead-end vectors),
-    bridge to the system prompt's *existing* "stop when no action can help" sanction so
-    the brain may end a hopeless run and report the near-solve. Still advisory, not a rule:
-    if a genuinely untried, promising tool remains the brain should take it; ``stop`` is a
-    legitimate CHOICE here, never forced. This deliberately does NOT fire at 2 tools —
-    persistence past a single rotation is what solves EasySQL-class challenges.
+    broad enough to read as true repertoire exhaustion, bridge to the system prompt's
+    *existing* "stop when no action can help" sanction so the brain may end a hopeless run
+    and report the near-solve. Still advisory, not a rule: if a genuinely untried, promising
+    tool remains the brain should take it; ``stop`` is a legitimate CHOICE here, never forced.
+
+    Two shapes of exhaustion both license the sanction:
+
+    * **depth** — ``>=3`` distinct tools individually *stalled* (repeated with no new
+      substance). This deliberately does NOT fire at 2 tools — persistence past a single
+      rotation is what solves EasySQL-class challenges.
+    * **breadth** — ``>=`` :data:`_BREADTH_EXHAUSTION_MIN` distinct *dead vectors* (tools
+      tried at least once that never moved world state, ``progress_count == 0``). The live
+      hackworld run (2026-07-26 baseline sweep) exposed this gap: the brain rotated across
+      ~10 tools with LOW per-tool counts, so no single tool reached the ``count>=2``
+      ``stalled`` bar until step 15 of 16 — the depth sanction became available only at the
+      very last step, useless for saving budget. Broad shallow rotation is exhaustion too;
+      counting DISTINCT dead vectors (not per-tool repeats) catches it around step 7. Dead
+      vectors are substance-gated (``progress_count`` from ``_project_attempts``), so a tool
+      that genuinely found something is never counted and healthy breadth-first recon that
+      keeps surfacing new observations never trips this.
     """
     stalled_tools = [
         str(getattr(a, "tool", "") or "?")
         for a in attempts
         if bool(getattr(a, "stalled", False))
     ]
-    if len(stalled_tools) < 2:
+    # A DISTINCT tool tried at least once that moved no world state. Substance-based
+    # (progress_count), so the loose ``progress=true`` output-masking cannot inflate a
+    # dead vector into a live one. Single-try tools count: 5+ *distinct* fruitless vectors
+    # is a breadth-exhaustion signal even though no one tool repeated enough to "stall".
+    dead_vectors = [
+        str(getattr(a, "tool", "") or "?")
+        for a in attempts
+        if int(getattr(a, "count", 0) or 0) >= 1 and int(getattr(a, "progress_count", 0) or 0) == 0
+    ]
+    broad = len(dead_vectors) >= _BREADTH_EXHAUSTION_MIN
+    if len(stalled_tools) < 2 and not broad:
         return None
-    joined = ", ".join(stalled_tools)
-    note = (
-        f"⚠ CROSS-TOOL SPINNING: {len(stalled_tools)} tools all stalled with no new "
-        f"progress ({joined}) — rotating between them is NOT advancing. Escalate or try "
-        f"a fundamentally different vector; do not cycle back through these."
-    )
-    if len(stalled_tools) >= 3:
+    if len(stalled_tools) >= 2:
+        joined = ", ".join(stalled_tools)
+        note = (
+            f"⚠ CROSS-TOOL SPINNING: {len(stalled_tools)} tools all stalled with no new "
+            f"progress ({joined}) — rotating between them is NOT advancing. Escalate or try "
+            f"a fundamentally different vector; do not cycle back through these."
+        )
+    else:
+        joined = ", ".join(dead_vectors)
+        note = (
+            f"⚠ BROAD REPERTOIRE EXHAUSTION: {len(dead_vectors)} distinct vectors tried with "
+            f"no objective progress ({joined}) — you are covering breadth without landing "
+            f"anything. A different tool of the same kind is unlikely to help; escalate to a "
+            f"fundamentally different technique or go deeper on the most promising lead."
+        )
+    if len(stalled_tools) >= 3 or broad:
         note += (
             " If no fundamentally different, untried vector is left, `stop` is the correct "
             "action now — it reports the strongest near-solve. That is not giving up early; "
