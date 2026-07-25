@@ -145,6 +145,37 @@ def test_render_omits_cross_tool_spinning_when_only_one_tool_stalled():
     assert "lfi: 6x but only 1 distinct result(s) -> spinning, switch" in prompt
 
 
+def test_cross_tool_spinning_sanctions_stop_only_on_broad_repertoire_exhaustion():
+    # Baseline sweep (hackworld cold+warm burned the full 16-loop budget failing): the
+    # escalate cue alone never lets a hopeless run END. Once >=3 distinct vectors are
+    # exhausted, the cue must bridge to the system prompt's "stop when no action can help"
+    # sanction so the brain MAY end and report the near-solve. Advisory, not forced.
+    broad = BoardView(
+        attempts=[
+            BoardAttempt(tool="web", count=12, progress_count=1),  # stalled
+            BoardAttempt(tool="lfi", count=6, progress_count=1),   # stalled
+            BoardAttempt(tool="sqli", count=5, progress_count=1),  # stalled
+        ]
+    )
+    prompt = render_user_prompt(broad, [])
+    assert "CROSS-TOOL SPINNING" in prompt
+    assert "3 tools all stalled" in prompt
+    # The give-up sanction appears — `stop` is legitimised as a choice here.
+    assert "`stop` is the correct action" in prompt
+
+    # But NOT at two tools: persistence past a single rotation is what solves
+    # EasySQL-class challenges, so the sanction must stay silent there.
+    narrow = BoardView(
+        attempts=[
+            BoardAttempt(tool="web", count=12, progress_count=1),  # stalled
+            BoardAttempt(tool="lfi", count=6, progress_count=1),   # stalled
+        ]
+    )
+    narrow_prompt = render_user_prompt(narrow, [])
+    assert "CROSS-TOOL SPINNING" in narrow_prompt
+    assert "`stop` is the correct action" not in narrow_prompt
+
+
 # --- parse_action ----------------------------------------------------------
 
 

@@ -118,6 +118,17 @@ def _cross_tool_spinning_note(attempts: list[Any]) -> Optional[str]:
     back. Advisory only (see [[feedback_less_is_more_dont_cage_llm]]): a hint the model
     reads, never a rule the code enforces. Order-independent; derived purely from the
     already-bucketed per-tool tally.
+
+    Give-up sanction (baseline cold/warm sweep, hackworld + EasySQL-warm): the escalate
+    cue alone never lets a run END. On a genuine capability/depth gap there IS no better
+    vector, so the brain keeps hunting one until ``budget_exhausted`` — burning the whole
+    loop budget on every failing run (a north-star wall-time cost). Once the rotation is
+    broad enough to read as true repertoire exhaustion (>=3 distinct dead-end vectors),
+    bridge to the system prompt's *existing* "stop when no action can help" sanction so
+    the brain may end a hopeless run and report the near-solve. Still advisory, not a rule:
+    if a genuinely untried, promising tool remains the brain should take it; ``stop`` is a
+    legitimate CHOICE here, never forced. This deliberately does NOT fire at 2 tools —
+    persistence past a single rotation is what solves EasySQL-class challenges.
     """
     stalled_tools = [
         str(getattr(a, "tool", "") or "?")
@@ -127,11 +138,18 @@ def _cross_tool_spinning_note(attempts: list[Any]) -> Optional[str]:
     if len(stalled_tools) < 2:
         return None
     joined = ", ".join(stalled_tools)
-    return (
+    note = (
         f"⚠ CROSS-TOOL SPINNING: {len(stalled_tools)} tools all stalled with no new "
         f"progress ({joined}) — rotating between them is NOT advancing. Escalate or try "
         f"a fundamentally different vector; do not cycle back through these."
     )
+    if len(stalled_tools) >= 3:
+        note += (
+            " If no fundamentally different, untried vector is left, `stop` is the correct "
+            "action now — it reports the strongest near-solve. That is not giving up early; "
+            "it avoids burning the rest of the budget on a vector that may not exist."
+        )
+    return note
 
 
 def render_user_prompt(view: BoardView, tools: list[ToolSpec]) -> str:
