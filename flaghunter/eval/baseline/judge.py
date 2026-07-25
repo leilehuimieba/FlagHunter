@@ -82,16 +82,31 @@ def extract_flag(text: str, pattern: str, known_flag: str | None = None) -> str 
 
 
 def _parse_steps(stdout: str) -> tuple[int | None, int | None]:
-    """Best-effort '<iteration>/<max_loops>' → (last_iteration, max_loops)."""
-    last = None
-    max_loops = None
-    for m in re.finditer(r"(\d+)\s*/\s*(\d+)", stdout):
-        i, mx = int(m.group(1)), int(m.group(2))
-        # Heuristic: the loop counter's denominator is stable across the run.
-        if max_loops is None or mx == max_loops:
-            max_loops = mx
-            last = i if last is None else max(last, i)
-    return last, max_loops
+    """Extract (last_step, max_loops) from a run's stdout.
+
+    The authoritative step count is the dispatcher's terminal line
+    ``done: stopped=<reason> steps=<N> solved=<bool>``. The ``Loops: X/Y``
+    Finished panel is the *deterministic-substrate* loop counter and reads
+    ``0`` when the live blackboard loop solved the challenge, so it is NOT a
+    reliable step signal — the old ``\\d+/\\d+`` heuristic latched onto
+    ``Loops: 0/12`` and reported ``steps=0`` for fast live solves. We prefer,
+    in order: the ``steps=<N>`` terminal line, then the highest ``step <N>:``
+    trace line. If neither is present we return ``None`` (an honest blank)
+    rather than a wrong ``0`` scraped from the loop panel.
+    """
+    steps: int | None = None
+    term = re.findall(r"stopped=\w+\s+steps=(\d+)", stdout)
+    if term:
+        steps = max(int(x) for x in term)
+    else:
+        trace = re.findall(r"\bstep\s+(\d+)\s*:", stdout, re.IGNORECASE)
+        if trace:
+            steps = max(int(x) for x in trace)
+    max_loops: int | None = None
+    panel = re.search(r"[Ll]oops:\s*\d+\s*/\s*(\d+)", stdout)
+    if panel:
+        max_loops = int(panel.group(1))
+    return steps, max_loops
 
 
 def _parse_tokens(stdout: str) -> int | None:
@@ -105,7 +120,21 @@ def _parse_tokens(stdout: str) -> int | None:
 
 
 def _parse_tools(stdout: str) -> list[str]:
+    """Tools actually invoked, in order, from the dispatcher trace.
+
+    The authoritative surface is the ``step N: call_tool <name>`` line the CTF
+    dispatcher prints per step. The old loose ``tool[:\\s]+<word>`` scan latched
+    onto free-text prose ("the tool will…", "running for…") and polluted the
+    list with junk tokens like ``not`` / ``will`` — so we only fall back to it
+    when no structured ``call_tool`` lines exist at all.
+    """
     tools: list[str] = []
+    for m in re.finditer(r"call_tool\s+([a-z][a-z0-9_\-]{1,30})", stdout, re.IGNORECASE):
+        name = m.group(1).lower()
+        if name not in tools:
+            tools.append(name)
+    if tools:
+        return tools[:40]
     for m in re.finditer(r"(?:tool|执行|running)[:\s]+([a-z][a-z0-9_\-]{2,30})", stdout, re.IGNORECASE):
         name = m.group(1).lower()
         if name not in tools:

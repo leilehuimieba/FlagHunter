@@ -12,9 +12,27 @@ import json
 from pathlib import Path
 
 from flaghunter.eval.baseline.corpus import Challenge, Tier, load_corpus
-from flaghunter.eval.baseline.judge import Verdict, extract_flag, judge_run
+from flaghunter.eval.baseline.judge import (
+    Verdict,
+    _parse_steps,
+    _parse_tools,
+    extract_flag,
+    judge_run,
+)
 from flaghunter.eval.baseline.report import format_markdown, summarize
 from flaghunter.eval.baseline.runner import run_baseline
+
+# A realistic slice of a fast live-solve stdout (easysql shape): the blackboard
+# loop solves in 2 steps, so the Finished panel shows "Loops: 0/12" while the
+# authoritative step count lives in the dispatcher "done: … steps=2" line.
+_FAST_SOLVE_STDOUT = """\
+[00:12] [CTF dispatcher]  step 1: call_tool lfi -> progress=true reason=commands exhausted
+[00:24] [CTF dispatcher]  step 2: call_tool web -> flag=CTF2{b4e35399}
+[00:24] [CTF dispatcher]  done: stopped=goal_met steps=2 solved=True
+the tool will keep running for a while as it finalizes
+| Loops: 0/12 |
+| Tools: 67 |
+"""
 
 
 def _corpus() -> list[Challenge]:
@@ -91,6 +109,37 @@ def test_missing_target_is_skipped_not_passed():
     assert all(r.verdict == "skipped" for r in rows)
     summ = summarize(rows)
     assert summ["total_scored"] == 0 and summ["skipped"] == 3
+
+
+def test_parse_steps_uses_terminal_line_not_loop_panel():
+    # Fast live solve: "Loops: 0/12" panel must NOT win over "steps=2".
+    steps, max_loops = _parse_steps(_FAST_SOLVE_STDOUT)
+    assert steps == 2, "step count must come from the dispatcher done: line"
+    assert max_loops == 12
+
+
+def test_parse_steps_falls_back_to_trace_then_blanks():
+    # No terminal line but a step trace → highest step wins.
+    steps, _ = _parse_steps("step 1: call_tool web\nstep 7: call_tool sqli\n")
+    assert steps == 7
+    # Nothing parseable → honest None, never a scraped 0.
+    assert _parse_steps("no step markers here, just 0/12 noise")[0] is None
+
+
+def test_parse_tools_reads_call_tool_trace_not_prose():
+    tools = _parse_tools(_FAST_SOLVE_STDOUT)
+    assert tools == ["lfi", "web"], "tools must come from call_tool lines, not prose"
+    # Junk prose words like 'will' / 'for' must not leak in.
+    assert "will" not in tools and "for" not in tools
+
+
+def test_judge_run_reports_real_steps_and_tools_on_fast_solve():
+    ch = Challenge("t0_sql", "anchor", Tier.T0, "web", "solve it",
+                   r"CTF2\{[^}]+\}", "solved")
+    res = judge_run(ch, stdout=_FAST_SOLVE_STDOUT)
+    assert res.verdict is Verdict.SOLVED
+    assert res.steps == 2
+    assert res.tools_used == ["lfi", "web"]
 
 
 def test_report_renders_tiers_and_cold_warm_delta():
