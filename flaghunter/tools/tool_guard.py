@@ -6,6 +6,7 @@ import importlib.util
 import os
 import shutil
 import subprocess
+import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -191,17 +192,32 @@ class ToolGuard:
         attempts = _VERSION_FLAGS.get(tool_name, [["--version"], ["-V"], ["version"]])
         binary = resolved_path
         for args in attempts:
+            raw = b""
             try:
-                proc = subprocess.run(
-                    [binary, *args],
-                    capture_output=True,
-                    text=True,
-                    timeout=8,
-                    shell=False,
-                )
+                # Capture output via a temp file rather than a PIPE. A version
+                # probe can spawn a grandchild that inherits the write end of the
+                # pipe (e.g. a browser relaunching itself on Windows, so
+                # ``firefox --version`` / ``chrome --version`` leave a content
+                # process behind). The reader threads backing a PIPE then never
+                # observe EOF, and the post-timeout ``communicate()`` cleanup in
+                # ``subprocess.run`` deadlocks forever on ``thread.join()`` — the
+                # 8s timeout only kills the direct child, not the grandchild
+                # holding the handle. File redirection uses no reader threads, so
+                # the timeout can always reap the direct child and return.
+                with tempfile.TemporaryFile() as out:
+                    subprocess.run(
+                        [binary, *args],
+                        stdin=subprocess.DEVNULL,
+                        stdout=out,
+                        stderr=subprocess.STDOUT,
+                        timeout=8,
+                        shell=False,
+                    )
+                    out.seek(0)
+                    raw = out.read()
             except Exception:
                 continue
-            output = (proc.stdout or proc.stderr or "").strip()
+            output = raw.decode("utf-8", "replace").strip() if raw else ""
             if output:
                 return output.splitlines()[0][:160]
         return None

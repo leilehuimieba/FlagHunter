@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sys
+import threading
 from types import SimpleNamespace
 
 import pytest
@@ -70,3 +72,43 @@ def test_tool_guard_http_request_requires_httpx(monkeypatch):
     guard = ToolGuard(runtime=runtime)
     status = guard.check("http_request")
     assert status.available is False
+
+
+def test_detect_version_does_not_deadlock_on_lingering_grandchild(monkeypatch, tmp_path):
+    """A version probe that leaves a grandchild holding the output handle must
+    not deadlock the whole check.
+
+    Regression guard for the Windows-LocalRuntime hang where ``firefox
+    --version`` / ``chrome --version`` relaunch themselves, leaving a content
+    process that inherits the write end of a captured PIPE. The reader threads
+    never see EOF and the post-timeout ``communicate()`` cleanup joins forever.
+    Capturing via a temp file (no reader threads) keeps the probe bounded.
+    """
+    # A fake "tool": prints its version, then leaves a grandchild alive that
+    # inherits the process's stdout for far longer than the 8s probe timeout.
+    faketool = tmp_path / "faketool.py"
+    faketool.write_text(
+        "import sys, subprocess\n"
+        "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(25)'])\n"
+        "sys.stdout.write('FakeTool 9.9.9\\n')\n"
+        "sys.stdout.flush()\n",
+        encoding="utf-8",
+    )
+    # Route _detect_version's argv to `python <faketool.py>` for this tool name.
+    monkeypatch.setitem(
+        __import__("flaghunter.tools.tool_guard", fromlist=["_VERSION_FLAGS"])._VERSION_FLAGS,
+        "faketool",
+        [[str(faketool)]],
+    )
+
+    guard = ToolGuard(runtime=None)
+    result: dict[str, object] = {}
+
+    def _probe() -> None:
+        result["version"] = guard._detect_version("faketool", sys.executable)
+
+    worker = threading.Thread(target=_probe, daemon=True)
+    worker.start()
+    worker.join(15)
+    assert not worker.is_alive(), "_detect_version deadlocked on a lingering grandchild"
+    assert result.get("version") == "FakeTool 9.9.9"
