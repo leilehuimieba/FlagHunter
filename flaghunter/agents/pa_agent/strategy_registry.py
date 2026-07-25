@@ -286,7 +286,25 @@ def _render_param_precondition(context: StrategyContext) -> bool:
     2. 同时观察到 /error 与 render 文本（覆盖 easy_tornado 一类 redirect -> render 题）
     """
     tokens = ("msg=", "message=", "error=", "render=", "template=")
-    seed_values: list[str] = [str(item or "") for item in (context.page_features.get("raw_links") or [])]
+    # Template-engine / server-side-render markers signal an SSTI-worthy stack
+    # even when no query render-param surface is exposed — e.g. shrine, whose
+    # injection point is a URL path segment (/shrine/<path>) rather than a
+    # ?param=. These are low-false-positive: each names a template engine or its
+    # render primitive. Without this, path-segment SSTI is structurally
+    # unreachable (probe never fires) and the agent spins through other chains.
+    framework_tokens = (
+        "jinja", "flask", "werkzeug", "tornado", "twig",
+        "render_template", "template_string",
+    )
+    features = context.page_features or {}
+    body_blob = f"{features.get('html', '')}\n{features.get('content', '')}"
+    headers = features.get("headers")
+    if isinstance(headers, dict):
+        body_blob += "\n" + " ".join(f"{k}:{v}" for k, v in headers.items())
+    if any(token in body_blob.lower() for token in framework_tokens):
+        return True
+
+    seed_values: list[str] = [str(item or "") for item in (features.get("raw_links") or [])]
 
     context_state = getattr(context, "state", None)
     observations = list(getattr(context_state, "observations", []) or [])

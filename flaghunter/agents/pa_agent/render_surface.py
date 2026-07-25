@@ -24,11 +24,19 @@ from __future__ import annotations
 
 import re
 from typing import Any
-from urllib.parse import parse_qs, urlencode, urljoin, urlparse
+from urllib.parse import parse_qs, quote, urlencode, urljoin, urlparse
 
 
 class RenderSurfaceMixin:
     """Render-surface URL normalization, exhaustion tracking and response fingerprinting."""
+
+    # Bounded seed of common single-segment Flask routes whose <path> converter
+    # reflects into a template (SSTI path-injection points, e.g. /shrine/<path>).
+    # Used only as a fallback when no such route is discovered from links.
+    _COMMON_PATH_REFLECTION_ROUTES = (
+        "shrine", "page", "render", "view", "greeting", "hello", "name",
+    )
+    _MAX_PATH_REFLECTION_SURFACES = 12
 
     def _collect_render_surface_urls(
         self,
@@ -70,10 +78,77 @@ class RenderSurfaceMixin:
                 seen.add(fallback)
                 candidates.append(fallback)
 
+        # Path-segment reflection surfaces (Flask ``/shrine/<path>`` class SSTI).
+        # Query-param surfaces above cannot reach injection points that live in
+        # the URL path itself; bridge that gap the same way ``auth_form_sqli``
+        # bridged login-form SQLi. Path candidates are marked by a trailing
+        # ``/`` and no query string; ``_inject_render_payload`` appends the
+        # payload as the final path segment for those.
+        #
+        # Derived ONLY from the stable initial ``raw_links`` (plus the constant
+        # seed routes), NOT from the accumulating observation-derived
+        # ``seed_values`` — the per-strategy surface-exhaustion signature keys off
+        # this candidate list, so an observation-dependent set would drift
+        # between passes and defeat exhaustion tracking (re-probing forever).
+        for path_url in self._collect_path_reflection_surfaces(
+            base, list(page_features.get("raw_links") or [])
+        ):
+            if path_url not in seen:
+                seen.add(path_url)
+                candidates.append(path_url)
+
         fallback = urljoin(base + "/", "error?msg=Error")
         if fallback not in seen:
             candidates.append(fallback)
         return candidates
+
+    def _collect_path_reflection_surfaces(
+        self,
+        base: str,
+        seed_values: list[str],
+    ) -> list[str]:
+        """Path-segment reflection candidates (Flask ``/shrine/<path>`` SSTI class).
+
+        Returns parent URLs ending in ``/`` with no query string; the SSTI
+        probe/identify/exploit stages append their payload as the final path
+        segment. Sourced primarily from discovered internal link paths, plus a
+        bounded seed of common single-segment routes for challenges that don't
+        link the injectable route from a crawlable page.
+        """
+        base_host = urlparse(base).netloc
+        surfaces: list[str] = []
+        seen: set[str] = set()
+
+        def _add(path: str) -> None:
+            if not path or path == "/":
+                return
+            parent = path if path.endswith("/") else path.rsplit("/", 1)[0] + "/"
+            for cand in (parent, path.rstrip("/") + "/"):
+                if not cand or cand == "/":
+                    continue
+                url = urljoin(base + "/", cand.lstrip("/"))
+                if urlparse(url).netloc != base_host:
+                    continue
+                if url not in seen:
+                    seen.add(url)
+                    surfaces.append(url)
+
+        for raw in seed_values:
+            text = str(raw or "").strip()
+            if not text:
+                continue
+            parsed = urlparse(urljoin(base + "/", text))
+            if parsed.netloc != base_host or parsed.query:
+                continue
+            _add(parsed.path)
+
+        for route in self._COMMON_PATH_REFLECTION_ROUTES:
+            url = urljoin(base + "/", route + "/")
+            if url not in seen:
+                seen.add(url)
+                surfaces.append(url)
+
+        return surfaces[: self._MAX_PATH_REFLECTION_SURFACES]
 
     def _normalize_render_surface_url(self, candidate_url: str) -> str:
         parsed = urlparse(candidate_url)
@@ -149,6 +224,13 @@ class RenderSurfaceMixin:
             if key in params:
                 params[key] = [payload]
                 return parsed._replace(query=urlencode(params, doseq=True)).geturl()
+        # Path-segment reflection surface: a parent path ending in ``/`` with no
+        # query string means "inject the payload as the final path segment"
+        # (Flask ``/shrine/<path>`` class). This reaches injection points that
+        # query-param injection structurally cannot.
+        if not parsed.query and parsed.path.endswith("/") and parsed.path != "/":
+            encoded = quote(payload, safe="")
+            return parsed._replace(path=parsed.path + encoded).geturl()
         params["msg"] = [payload]
         return parsed._replace(query=urlencode(params, doseq=True)).geturl()
 
