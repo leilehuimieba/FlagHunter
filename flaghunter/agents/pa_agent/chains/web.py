@@ -59,6 +59,16 @@ WEB_STRATEGY_ORDER = [
     # short-circuits first; same chain_name="sqli", same find_auth_form gate,
     # flag verification-gated.
     "auth_form_union_sqli",
+    # blind_sqli (WAF-bypass boolean-blind) runs LAST — the deepest, costliest
+    # SQLi path (up to a bounded per-char binary-search budget). sqlmap and the
+    # UNION/bypass strategies above fail on a keyword+space-blacklist WAF
+    # (HackWorld-class) that rejects their payload templates, reading the field
+    # as "not injectable"; this native extractor synthesises keyword-lean,
+    # space-free boolean oracles instead. Appended last so any flag reachable by
+    # a cheaper strategy short-circuits first; it bails cheaply (≤48 probes) when
+    # no boolean oracle exists, so its broad precondition costs little on
+    # non-blind targets, and its flag is verification-gated.
+    "blind_sqli",
 ]
 
 

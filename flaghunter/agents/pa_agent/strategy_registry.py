@@ -448,6 +448,31 @@ def _generic_param_sqli_precondition(context: StrategyContext) -> bool:
     return False
 
 
+def _blind_sqli_precondition(context: StrategyContext) -> bool:
+    """存在任意可提交字段面（GET 或 POST 表单里带命名非装饰输入，或可识别认证表单）。
+
+    比 generic_param_sqli（仅 GET）更宽：boolean-blind 提取通过 ``_submit_form_request``
+    统一驱动 GET/POST，因此 POST 登录框（HackWorld 型空格+关键字黑名单 WAF）也应可达。
+    """
+    forms = context.page_features.get("forms") or []
+    if find_auth_form(forms) is not None:
+        return True
+    for form in forms:
+        if not isinstance(form, dict):
+            continue
+        for item in form.get("inputs") or []:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or "").strip()
+            if not name:
+                continue
+            field_type = str(item.get("type") or "text").strip().lower()
+            if field_type in {"submit", "button", "image", "reset", "hidden", "file"}:
+                continue
+            return True
+    return False
+
+
 def _generic_param_cmdi_precondition(context: StrategyContext) -> bool:
     """存在可注入参数面：带命名输入的 GET 表单，或带 query 参数的链接/观测 URL。"""
     if _generic_param_sqli_precondition(context):
@@ -912,6 +937,23 @@ def _register_injection_strategies(registry: "StrategyRegistry") -> None:
             escalation_condition="轻量 GET 参数链只确认注入但未恢复 flag 时，再升级到 sqlmap 或其他 SQLi 侦察。",
             precondition=lambda ctx: _generic_param_sqli_precondition(ctx),
             execute=lambda ctx: ctx.services._attempt_generic_param_sqli(  # noqa: SLF001
+                ctx.target,
+                ctx.page_features,
+            ),
+        )
+    )
+
+    registry.register(
+        StrategyDefinition(
+            kind="blind_sqli",
+            chain_name="sqli",
+            precondition_description="存在任意可提交字段面（GET/POST 表单命名输入或认证表单），适合布尔盲注 + WAF 绕过合成。",
+            minimal_experiment="用免关键字、免空格的布尔 payload（&&/|| 逻辑、括号子查询、/**/ 或控制符分隔、substr/mid+ascii/ord 变体）建立页面差异 oracle。",
+            success_signal="TRUE/FALSE payload 产生稳定页面差异（确认盲注），并逐字符重建出的库内数据里出现 verified/runtime flag。",
+            failure_signal="所有上下文×分隔符组合都无稳定布尔 oracle，或重建 schema/行数据后仍无 flag。",
+            escalation_condition="盲注 oracle 确认注入但预算内未取回 flag 时，升级到 sqlmap 或更深枚举。",
+            precondition=lambda ctx: _blind_sqli_precondition(ctx),
+            execute=lambda ctx: ctx.services._attempt_blind_sqli(  # noqa: SLF001
                 ctx.target,
                 ctx.page_features,
             ),
