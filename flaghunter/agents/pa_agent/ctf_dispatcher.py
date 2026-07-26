@@ -2374,6 +2374,10 @@ class CTFTaskDispatcher(
             if derived := self._recent_php_object_injection_ssrf_source_exploit():
                 resolved_extras.setdefault("php_oi_ssrf_exploit_info", derived.get("exploit_info") or {})
                 resolved_extras.setdefault("php_oi_ssrf_artifact_url", str(derived.get("artifact_url") or ""))
+        if not resolved_extras.get("second_order_sqli_exploit_info"):
+            if derived := self._recent_second_order_sqli_source_exploit():
+                resolved_extras.setdefault("second_order_sqli_exploit_info", derived.get("exploit_info") or {})
+                resolved_extras.setdefault("second_order_sqli_artifact_url", str(derived.get("artifact_url") or ""))
         if not resolved_extras.get("cookie_secret") and self.state is not None:
             for observation in reversed(list(self.state.observations)):
                 if str(getattr(observation, "kind", "") or "").strip() != "cookie_secret_leaked":

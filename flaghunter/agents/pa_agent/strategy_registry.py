@@ -962,6 +962,24 @@ def _register_injection_strategies(registry: "StrategyRegistry") -> None:
 
     registry.register(
         StrategyDefinition(
+            kind="second_order_sqli",
+            chain_name="sqli",
+            precondition_description="源码分析确认 store→trigger 二次注入形态：某请求字段被 INSERT 持久化，随后在触发端点被重新拼进查询。",
+            minimal_experiment="在 store 表单字段里种入 UNION payload，命中 trigger 端点让被延迟复用的查询执行，读回反射结果。",
+            success_signal="trigger 响应回显 sentinel（确认延迟 UNION）后进一步取到 verified/runtime flag。",
+            failure_signal="所有列布局×位置的 sentinel 都不反射（无延迟 oracle），或 oracle 确认后 flag 仓库耗尽。",
+            escalation_condition="oracle 确认但预算内未取回 flag 时，扩展 flag 仓库 / 转盲注或 LLM 驱动探索。",
+            precondition=lambda ctx: bool(ctx.extras.get("second_order_sqli_exploit_info")),
+            execute=lambda ctx: ctx.services._attempt_second_order_sqli(  # noqa: SLF001
+                ctx.target,
+                ctx.extras.get("second_order_sqli_exploit_info") or {},
+                artifact_url=str(ctx.extras.get("second_order_sqli_artifact_url") or ""),
+            ),
+        )
+    )
+
+    registry.register(
+        StrategyDefinition(
             kind="generic_param_cmdi",
             chain_name="cmdi",
             precondition_description="存在可注入参数面（带命名输入的 GET 表单，或带 query 参数的链接）。",
