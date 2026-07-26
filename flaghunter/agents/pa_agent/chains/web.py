@@ -37,6 +37,13 @@ WEB_STRATEGY_ORDER = [
     "contact_report_chain",
     "backup_source_leak",
     "php_unserialize_magic_method",
+    # php_object_injection_ssrf: leaked source revealed a serialized object whose
+    # property is passed to a file-read/SSRF sink (fakebook-class). Unlike
+    # php_unserialize_magic_method (auth-bypass object via a standalone GET param),
+    # the gadget rides a UNION-SELECT column of an injectable numeric param.
+    # Source-hint gated (precondition reads derived php_oi_ssrf_exploit_info), so
+    # it is a no-op on challenges without a leaked class + file-read sink.
+    "php_object_injection_ssrf",
     "insecure_deserialization",
     "generic_param_sqli",
     "jwt_manipulation",

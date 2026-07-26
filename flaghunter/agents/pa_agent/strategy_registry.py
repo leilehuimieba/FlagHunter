@@ -1105,6 +1105,24 @@ def _register_web_exploitation_strategies(registry: "StrategyRegistry") -> None:
 
     registry.register(
         StrategyDefinition(
+            kind="php_object_injection_ssrf",
+            chain_name="web",
+            precondition_description="源码分析确认某 class 的可控属性被喂进 file_get_contents/curl_exec 等文件读取/SSRF sink，且存在可注入的 UNION 载体列。",
+            minimal_experiment="把序列化 gadget 对象 hex 编码塞进可注入 GET 参数的 UNION-SELECT 列（扫小列数×位置），令 sink 属性指向 file:///…/flag.php 等目标。",
+            success_signal="某列布局下 sink 读取目标文件，运行时响应回显 verified/runtime flag。",
+            failure_signal="所有列布局×分隔符组合的 payload 用尽且无 flag/文件读取证据。",
+            escalation_condition="若基础 file:// 目标无 flag，扩展 sink 目标（内网 http SSRF / 其它路径）或转 LLM 驱动探索。",
+            precondition=lambda ctx: bool(ctx.extras.get("php_oi_ssrf_exploit_info")),
+            execute=lambda ctx: ctx.services._attempt_php_object_injection_ssrf_chain(  # noqa: SLF001
+                ctx.target,
+                ctx.extras.get("php_oi_ssrf_exploit_info") or {},
+                artifact_url=str(ctx.extras.get("php_oi_ssrf_artifact_url") or ""),
+            ),
+        )
+    )
+
+    registry.register(
+        StrategyDefinition(
             kind="hint_chain_followup",
             chain_name="web",
             precondition_description="发现 /hints.txt、/welcome.txt、/flag.txt 等提示文件，或 exploration_agenda 含提示类条目。",
