@@ -1994,8 +1994,8 @@ Kali 工具、字典、模型、第三方二进制和知识内容可能有不同
 
 | ID | 优先级 | 工作项 | 预期产物 | 验收目标 |
 |---|---|---|---|---|
-| B-01 | P1 | Ruff/Black 改为阻断 | CI hard gate | 修改范围 0 错误 |
-| B-02 | P1 | import-linter 进入 CI | architecture gate | 新违规为 0 |
+| B-01 | P1 | ✅ Ruff/Black 改为阻断（changed-files gate） | CI hard gate | 修改范围 0 错误 |
+| B-02 | P1 | ✅ import-linter 进入 CI | architecture gate | 新违规为 0 |
 | B-03 | P1 | Domain/Ports/Application 类型严格化 | staged mypy config | 核心公共 API 无 Any 泄漏 |
 | B-04 | P1 | 密钥与依赖扫描 | secret + dependency gate | 高危阻断 |
 | B-05 | P1 | 容器/SBOM/provenance 扫描 | release supply-chain job | 发布产物可追溯 |
@@ -2418,3 +2418,4 @@ Kali 工具、字典、模型、第三方二进制和知识内容可能有不同
 | V2.0 | 2026-07-31 | 合并原优化方法论，加入当前仓库静态审计、完整功能域、代码质量、运维、安全、数据、成本、遗漏项、阶段 backlog 和文档收口规则；改用稳定文件名作为唯一综合优化总纲。 |
 | V2.1 | 2026-07-31 | 记录首批实施进展：✅ A-10/F-06（Docker build context 收口 + guard 测试）、✅ A-06/F-05（MCP metrics proof-backed success，done 与 solve 分离）、🔨 B-06/F-10（代码侧版本单源解析，release tag/CHANGELOG 待发布流程收口）。均含守护测试、零回归。 |
 | V2.2 | 2026-07-31 | ✅ A-05：Web 控制面 `_run_agent_task` 曾以 flag 字符串存在性 + 正则重扫模型输出判定成功，会把 dispatcher 近解候选（`SolveResult.flag` 而 `success=False`）或裸正则命中伪装成 verified 成功。引入 `_resolve_terminal_outcome` 单一 proof-backed 策略：仅 verifier 确认的 flag 记 success；未验证候选降级为 `candidateFlag`+`stopped`（`candidate_flag_unverified`/`no_flag_found`），不丢近解（§6.9）。5 guard 测试、295 interface passed 零回归。Web 假成功率→0。 |
+| V2.3 | 2026-07-31 | ✅ B-01/B-02：CI 曾以 `continue-on-error` 跑 ruff/black（lint/format 回归永不阻断），`.importlinter` 契约仅经 pytest 间接强制。B-01 新增 `lint-changed` 阻断 job——对本次 push/PR 实际改动的 `flaghunter/*.py`（diff vs base）跑 ruff+black，分阶段落地（修改范围 0 错误·遗留全树保留 advisory `lint` job 作 backlog）；B-02 新增 `import-linter` 阻断 job（`lint-imports --config .importlinter`）作专用架构门禁。`test_ci_quality_gates.py` 锁住"changed-files ruff/black 阻断 + lint-imports 阻断 + 全树 job 仍 advisory（防未验证大爆炸翻转）"。本机 ruff/black 因 TLS 拦截代理无法安装故全树未预清零→采 changed-files 相；import-linter 契约本机 CLI 退出 0 + pytest guard `all_kept=True` 已证 KEPT。8 guard passed。 |
