@@ -802,6 +802,8 @@ def _build_trace_payload(project_root: Path, task: dict[str, Any], include_timel
         "inputTokens": input_tokens,
         "outputTokens": output_tokens,
         "finalFlag": item.get("finalFlag"),
+        "candidateFlag": item.get("candidateFlag"),
+        "stopReason": item.get("stopReason"),
         "sessionId": item.get("sessionId"),
         "detailSource": projection["detailSource"],
     }
@@ -948,6 +950,43 @@ def _build_knowledge_usage(project_root: Path, path: Path) -> dict[str, Any]:
     }
 
 
+def _resolve_terminal_outcome(
+    *,
+    verified: bool,
+    verified_flag: str | None,
+    candidate_flag: str | None,
+    stop_reason: str | None,
+) -> dict[str, Any]:
+    """Single proof-backed terminal-outcome policy (A-05).
+
+    Success is proof-backed ONLY. A run is ``success`` iff a proof authority
+    verified it (``verified=True`` with a verified flag). A flag-shaped string
+    that was merely regex-scanned from model output, or a dispatcher *near-solve
+    candidate* (``SolveResult.flag`` while ``SolveResult.success is False``), is
+    surfaced as ``candidateFlag`` and NEVER upgrades the run to success — no
+    entry may promote a regex hit or model self-report to verified (总纲 §4.3).
+
+    Returns the terminal task fields; the caller merges them into the task and
+    stamps ``finishedAt``.
+    """
+    if verified and verified_flag:
+        return {
+            "status": "success",
+            "finalFlag": verified_flag,
+            "candidateFlag": None,
+            "stopReason": None,
+        }
+    reason = stop_reason or (
+        "candidate_flag_unverified" if candidate_flag else "no_flag_found"
+    )
+    return {
+        "status": "stopped",
+        "finalFlag": None,
+        "candidateFlag": candidate_flag,
+        "stopReason": reason,
+    }
+
+
 def _run_agent_task(task_id: str, payload: dict, project_root: Path) -> None:
     """Background thread: builds agent components and runs the agent loop."""
     task = _tasks[task_id]
@@ -1079,10 +1118,18 @@ def _run_agent_task(task_id: str, payload: dict, project_root: Path) -> None:
                         task["ctfStateSnapshot"] = dispatcher_state.to_snapshot()
                     except Exception:
                         pass
+                # Proof-backed success only — SolveResult.success is set by the
+                # dispatcher's verifier/proof-authority path. SolveResult.flag may
+                # still hold a NEAR-SOLVE candidate while success is False, so it
+                # must be classified as a candidate, never a verified flag (A-05).
+                ctf_verified = bool(getattr(solve_result, "success", False))
+                ctf_flag = getattr(solve_result, "flag", None)
                 return {
-                    "output": str(getattr(solve_result, "flag", "") or getattr(solve_result, "reason", "") or ""),
-                    "final_flag": getattr(solve_result, "flag", None),
-                    "stop_reason": None if getattr(solve_result, "flag", None) else (getattr(solve_result, "reason", None) or "no_flag_found"),
+                    "output": str(ctf_flag or getattr(solve_result, "reason", "") or ""),
+                    "verified": ctf_verified,
+                    "verified_flag": ctf_flag if ctf_verified else None,
+                    "candidate_flag": ctf_flag if not ctf_verified else None,
+                    "stop_reason": None if ctf_verified else (getattr(solve_result, "reason", None) or "no_flag_found"),
                 }
 
             # ── Agent (assembled by the facade) ───────────────────────────
@@ -1217,9 +1264,13 @@ def _run_agent_task(task_id: str, payload: dict, project_root: Path) -> None:
                 saved_session_id = agent.save_session()
             except Exception:
                 saved_session_id = getattr(agent, "_session_id", None)
+            # The generic agent loop has no proof authority — a flag regex-scanned
+            # from model output is only a CANDIDATE, never verified success (A-05).
             return {
                 "output": "\n".join(result_text),
-                "final_flag": final_flag,
+                "verified": False,
+                "verified_flag": None,
+                "candidate_flag": final_flag,
                 "stop_reason": None if final_flag else "no_flag_found",
             }
 
@@ -1227,28 +1278,37 @@ def _run_agent_task(task_id: str, payload: dict, project_root: Path) -> None:
         run_result = loop.run_until_complete(_build_and_run())
         loop.close()
 
-        # Final flag extraction from full result
-        import re
-        result = str(run_result.get("output", "") or "")
-        final_flag = run_result.get("final_flag")
-        if not final_flag:
-            flags = re.findall(flag_fmt, result or "")
-            final_flag = flags[0] if flags else None
-        stop_reason = run_result.get("stop_reason") or (None if final_flag else "no_flag_found")
-
+        # Terminal outcome is proof-backed only (A-05). Success consumes the
+        # verified signal produced upstream — never a regex re-scan of the output
+        # text, which would let a candidate/near-solve flag masquerade as success.
+        outcome = _resolve_terminal_outcome(
+            verified=bool(run_result.get("verified")),
+            verified_flag=run_result.get("verified_flag"),
+            candidate_flag=run_result.get("candidate_flag"),
+            stop_reason=run_result.get("stop_reason"),
+        )
         task.update({
-            "status": "success" if final_flag else "stopped",
+            "status": outcome["status"],
             "finishedAt": _now_iso(),
-            "finalFlag": final_flag,
-            "stopReason": stop_reason,
+            "finalFlag": outcome["finalFlag"],
+            "candidateFlag": outcome["candidateFlag"],
+            "stopReason": outcome["stopReason"],
         })
         if saved_session_id:
             task["sessionId"] = saved_session_id
-        if final_flag:
-            emit_log("info", "agent", f"Task {task_id} completed — flag captured")
+        if outcome["status"] == "success":
+            emit_log("info", "agent", f"Task {task_id} completed — verified flag captured")
         else:
-            emit_log("warn", "agent", f"Task {task_id} stopped — {stop_reason or 'no_flag_found'}")
-            _aggregator.record_failure(stop_reason or "no_flag_found")
+            reason = outcome["stopReason"] or "no_flag_found"
+            if outcome["candidateFlag"]:
+                emit_log(
+                    "warn",
+                    "agent",
+                    f"Task {task_id} stopped — unverified candidate flag ({reason})",
+                )
+            else:
+                emit_log("warn", "agent", f"Task {task_id} stopped — {reason}")
+            _aggregator.record_failure(reason)
     except Exception as exc:
         logger.exception("Agent task %s failed: %s", task_id, exc)
         stop_reason = str(exc)[:120]
@@ -1267,7 +1327,7 @@ def _run_agent_task(task_id: str, payload: dict, project_root: Path) -> None:
         "task_id": task_id,
         "run_id": task.get("currentRunId"),
         "t": task.get("finishedAt") or _now_iso(),
-        "updates": {k: task[k] for k in ("status", "finishedAt", "finalFlag", "stopReason") if k in task},
+        "updates": {k: task[k] for k in ("status", "finishedAt", "finalFlag", "candidateFlag", "stopReason") if k in task},
     })
     _bus.emit({
         "type": f"task.{task.get('status')}",
