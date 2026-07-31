@@ -1,16 +1,94 @@
-venv
-.venv
-__pycache__
-*.pyc
-.pytest_cache
-.mypy_cache
+# ==========================================================================
+# FlagHunter Docker build-context exclusions
+# --------------------------------------------------------------------------
+# The Dockerfiles use `COPY . .`, so anything NOT excluded here enters the
+# build context and image layers. This file MUST keep local runtime products,
+# collected evidence (loot), logs, reports, per-challenge working dirs,
+# conversations, workspaces, RAG session caches, secrets and databases OUT of
+# the image. See docs/dev/FlagHunter_优化总纲.md item F-06 / A-10.
+# Guarded by tests/unit/test_dockerignore_hardening.py — keep in sync.
+# ==========================================================================
+
+# --- Version control / project meta ---
 .git
+.gitignore
+.github
+
+# --- Python build / cache artifacts ---
+__pycache__
+**/__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+/.pytest_cache
+.mypy_cache
+.ruff_cache
+.pyright
 dist
 build
 *.egg-info
-third_party/MetasploitMCP
+*.egg
+
+# --- Virtualenvs ---
+venv
 venv/
 venv/*
+.venv
+env/
+ENV/
+
+# --- Secrets / credentials (never ship into an image layer) ---
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+mcp_servers.json
+
+# --- Collected evidence & per-run local products (like loot/) ---
+loot/
+reports/
+logs/
+*.log
+challenges/
+conversations/
+workspaces/
+embeddings/
+sessions/
+ctf_sessions/
+checkpoints/
 runtime/
-/.pytest_cache
+flaghunter/knowledge/sessions/
+flaghunter/knowledge/ctf_sessions/
+
+# --- Local state / databases ---
+*.db
+*.sqlite
+*.sqlite3
+*.wal
+
+# --- Scratch / temp working dirs ---
+tmp/
+tmp_*/
+/tmp
+*.tmp
+
+# --- Test & coverage artifacts ---
+.coverage
+htmlcov/
+coverage.xml
+tests/*.log
+
+# --- Vendored external servers not required at runtime ---
+third_party/MetasploitMCP
+
+# --- Editor / OS noise ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Docs are not needed to run the agent (README is copied explicitly) ---
+docs/
