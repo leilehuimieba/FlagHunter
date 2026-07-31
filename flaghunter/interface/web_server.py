@@ -2158,11 +2158,22 @@ def _make_handlers(project_root: Path):
     memory_handlers = make_memory_handlers(project_root)
 
     async def sse_stream(req: web.Request) -> web.StreamResponse:
+        from ..config.remote_access import is_allowed_origin, resolve_allowed_origins
+
         resp = web.StreamResponse()
         resp.headers["Content-Type"] = "text/event-stream"
         resp.headers["Cache-Control"] = "no-cache"
         resp.headers["Connection"] = "keep-alive"
-        resp.headers["Access-Control-Allow-Origin"] = "*"
+        # A-09: echo the Origin only when the shared policy trusts it (loopback
+        # or allowlisted) rather than the old wildcard. The middleware cannot add
+        # CORS headers to an already-prepared StreamResponse, so decide here.
+        _sse_origin = req.headers.get("Origin")
+        if _sse_origin is not None and is_allowed_origin(
+            _sse_origin, allowlist=resolve_allowed_origins()
+        ):
+            resp.headers["Access-Control-Allow-Origin"] = _sse_origin
+            resp.headers["Access-Control-Allow-Credentials"] = "true"
+        resp.headers["Vary"] = "Origin"
         await resp.prepare(req)
 
         q = _bus.subscribe()
@@ -2203,19 +2214,59 @@ def _make_handlers(project_root: Path):
     }
 
 
-# ── CORS middleware ───────────────────────────────────────────────────────────
+# ── CORS + Origin/CSRF middleware (A-09 · F-05) ────────────────────────────────
+#
+# The console no longer answers with ``Access-Control-Allow-Origin: *``. Instead
+# it echoes the request Origin only when the shared FOUNDATION origin policy trusts
+# it (loopback origins, plus the operator's FLAGHUNTER_WEB_ALLOWED_ORIGINS
+# allowlist), and rejects state-changing requests that arrive with an untrusted
+# Origin. Loopback-bound local dev keeps working because the console's own origin
+# is loopback; remote deployments must allowlist their origin explicitly.
 
-@web.middleware
-async def cors_middleware(request: web.Request, handler):
-    if request.method == "OPTIONS":
-        return web.Response(headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type",
-        })
-    resp = await handler(request)
-    resp.headers["Access-Control-Allow-Origin"] = "*"
-    return resp
+def make_cors_middleware(allowed_origins: "frozenset[str]"):
+    from ..config.remote_access import (
+        is_allowed_origin,
+        origin_permitted_for_request,
+    )
+
+    @web.middleware
+    async def cors_middleware(request: web.Request, handler):
+        origin = request.headers.get("Origin")
+        allowed = origin is not None and is_allowed_origin(
+            origin, allowlist=allowed_origins
+        )
+
+        if request.method == "OPTIONS":
+            headers = {
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                "Access-Control-Allow-Headers": (
+                    "Content-Type, Authorization, X-FlagHunter-Token"
+                ),
+                "Vary": "Origin",
+            }
+            if allowed:
+                headers["Access-Control-Allow-Origin"] = origin
+                headers["Access-Control-Allow-Credentials"] = "true"
+            return web.Response(headers=headers)
+
+        # CSRF: a state-changing request bearing an untrusted Origin is refused
+        # before it can reach a handler.
+        if not origin_permitted_for_request(
+            method=request.method, origin=origin, allowlist=allowed_origins
+        ):
+            return web.json_response(
+                {"error": "forbidden", "detail": "origin not allowed"},
+                status=403,
+            )
+
+        resp = await handler(request)
+        if allowed:
+            resp.headers["Access-Control-Allow-Origin"] = origin
+            resp.headers["Access-Control-Allow-Credentials"] = "true"
+        resp.headers["Vary"] = "Origin"
+        return resp
+
+    return cors_middleware
 
 
 # ── Auth middleware (A-07 · F-03) ──────────────────────────────────────────────
@@ -2286,9 +2337,16 @@ def create_app(
 
         auth_token = resolve_web_auth_token()
 
+    from ..config.remote_access import resolve_allowed_origins
+
+    allowed_origins = resolve_allowed_origins()
+
     h = _make_handlers(project_root)
     app = web.Application(
-        middlewares=[cors_middleware, make_auth_middleware(host, auth_token)]
+        middlewares=[
+            make_cors_middleware(allowed_origins),
+            make_auth_middleware(host, auth_token),
+        ]
     )
 
     # API routes
