@@ -21,6 +21,8 @@ from aiohttp import web
 
 from flaghunter.application.challenge.task_ingress_service import SubmitTaskIngress
 
+from ..domain.cancellation import get_cancellation_registry
+
 from .blackboard_lite import build_task_blackboard_snapshot, serialize_blackboard_snapshot
 from .control_contract import (
     build_control_decision_parts,
@@ -304,6 +306,48 @@ def emit_log(level: str, source: str, message: str) -> None:
 
 _tasks: dict[str, dict] = {}
 _task_threads: dict[str, threading.Thread] = {}
+# task_id -> (daemon-thread event loop, the coroutine's asyncio.Task) (A-03).
+# stop_task runs on the aiohttp loop, a DIFFERENT thread from the one running
+# the task's own event loop; the stored loop lets it schedule a real cancel
+# across the thread boundary instead of only flipping a UI status field (F-01).
+_task_runners: dict[str, tuple[asyncio.AbstractEventLoop, asyncio.Task]] = {}
+_runners_lock = threading.Lock()
+
+
+def _register_task_runner(
+    task_id: str, loop: asyncio.AbstractEventLoop, handle: asyncio.Task
+) -> None:
+    with _runners_lock:
+        _task_runners[task_id] = (loop, handle)
+
+
+def _unregister_task_runner(task_id: str) -> None:
+    with _runners_lock:
+        _task_runners.pop(task_id, None)
+
+
+def _cancel_web_task(task_id: str, reason: str) -> bool:
+    """Really interrupt a running web task from another thread (A-03).
+
+    Latches the cancellation-registry token (cooperative pollers / propagation),
+    then schedules ``handle.cancel()`` on the task's own event loop via
+    ``call_soon_threadsafe``. Returns True if a live task was signalled; False
+    when the task has already finished (nothing left to interrupt).
+    """
+    get_cancellation_registry().cancel(task_id, reason)
+    with _runners_lock:
+        runner = _task_runners.get(task_id)
+    if runner is None:
+        return False
+    loop, handle = runner
+    if handle.done() or loop.is_closed():
+        return False
+    try:
+        loop.call_soon_threadsafe(handle.cancel)
+    except RuntimeError:
+        # Loop finished/closed between the check and the call — nothing to do.
+        return False
+    return True
 
 
 def _task_id() -> str:
@@ -1274,9 +1318,18 @@ def _run_agent_task(task_id: str, payload: dict, project_root: Path) -> None:
                 "stop_reason": None if final_flag else "no_flag_found",
             }
 
+        # Managed task runner (A-03): drive the coroutine as a named asyncio
+        # task whose handle is registered so stop_task can cancel it across the
+        # thread boundary. The scope is opened here and closed in the finally.
         loop = asyncio.new_event_loop()
-        run_result = loop.run_until_complete(_build_and_run())
-        loop.close()
+        get_cancellation_registry().open(task_id)
+        task_handle = loop.create_task(_build_and_run())
+        _register_task_runner(task_id, loop, task_handle)
+        try:
+            run_result = loop.run_until_complete(task_handle)
+        finally:
+            _unregister_task_runner(task_id)
+            loop.close()
 
         # Terminal outcome is proof-backed only (A-05). Success consumes the
         # verified signal produced upstream — never a regex re-scan of the output
@@ -1309,6 +1362,21 @@ def _run_agent_task(task_id: str, payload: dict, project_root: Path) -> None:
             else:
                 emit_log("warn", "agent", f"Task {task_id} stopped — {reason}")
             _aggregator.record_failure(reason)
+    except asyncio.CancelledError:
+        # Real stop reached the worker (A-03): the coroutine was cancelled
+        # across the thread boundary, not merely flagged in the UI. Record the
+        # honest terminal — "stopped" with the token's reason — and do NOT count
+        # it as a failure (a user abort is not a solve failure).
+        scope = get_cancellation_registry().get(task_id)
+        stop_reason = (scope.token.reason if scope else None) or "user_stop"
+        task.update({
+            "status": "stopped",
+            "finishedAt": _now_iso(),
+            "stopReason": stop_reason,
+        })
+        if saved_session_id:
+            task["sessionId"] = saved_session_id
+        emit_log("warn", "agent", f"Task {task_id} stopped — {stop_reason}")
     except Exception as exc:
         logger.exception("Agent task %s failed: %s", task_id, exc)
         stop_reason = str(exc)[:120]
@@ -1321,6 +1389,10 @@ def _run_agent_task(task_id: str, payload: dict, project_root: Path) -> None:
             task["sessionId"] = saved_session_id
         emit_log("error", "agent", f"Task {task_id} failed: {stop_reason}")
         _aggregator.record_failure(stop_reason)
+    finally:
+        # The task has reached a terminal state; drop its cancellation scope so a
+        # later stop is a clean no-op and the registry does not leak scopes.
+        get_cancellation_registry().close(task_id)
 
     _bus.emit({
         "type": "task_status",
@@ -1756,6 +1828,11 @@ def _make_handlers(project_root: Path):
         task = _tasks.get(tid)
         if not task:
             return web.json_response({"error": "not found"}, status=404)
+        # A-03: really interrupt the running coroutine across the thread
+        # boundary, not just flip the status field (F-01). The worker's
+        # CancelledError path settles the same "stopped" terminal; setting it
+        # here too keeps the UI responsive when no live runner remains.
+        interrupted = _cancel_web_task(tid, "user_stop")
         task["status"] = "stopped"
         task["finishedAt"] = _now_iso()
         task["stopReason"] = "user_stop"
@@ -1775,7 +1852,7 @@ def _make_handlers(project_root: Path):
             "summary": "user_stop",
         })
         _persist_tasks(project_root)
-        return web.json_response({"ok": True})
+        return web.json_response({"ok": True, "interrupted": interrupted})
 
     async def post_hint(req: web.Request) -> web.Response:
         tid = req.match_info["taskId"]
