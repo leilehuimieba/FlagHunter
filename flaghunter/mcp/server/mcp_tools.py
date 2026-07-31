@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Type
 
 from flaghunter.application.challenge.task_ingress_service import SubmitTaskIngress
 
+from ...domain.cancellation import get_cancellation_registry
+
 from ...interface.blackboard_lite import (
     _board_item_from_snapshot,
     build_entry_blackboard_snapshot,
@@ -99,6 +101,10 @@ def _emit(event: str, data: dict) -> None:
 
 
 _tasks: dict[str, TaskEntry] = {}
+# task_id -> the running asyncio.Task driving it (A-04). A stored handle is what
+# lets cancel_task actually interrupt the CTF dispatcher's long await, not just
+# flip a status field (F-02). Cleared in _drive_task's finally.
+_task_handles: dict[str, "asyncio.Task[None]"] = {}
 _memory: dict[str, dict[str, str]] = {}
 _logs: list[dict[str, str]] = []
 _LOG_MAX = 500
@@ -697,6 +703,9 @@ async def _capture_notes_snapshot(agent: "FlagHunterAgent") -> Optional[str]:
 async def _drive_task(entry: TaskEntry) -> None:
     """Run the agent loop, recording all output into the TaskEntry."""
     entry.status = "running"
+    # Open a cancellation scope so cancel_task can signal cooperative pollers
+    # (the agent loop below) in addition to cancelling the asyncio task (A-04).
+    get_cancellation_registry().open(entry.id)
     output_parts: list[str] = []
 
     _emit(
@@ -836,6 +845,10 @@ async def _drive_task(entry: TaskEntry) -> None:
         _log("error", f"Task {entry.id} error: {exc}")
 
     finally:
+        # Drop the cancellation handle/scope now the task has reached a terminal
+        # state so a later cancel_task on this id is a clean no-op (A-04).
+        _task_handles.pop(entry.id, None)
+        get_cancellation_registry().close(entry.id)
         entry.finished_at = datetime.utcnow().isoformat()
         _log("info", f"Task {entry.id} finished — status={entry.status}")
         _emit(
@@ -1097,6 +1110,9 @@ async def run_task(args: dict[str, object]) -> str:
         lines.append(f"[control_decision] {entry.controlDecision.get('decisionKind')}")
         return "\n".join(lines)
 
+    # Blocking path: the caller is already awaiting this result, so run inline.
+    # cancel_task's real-interruption target is the background run_task_async
+    # path (A-04); the agent loop's cooperative status poll still applies here.
     await _drive_task(entry)
 
     if entry.status == "error":
@@ -1215,7 +1231,9 @@ async def run_task_async(args: dict[str, object]) -> str:
     if entry.controlDecision and entry.controlDecision.get("shouldRun") is False:
         _mark_entry_blocked(entry, str(entry.controlDecision.get("reason") or "blocked"))
     else:
-        asyncio.create_task(_drive_task(entry))
+        # Keep the driving task handle so cancel_task can actually interrupt it
+        # (F-02) — a bare create_task would be uncancellable fire-and-forget.
+        _task_handles[entry.id] = asyncio.create_task(_drive_task(entry))
     _log("info", f"run_task_async [{entry.id}]: {entry.task[:80]}")
     lines = [
         f"task_id: {entry.id}\n"
@@ -1558,10 +1576,20 @@ async def cancel_task(args: dict[str, object]) -> str:
         return f"[error] No task with id '{args['task_id']}'"
     if entry.status not in ("pending", "running"):
         return f"[info] Task {entry.id} is already '{entry.status}', cannot cancel."
+    # Set the cooperative status FIRST so the agent loop's in-flight poll and the
+    # CancelledError handler agree on the terminal state, then...
     entry.status = "cancelled"
     entry.finished_at = datetime.utcnow().isoformat()
-    _log("info", f"cancel_task [{entry.id}]")
-    return f"[ok] Task {entry.id} marked for cancellation."
+    # ...latch the cancellation token (cooperative pollers / propagation) and...
+    get_cancellation_registry().cancel(entry.id, "user_cancel")
+    # ...actually cancel the driving asyncio task so a long dispatcher await is
+    # interrupted in time instead of running to completion (F-02).
+    handle = _task_handles.get(entry.id)
+    interrupted = False
+    if handle is not None and not handle.done():
+        interrupted = handle.cancel()
+    _log("info", f"cancel_task [{entry.id}] interrupted={interrupted}")
+    return f"[ok] Task {entry.id} cancelled."
 
 
 # ===========================================================================
