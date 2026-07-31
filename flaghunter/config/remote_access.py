@@ -31,9 +31,17 @@ WEB_AUTH_TOKEN_ENV = "FLAGHUNTER_WEB_AUTH_TOKEN"
 MCP_AUTH_TOKEN_ENV = "FLAGHUNTER_MCP_AUTH_TOKEN"
 SHARED_AUTH_TOKEN_ENV = "FLAGHUNTER_REMOTE_AUTH_TOKEN"
 
+# Operator-configured browser-origin allowlist for the Web Console (A-09 · F-05).
+# Comma-separated absolute origins, e.g. "https://console.example.com". Loopback
+# origins are always trusted; this env only matters for remote binds.
+WEB_ALLOWED_ORIGINS_ENV = "FLAGHUNTER_WEB_ALLOWED_ORIGINS"
+
 # Header names the ENTRY surfaces read for a bearer credential.
 AUTHORIZATION_HEADER = "Authorization"
 TOKEN_HEADER = "X-FlagHunter-Token"
+
+# HTTP methods that cannot change server state and so are never CSRF-gated.
+SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
 _LOOPBACK_HOSTNAMES = {"localhost", "localhost.localdomain", "ip6-localhost"}
 
@@ -150,3 +158,109 @@ def is_authorized(
     if token_matches(header_token, expected):
         return True
     return token_matches(query_token, expected)
+
+
+# ── Browser-origin policy (A-09 · F-05) ────────────────────────────────────────
+#
+# The Web Console used to answer every request with ``Access-Control-Allow-Origin:
+# *``, so any website the operator visited could script cross-origin reads of the
+# console API. A-09 replaces the wildcard with an allowlist: loopback origins (the
+# local-dev console) are trusted by default, plus any origin the operator lists in
+# ``FLAGHUNTER_WEB_ALLOWED_ORIGINS``. Everything else is untrusted — its responses
+# are not CORS-exposed, and state-changing requests carrying such an Origin are
+# rejected (CSRF defence-in-depth on top of bearer-token auth).
+
+
+def _normalize_origin(origin: str | None) -> str | None:
+    """Normalize an ``Origin`` header to ``scheme://host[:port]`` (lower-cased).
+
+    Returns ``None`` for anything that is not a well-formed serialized origin
+    (missing scheme, the literal ``"null"`` origin, or empty).
+    """
+    value = _clean(origin)
+    if value is None:
+        return None
+    value = value.rstrip("/")
+    if value.lower() == "null":
+        return None
+    if "://" not in value:
+        return None
+    scheme, _, rest = value.partition("://")
+    if not scheme or not rest:
+        return None
+    return f"{scheme.lower()}://{rest.lower()}"
+
+
+def _origin_host(normalized_origin: str) -> str:
+    """Extract the bare host from a normalized origin, dropping any port."""
+    rest = normalized_origin.partition("://")[2]
+    if rest.startswith("["):  # bracketed IPv6 literal, optionally with :port
+        end = rest.find("]")
+        return rest[1:end] if end != -1 else rest[1:]
+    return rest.split(":", 1)[0]
+
+
+def is_loopback_origin(origin: str | None) -> bool:
+    """Whether *origin*'s host is a loopback address/name (the local console)."""
+    normalized = _normalize_origin(origin)
+    if normalized is None:
+        return False
+    return is_loopback_host(_origin_host(normalized))
+
+
+def resolve_allowed_origins(raw: str | None = None) -> frozenset[str]:
+    """Parse the configured origin allowlist into a normalized frozenset.
+
+    Reads ``FLAGHUNTER_WEB_ALLOWED_ORIGINS`` when *raw* is ``None``. Malformed
+    entries are dropped rather than trusted.
+    """
+    if raw is None:
+        raw = os.environ.get(WEB_ALLOWED_ORIGINS_ENV)
+    if not raw:
+        return frozenset()
+    out: set[str] = set()
+    for part in raw.split(","):
+        normalized = _normalize_origin(part)
+        if normalized is not None:
+            out.add(normalized)
+    return frozenset(out)
+
+
+def is_allowed_origin(origin: str | None, *, allowlist: object = ()) -> bool:
+    """Return True iff *origin* is trusted for cross-origin exposure.
+
+    Trusted origins are any loopback origin plus every entry of *allowlist*
+    (an iterable or frozenset of origins, normalized here for safety).
+    """
+    normalized = _normalize_origin(origin)
+    if normalized is None:
+        return False
+    if is_loopback_origin(normalized):
+        return True
+    if isinstance(allowlist, frozenset):
+        allowed = allowlist
+    else:
+        allowed = frozenset(
+            n for n in (_normalize_origin(o) for o in allowlist) if n is not None
+        )
+    return normalized in allowed
+
+
+def origin_permitted_for_request(
+    *, method: str, origin: str | None, allowlist: object = ()
+) -> bool:
+    """CSRF gate: a state-changing browser request must carry a trusted Origin.
+
+    * Safe methods (GET/HEAD/OPTIONS) are never blocked here.
+    * A request with **no** ``Origin`` header is allowed — non-browser API
+      clients (curl, the MCP client) omit it, and this API authenticates with a
+      bearer token rather than ambient cookies, so a missing Origin cannot be a
+      cross-site forgery. Token auth remains the guard for those requests.
+    * A state-changing request that **does** carry an Origin must have that
+      Origin trusted, else it is rejected.
+    """
+    if method.upper() in SAFE_METHODS:
+        return True
+    if origin is None:
+        return True
+    return is_allowed_origin(origin, allowlist=allowlist)
