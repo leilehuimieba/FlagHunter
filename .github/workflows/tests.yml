@@ -157,10 +157,13 @@ jobs:
           retention-days: 30
 
   # -----------------------------------------------------------------------
-  # Lint (runs in parallel with tests, does not block them)
+  # Lint — full tree (ADVISORY): surfaces the legacy lint/format backlog for
+  # visibility. Intentionally non-blocking (continue-on-error) until the tree
+  # is zeroed out; the *blocking* enforcement lives in `lint-changed` below,
+  # which gates only newly changed files (总纲 B-01: 修改范围 0 错误).
   # -----------------------------------------------------------------------
   lint:
-    name: Lint (ruff + black check)
+    name: Lint — full tree (advisory backlog)
     runs-on: ubuntu-latest
 
     steps:
@@ -177,10 +180,105 @@ jobs:
           python -m pip install --upgrade pip
           pip install ruff black
 
-      - name: Run ruff
+      - name: Run ruff (advisory)
         run: ruff check flaghunter/ --output-format=github
         continue-on-error: true
 
-      - name: Check formatting with black
+      - name: Check formatting with black (advisory)
         run: black --check flaghunter/
         continue-on-error: true
+
+  # -----------------------------------------------------------------------
+  # Lint gate — changed files (BLOCKING). Enforces ruff + black on the
+  # Python files this push/PR actually touches, grandfathering the legacy
+  # backlog. This is the phased adoption 总纲 §13.4/B-01 prescribes: new and
+  # modified code must be clean (修改范围 0 错误) without a big-bang tree flip.
+  # A push/PR that touches no flaghunter/*.py is a no-op (steps are skipped).
+  # -----------------------------------------------------------------------
+  lint-changed:
+    name: Lint gate — changed files (blocking)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install linting tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff black
+
+      - name: Resolve changed Python files
+        id: changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch --no-tags --depth=50 origin "${{ github.base_ref }}" || true
+            BASE="origin/${{ github.base_ref }}"
+          else
+            BASE="${{ github.event.before }}"
+          fi
+          # Fall back to the previous commit when the base ref is missing or the
+          # all-zero SHA GitHub sends on a branch's first push.
+          if ! git rev-parse --verify --quiet "${BASE}^{commit}" >/dev/null; then
+            BASE="$(git rev-parse --verify --quiet HEAD~1 || git rev-parse HEAD)"
+          fi
+          echo "Diff base: ${BASE}"
+          FILES="$(git diff --name-only --diff-filter=ACMR "${BASE}" HEAD -- 'flaghunter/**/*.py' 'flaghunter/*.py' || true)"
+          {
+            echo "files<<__EOF__"
+            echo "${FILES}"
+            echo "__EOF__"
+          } >> "$GITHUB_OUTPUT"
+          if [ -z "${FILES}" ]; then
+            echo "No changed flaghunter Python files — lint gate is a no-op."
+          else
+            echo "Changed files:"; echo "${FILES}"
+          fi
+
+      - name: Ruff check (changed files)
+        if: steps.changed.outputs.files != ''
+        shell: bash
+        run: |
+          echo "${{ steps.changed.outputs.files }}" | tr '\n' '\0' | xargs -0 --no-run-if-empty ruff check --output-format=github
+
+      - name: Black --check (changed files)
+        if: steps.changed.outputs.files != ''
+        shell: bash
+        run: |
+          echo "${{ steps.changed.outputs.files }}" | tr '\n' '\0' | xargs -0 --no-run-if-empty black --check --diff
+
+  # -----------------------------------------------------------------------
+  # Architecture gate — import-linter (BLOCKING). The 6-layer invariant I1
+  # contracts in `.importlinter` already hold; this runs them as a dedicated
+  # PR gate so an upward import fails CI explicitly rather than only inside the
+  # pytest guard (总纲 §13.4/B-02: 新违规为 0).
+  # -----------------------------------------------------------------------
+  import-linter:
+    name: Architecture gate — import-linter (blocking)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install package (dev extra provides import-linter)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run import-linter contracts
+        run: lint-imports --config .importlinter
