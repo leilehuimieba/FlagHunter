@@ -1983,8 +1983,8 @@ Kali 工具、字典、模型、第三方二进制和知识内容可能有不同
 | A-04 | P0 | MCP CTF/Agent 真实取消 | task handle + dispatcher cancellation | async task 可及时取消 |
 | A-05 | P0 | ✅ Success 统一消费 proof authority | terminal outcome service | 假成功率为 0 |
 | A-06 | P0 | ✅ MCP metrics 修正成功语义 | proof-aware metrics | done 与 success 分离 |
-| A-07 | P0 | Web 远程 profile 鉴权/授权 | auth/RBAC middleware | 非授权无法读写 |
-| A-08 | P0 | MCP network profile 鉴权/授权 | transport auth policy | session ID 不作为身份 |
+| A-07 | P0 | ✅ Web 远程 profile 鉴权/授权 | auth/RBAC middleware | 非授权无法读写 |
+| A-08 | P0 | ✅ MCP network profile 鉴权/授权 | transport auth policy | session ID 不作为身份 |
 | A-09 | P0 | CORS/Origin/CSRF 收口 | origin policy | 非 allowlist 来源被拒绝 |
 | A-10 | P0 | ✅ Docker build context 收口 | 完整 `.dockerignore` policy | 本地产物不进入构建 |
 | A-11 | P1 | 关键 event 不可静默 drop | priority queue/backpressure | terminal/proof event 0 丢失 |
@@ -2419,3 +2419,4 @@ Kali 工具、字典、模型、第三方二进制和知识内容可能有不同
 | V2.1 | 2026-07-31 | 记录首批实施进展：✅ A-10/F-06（Docker build context 收口 + guard 测试）、✅ A-06/F-05（MCP metrics proof-backed success，done 与 solve 分离）、🔨 B-06/F-10（代码侧版本单源解析，release tag/CHANGELOG 待发布流程收口）。均含守护测试、零回归。 |
 | V2.2 | 2026-07-31 | ✅ A-05：Web 控制面 `_run_agent_task` 曾以 flag 字符串存在性 + 正则重扫模型输出判定成功，会把 dispatcher 近解候选（`SolveResult.flag` 而 `success=False`）或裸正则命中伪装成 verified 成功。引入 `_resolve_terminal_outcome` 单一 proof-backed 策略：仅 verifier 确认的 flag 记 success；未验证候选降级为 `candidateFlag`+`stopped`（`candidate_flag_unverified`/`no_flag_found`），不丢近解（§6.9）。5 guard 测试、295 interface passed 零回归。Web 假成功率→0。 |
 | V2.3 | 2026-07-31 | ✅ B-01/B-02：CI 曾以 `continue-on-error` 跑 ruff/black（lint/format 回归永不阻断），`.importlinter` 契约仅经 pytest 间接强制。B-01 新增 `lint-changed` 阻断 job——对本次 push/PR 实际改动的 `flaghunter/*.py`（diff vs base）跑 ruff+black，分阶段落地（修改范围 0 错误·遗留全树保留 advisory `lint` job 作 backlog）；B-02 新增 `import-linter` 阻断 job（`lint-imports --config .importlinter`）作专用架构门禁。`test_ci_quality_gates.py` 锁住"changed-files ruff/black 阻断 + lint-imports 阻断 + 全树 job 仍 advisory（防未验证大爆炸翻转）"。本机 ruff/black 因 TLS 拦截代理无法安装故全树未预清零→采 changed-files 相；import-linter 契约本机 CLI 退出 0 + pytest guard `all_kept=True` 已证 KEPT。8 guard passed。 |
+| V2.4 | 2026-07-31 | ✅ A-07/A-08：Web 控制面 ~35 高权限路由（改设置/写 `.env`/加 MCP server/起任务）与 MCP SSE `/mcp` 均无鉴权，MCP SSE 默认绑 `0.0.0.0`（F-03/F-04）。新增纯 stdlib FOUNDATION 策略 `config/remote_access.py`（无 aiohttp·import 干净）：loopback 绑定=可信本地（token 可选）；任何非 loopback 绑定（含 `0.0.0.0`/`::`）=远程 profile，必须配 token 否则 fail-closed 拒启；session ID 只作关联不作身份。A-07 接入 Web(`make_auth_middleware`·/api/* 需 `Authorization: Bearer`/`X-FlagHunter-Token`/`?token=`(EventSource)·静态 SPA 壳放行·`create_app` 加 host/auth_token kwargs 兼容旧调用)；A-08 接入 MCP transport(`create_streamable_http_app` 加 auth_token/enforce_auth·POST/GET/DELETE 全 gate·initialize 也 gate)+ SSE 默认绑定 `0.0.0.0`→`127.0.0.1`(§900)。env=`FLAGHUNTER_{WEB,MCP}_AUTH_TOKEN`/`FLAGHUNTER_REMOTE_AUTH_TOKEN`。20 policy + 6 web + 6 mcp 测试·517 passed(import-linter 契约 KEPT)。**残留**=A-09 CORS 仍 `*`(与 token-header 鉴权正交·独立项)。 |
