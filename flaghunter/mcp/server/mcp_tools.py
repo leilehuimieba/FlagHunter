@@ -182,6 +182,11 @@ class TaskEntry:
     decisionRecords: list[dict[str, object]] = field(default_factory=list)
     ingressHandoff: Optional[dict[str, object]] = None
     ctfStateSnapshot: Optional[dict[str, object]] = None
+    # Proof-backed success signal for solve tasks (F-05 / A-06). Set ONLY from
+    # the dispatcher's SolveResult.success (verifier/proof-authority backed) for
+    # CTF-mode tasks. Stays None for non-solve tasks — a finished loop ("done")
+    # is not a solve. Metrics must never equate ``done`` with success.
+    verifiedSuccess: Optional[bool] = None
 
 
 # ---------------------------------------------------------------------------
@@ -751,6 +756,10 @@ async def _drive_task(entry: TaskEntry) -> None:
                 or "Done (no text output)."
             )
             entry.status = "done"
+            # Proof-backed success only — SolveResult.success is set by the
+            # dispatcher's CTFVerifier/proof-authority path, never by raw flag
+            # regex or model self-report (F-05 / A-06).
+            entry.verifiedSuccess = bool(getattr(solve_result, "success", False))
             entry.notes_snapshot = await _capture_notes_snapshot(entry.agent)
         else:
             async for response in entry.agent.run_mcp(entry.task):
@@ -1830,16 +1839,31 @@ async def get_metrics(args: dict[str, object]) -> str:
     errors = sum(1 for e in _tasks.values() if e.status == "error")
     canc = sum(1 for e in _tasks.values() if e.status == "cancelled")
     active = sum(1 for e in _tasks.values() if e.status in ("pending", "running"))
+
+    # F-05 / A-06: ``done`` means the loop finished, NOT that the challenge was
+    # solved. Success is proof-backed only — a solve task counts as a verified
+    # solve iff the dispatcher's SolveResult.success (verifier/proof-authority)
+    # was True. Report solve quality over solve tasks; keep completion separate
+    # so nobody reads "done/total" as a success rate.
+    solve_tasks = sum(1 for e in _tasks.values() if e.verifiedSuccess is not None)
+    verified_solves = sum(1 for e in _tasks.values() if e.verifiedSuccess is True)
+    solve_rate = (
+        f"{verified_solves / solve_tasks * 100:.1f}%" if solve_tasks else "n/a"
+    )
+    completion_rate = f"{done / total * 100:.1f}%" if total else "n/a"
     lines = [
-        f"total_tasks:      {total}",
-        f"active:           {active}",
-        f"completed:        {done}",
-        f"errors:           {errors}",
-        f"cancelled:        {canc}",
-        f"success_rate:     {f'{done / total * 100:.1f}%' if total else 'n/a'}",
-        f"total_tool_calls: {sum(len(e.tool_calls) for e in _tasks.values())}",
-        f"memory_keys:      {len(_memory)}",
-        f"log_entries:      {len(_logs)}",
+        f"total_tasks:        {total}",
+        f"active:             {active}",
+        f"completed:          {done}",
+        f"errors:             {errors}",
+        f"cancelled:          {canc}",
+        f"completion_rate:    {completion_rate}",
+        f"solve_tasks:        {solve_tasks}",
+        f"verified_solves:    {verified_solves}",
+        f"verified_solve_rate:{solve_rate}",
+        f"total_tool_calls:   {sum(len(e.tool_calls) for e in _tasks.values())}",
+        f"memory_keys:        {len(_memory)}",
+        f"log_entries:        {len(_logs)}",
     ]
 
     # P6: surface emergent tool chains mined from the provenance log. Read-only —
