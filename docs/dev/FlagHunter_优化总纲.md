@@ -1981,7 +1981,7 @@ Kali 工具、字典、模型、第三方二进制和知识内容可能有不同
 | A-02 | P0 | 建立 task handle/cancellation registry | 可传播的 cancellation scope | 取消后动作数为 0 |
 | A-03 | P0 | Web thread 真实停止与清理 | managed task runner | stopped 不再仅改 UI |
 | A-04 | P0 | MCP CTF/Agent 真实取消 | task handle + dispatcher cancellation | async task 可及时取消 |
-| A-05 | P0 | Success 统一消费 proof authority | terminal outcome service | 假成功率为 0 |
+| A-05 | P0 | ✅ Success 统一消费 proof authority | terminal outcome service | 假成功率为 0 |
 | A-06 | P0 | ✅ MCP metrics 修正成功语义 | proof-aware metrics | done 与 success 分离 |
 | A-07 | P0 | Web 远程 profile 鉴权/授权 | auth/RBAC middleware | 非授权无法读写 |
 | A-08 | P0 | MCP network profile 鉴权/授权 | transport auth policy | session ID 不作为身份 |
@@ -2417,3 +2417,4 @@ Kali 工具、字典、模型、第三方二进制和知识内容可能有不同
 |---|---|---|
 | V2.0 | 2026-07-31 | 合并原优化方法论，加入当前仓库静态审计、完整功能域、代码质量、运维、安全、数据、成本、遗漏项、阶段 backlog 和文档收口规则；改用稳定文件名作为唯一综合优化总纲。 |
 | V2.1 | 2026-07-31 | 记录首批实施进展：✅ A-10/F-06（Docker build context 收口 + guard 测试）、✅ A-06/F-05（MCP metrics proof-backed success，done 与 solve 分离）、🔨 B-06/F-10（代码侧版本单源解析，release tag/CHANGELOG 待发布流程收口）。均含守护测试、零回归。 |
+| V2.2 | 2026-07-31 | ✅ A-05：Web 控制面 `_run_agent_task` 曾以 flag 字符串存在性 + 正则重扫模型输出判定成功，会把 dispatcher 近解候选（`SolveResult.flag` 而 `success=False`）或裸正则命中伪装成 verified 成功。引入 `_resolve_terminal_outcome` 单一 proof-backed 策略：仅 verifier 确认的 flag 记 success；未验证候选降级为 `candidateFlag`+`stopped`（`candidate_flag_unverified`/`no_flag_found`），不丢近解（§6.9）。5 guard 测试、295 interface passed 零回归。Web 假成功率→0。 |
