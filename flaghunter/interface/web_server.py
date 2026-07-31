@@ -2141,14 +2141,78 @@ async def cors_middleware(request: web.Request, handler):
     return resp
 
 
+# ── Auth middleware (A-07 · F-03) ──────────────────────────────────────────────
+#
+# The Web Console exposes high-privilege routes (settings write, .env mutation,
+# MCP-server add, task start). When the bind is non-loopback OR a token is
+# configured, every /api/* request must carry a valid bearer token; otherwise
+# it is rejected with 401. Static assets and the SPA shell stay open so the
+# console can load and prompt for a token. A loopback bind with no token stays
+# fully open for local development (总纲 §8.1 / §900).
+
+_SENTINEL_TOKEN = object()
+
+
+def make_auth_middleware(host: str, token: str | None):
+    """Build an aiohttp middleware enforcing bearer-token auth on /api/* routes.
+
+    Enforcement is decided once at construction from ``(host, token)`` via the
+    shared FOUNDATION policy; when disabled the middleware is a pass-through.
+    """
+    from ..config.remote_access import is_authorized, token_enforced
+
+    enforced = token_enforced(host, token)
+
+    @web.middleware
+    async def auth_middleware(request: web.Request, handler):
+        if not enforced:
+            return await handler(request)
+        # CORS preflight carries no credentials and must pass through.
+        if request.method == "OPTIONS":
+            return await handler(request)
+        # Only the REST/SSE API is protected; the static SPA shell may load so
+        # it can prompt the operator for a token.
+        if not request.path.startswith("/api/"):
+            return await handler(request)
+        if is_authorized(
+            header_authorization=request.headers.get("Authorization"),
+            header_token=request.headers.get("X-FlagHunter-Token"),
+            query_token=request.query.get("token"),
+            expected=token,
+        ):
+            return await handler(request)
+        return web.json_response(
+            {"error": "unauthorized", "detail": "valid bearer token required"},
+            status=401,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return auth_middleware
+
+
 # ── App factory ───────────────────────────────────────────────────────────────
 
-def create_app(project_root: Path) -> web.Application:
+def create_app(
+    project_root: Path,
+    *,
+    host: str = "127.0.0.1",
+    auth_token: Any = _SENTINEL_TOKEN,
+) -> web.Application:
     _load_tasks(project_root)
     _seed_aggregator_from_metrics(project_root)
 
+    # Resolve the token from the environment unless one was passed explicitly
+    # (the sentinel keeps existing `create_app(project_root)` callers — tests,
+    # embedders — on the env-driven default without forcing a token argument).
+    if auth_token is _SENTINEL_TOKEN:
+        from ..config.remote_access import resolve_web_auth_token
+
+        auth_token = resolve_web_auth_token()
+
     h = _make_handlers(project_root)
-    app = web.Application(middlewares=[cors_middleware])
+    app = web.Application(
+        middlewares=[cors_middleware, make_auth_middleware(host, auth_token)]
+    )
 
     # API routes
     app.router.add_get("/api/status", h["get_status"])
@@ -2203,15 +2267,32 @@ def run_web_server(host: str = "127.0.0.1", port: int = 8080, project_root: Path
     if project_root is None:
         project_root = Path(__file__).resolve().parents[2]
 
-    app = create_app(project_root)
+    # Fail-closed: a non-loopback bind must carry an auth token, or we refuse to
+    # start rather than expose high-privilege routes unauthenticated (A-07/F-03).
+    from ..config.remote_access import (
+        is_loopback_host,
+        require_token_for_bind,
+        resolve_web_auth_token,
+    )
+
+    auth_token = resolve_web_auth_token()
+    require_token_for_bind(host, auth_token, surface="Web Console")
+
+    app = create_app(project_root, host=host, auth_token=auth_token)
+    auth_mode = (
+        "token-enforced"
+        if auth_token
+        else ("open-loopback" if is_loopback_host(host) else "unprotected")
+    )
     logger.info(
-        "web_console_bind host=%s port=%s url=http://%s:%s/ project_root=%s",
+        "web_console_bind host=%s port=%s url=http://%s:%s/ project_root=%s auth=%s",
         host,
         port,
         host,
         port,
         project_root,
+        auth_mode,
     )
     print(f"\n  FlagHunter Mission Control")
-    print(f"  http://{host}:{port}/\n")
+    print(f"  http://{host}:{port}/  [auth: {auth_mode}]\n")
     web.run_app(app, host=host, port=port, print=None)
