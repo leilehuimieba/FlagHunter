@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 from typing import Awaitable, Callable
 
-from flaghunter.config.constants import MCP_PROTOCOL_VERSION
+from flaghunter.config.constants import APP_VERSION, MCP_PROTOCOL_VERSION
 
 # ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -83,7 +83,9 @@ class MCPRouter:
     """
 
     SERVER_NAME = "pentest-mcp"
-    SERVER_VERSION = "1.0.0"
+    # Single version truth source (F-10 / B-06): the MCP server advertises the
+    # project version, not an independently-drifting literal.
+    SERVER_VERSION = APP_VERSION
 
     def __init__(self, registry: ToolRegistry):
         self.registry = registry

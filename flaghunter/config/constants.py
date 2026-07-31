@@ -18,7 +18,60 @@ apply_legacy_env_aliases()
 
 # Application Info
 APP_NAME = "FlagHunter"
-APP_VERSION = "0.4.1"
+
+
+def _resolve_app_version() -> str:
+    """Single version truth source (F-10 / B-06).
+
+    The authoritative version is the ``version`` field in ``pyproject.toml``.
+    Resolution order:
+
+    1. ``pyproject.toml`` walked up from this file — correct for any source
+       checkout or sdist, and immediately reflects a version bump without a
+       reinstall (an editable install freezes its metadata at install time and
+       would otherwise drift from source).
+    2. Installed distribution metadata — correct for a built wheel where
+       ``pyproject.toml`` is not shipped.
+    3. A literal fallback, kept in sync with ``pyproject.toml`` on bump, used
+       only when neither source is available.
+    """
+    try:
+        import tomllib
+    except ModuleNotFoundError:  # pragma: no cover - Python < 3.11
+        tomllib = None  # type: ignore[assignment]
+
+    if tomllib is not None:
+        here = os.path.dirname(os.path.abspath(__file__))
+        for _ in range(6):
+            candidate = os.path.join(here, "pyproject.toml")
+            if os.path.isfile(candidate):
+                try:
+                    with open(candidate, "rb") as handle:
+                        data = tomllib.load(handle)
+                    version_value = data.get("project", {}).get("version")
+                    if isinstance(version_value, str) and version_value.strip():
+                        return version_value.strip()
+                except Exception:  # pragma: no cover - malformed pyproject
+                    break
+                break
+            parent = os.path.dirname(here)
+            if parent == here:
+                break
+            here = parent
+
+    try:
+        from importlib.metadata import PackageNotFoundError, version
+
+        try:
+            return version("flaghunter")
+        except PackageNotFoundError:
+            pass
+    except Exception:  # pragma: no cover - importlib.metadata always present on 3.10+
+        pass
+    return "0.4.1"
+
+
+APP_VERSION = _resolve_app_version()
 APP_DESCRIPTION = "AI-powered CTF & authorised penetration testing automation framework"
 
 # Agent States
