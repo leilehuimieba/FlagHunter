@@ -24,7 +24,44 @@ def _session_id() -> str:
 # ── transport ─────────────────────────────────────────────────────────────────
 
 
-def create_streamable_http_app(router: MCPRouter) -> web.Application:
+def _make_mcp_auth_middleware(token: str | None, enforced: bool):
+    """aiohttp middleware gating /mcp with a bearer token (A-08 · F-04).
+
+    A session ID correlates a session; it is never an identity. When enforced,
+    every /mcp request (including ``initialize``) must present a valid bearer
+    token via ``Authorization`` or ``X-FlagHunter-Token``, else 401.
+    """
+    from ...config.remote_access import is_authorized
+
+    @web.middleware
+    async def auth_middleware(request: web.Request, handler):
+        if not enforced:
+            return await handler(request)
+        if is_authorized(
+            header_authorization=request.headers.get("Authorization"),
+            header_token=request.headers.get("X-FlagHunter-Token"),
+            expected=token,
+        ):
+            return await handler(request)
+        return web.json_response(
+            {
+                "jsonrpc": "2.0",
+                "id": None,
+                "error": {"code": -32001, "message": "Unauthorized"},
+            },
+            status=401,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return auth_middleware
+
+
+def create_streamable_http_app(
+    router: MCPRouter,
+    *,
+    auth_token: str | None = None,
+    enforce_auth: bool = False,
+) -> web.Application:
     """
     Build and return the aiohttp app.
     Call  web.run_app(create_streamable_http_app(router))  to start.
@@ -33,6 +70,9 @@ def create_streamable_http_app(router: MCPRouter) -> web.Application:
       POST   — client sends JSON-RPC messages
       GET    — client opens a persistent SSE channel for server-initiated pushes
       DELETE — client terminates its session
+
+    When ``enforce_auth`` is set (a non-loopback bind, or a configured token),
+    every request must carry a valid bearer token (A-08).
     """
 
     # session_id -> asyncio.Queue  (used only when client has an open GET /mcp stream)
@@ -167,7 +207,9 @@ def create_streamable_http_app(router: MCPRouter) -> web.Application:
         return web.Response(status=200, text="Session terminated")
 
     # ── wire up routes ────────────────────────────────────────────────────────
-    app = web.Application()
+    app = web.Application(
+        middlewares=[_make_mcp_auth_middleware(auth_token, enforce_auth)]
+    )
     app.router.add_post("/mcp", mcp_post)
     app.router.add_get("/mcp", mcp_get)
     app.router.add_delete("/mcp", mcp_delete)

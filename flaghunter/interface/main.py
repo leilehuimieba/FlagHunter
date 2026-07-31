@@ -293,7 +293,13 @@ Examples:
         help="Transport type: stdio (for Claude Desktop / MCP clients) or sse (HTTP)",
     )
     mcp_server_parser.add_argument(
-        "--host", default="0.0.0.0", help="SSE bind host (default: 0.0.0.0)"
+        "--host",
+        default="127.0.0.1",
+        help=(
+            "SSE bind host (default: 127.0.0.1, loopback). A non-loopback bind "
+            "(e.g. 0.0.0.0) requires FLAGHUNTER_MCP_AUTH_TOKEN or the server "
+            "refuses to start."
+        ),
     )
     mcp_server_parser.add_argument(
         "--port", type=int, default=8080, help="SSE bind port (default: 8080)"
@@ -1186,10 +1192,26 @@ def start_mcp_server(args: argparse.Namespace) -> None:
         await mcp_transport_stdio.run_stdio(router)
 
     async def _run_streamable_http() -> None:
+        from ..config.remote_access import (
+            require_token_for_bind,
+            resolve_mcp_auth_token,
+            token_enforced,
+        )
+
+        # Fail-closed: a non-loopback SSE bind must carry an auth token (A-08/F-04).
+        auth_token = resolve_mcp_auth_token()
+        require_token_for_bind(args.host, auth_token, surface="MCP SSE")
+        enforced = token_enforced(args.host, auth_token)
+
         await _initialize(args)
         router = MCPRouter(mcp_tool_registry)
-        app = mcp_transport_streamable_http.create_streamable_http_app(router)
-        console.print(f"Serving SSE on {args.host}:{args.port}")
+        app = mcp_transport_streamable_http.create_streamable_http_app(
+            router, auth_token=auth_token, enforce_auth=enforced
+        )
+        console.print(
+            f"Serving SSE on {args.host}:{args.port} "
+            f"[auth: {'token-enforced' if enforced else 'open-loopback'}]"
+        )
         await web._run_app(app, host=args.host, port=args.port)
 
     if args.type == "stdio":
@@ -1253,8 +1275,21 @@ async def _run_mcp_with_tui(args: argparse.Namespace) -> None:
     set_ui_hook(app.on_mcp_event)
 
     # Build the SSE server but run it as an asyncio task alongside the TUI.
+    from ..config.remote_access import (
+        require_token_for_bind,
+        resolve_mcp_auth_token,
+        token_enforced,
+    )
+
+    auth_token = resolve_mcp_auth_token()
+    require_token_for_bind(args.host, auth_token, surface="MCP SSE")
+
     router = MCPRouter(mcp_tool_registry)
-    aiohttp_app = mcp_transport_streamable_http.create_streamable_http_app(router)
+    aiohttp_app = mcp_transport_streamable_http.create_streamable_http_app(
+        router,
+        auth_token=auth_token,
+        enforce_auth=token_enforced(args.host, auth_token),
+    )
     runner = web.AppRunner(aiohttp_app)
     await runner.setup()
     site = web.TCPSite(runner, args.host, args.port)
