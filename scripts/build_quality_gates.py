@@ -218,6 +218,21 @@ GATES: list[dict] = [
         "covers": ["C-01"],
     },
     {
+        "id": "unit-tests-atomic-file",
+        "title": "Atomic file port + in-memory + filesystem implementations",
+        "category": "tests",
+        "kind": "command",
+        "blocking": True,
+        "timeoutSeconds": 60,
+        "command": [
+            "pytest",
+            "tests/unit/quality/test_atomic_file.py",
+            "-q",
+            "--tb=line",
+        ],
+        "covers": ["C-02"],
+    },
+    {
         "id": "unit-tests-runtime",
         "title": "Local / Docker / SSH runtime + session lifecycle",
         "category": "tests",
@@ -645,7 +660,7 @@ ACCEPTANCE: dict[str, dict] = {
     },
     "C-02": {
         "mode": "automated",
-        "gates": ["unit-tests-receipts"],
+        "gates": ["unit-tests-atomic-file"],
         "owner": "data",
         "evidenceRequirements": [],
     },

@@ -197,6 +197,28 @@ _PORT_SCHEMAS: tuple[SchemaRecord, ...] = (
         writer_compat=("port.crew_bridge@v1",),
     ),
     SchemaRecord(
+        schema_id="port.atomic_file",
+        version="v1",
+        owner="flaghunter.ports.atomic_file",
+        status=SchemaStatus.ACTIVE,
+        description=(
+            "AtomicFilePort: low-level atomic text-file read/write "
+            + "primitive. Every higher-level state store (state, "
+            + "conversation, checkpoint, harness ledger) MUST use this "
+            + "port instead of bare Path.write_text to avoid producing "
+            + "half-written files on crash, signal, or power loss. The "
+            + "filesystem implementation writes to a uniquely-named temp "
+            + "file in the same directory as the target, fsyncs it, then "
+            + "os.replaces onto the target. Future adapters (S3, "
+            + "object-store write-then-rename) plug in at the same "
+            + "boundary without changing callers."
+        ),
+        storage_location="in-process (Protocol structural type)",
+        introduced_at="2026-08-04",
+        reader_compat=("port.atomic_file@v1",),
+        writer_compat=("port.atomic_file@v1",),
+    ),
+    SchemaRecord(
         schema_id="port.task_ingress",
         version="v1",
         owner="flaghunter.ports.task_ingress",

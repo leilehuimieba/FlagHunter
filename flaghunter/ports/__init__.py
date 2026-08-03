@@ -1,5 +1,6 @@
 """Protocol contracts for application boundaries."""
 
+from .atomic_file import AtomicFilePort
 from .audit_store import (
     ArtifactStorePort,
     AuditStorePort,
@@ -16,6 +17,7 @@ from .tool_runner import ToolRunnerPort
 
 __all__ = [
     "ArtifactStorePort",
+    "AtomicFilePort",
     "AuditStorePort",
     "CheckpointStorePort",
     "ClaimStorePort",
