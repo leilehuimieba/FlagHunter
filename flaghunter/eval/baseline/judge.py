@@ -2,11 +2,15 @@
 
 This is the deliberately-decoupled seam: rather than importing dispatcher
 internals (which churn heavily), the judge reads the run's *external surfaces* —
-captured stdout, the ``--report`` markdown, and ``loot/notes.json`` — and derives
-a verdict and best-effort cost metrics with plain regex. The load-bearing signal
-is the flag match; everything else degrades gracefully to ``None`` when a surface
-can't be parsed, so a stdout format change never crashes a baseline run (it just
-blanks a column).
+captured stdout and the ``--report`` markdown — and derives a verdict and
+best-effort cost metrics with plain regex. The load-bearing *success* signal is
+the dispatcher's proof-backed terminal outcome (``solved=True``, which A-05
+gates on a verified flag claim), NOT a raw flag-shaped string in stdout: a flag
+the run never verified is scored a candidate (NEAR), never SOLVED, so the
+scorecard's false-success rate stays 0 (D-02, §6.18: "judge 只消费
+proof/receipt/trace，不从任意 stdout 猜测成功"). Cost metrics degrade gracefully
+to ``None`` when a surface can't be parsed, so a stdout format change never
+crashes a baseline run (it just blanks a column).
 """
 
 from __future__ import annotations
@@ -147,6 +151,24 @@ def _detect_diseases(text: str) -> list[str]:
     return [name for name, cues in _DISEASE_CUES.items() if any(c in low for c in cues)]
 
 
+def _parse_terminal_outcome(stdout: str) -> tuple[str | None, bool | None]:
+    """Extract ``(stopped_reason, solved)`` from the dispatcher's terminal line
+    ``done: stopped=<reason> steps=<N> solved=<bool>`` (both the no-LLM and
+    blackboard loops print this shape).
+
+    ``solved`` is the proof-backed success signal: A-05 only lets the dispatcher
+    print ``solved=True`` when a canonical flag claim was *verified* into a Fact,
+    never for a flag-shaped string it merely observed. That makes this line — not
+    a raw stdout flag regex — the authoritative success signal for the judge.
+    Returns ``(None, None)`` when no terminal line is present (foreign/old
+    output), so the caller falls back conservatively (a bare flag → candidate).
+    """
+    m = re.search(r"stopped=(\w+)\s+steps=\d+\s+solved=(True|False)", stdout)
+    if not m:
+        return None, None
+    return m.group(1), m.group(2) == "True"
+
+
 def judge_run(
     challenge: Challenge,
     *,
@@ -172,14 +194,29 @@ def judge_run(
     tools = _parse_tools(stdout)
     diseases = _detect_diseases(combined)
 
-    if flag:
+    # Proof-backed success signal (A-05 proof-gated), consumed instead of a raw
+    # stdout flag regex. A ``known_flag`` exact match is offline ground truth (an
+    # oracle the operator supplied to adjudicate), so it counts as proof too; a
+    # live run without a known flag must carry the verified terminal outcome. A
+    # flag-*shaped* string with neither is only a candidate — scoring it SOLVED
+    # is the false-success channel D-02 closes.
+    _stopped, proven = _parse_terminal_outcome(stdout)
+    proof_backed = bool(challenge.known_flag and flag) or proven is True
+    near_cue = any(cue in combined.lower() for cue in _NEAR_CUES)
+
+    if proof_backed:
         verdict = Verdict.SOLVED
-    elif timed_out:
-        verdict = Verdict.ERROR
-    elif any(cue in combined.lower() for cue in _NEAR_CUES):
+        detail = ""
+    elif flag or near_cue:
         verdict = Verdict.NEAR
+        detail = (
+            "flag-shaped output not proof-backed (no verified terminal outcome)"
+            if flag
+            else "near cue without a captured flag"
+        )
     else:
         verdict = Verdict.FAIL
+        detail = f"no flag; rc={returncode}"
 
     matched = verdict.value == challenge.expected_verdict
 
@@ -192,5 +229,5 @@ def judge_run(
         tokens=tokens,
         tools_used=tools,
         diseases=diseases,
-        detail="" if flag else f"no flag; rc={returncode}",
+        detail=detail,
     )

@@ -108,7 +108,13 @@ def _synthetic_stdout(challenge: Challenge) -> str:
     """
     header = f"5/{challenge.max_loops} tokens: 1234\ntool: recon\ntool: sqli\n"
     if challenge.expected_verdict == "solved":
-        return header + "Flag captured: CTF2{dry-run-synthetic}\n"
+        # Model a *proof-backed* solve: the flag plus the dispatcher's verified
+        # terminal outcome, so the proof-aware judge (D-02) scores it SOLVED.
+        return (
+            header
+            + "Flag captured: CTF2{dry-run-synthetic}\n"
+            + "[CTF dispatcher] done: stopped=goal_met steps=2 solved=True\n"
+        )
     if challenge.expected_verdict == "near":
         return header + "candidate flag found but unverified (near-solve)\n"
     return header + "repertoire_miss: no chain reaches this vector\n"

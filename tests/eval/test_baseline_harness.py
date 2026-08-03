@@ -172,6 +172,41 @@ def test_judge_run_reports_real_steps_and_tools_on_fast_solve():
     assert res.tools_used == ["lfi", "web"]
 
 
+def test_judge_rejects_unproven_flag_in_stdout():
+    """A flag-shaped string with no proof-backed terminal outcome is a candidate,
+    never SOLVED — this is the false-success channel D-02 closes (§6.18). The
+    candidate is still surfaced so an operator can see the near-miss."""
+    ch = Challenge("t0_sql", "anchor", Tier.T0, "web", "solve it",
+                   r"CTF2\{[^}]+\}", "solved")
+    res = judge_run(ch, stdout="somewhere printed CTF2{unverified}\n")
+    assert res.verdict is Verdict.NEAR
+    assert res.verdict is not Verdict.SOLVED
+    assert res.flag_found == "CTF2{unverified}"
+
+
+def test_judge_solved_requires_proof_backed_terminal():
+    """The same flag-shaped output *with* the proof-gated terminal outcome is a
+    real SOLVED — the judge consumes proof, not a raw stdout regex."""
+    ch = Challenge("t0_sql", "anchor", Tier.T0, "web", "solve it",
+                   r"CTF2\{[^}]+\}", "solved")
+    stdout = ("somewhere printed CTF2{proven}\n"
+              "[CTF dispatcher] done: stopped=goal_met steps=3 solved=True\n")
+    res = judge_run(ch, stdout=stdout)
+    assert res.verdict is Verdict.SOLVED
+    assert res.flag_found == "CTF2{proven}"
+
+
+def test_judge_false_terminal_outcome_is_not_solved():
+    """A ``solved=False`` terminal outcome demotes even a flag-shaped string to a
+    candidate — the run itself declared no verified solve."""
+    ch = Challenge("t0_sql", "anchor", Tier.T0, "web", "solve it",
+                   r"CTF2\{[^}]+\}", "solved")
+    stdout = ("candidate CTF2{maybe}\n"
+              "[CTF dispatcher] done: stopped=budget_exhausted steps=12 solved=False\n")
+    res = judge_run(ch, stdout=stdout)
+    assert res.verdict is not Verdict.SOLVED
+
+
 def test_report_renders_tiers_and_cold_warm_delta():
     cold = run_baseline(_corpus(), {}, dry_run=True, memory_mode="cold")
     warm = run_baseline(_corpus(), {}, dry_run=True, memory_mode="warm")
