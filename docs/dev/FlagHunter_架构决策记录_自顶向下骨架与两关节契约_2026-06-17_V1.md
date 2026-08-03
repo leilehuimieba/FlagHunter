@@ -132,7 +132,7 @@ class AgentSession:
 
 每阶段硬性 gate(沿用现有纪律):
 - full unit suite 零新增失败(deselect 2 个 `*_on_kali` 测试);必要时跑 integration。
-- 逻辑拆 commit;conventional 前缀 + `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`;直推 main。
+- 逻辑拆 commit;使用 conventional 前缀；作者或协作者信息只记录实际参与者，不固定任何工具或模型署名；直推 main。
 - 每个对外行为变更配 live 或单测回归证据。
 - **不提交 `challenges/`。**
 

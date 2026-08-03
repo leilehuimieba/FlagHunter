@@ -173,10 +173,18 @@ FlagHunter can expose itself as an MCP server so any MCP-compatible client
 flaghunter mcp_server --type stdio
 flaghunter mcp_server --type stdio --target 192.168.1.1 --scope 192.168.1.0/24 --docker
 
-# SSE (HTTP) — for remote/networked clients (default: 0.0.0.0:8080)
+# SSE (HTTP) — default bind is loopback 127.0.0.1:8080
 flaghunter mcp_server --type sse
-flaghunter mcp_server --type sse --host 0.0.0.0 --port 8080 --target 10.0.0.1
+# Remote/networked bind is fail-closed unless a bearer token is configured
+FLAGHUNTER_MCP_AUTH_TOKEN=replace-with-strong-random-token flaghunter mcp_server --type sse --host 0.0.0.0 --port 8080 --target 10.0.0.1
 ```
+
+A non-loopback Web Console or MCP SSE bind requires the surface-specific
+`FLAGHUNTER_WEB_AUTH_TOKEN` / `FLAGHUNTER_MCP_AUTH_TOKEN`, or the shared
+`FLAGHUNTER_REMOTE_AUTH_TOKEN`; without one, startup is rejected. Clients send
+`Authorization: Bearer <token>`. MCP session IDs are correlation identifiers,
+not authentication identities. This is baseline authentication only: remote
+deployments still require authorization/RBAC, TLS, Origin policy, audit, and quotas.
 
 ### Claude Desktop config (`claude_desktop_config.json`)
 
@@ -219,7 +227,7 @@ get_task_result task_id="<id2>"
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--type` | *(required)* | `stdio` or `sse` |
-| `--host` | `0.0.0.0` | SSE bind host |
+| `--host` | `127.0.0.1` | SSE bind host; non-loopback requires `FLAGHUNTER_MCP_AUTH_TOKEN` or the shared token |
 | `--port` | `8080` | SSE bind port |
 | `--target` | none | Primary pentest target |
 | `--scope` | `[]` | In-scope CIDRs (space-separated) |

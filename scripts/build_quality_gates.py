@@ -1,0 +1,966 @@
+# Generator for quality-gates.json — a single source of truth mapping every
+# optimization backlog item (Phase A–F) to executable gates and acceptance
+# evidence requirements. Generated manifest is read by
+# flaghunter.quality.acceptance.QualityRunner.
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+# Gate pool: real commands targeting real existing tests/checks. Each gate
+# declares which backlog items it covers; acceptance rules reference the gate
+# IDs they need. Kind=command runs a subprocess; kind=builtin runs a Python
+# handler in-process (none here, reserved for cross-platform fallback).
+GATES: list[dict] = [
+    # --- tests: Phase A control plane (P0) -------------------------------
+    {
+        "id": "unit-tests-domain-lifecycle",
+        "title": "Domain lifecycle + cancellation contract",
+        "category": "tests",
+        "kind": "command",
+        "blocking": True,
+        "timeoutSeconds": 180,
+        "command": [
+            "pytest",
+            "tests/unit/test_domain_task_lifecycle.py",
+            "tests/unit/test_domain_cancellation.py",
+            "-q",
+            "--tb=line",
+        ],
+        "covers": ["A-01", "A-02"],
+    },
+    {
+        "id": "unit-tests-cancel-wiring",
+        "title": "Cancellation wiring across web/runtime/dispatcher",
+        "category": "tests",
+        "kind": "command",
+        "blocking": True,
+        "timeoutSeconds": 240,
+        "command": [
+            "pytest",
+            "tests/unit/test_application_task_ingress_service.py",
+            "tests/unit/test_application_worker_task_service.py",
+            "tests/unit/test_task_ingress_adapter.py",
+            "tests/unit/test_runtime_action_adapter.py",
+            "tests/unit/test_tool_runner_adapter.py",
+            "-q",
+            "--tb=line",
+        ],
+        "covers": ["A-03", "A-04"],
+    },
+    {
+        "id": "unit-tests-proof-success",
+        "title": "Proof authority + proof-aware success semantics",
+        "category": "tests",
+        "kind": "command",
+        "blocking": True,
+        "timeoutSeconds": 180,
+        "command": [
+            "pytest",
+            "tests/unit/test_proof_authority_adapter.py",
+            "tests/unit/test_verifier_adapter.py",
+            "tests/unit/agents/test_ctf_flag_proof.py",
+            "tests/unit/agents/test_ctf_verifier.py",
+            "-q",
+            "--tb=line",
+        ],
+        "covers": ["A-05", "A-06"],
+    },
+    {
+        "id": "unit-tests-web-auth",
+        "title": "Web console authentication, origin, CSRF",
+        "category": "tests",
+        "kind": "command",
+        "blocking": True,
+        "timeoutSeconds": 300,
+        "command": [
+            "pytest",
+            "tests/unit/web_console/",
+            "-q",
+            "--tb=line",
+        ],
+        "covers": ["A-07", "A-09"],
+    },
+    {
+        "id": "unit-tests-mcp-auth",
+        "title": "MCP transport auth, loopback, session/identity",
+        "category": "tests",
+        "kind": "command",
+        "blocking": True,
+        "timeoutSeconds": 300,
+        "command": [
+            "pytest",
+            "tests/unit/mcp/",
+            "-q",
+            "--tb=line",
+        ],
+        "covers": ["A-08"],
+    },
+    {
+        "id": "unit-tests-dockerignore",
+        "title": "Docker build-context hardening",
+        "category": "tests",
+        "kind": "command",
+        "blocking": True,
+        "timeoutSeconds": 60,
+        "command": [
+            "pytest",
+            "tests/unit/test_dockerignore_hardening.py",
+            "-q",
+            "--tb=line",
+        ],
+        "covers": ["A-10"],
+    },
+    {
+        "id": "unit-tests-arch-contracts",
+        "title": "Architecture + dependency-direction contracts",
+        "category": "architecture",
+        "kind": "command",
+        "blocking": True,
+        "timeoutSeconds": 300,
+        "command": [
+            "pytest",
+            "tests/unit/test_adapter_boundary_skeleton.py",
+            "tests/unit/test_adapter_port_substitution.py",
+            "tests/unit/test_adapter_substitution_source_guards.py",
+            "tests/unit/test_application_service_source_guards.py",
+            "tests/unit/test_ports_contracts.py",
+            "tests/unit/test_import_layers.py",
+            "tests/unit/test_task_ingress_production_wiring_guards.py",
+            "-q",
+            "--tb=line",
+        ],
+        "covers": ["B-02", "B-12", "C-03"],
+    },
+    {
+        "id": "unit-tests-cicd-gates",
+        "title": "CI gate shape (lint/format/import-linter blocking)",
+        "category": "tests",
+        "kind": "command",
+        "blocking": True,
+        "timeoutSeconds": 60,
+        "command": [
+            "pytest",
+            "tests/unit/test_ci_quality_gates.py",
+            "-q",
+            "--tb=line",
+        ],
+        "covers": ["B-01"],
+    },
+    {
+        "id": "unit-tests-dependency-manifest",
+        "title": "Canonical dependency manifest + lockfile",
+        "category": "tests",
+        "kind": "command",
+        "blocking": True,
+        "timeoutSeconds": 60,
+        "command": [
+            "pytest",
+            "tests/unit/test_dependency_manifest.py",
+            "-q",
+            "--tb=line",
+        ],
+        "covers": ["B-07"],
+    },
+    {
+        "id": "unit-tests-version-truth",
+        "title": "Version single source (no 0.2/0.4 drift)",
+        "category": "tests",
+        "kind": "command",
+        "blocking": True,
+        "timeoutSeconds": 60,
+        "command": [
+            "pytest",
+            "tests/unit/test_static_branding_assets.py",
+            "tests/unit/test_entrypoint_composition_root_characterization.py",
+            "-q",
+            "--tb=line",
+        ],
+        "covers": ["B-06"],
+    },
+    {
+        "id": "unit-tests-receipts",
+        "title": "Claim / evidence / receipt / checkpoint / state stores",
+        "category": "tests",
+        "kind": "command",
+        "blocking": True,
+        "timeoutSeconds": 300,
+        "command": [
+            "pytest",
+            "tests/unit/test_application_claim_review_service.py",
+            "tests/unit/test_application_evidence_snapshot_service.py",
+            "tests/unit/test_application_task_receipt_service.py",
+            "tests/unit/test_application_tool_receipt_service.py",
+            "tests/unit/test_artifact_store_adapter.py",
+            "tests/unit/test_audit_store_adapter.py",
+            "tests/unit/test_claim_store_adapter.py",
+            "tests/unit/test_checkpoint_store_adapter.py",
+            "tests/unit/test_state_store_adapter.py",
+            "tests/unit/test_read_model_store_adapter.py",
+            "-q",
+            "--tb=line",
+        ],
+        "covers": ["C-01", "C-02", "C-04", "C-10"],
+    },
+    {
+        "id": "unit-tests-runtime",
+        "title": "Local / Docker / SSH runtime + session lifecycle",
+        "category": "tests",
+        "kind": "command",
+        "blocking": True,
+        "timeoutSeconds": 300,
+        "command": [
+            "pytest",
+            "tests/unit/runtime/",
+            "tests/unit/session/",
+            "tests/unit/test_hybrid_runtime.py",
+            "-q",
+            "--tb=line",
+        ],
+        "covers": ["A-11", "A-12", "E-06", "F-07"],
+    },
+    {
+        "id": "unit-tests-dispatcher",
+        "title": "CTF dispatcher, proof-aware judge, reachability",
+        "category": "tests",
+        "kind": "command",
+        "blocking": True,
+        "timeoutSeconds": 600,
+        "command": [
+            "pytest",
+            "tests/unit/agents/test_ctf_dispatcher.py",
+            "tests/unit/agents/test_ctf_planner.py",
+            "tests/unit/agents/test_ctf_recovery.py",
+            "tests/unit/agents/test_ctf_strategy_memory.py",
+            "tests/unit/agents/test_ctf_strategy_registry.py",
+            "tests/unit/agents/test_ctf_capability_registry.py",
+            "tests/unit/agents/test_blackboard_adapter.py",
+            "tests/unit/agents/test_blackboard_loop.py",
+            "tests/unit/agents/test_chain_reachability_invariant.py",
+            "-q",
+            "--tb=line",
+        ],
+        "covers": ["D-02", "D-04", "D-11"],
+    },
+    {
+        "id": "unit-tests-tools",
+        "title": "Tool registry, runner, guards, installer detection",
+        "category": "tests",
+        "kind": "command",
+        "blocking": True,
+        "timeoutSeconds": 600,
+        "command": [
+            "pytest",
+            "tests/unit/tools/test_registry.py",
+            "tests/unit/tools/test_tool_guard.py",
+            "tests/unit/tools/test_tool_install_guard.py",
+            "tests/unit/tools/test_tool_advisor.py",
+            "tests/unit/tools/test_executor.py",
+            "tests/unit/tools/test_executor_side_effect_characterization.py",
+            "tests/unit/tools/test_loader_lazy_catalog.py",
+            "tests/unit/tools/test_finish_control_receipt.py",
+            "tests/unit/tools/test_provenance.py",
+            "-q",
+            "--tb=line",
+        ],
+        "covers": ["B-10", "F-03", "F-06"],
+    },
+    {
+        "id": "unit-tests-knowledge",
+        "title": "RAG, embeddings, ShadowGraph, knowledge search",
+        "category": "tests",
+        "kind": "command",
+        "blocking": True,
+        "timeoutSeconds": 300,
+        "command": [
+            "pytest",
+            "tests/unit/knowledge/",
+            "tests/unit/agents/test_shadowgraph.py",
+            "tests/unit/tools/test_shadowgraph.py",
+            "tests/unit/tools/test_knowledge_search.py",
+            "-q",
+            "--tb=line",
+        ],
+        "covers": ["F-05"],
+    },
+    {
+        "id": "unit-tests-quality-self",
+        "title": "Quality acceptance self-test (meta)",
+        "category": "tests",
+        "kind": "command",
+        "blocking": True,
+        "timeoutSeconds": 120,
+        "command": [
+            "pytest",
+            "tests/unit/quality/",
+            "-q",
+            "--tb=line",
+        ],
+        "covers": [],
+    },
+    # --- lint / format / architecture (CI hard gates) --------------------
+    {
+        "id": "ci-lint-changed",
+        "title": "Changed-files lint + format (blocking, no regressions)",
+        "category": "lint",
+        "kind": "command",
+        "blocking": True,
+        "timeoutSeconds": 120,
+        "command": [
+            "python",
+            "scripts/run_changed_lint.py",
+            "{changed_python}",
+        ],
+        "requiresCommands": ["python"],
+        "options": {
+            "changedPlaceholder": "{changed_python}",
+        },
+        "covers": ["B-01", "B-11"],
+    },
+    {
+        "id": "ci-import-linter",
+        "title": "import-linter architecture contracts (blocking)",
+        "category": "architecture",
+        "kind": "command",
+        "blocking": True,
+        "timeoutSeconds": 60,
+        "command": ["lint-imports"],
+        "requiresCommands": ["lint-imports"],
+        "covers": ["B-02"],
+    },
+    # --- type / supply chain (advisory until later phases clear the tree) -
+    {
+        "id": "ci-mypy-core",
+        "title": "mypy on domain/ports/application (advisory staged rollout)",
+        "category": "types",
+        "kind": "command",
+        "blocking": False,
+        "timeoutSeconds": 240,
+        "command": [
+            "mypy",
+            "flaghunter/domain",
+            "flaghunter/application",
+            "flaghunter/ports",
+        ],
+        "requiresCommands": ["mypy"],
+        "covers": ["B-03"],
+    },
+    {
+        "id": "ci-secret-scan",
+        "title": "Secret scan (gitleaks, advisory)",
+        "category": "security",
+        "kind": "command",
+        "blocking": False,
+        "timeoutSeconds": 120,
+        "command": [
+            "gitleaks",
+            "detect",
+            "--no-banner",
+            "--redact",
+            "--source=.",
+        ],
+        "requiresCommands": ["gitleaks"],
+        "covers": ["B-04", "E-03"],
+    },
+    {
+        "id": "ci-dep-audit",
+        "title": "Dependency vulnerability audit (pip-audit, advisory)",
+        "category": "supply-chain",
+        "kind": "command",
+        "blocking": False,
+        "timeoutSeconds": 240,
+        "command": [
+            "python",
+            "scripts/lock_dependencies.py",
+            "--check",
+        ],
+        "requiresCommands": ["python"],
+        "covers": ["B-04", "B-07"],
+    },
+    {
+        "id": "ci-sbom",
+        "title": "CycloneDX SBOM emission (advisory)",
+        "category": "supply-chain",
+        "kind": "command",
+        "blocking": False,
+        "timeoutSeconds": 120,
+        "command": [
+            "cyclonedx-py",
+            "environment",
+            "-o",
+            "reports/sbom.json",
+        ],
+        "requiresCommands": ["cyclonedx-py"],
+        "covers": ["B-05"],
+    },
+    {
+        "id": "ci-image-scan",
+        "title": "Container image CVE scan (trivy, advisory)",
+        "category": "supply-chain",
+        "kind": "command",
+        "blocking": False,
+        "timeoutSeconds": 600,
+        "command": [
+            "trivy",
+            "image",
+            "flaghunter:latest",
+            "--severity",
+            "HIGH,CRITICAL",
+            "--exit-code",
+            "0",
+        ],
+        "requiresCommands": ["trivy"],
+        "covers": ["B-05"],
+    },
+    {
+        "id": "ci-source-rationale",
+        "title": "Source rationale scan (no private-memory references)",
+        "category": "source-hygiene",
+        "kind": "command",
+        "blocking": True,
+        "timeoutSeconds": 30,
+        "command": [
+            "python",
+            "scripts/check_source_rationale.py",
+        ],
+        "requiresCommands": ["python"],
+        "covers": ["B-13"],
+    },
+    {
+        "id": "ci-cicd-workflow-shape",
+        "title": "Workflow shape (jobs, blocking, no regressions)",
+        "category": "ci",
+        "kind": "command",
+        "blocking": True,
+        "timeoutSeconds": 60,
+        "command": [
+            "pytest",
+            "tests/unit/test_ci_quality_gates.py",
+            "-q",
+            "--tb=line",
+        ],
+        "covers": ["B-01", "B-02"],
+    },
+]
+
+ACCEPTANCE: dict[str, dict] = {
+    # --- Phase A: control plane & fact-line ------------------------------
+    "A-01": {
+        "mode": "automated",
+        "gates": ["unit-tests-domain-lifecycle", "ci-cicd-workflow-shape"],
+        "owner": "domain",
+        "evidenceRequirements": [],
+    },
+    "A-02": {
+        "mode": "automated",
+        "gates": ["unit-tests-domain-lifecycle", "unit-tests-cancel-wiring"],
+        "owner": "domain",
+        "evidenceRequirements": [],
+    },
+    "A-03": {
+        "mode": "automated",
+        "gates": ["unit-tests-cancel-wiring"],
+        "owner": "web-console",
+        "evidenceRequirements": [],
+    },
+    "A-04": {
+        "mode": "automated",
+        "gates": ["unit-tests-cancel-wiring", "unit-tests-runtime"],
+        "owner": "mcp",
+        "evidenceRequirements": [],
+    },
+    "A-05": {
+        "mode": "automated",
+        "gates": ["unit-tests-proof-success"],
+        "owner": "web-console",
+        "evidenceRequirements": [],
+    },
+    "A-06": {
+        "mode": "automated",
+        "gates": ["unit-tests-proof-success"],
+        "owner": "mcp",
+        "evidenceRequirements": [],
+    },
+    "A-07": {
+        "mode": "automated",
+        "gates": ["unit-tests-web-auth"],
+        "owner": "web-console",
+        "evidenceRequirements": [],
+    },
+    "A-08": {
+        "mode": "automated",
+        "gates": ["unit-tests-mcp-auth"],
+        "owner": "mcp",
+        "evidenceRequirements": [],
+    },
+    "A-09": {
+        "mode": "automated",
+        "gates": ["unit-tests-web-auth", "ci-cicd-workflow-shape"],
+        "owner": "web-console",
+        "evidenceRequirements": [],
+    },
+    "A-10": {
+        "mode": "automated",
+        "gates": ["unit-tests-dockerignore"],
+        "owner": "release",
+        "evidenceRequirements": [],
+    },
+    "A-11": {
+        "mode": "hybrid",
+        "gates": ["unit-tests-runtime"],
+        "owner": "runtime",
+        "evidenceRequirements": [
+            "load-test report showing terminal/proof event loss == 0",
+        ],
+    },
+    "A-12": {
+        "mode": "hybrid",
+        "gates": ["unit-tests-runtime"],
+        "owner": "runtime",
+        "evidenceRequirements": [
+            "liveness/readiness/dependency probe responses captured from staging",
+        ],
+    },
+    # --- Phase B: quality & reproducibility -------------------------------
+    "B-01": {
+        "mode": "automated",
+        "gates": ["unit-tests-cicd-gates", "ci-lint-changed", "ci-cicd-workflow-shape"],
+        "owner": "quality",
+        "evidenceRequirements": [],
+    },
+    "B-02": {
+        "mode": "automated",
+        "gates": [
+            "ci-import-linter",
+            "unit-tests-arch-contracts",
+            "ci-cicd-workflow-shape",
+        ],
+        "owner": "quality",
+        "evidenceRequirements": [],
+    },
+    "B-03": {
+        "mode": "hybrid",
+        "gates": ["ci-mypy-core"],
+        "owner": "quality",
+        "evidenceRequirements": [
+            "staged mypy rollout log: domain/ports/application score sheet"
+        ],
+    },
+    "B-04": {
+        "mode": "hybrid",
+        "gates": ["ci-secret-scan", "ci-dep-audit"],
+        "owner": "supply-chain",
+        "evidenceRequirements": [
+            "high-severity findings ticket closed or waiver recorded",
+        ],
+    },
+    "B-05": {
+        "mode": "external",
+        "gates": ["ci-sbom", "ci-image-scan"],
+        "owner": "supply-chain",
+        "evidenceRequirements": [
+            "SBOM artifact archived per release",
+            "image CVE report archived per release",
+            "provenance attestation verified (e.g. sigstore/cosign)",
+        ],
+    },
+    "B-06": {
+        "mode": "hybrid",
+        "gates": ["unit-tests-version-truth"],
+        "owner": "release",
+        "evidenceRequirements": [
+            "release tag + CHANGELOG generated from single version source",
+        ],
+    },
+    "B-07": {
+        "mode": "automated",
+        "gates": ["unit-tests-dependency-manifest", "ci-dep-audit"],
+        "owner": "release",
+        "evidenceRequirements": [],
+    },
+    "B-08": {
+        "mode": "external",
+        "gates": [],
+        "owner": "release",
+        "evidenceRequirements": [
+            "support matrix doc: Python × OS × runtime per profile",
+            "CI matrix matches the doc",
+            "Docker base images match the doc",
+        ],
+    },
+    "B-09": {
+        "mode": "external",
+        "gates": [],
+        "owner": "quality",
+        "evidenceRequirements": [
+            "hotspot guard report (radon/xenon or equivalent) per release",
+            "no module exceeds the configured growth budget",
+        ],
+    },
+    "B-10": {
+        "mode": "automated",
+        "gates": ["unit-tests-tools"],
+        "owner": "quality",
+        "evidenceRequirements": [],
+    },
+    "B-11": {
+        "mode": "automated",
+        "gates": ["ci-lint-changed"],
+        "owner": "quality",
+        "evidenceRequirements": [],
+    },
+    "B-12": {
+        "mode": "automated",
+        "gates": ["unit-tests-arch-contracts"],
+        "owner": "quality",
+        "evidenceRequirements": [],
+    },
+    "B-13": {
+        "mode": "automated",
+        "gates": ["ci-source-rationale"],
+        "owner": "quality",
+        "evidenceRequirements": [],
+    },
+    # --- Phase C: data & state reliability --------------------------------
+    "C-01": {
+        "mode": "automated",
+        "gates": ["unit-tests-receipts"],
+        "owner": "data",
+        "evidenceRequirements": [],
+    },
+    "C-02": {
+        "mode": "automated",
+        "gates": ["unit-tests-receipts"],
+        "owner": "data",
+        "evidenceRequirements": [],
+    },
+    "C-03": {
+        "mode": "hybrid",
+        "gates": ["unit-tests-arch-contracts"],
+        "owner": "data",
+        "evidenceRequirements": [
+            "ADR recording the single-writer vs transactional decision",
+        ],
+    },
+    "C-04": {
+        "mode": "automated",
+        "gates": ["unit-tests-receipts"],
+        "owner": "data",
+        "evidenceRequirements": [],
+    },
+    "C-05": {
+        "mode": "external",
+        "gates": [],
+        "owner": "data",
+        "evidenceRequirements": [
+            "audit showing no timestamp/ID/zone drift across stores",
+        ],
+    },
+    "C-06": {
+        "mode": "external",
+        "gates": [],
+        "owner": "data",
+        "evidenceRequirements": [
+            "migration registry + dry-run report on legacy data",
+        ],
+    },
+    "C-07": {
+        "mode": "external",
+        "gates": [],
+        "owner": "operations",
+        "evidenceRequirements": [
+            "retention policy + disk-quota enforcement report",
+        ],
+    },
+    "C-08": {
+        "mode": "external",
+        "gates": [],
+        "owner": "operations",
+        "evidenceRequirements": [
+            "backup drill report demonstrating RTO/RPO targets met",
+        ],
+    },
+    "C-09": {
+        "mode": "external",
+        "gates": [],
+        "owner": "data",
+        "evidenceRequirements": [
+            "projection rebuild runbook + last successful rebuild receipt",
+        ],
+    },
+    "C-10": {
+        "mode": "automated",
+        "gates": ["unit-tests-receipts"],
+        "owner": "data",
+        "evidenceRequirements": [],
+    },
+    "C-11": {
+        "mode": "external",
+        "gates": [],
+        "owner": "release",
+        "evidenceRequirements": [
+            "config catalog with owner + lifecycle for every config key",
+        ],
+    },
+    "C-12": {
+        "mode": "external",
+        "gates": [],
+        "owner": "release",
+        "evidenceRequirements": [
+            "deprecation dashboard with exit dates for every shim",
+        ],
+    },
+    # --- Phase D: real solving rate ---------------------------------------
+    "D-01": {
+        "mode": "hybrid",
+        "gates": ["unit-tests-dispatcher"],
+        "owner": "dispatcher",
+        "evidenceRequirements": [
+            "16-task corpus manifest committed and replayed end-to-end",
+        ],
+    },
+    "D-02": {
+        "mode": "automated",
+        "gates": ["unit-tests-dispatcher", "unit-tests-proof-success"],
+        "owner": "dispatcher",
+        "evidenceRequirements": [],
+    },
+    "D-03": {
+        "mode": "automated",
+        "gates": ["unit-tests-dispatcher", "unit-tests-runtime"],
+        "owner": "dispatcher",
+        "evidenceRequirements": [],
+    },
+    "D-04": {
+        "mode": "automated",
+        "gates": ["unit-tests-dispatcher"],
+        "owner": "dispatcher",
+        "evidenceRequirements": [],
+    },
+    "D-05": {
+        "mode": "external",
+        "gates": [],
+        "owner": "dispatcher",
+        "evidenceRequirements": [
+            "failure taxonomy dashboard snapshot per release",
+        ],
+    },
+    "D-06": {
+        "mode": "external",
+        "gates": [],
+        "owner": "release",
+        "evidenceRequirements": [
+            "T0/T1 release capability scorecard",
+        ],
+    },
+    "D-07": {
+        "mode": "external",
+        "gates": [],
+        "owner": "dispatcher",
+        "evidenceRequirements": [
+            "strategy scorecard with per-strategy contribution",
+        ],
+    },
+    "D-08": {
+        "mode": "automated",
+        "gates": ["unit-tests-dispatcher"],
+        "owner": "dispatcher",
+        "evidenceRequirements": [],
+    },
+    "D-09": {
+        "mode": "external",
+        "gates": [],
+        "owner": "runtime",
+        "evidenceRequirements": [
+            "runtime capability parity matrix per profile",
+        ],
+    },
+    "D-10": {
+        "mode": "automated",
+        "gates": ["unit-tests-dispatcher"],
+        "owner": "dispatcher",
+        "evidenceRequirements": [],
+    },
+    "D-11": {
+        "mode": "automated",
+        "gates": ["unit-tests-dispatcher"],
+        "owner": "dispatcher",
+        "evidenceRequirements": [],
+    },
+    "D-12": {
+        "mode": "external",
+        "gates": [],
+        "owner": "dispatcher",
+        "evidenceRequirements": [
+            "strategy admission policy + scorecard for new strategies",
+        ],
+    },
+    # --- Phase E: operations & security productionization -----------------
+    "E-01": {
+        "mode": "external",
+        "gates": [],
+        "owner": "operations",
+        "evidenceRequirements": [
+            "structured logging schema + correlation across components",
+        ],
+    },
+    "E-02": {
+        "mode": "external",
+        "gates": [],
+        "owner": "operations",
+        "evidenceRequirements": [
+            "SLO definitions + alert rules with burn-rate budgets",
+        ],
+    },
+    "E-03": {
+        "mode": "hybrid",
+        "gates": ["ci-secret-scan"],
+        "owner": "security",
+        "evidenceRequirements": [
+            "secret store + rotation runbook",
+        ],
+    },
+    "E-04": {
+        "mode": "automated",
+        "gates": ["unit-tests-web-auth", "unit-tests-mcp-auth"],
+        "owner": "security",
+        "evidenceRequirements": [],
+    },
+    "E-05": {
+        "mode": "external",
+        "gates": [],
+        "owner": "operations",
+        "evidenceRequirements": [
+            "Sev-1/Sev-2 runbooks rehearsed with operator sign-off",
+        ],
+    },
+    "E-06": {
+        "mode": "automated",
+        "gates": ["unit-tests-runtime"],
+        "owner": "runtime",
+        "evidenceRequirements": [],
+    },
+    "E-07": {
+        "mode": "external",
+        "gates": [],
+        "owner": "operations",
+        "evidenceRequirements": [
+            "capacity + quota policy with degradation triggers",
+        ],
+    },
+    "E-08": {
+        "mode": "automated",
+        "gates": ["unit-tests-web-auth", "unit-tests-mcp-auth"],
+        "owner": "web-console",
+        "evidenceRequirements": [],
+    },
+    "E-09": {
+        "mode": "external",
+        "gates": [],
+        "owner": "release",
+        "evidenceRequirements": [
+            "single release handbook + rollback rehearsal receipt",
+        ],
+    },
+    "E-10": {
+        "mode": "external",
+        "gates": [],
+        "owner": "operations",
+        "evidenceRequirements": [
+            "support bundle export with redaction rules + drill receipt",
+        ],
+    },
+    # --- Phase F: performance & ecosystem ---------------------------------
+    "F-01": {
+        "mode": "external",
+        "gates": [],
+        "owner": "llm",
+        "evidenceRequirements": [
+            "cost-per-verified-solve dashboard per model/strategy",
+        ],
+    },
+    "F-02": {
+        "mode": "external",
+        "gates": [],
+        "owner": "llm",
+        "evidenceRequirements": [
+            "router policy with cost-vs-solve-rate tradeoff report",
+        ],
+    },
+    "F-03": {
+        "mode": "automated",
+        "gates": ["unit-tests-tools"],
+        "owner": "tools",
+        "evidenceRequirements": [],
+    },
+    "F-04": {
+        "mode": "automated",
+        "gates": ["unit-tests-mcp-auth", "unit-tests-arch-contracts"],
+        "owner": "crew",
+        "evidenceRequirements": [],
+    },
+    "F-05": {
+        "mode": "automated",
+        "gates": ["unit-tests-knowledge"],
+        "owner": "knowledge",
+        "evidenceRequirements": [],
+    },
+    "F-06": {
+        "mode": "automated",
+        "gates": ["unit-tests-tools"],
+        "owner": "tools",
+        "evidenceRequirements": [],
+    },
+    "F-07": {
+        "mode": "automated",
+        "gates": ["unit-tests-runtime"],
+        "owner": "runtime",
+        "evidenceRequirements": [],
+    },
+    "F-08": {
+        "mode": "automated",
+        "gates": ["unit-tests-web-auth"],
+        "owner": "web-console",
+        "evidenceRequirements": [],
+    },
+}
+
+PROFILES: dict[str, list[str]] = {
+    # default: every gate listed (used by quality.py default invocation)
+    "default": [gate["id"] for gate in GATES],
+    # quick: blocking gates only, used by the repo self-test loop
+    "quick": [
+        "unit-tests-quality-self",
+        "ci-source-rationale",
+        "ci-cicd-workflow-shape",
+    ],
+}
+
+
+def build_manifest() -> dict:
+    return {
+        "schemaVersion": 1,
+        "description": (
+            "Single source of truth mapping every optimization backlog item "
+            "(Phase A–F) to executable gates and acceptance evidence. Consumed "
+            "by flaghunter.quality.acceptance.QualityRunner; updated as items "
+            "are completed."
+        ),
+        "profiles": PROFILES,
+        "gates": GATES,
+        "acceptance": ACCEPTANCE,
+    }
+
+
+def main() -> None:
+    target = Path(__file__).resolve().parent.parent / "quality-gates.json"
+    payload = build_manifest()
+    text = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+    target.write_text(text, encoding="utf-8")
+    print(
+        f"wrote {target} ({len(text)} bytes, {len(GATES)} gates, {len(ACCEPTANCE)} items)"
+    )
+
+
+if __name__ == "__main__":
+    main()

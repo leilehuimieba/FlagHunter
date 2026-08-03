@@ -1,16 +1,16 @@
-# FlagHunter 优化总纲
+# 项目优化与治理指南
 
 > 文档状态：Active / Canonical
 >
-> 当前版本：V2.0
+> 当前版本：V2.10
 >
-> 最近更新：2026-07-31
+> 最近更新：2026-08-03
 >
 > 适用版本：FlagHunter v0.4.1 及后续演进版本
 >
 > 适用范围：架构、功能能力、代码质量、运行时、数据、运维、安全、成本、发布与文档治理
 >
-> 权威性：本文件是 FlagHunter 唯一有效的综合优化总纲。历史 Gap Report、Roadmap、审计记录和阶段性设计稿保留为证据，不再分别承担当前优先级的真相源。
+> 权威性：本文件是当前仓库唯一有效的综合优化与治理指南。历史 Gap Report、Roadmap、审计记录和阶段性设计稿保留为证据，不再分别承担当前优先级的真相源。
 
 ---
 
@@ -101,19 +101,19 @@ FlagHunter 已经不是一个只有 LLM 调用和工具包装的早期原型。�
 
 | 项目 | 当前快照 | 说明 |
 |---|---:|---|
-| Python 源文件 | 429 | 覆盖核心包，不含测试目录 |
-| Python 测试及测试辅助文件 | 392 | unit、integration、security、eval 等目录 |
-| Markdown 文档 | 55 | 总计约 18,952 行 |
+| Python 源文件 | 432 | 覆盖核心包，不含测试目录 |
+| Python 测试及测试辅助文件 | 402 | unit、integration、security、eval 等目录 |
+| Markdown 文档 | 55 | `docs/` 下当前文件，总计约 20,195 行；根目录入口另计 |
 | 静态注册工具 | 41 | 基于 `register_tool` 装饰器提取 |
 | 策略定义 | 32 | 覆盖 SQLi、CMDi、SSRF、XSS、Web、Misc、JWT、GraphQL、NoSQL 等 |
 | 默认 capability primitives | 13 | 含多实现降级路由 |
 | 真实解题率基线题目 | 16 | T0=3、T1=4、T2=4、T3=5 |
-| 函数/方法 | 4,378 | 静态 AST 统计 |
+| 函数/方法 | 4,423 | 静态 AST 统计，当前文件均可解析 |
 | 超过 100 行的函数/方法 | 127 | 超过 200 行的有 35 个 |
 | 超过 500 行的类 | 33 | 主要集中于 Agent、dispatcher、runtime 和 presentation |
-| 广义 `Exception/BaseException` 捕获 | 906 | 无 bare except，但广义边界较多 |
-| `Any` 名称使用 | 2,309 | 类型标注覆盖高，但动态边界仍大 |
-| `type: ignore` 标记 | 92 | 需要建立例外台账和收敛策略 |
+| 广义 `Exception/BaseException` 捕获 | 912 | 无 bare except，但广义边界较多 |
+| `Any` 名称使用 | 2,311 | 类型标注覆盖高，但动态边界仍大 |
+| `type: ignore` 标记 | 93 | 需要建立例外台账和收敛策略 |
 
 这些数字不是质量结论本身。它们用于定位风险热区和建立后续趋势基线，不能机械地以“越少越好”替代行为验证。
 
@@ -136,14 +136,14 @@ FlagHunter 已经不是一个只有 LLM 调用和工具包装的早期原型。�
 | 编号 | 优先级 | 当前事实 | 直接风险 | 关键证据位置 |
 |---|---|---|---|---|
 | F-01 | P0 | Web `stop_task` 主要修改状态并落盘，后台 daemon thread 没有对应强制取消句柄 | 操作者看到 stopped 后仍可能继续调用工具 | `flaghunter/interface/web_server.py` |
-| F-02 | P0 | MCP `cancel_task` 主要把状态改为 cancelled；CTF dispatcher 的长 await 期间无法及时响应状态变更 | 取消语义在不同任务模式下不一致 | `flaghunter/mcp/server/mcp_tools.py` |
-| F-03 | P0 | Web Console 可修改设置、写入 `.env`、添加 MCP server、启动任务；若绑定到非 loopback，当前未见统一鉴权，CORS 允许任意 Origin | 远程控制面暴露后可形成高权限操作入口 | `flaghunter/interface/web_server.py`、`web_settings_*` |
-| F-04 | P0 | MCP SSE 默认绑定 `0.0.0.0`，当前网络传输主要依赖 session ID，未见独立身份认证和授权层 | 网络可达时可能被未授权客户端调用高权限工具 | `flaghunter/interface/main.py`、`flaghunter/mcp/server/` |
+| F-02 | P0 | 部分修复：已新增通用 cancellation 原语，但已提交生产入口尚未消费；当前工作树存在 A-04 未提交草稿，仅开始为 MCP 异步任务保存句柄，取消信号尚未贯穿 dispatcher、agent、tool 和 runtime | 状态可能先变为 cancelled，而底层动作、资源清理或 blocking 任务仍未得到一致控制 | `flaghunter/domain/cancellation.py`、`flaghunter/mcp/server/mcp_tools.py` |
+| F-03 | P0 | 部分收口：Web 非 loopback 绑定已要求静态 bearer token 并 fail-closed；但尚无 RBAC/action-resource 授权，CORS 仍允许任意 Origin，且当前 `?token=` 对全部 `/api/*` 生效而不只限于 SSE | URL token 可能进入日志、历史或 referrer；共享静态 token 无法表达最小权限，跨来源策略仍不完整 | `flaghunter/config/remote_access.py`、`flaghunter/interface/web_server.py`、`web_settings_*` |
+| F-04 | P0 | 部分收口：MCP SSE 默认已改为 `127.0.0.1`；非 loopback 绑定无 token 会拒绝启动，`/mcp` 各方法已受 bearer token 保护，session ID 只用于关联；但尚无角色、租户、资源级授权、TLS 和客户端配额 | 基础未认证暴露风险已下降，但单一高权限 token 泄漏或共享后仍可调用完整控制面 | `flaghunter/interface/main.py`、`flaghunter/config/remote_access.py`、`flaghunter/mcp/server/mcp_transport_streamable_http.py` |
 | F-05 | P0 | ✅ 已修：MCP metrics 曾以 task `done` 计算 success rate，不要求 verified proof（现分离 `completion_rate` 与 proof-backed `verified_solve_rate`，见 A-06） | 指标会高估成功，破坏优化决策 |
 | F-06 | P0 | ✅ 已修：`.dockerignore` 曾未排除 `loot/`、`logs/`、`reports/`、`challenges/`、`conversations/` 等本地产物，镜像构建使用 `COPY . .`（现补全 denylist + guard 测试，见 A-10） | 本地证据、日志、题目产物可能进入镜像层或构建上下文 |
-| F-07 | P1 | CI 中 `ruff` 和 `black` 使用 `continue-on-error` | 质量检查存在但不会阻止回归 |
+| F-07 | P1 | 部分修复：变更范围内的 Ruff/Black 已进入阻断式 `lint-changed` job；全树检查仍为 `continue-on-error` 的 advisory backlog | 新改文件可阻断格式/lint 回归，但未触及的遗留问题仍不会阻断合并 |
 | F-08 | P1 | CI coverage 下限为 30%，且默认排除整个 interface 和 MCP server 关键区域 | 高风险控制面可能不受覆盖率指标约束 |
-| F-09 | P1 | `mypy`、`pyright`、`import-linter`、依赖安全、密钥和容器扫描未形成统一 CI 阻断 | 架构和安全约束依赖人工记忆 |
+| F-09 | P1 | 部分修复：`import-linter` 已成为独立阻断门禁；`mypy`、`pyright`、依赖安全、密钥、SBOM 和容器扫描仍未形成统一阻断链 | 架构依赖方向已有自动保护，但类型和供应链风险仍主要依赖分散检查或人工判断 |
 | F-10 | P1 | 🔨 部分修：代码内版本漂移已消除（APP_VERSION 从 pyproject 单源解析，MCP clientInfo/serverInfo 统一消费 APP_VERSION，见 B-06）；仍待处理 release tag 落后与 CHANGELOG 更新（发布流程侧） | 用户、协议和发布信息仍存在漂移 |
 | F-11 | P1 | 依赖同时存在 `pyproject.toml`、`requirements.txt`、`requirements-local-tools.txt`，没有锁文件；Docker base 和 apt/pip 依赖未固定到可复现版本 | 构建结果随时间变化，回滚与漏洞定位困难 |
 | F-12 | P1 | 多个 JSON/JSONL store 直接 append 或覆盖写，部分只有进程内锁，缺少统一原子写、跨进程锁和损坏恢复 | 并发、断电或磁盘异常可导致状态丢失/损坏 |
@@ -153,6 +153,7 @@ FlagHunter 已经不是一个只有 LLM 调用和工具包装的早期原型。�
 | F-16 | P2 | 时间戳同时使用 naive local time、naive UTC 和 timezone-aware UTC | 排序、跨时区、恢复和审计关联可能不一致 |
 | F-17 | P2 | 两个源文件带 UTF-8 BOM，部分字符串触发 invalid escape SyntaxWarning | 编码和构建环境差异可能产生噪声或工具兼容问题 |
 | F-18 | P2 | schema 引用很多，命名同时存在整数、`challenge.*`、`p2/p3/p4*` 和独立 state 版本 | schema 生命周期、兼容矩阵和迁移责任不清晰 |
+| F-19 | P2 | Markdown 文档中的工具私有记忆引用已清理，但 Python 生产源码注释仍有 19 处、测试 docstring 仍有 1 处不可解析的 wiki-style `project_*` / `feedback_*` / `reference_*` 引用 | 设计理由无法从仓库独立追溯，源码仍显得依赖某个外部会话记忆；本轮因“只改文档”边界未修改代码 | `flaghunter/agents/pa_agent/`、`flaghunter/knowledge/`、`tests/unit/knowledge/test_rag_local_dense_gate.py` |
 
 ### 2.4 近期演进方向
 
@@ -166,7 +167,28 @@ FlagHunter 已经不是一个只有 LLM 调用和工具包装的早期原型。�
 
 因此，旧文档中“尚未建立黑板、trace、claim、TaskDAG、baseline”等结论不能直接作为当前事实。当前优化必须以实时代码和最近评测证据为准。
 
-### 2.5 本次未确认的内容
+### 2.5 近期实现进度静态复核
+
+本节按“生产接线和验收目标是否成立”判断完成度，而不是直接采用提交标题中的完成标记。判定规则如下：
+
+- 仅新增 contract、schema、Protocol、registry 或其他基础原语，记为“部分完成”。
+- 生产入口已经消费，但只覆盖部分路径或只具备身份认证而没有授权，记为“基础能力完成，整体部分完成”。
+- 工作树中的未提交改动只记为“草稿”，不进入稳定能力清单，也不作为发布依据。
+- 只有所有目标入口接线、负面路径收口、资源清理可证明且达到该项验收目标，才记为“完成”。
+- 本次未运行测试；下表是对当前文件、导入关系、工作流和 Git 状态的静态复核结论。
+
+| 工作项 | 当前判定 | 已落地内容 | 尚未完成或需要特别验证的内容 |
+|---|---|---|---|
+| A-01 统一 lifecycle | 部分完成 | `flaghunter/domain/task_lifecycle.py` 已提供 canonical `TaskState`、Web/MCP/registry dialect 映射、终态集合和 transition service；`SUCCEEDED` 与中性 `COMPLETED` 已明确分离 | 生产 Web、MCP、task registry 等入口尚未导入并消费这些 API；当前 guard 不能替代从真实入口自动发现状态词表；“所有入口状态同义”尚未达到 |
+| A-02 cancellation registry | 部分完成 | `flaghunter/domain/cancellation.py` 已提供线程安全 token、父子 scope、传播语义和 task-id registry | 已提交生产代码尚无消费者；token 未向 model、dispatcher、tool、runtime、worker、browser、subprocess 逐层传递；“取消确认后新增动作数为 0”尚未达到 |
+| A-04 MCP 真取消 | 进行中，未验收 | 当前工作树存在未提交草稿，开始保存异步 `asyncio.Task` 句柄、触发 `Task.cancel()` 并调用 cancellation registry | 草稿不属于已提交能力；scope 在 task 真正启动前可能尚未建立；协程首次调度前取消时的 handle/scope 清理需验证；token 未传到底层动作边界；blocking `run_task` 没有同等真实取消句柄 |
+| A-07 Web 远程控制面 | 基础认证完成，整体部分完成 | loopback 可保持本地模式；非 loopback 无 token 拒绝启动；`Authorization: Bearer` 和专用 token header 已接入 `/api/*` | 这是共享静态 token 身份认证，不是 RBAC；缺少 action/resource 授权、角色、会话管理、速率/并发配额、TLS 边界；query token 当前对所有 API 生效，必须限制为确实需要的 SSE 路由 |
+| A-08 MCP network profile | 基础认证完成，整体部分完成 | 默认 host 已从全网卡改为 `127.0.0.1`；非 loopback fail-closed；POST/GET/DELETE `/mcp` 均执行 token gate；session ID 不再被当作身份 | 尚无角色、租户、scope、工具级授权、token 轮换/吊销、客户端配额和 TLS 部署闭环；不能将“有 bearer token”表述为“完整鉴权/授权已完成” |
+| A-09 来源与请求防护 | 未完成 | 已识别为独立控制面工作项 | CORS 仍为 `*`，OPTIONS 直接放行；允许 header 未覆盖 `Authorization`/专用 token header；需要 Origin allowlist、修改类请求 CSRF/Origin 校验，并将 query token 严格限于 SSE |
+| B-01 变更文件质量门禁 | 分阶段完成 | 改动的 `flaghunter/*.py` 已受阻断式 Ruff/Black 检查 | 全树遗留仍 advisory；需要明确逐步清零、例外期限和最终全树阻断条件 |
+| B-02 架构门禁 | 已完成当前定义范围 | `lint-imports --config .importlinter` 已成为独立阻断 job | 后续新增架构边界时仍需同步契约和 source guards；该项不替代类型、依赖或供应链门禁 |
+
+### 2.6 本次未确认的内容
 
 由于本次不运行测试和基线，以下内容不能在本文中宣称已达标：
 
@@ -309,6 +331,8 @@ Presentation → Application Services → Domain/Contracts → Ports；Adapters 
 - success、自动提交、停止其他 worker 和最终报告必须消费同一 proof 结果。
 
 ### 4.4 任务生命周期真相
+
+当前已经有 `flaghunter/domain/task_lifecycle.py` 作为 canonical 状态契约，但各生产入口尚未统一接线。下列状态是最终应统一表达的业务语义，不代表当前每个入口都已经完整支持：
 
 统一生命周期至少应区分：
 
@@ -709,6 +733,7 @@ Presentation → Application Services → Domain/Contracts → Ports；Adapters 
 - RecoveryController 已有 explore/switch/stop/wait 等动作。
 - 黑板 loop 已有无实质进展、广度耗尽和停止 sanction。
 - 运行时和工具普遍接受 timeout。
+- 已新增 `CancellationToken`、父子 `CancellationScope` 和 `CancellationRegistry` 领域原语，但已提交生产链路尚未消费，不能据此宣称真实取消已完成。
 
 **需要优化**
 
@@ -894,6 +919,8 @@ Presentation → Application Services → Domain/Contracts → Ports；Adapters 
 - 每个任务创建新 Agent/Runtime，降低状态污染。
 - server 提供异步任务、取消、工具管理、memory、logs 和 metrics。
 - 大工具集可通过 RAG optimizer 收敛。
+- MCP SSE 默认绑定已收回 `127.0.0.1`；非 loopback 绑定已实施 bearer token fail-closed，且 session ID 只承担会话关联。
+- 当前安全能力属于基础身份认证，不包含角色、租户、工具、scope 或资源级授权。
 
 **需要优化**
 
@@ -1079,12 +1106,12 @@ Presentation → Application Services → Domain/Contracts → Ports；Adapters 
 | 检查项 | 当前状态 | 主要问题 | 建议目标 |
 |---|---|---|---|
 | Python 版本矩阵 | CI 覆盖 3.10–3.12 | Docker base 使用 3.14，支持矩阵不一致 | 统一声明、CI、Docker 和发布矩阵 |
-| Ruff | 已配置并在 CI 运行 | `continue-on-error`，规则集较基础 | 分阶段清零后改为阻断 |
-| Black | 已配置并在 CI 运行 | `continue-on-error` | 作为阻断格式门禁 |
+| Ruff | 变更文件已阻断；全树为 advisory | 遗留全树仍 `continue-on-error`，规则集较基础 | 保持 changed-files 零回归并分阶段清零，最终全树阻断 |
+| Black | 变更文件已阻断；全树为 advisory | 未修改的遗留文件仍不阻断 | 保持修改范围格式一致并规划最终全树阻断 |
 | isort | 单独配置，Ruff 也启用 I | 两个 owner 可能重复 | 明确唯一 import format owner |
 | mypy | 已列入 dev 依赖 | 未进入 CI，`ignore_missing_imports=true` | 核心层分阶段 strict |
 | pyright | basic 配置 | 未进入统一门禁 | 作为 IDE/辅助检查或明确第二门禁职责 |
-| import-linter | 有较完整契约 | 工作流未直接运行 | 必须成为 PR 阻断项 |
+| import-linter | 已有较完整契约并进入独立阻断 job | 新边界仍需同步契约和 source guard | 保持全部 contract 通过，架构变化必须同步门禁 |
 | Coverage | CI 下限 30% | 排除 interface/MCP 高风险区 | 分层阈值 + changed-code threshold |
 | Security tests | CI 有 security 目录 | 不等于 SAST/依赖/密钥/镜像扫描 | 补完整供应链检查 |
 | Pre-commit | 未配置 | 本地反馈晚 | 增加快速一致性门禁 |
@@ -1243,7 +1270,7 @@ Presentation → Application Services → Domain/Contracts → Ports；Adapters 
 
 - 项目版本、README badge、MCP clientInfo、CHANGELOG 和 release tag 一致。
 - 文档链接存在。
-- 当前总纲唯一且 docs index 指向正确。
+- 当前治理指南唯一且 docs index 指向正确。
 - 配置字段与 `.env.example`、Settings schema、Web settings 一致。
 - 已废弃文档有状态标记，不参与当前路线决策。
 
@@ -1493,6 +1520,8 @@ FlagHunter 同时处理模型输出、目标响应、工具 stdout、浏览器�
 - 启用/禁用工具。
 - 读取日志、memory、trace 和 artifact。
 - 驱动高权限 runtime。
+
+当前已完成的底线是：Web 与 MCP 网络入口默认使用 loopback；非 loopback 绑定必须配置 bearer token，否则拒绝启动；MCP session ID 仅用于关联。该底线只解决“无认证直接暴露”的一部分风险，不等于 RBAC、资源授权、来源控制、TLS、token 生命周期和配额已经完成。Web 当前还必须修正两个具体边界：`?token=` 只能用于无法设置 header 的 SSE 请求，不能作为所有 `/api/*` 的通用凭据；CORS 不能继续使用任意 Origin。
 
 目标控制：
 
@@ -1977,15 +2006,15 @@ Kali 工具、字典、模型、第三方二进制和知识内容可能有不同
 
 | ID | 优先级 | 工作项 | 预期产物 | 验收目标 |
 |---|---|---|---|---|
-| A-01 | P0 | ✅ 统一 task lifecycle schema | Task status contract + transition service | 所有入口状态同义 |
-| A-02 | P0 | ✅ 建立 task handle/cancellation registry | 可传播的 cancellation scope | 取消后动作数为 0 |
-| A-03 | P0 | ✅ Web thread 真实停止与清理 | managed task runner | stopped 不再仅改 UI |
-| A-04 | P0 | ✅ MCP CTF/Agent 真实取消 | task handle + dispatcher cancellation | async task 可及时取消 |
+| A-01 | P0 | 部分完成：canonical lifecycle contract 已落地，生产入口接线待 A-03/A-04 | Task status contract + transition service | Web/MCP/registry 全部消费同一状态语义，新增状态可被门禁自动发现 |
+| A-02 | P0 | 部分完成：cancellation token/scope/registry 原语已落地，传播接线和清理未完成 | 可传播的 cancellation scope | 取消确认后新增外部动作数为 0，所有子资源均有清理回执 |
+| A-03 | P0 | Web thread 真实停止与清理 | managed task runner | stopped 不再仅改 UI |
+| A-04 | P0 | 进行中但未验收：当前工作树只有未提交 MCP 草稿，不计入稳定完成度 | task handle + dispatcher/agent/tool/runtime cancellation | async 与 blocking 路径均可及时取消，首次调度前取消也不泄漏 handle/scope |
 | A-05 | P0 | ✅ Success 统一消费 proof authority | terminal outcome service | 假成功率为 0 |
 | A-06 | P0 | ✅ MCP metrics 修正成功语义 | proof-aware metrics | done 与 success 分离 |
-| A-07 | P0 | ✅ Web 远程 profile 鉴权/授权 | auth/RBAC middleware | 非授权无法读写 |
-| A-08 | P0 | ✅ MCP network profile 鉴权/授权 | transport auth policy | session ID 不作为身份 |
-| A-09 | P0 | ✅ CORS/Origin/CSRF 收口 | origin policy | 非 allowlist 来源被拒绝 |
+| A-07 | P0 | 部分完成：Web 非 loopback bearer 认证和 fail-closed 已落地；RBAC/资源授权仍待完成 | authentication + authorization policy | 未认证请求被拒绝，已认证主体也只能执行角色和资源范围内动作 |
+| A-08 | P0 | 部分完成：MCP 默认 loopback、bearer gate 和 session/identity 分离已落地；细粒度授权仍待完成 | transport auth + client authorization policy | session ID 不作为身份，客户端只能访问允许的工具、scope、任务和数据 |
+| A-09 | P0 | CORS/Origin/CSRF 与 URL token 收口 | origin/request credential policy | 非 allowlist 来源被拒绝，修改类请求防跨站，query token 仅限必要 SSE 路由且避免泄漏 |
 | A-10 | P0 | ✅ Docker build context 收口 | 完整 `.dockerignore` policy | 本地产物不进入构建 |
 | A-11 | P1 | 关键 event 不可静默 drop | priority queue/backpressure | terminal/proof event 0 丢失 |
 | A-12 | P1 | 健康端点真实化 | liveness/readiness/dependency view | runtime/provider 状态准确 |
@@ -2000,12 +2029,13 @@ Kali 工具、字典、模型、第三方二进制和知识内容可能有不同
 | B-04 | P1 | 密钥与依赖扫描 | secret + dependency gate | 高危阻断 |
 | B-05 | P1 | 容器/SBOM/provenance 扫描 | release supply-chain job | 发布产物可追溯 |
 | B-06 | P1 | 🔨 版本单一真相源（代码侧已单源；release tag/CHANGELOG 待发布流程收口） | generated/read version adapters | 0.2/0.4 漂移消失 |
-| B-07 | P1 | ✅ 依赖声明与锁定统一 | canonical dependency manifest | 构建可复现 |
+| B-07 | P1 | 依赖声明与锁定统一 | canonical dependency manifest | 构建可复现 |
 | B-08 | P1 | Python/OS/runtime 支持矩阵 | support policy | CI/Docker/文档一致 |
 | B-09 | P2 | 复杂度和增长预算 | hotspot guard | 超大模块不再无界增长 |
 | B-10 | P2 | broad catch 例外治理 | exception taxonomy/report | 新 silent catch 为 0 |
 | B-11 | P2 | 编码、BOM、warning 清理 | source hygiene gate | parse warning 为 0 |
 | B-12 | P2 | 大型测试模块按边界拆分计划 | test ownership map | 降低冲突和审阅成本 |
+| B-13 | P2 | 源码注释与测试 docstring 去私有记忆依赖 | self-contained source rationale | 代码和测试中的不可解析 wiki-style `project_*` / `feedback_*` / `reference_*` 引用为 0；必要依据改指向 ADR、issue、commit 或仓库文档 |
 
 ### 13.4 Phase C：数据与状态可靠性
 
@@ -2132,7 +2162,7 @@ Kali 工具、字典、模型、第三方二进制和知识内容可能有不同
 6. 一次只改变一个核心变量。
 7. 保持旧路径可回退，但设置兼容期限。
 8. 验证目标指标、负面指标和资源清理。
-9. 更新总纲状态/backlog、ADR、schema registry 或 baseline。
+9. 更新治理指南状态/backlog、ADR、schema registry 或 baseline。
 10. 观察稳定窗口后移除旧路径和临时开关。
 
 ### 14.4 Definition of Done
@@ -2190,15 +2220,16 @@ Kali 工具、字典、模型、第三方二进制和知识内容可能有不同
 
 今后综合优化只维护本文件：
 
-`docs/dev/FlagHunter_优化总纲.md`
+`docs/optimization-guide.md`
 
 不再创建：
 
-- `FlagHunter_优化方案_日期_Vn.md`
-- `FlagHunter_优化方法论_日期_Vn.md`
-- 与本总纲重复的综合 roadmap、gap report 或“最新审计”文件。
+- `<project>_优化方案_<date>_Vn.md`
+- `<project>_优化方法论_<date>_Vn.md`
+- 按具体 coding agent、模型或 provider 命名的项目级说明、记忆或路线文档。
+- 与本指南重复的综合 roadmap、gap report 或“最新审计”文件。
 
-版本、日期和状态只更新在本文件头部和变更记录中。
+版本、日期和状态只更新在本文件头部和变更记录中。仓库级协作约束统一维护在 `AGENTS.md`；具体品牌名称仅用于真实 provider 兼容、客户端接入或历史证据，不承担项目身份和治理入口职责。源码注释、测试 docstring 和文档中的设计依据也必须在仓库内可追溯，应指向 ADR、issue、commit、稳定代码契约或现有仓库文档，不得依赖某个开发工具的私有会话记忆。
 
 ### 15.2 建议保留的权威文档层级
 
@@ -2207,7 +2238,7 @@ Kali 工具、字典、模型、第三方二进制和知识内容可能有不同
 | 产品入口 | `README.md` | 项目定位、快速开始、当前稳定能力 |
 | 协作约束 | `AGENTS.md` | 仓库结构、开发纪律、架构不变量 |
 | 文档导航 | `docs/README.md` | 少量权威入口和历史分类 |
-| 综合优化 | 本文件 | 当前问题、优先级、路线、运维和质量总纲 |
+| 综合优化 | 本文件 | 当前问题、优先级、路线、运维和质量指南 |
 | 架构规范 | Clean Architecture Guidelines + Naming Policy | 稳定边界规则 |
 | 能力事实 | 真实解题率 baseline/corpus 报告 | 当前能力数据 |
 | 发布规范 | 未来合并后的单一 Release Handbook | 发布和回滚 |
@@ -2232,7 +2263,7 @@ Kali 工具、字典、模型、第三方二进制和知识内容可能有不同
 
 | 变化 | 必须更新 |
 |---|---|
-| 优先级、阶段、SLO、风险变化 | 本总纲 |
+| 优先级、阶段、SLO、风险变化 | 本指南 |
 | 项目定位、稳定功能、安装方式变化 | README |
 | 架构不变量和公共命名变化 | AGENTS + Architecture Guidelines/ADR |
 | claim/evidence/proof schema 变化 | Schema Registry + 相关 contract 文档 |
@@ -2249,10 +2280,10 @@ Kali 工具、字典、模型、第三方二进制和知识内容可能有不同
 - 重复内容优先链接，不复制粘贴。
 - 文档不保存密钥、cookie、真实凭据或不必要的运行敏感信息。
 
-### 15.6 本总纲的维护方式
+### 15.6 本指南的维护方式
 
 - 小变化直接更新对应章节。
-- 重大决策新增 ADR，并在本总纲更新结论和链接。
+- 重大决策新增 ADR，并在本指南更新结论和链接。
 - 完成 backlog 时修改状态，不复制一份“完成版”。
 - 每个 minor release 做一次全文 review。
 - 每季度清理已完成、失效和重复条目。
@@ -2277,7 +2308,7 @@ Kali 工具、字典、模型、第三方二进制和知识内容可能有不同
 - 质量、类型、架构、安全和依赖检查在合并前自动反馈。
 - 高风险模块有清晰 owner 和增长预算。
 - 兼容 shim 和 feature flag 有退出路径。
-- 当前路线只看一份优化总纲，不在数十份旧文档中猜优先级。
+- 当前路线只看一份优化与治理指南，不在数十份旧文档中猜优先级。
 
 ### 16.3 对系统
 
@@ -2418,9 +2449,11 @@ Kali 工具、字典、模型、第三方二进制和知识内容可能有不同
 | V2.0 | 2026-07-31 | 合并原优化方法论，加入当前仓库静态审计、完整功能域、代码质量、运维、安全、数据、成本、遗漏项、阶段 backlog 和文档收口规则；改用稳定文件名作为唯一综合优化总纲。 |
 | V2.1 | 2026-07-31 | 记录首批实施进展：✅ A-10/F-06（Docker build context 收口 + guard 测试）、✅ A-06/F-05（MCP metrics proof-backed success，done 与 solve 分离）、🔨 B-06/F-10（代码侧版本单源解析，release tag/CHANGELOG 待发布流程收口）。均含守护测试、零回归。 |
 | V2.2 | 2026-07-31 | ✅ A-05：Web 控制面 `_run_agent_task` 曾以 flag 字符串存在性 + 正则重扫模型输出判定成功，会把 dispatcher 近解候选（`SolveResult.flag` 而 `success=False`）或裸正则命中伪装成 verified 成功。引入 `_resolve_terminal_outcome` 单一 proof-backed 策略：仅 verifier 确认的 flag 记 success；未验证候选降级为 `candidateFlag`+`stopped`（`candidate_flag_unverified`/`no_flag_found`），不丢近解（§6.9）。5 guard 测试、295 interface passed 零回归。Web 假成功率→0。 |
-| V2.3 | 2026-07-31 | ✅ B-01/B-02：CI 曾以 `continue-on-error` 跑 ruff/black（lint/format 回归永不阻断），`.importlinter` 契约仅经 pytest 间接强制。B-01 新增 `lint-changed` 阻断 job——对本次 push/PR 实际改动的 `flaghunter/*.py`（diff vs base）跑 ruff+black，分阶段落地（修改范围 0 错误·遗留全树保留 advisory `lint` job 作 backlog）；B-02 新增 `import-linter` 阻断 job（`lint-imports --config .importlinter`）作专用架构门禁。`test_ci_quality_gates.py` 锁住"changed-files ruff/black 阻断 + lint-imports 阻断 + 全树 job 仍 advisory（防未验证大爆炸翻转）"。本机 ruff/black 因 TLS 拦截代理无法安装故全树未预清零→采 changed-files 相；import-linter 契约本机 CLI 退出 0 + pytest guard `all_kept=True` 已证 KEPT。8 guard passed。 |
-| V2.8 | 2026-07-31 | ✅ B-07（F-11）：依赖同存 `pyproject.toml`+`requirements.txt`+`requirements-local-tools.txt` 且无锁文件——`requirements.txt` 已漂移成只声明 `jinja2` 而 pyproject 声明 24 包→构建不可复现、回滚/漏洞定位难。**pyproject.toml `[project.dependencies]` 定为唯一真相源**（两个 Dockerfile 本就 `pip install -e ".[rag]"` 从 pyproject 装→canonical 已喂构建）。新增 `scripts/lock_dependencies.py`：从 pyproject 派生两下游文件——`requirements.txt`（canonical specifier 的**生成镜像**·带 do-not-edit banner·修复漂移·`pip install -r` 路径现与 pyproject 一致）+ `requirements.lock`（**可复现锁**=全传递运行时闭包的精确 `==` pin·经 `importlib.metadata` walk `Requires-Dist`·marker 本地求值排除 extras·76 包）；`--check` 校验新鲜度不重写。lock header 诚实标注可复现范围=生成时的解释器/OS（marker 本地求值·跨平台 universal lock + hash pin 归 B-05 release 供应链后续·本机 TLS 代理挡 clean network resolve 故不做）。guard=`test_dependency_manifest.py`（7·requirements.txt 逐字节等于 canonical render 防漂移/lock 全精确 pin 无 `>=`/lock 覆盖每个顶层 dep + 含传递闭包/banner 存在）·146 config/dockerignore/version 回归零退化·import-linter KEPT。**残留**=`requirements-local-tools.txt` 仍手维护（localtools profile·非核心运行时·可后续纳入生成）+ hash-level pin 与 base image digest pin（B-05）。 |
-| V2.7 | 2026-07-31 | ✅ A-09：Web 控制面此前对每个请求回 `Access-Control-Allow-Origin: *`→操作者访问的任意站点都能跨源脚本读控制台 API（F-05·A-07/A-08 的 token-header 鉴权正交但不挡浏览器跨源读）。新增纯 stdlib FOUNDATION origin 策略（`config/remote_access.py`）：loopback origin（本地控制台自身）默认可信 + 操作者 `FLAGHUNTER_WEB_ALLOWED_ORIGINS` allowlist·其余一律不可信。函数 `is_loopback_origin`/`resolve_allowed_origins`/`is_allowed_origin`/`origin_permitted_for_request`（CSRF 门：safe method 与无 Origin 的非浏览器客户端放行·带不可信 Origin 的写请求拒绝）·origin 规范化大小写/尾斜杠无关·`null`/裸 host 等畸形不可信。接入 Web：模块级通配 `cors_middleware`→`make_cors_middleware(allowed_origins)`——仅对可信 origin 回显 ACAO（绝不 `*`）+ `Vary: Origin` + credentials·带不可信 Origin 的状态改写在触及 handler 前 403（在 auth middleware 外层）·SSE StreamResponse 自决 CORS 头（middleware 无法改已 prepare 的流）。验收（A-09 非 allowlist 来源被拒绝）由端到端 middleware 测试钉死（通配从不出现/不可信 origin 无 grant/不可信写 →403/loopback 与无 Origin 放行）。9 policy + 6 web 测试·557 interface/config/mcp/domain 回归零退化·import-linter KEPT（domain/config 纯净）。**A-09 收官=Phase A P0 全清（A-01..A-10 全 ✅）**；§1.2 最优先第②件"Web/MCP 远程控制面鉴权/授权"三支（A-07 token + A-08 token + A-09 origin/CSRF）闭环。 |
-| V2.6 | 2026-07-31 | ✅ A-03/A-04：stop/cancel 此前只改状态字段并落盘·后台 daemon thread(Web)与 CTF dispatcher 长 await(MCP)不受句柄控制→操作者见 stopped/cancelled 后工具仍可能继续跑(F-01/F-02)。消费 A-02 registry 落地真中止：**A-04(MCP)**=`run_task_async` 原 `asyncio.create_task` 丢弃句柄→存入 `_task_handles`·`_drive_task` 起时 open scope、finally pop 句柄+close scope·`cancel_task` 先置协作 status 再 latch token(`user_cancel`)再 `handle.cancel()`→泊在 dispatcher 长 await 的后台任务经既有 `CancelledError` 路径及时 unwind(阻塞式 `run_task` 保持内联·其调用方本就在 await 结果)。**A-03(Web)**=task 跑在 daemon thread 自有 event loop(与 `/stop` 所在 aiohttp loop 异线程)→managed task runner：`_run_agent_task` 把协程作具名 asyncio task 驱动·`_register_task_runner((loop,handle))`·`_cancel_web_task` latch token 后经 `loop.call_soon_threadsafe(handle.cancel)` 跨线程调度真取消·新增 `CancelledError` 臂记诚实 `stopped` 终态(带 token reason·不计解题失败)·`stop_task` 先 `_cancel_web_task` 再翻 UI status。测试=`test_mcp_task_cancellation.py`(4·泊 await 中断/token latch/未知 id/终态 no-op)+`test_web_task_cancellation.py`(3·跨线程 <5s 中断 vs 30s await/token latch/无 runner False)·434 interface/mcp/domain/layers 回归零退化·import-linter KEPT。**A-01/A-02/A-03/A-04 合计=§1.2 最优先第①件"停止/取消真实等价"闭环**。剩 timeout/success 等价见 A-05(✅)+超时轴(A-11/A-12 P1)。 |
-| V2.5 | 2026-07-31 | ✅ A-01/A-02：三入口各造一套状态词表描述同一生命周期（Web `queued/running/success/failed/stopped`·MCP `pending/running/done/error/cancelled`·task_registry `created/running/completed/failed/stopped`），"stopped"(Web) 与 "cancelled"(MCP)——同一用户中止——读成两个状态；且 stop/cancel 多半只改状态字段落盘，后台 daemon thread 与 CTF dispatcher 长 await 不受句柄控制（F-01/F-02）。A-01 新增纯 DOMAIN 契约 `flaghunter/domain/task_lifecycle.py`：单一 `TaskState` 词表 + 逐 dialect 无损映射(`canonicalize`/`render`/`synonyms`)+ transition service(`can_transition`/`assert_transition`·terminal 为 sink)·对 proof authority 诚实(`SUCCEEDED`=已验证正向终态·`COMPLETED`=loop 结束的中性终态·呼应 A-05/A-06 done≠success)。A-02 新增纯 DOMAIN 原语 `flaghunter/domain/cancellation.py`：`CancellationToken`(线程安全·轮询式·同时服务 sync 线程与 async 循环)+`CancellationScope`(父子链·取消父传播至整棵子树·晚生子继承已 latch 的取消)+`CancellationRegistry`(task-id→scope·按 id 取消)。二者均 import 零 FlagHunter 层·自身零行为变更(A-03/A-04 消费之落地真停止/真取消·worker 在每动作边界 `raise_if_cancelled`→取消后动作数为 0)。12 + 11 guard·import-linter 契约 KEPT(domain 纯净)·427 interface/mcp/domain/layers 回归零退化。**A-01/A-02 是 A-03(Web 真停止)/A-04(MCP 真取消)前置**。 |
-| V2.4 | 2026-07-31 | ✅ A-07/A-08：Web 控制面 ~35 高权限路由（改设置/写 `.env`/加 MCP server/起任务）与 MCP SSE `/mcp` 均无鉴权，MCP SSE 默认绑 `0.0.0.0`（F-03/F-04）。新增纯 stdlib FOUNDATION 策略 `config/remote_access.py`（无 aiohttp·import 干净）：loopback 绑定=可信本地（token 可选）；任何非 loopback 绑定（含 `0.0.0.0`/`::`）=远程 profile，必须配 token 否则 fail-closed 拒启；session ID 只作关联不作身份。A-07 接入 Web(`make_auth_middleware`·/api/* 需 `Authorization: Bearer`/`X-FlagHunter-Token`/`?token=`(EventSource)·静态 SPA 壳放行·`create_app` 加 host/auth_token kwargs 兼容旧调用)；A-08 接入 MCP transport(`create_streamable_http_app` 加 auth_token/enforce_auth·POST/GET/DELETE 全 gate·initialize 也 gate)+ SSE 默认绑定 `0.0.0.0`→`127.0.0.1`(§900)。env=`FLAGHUNTER_{WEB,MCP}_AUTH_TOKEN`/`FLAGHUNTER_REMOTE_AUTH_TOKEN`。20 policy + 6 web + 6 mcp 测试·517 passed(import-linter 契约 KEPT)。**残留**=A-09 CORS 仍 `*`(与 token-header 鉴权正交·独立项)。 |
+| V2.3 | 2026-07-31 | ✅ B-01/B-02：CI 曾以 `continue-on-error` 跑 ruff/black（lint/format 回归永不阻断），`.importlinter` 契约仅经 pytest 间接强制。B-01 新增 `lint-changed` 阻断 job——对本次 push/PR 实际改动的 `flaghunter/*.py`（diff vs base）跑 ruff+black，分阶段落地（修改范围 0 错误·遗留全树保留 advisory `lint` job 作 backlog）；B-02 新增 `import-linter` 阻断 job（`lint-imports --config .importlinter`）作专用架构门禁。`test_ci_quality_gates.py` 锁住"changed-files ruff/black 阻断 + lint-imports 阻断 + 全树 job 仍 advisory（防未验证大爆炸翻转）"。本机 ruff/black 因 TLS 拦截代理无法安装，故全树未预清零，采用 changed-files 方案；import-linter 契约本机 CLI 退出 0 + pytest guard `all_kept=True` 已证 KEPT。8 guard passed。 |
+| V2.4 | 2026-07-31 | 记录 A-07/A-08 基础认证批次：新增统一 remote-access policy；Web 和 MCP 非 loopback 绑定无 token 时 fail-closed；MCP SSE 默认从 `0.0.0.0` 收回 `127.0.0.1`；`/mcp` 网络请求执行 bearer gate，session ID 只用于关联。静态复核将两项判为“基础认证完成、整体部分完成”，因为 RBAC、action/resource/tenant 授权、TLS、token 生命周期和配额仍未闭环；Web 还存在任意 Origin 和 query token 适用范围过宽的问题，统一归入 A-09。 |
+| V2.5 | 2026-07-31 | 记录 A-01/A-02 基础契约批次：`task_lifecycle.py` 已提供 canonical 状态、dialect 映射和 transition service；`cancellation.py` 已提供 token、父子 scope 和 registry。静态复核没有发现已提交生产入口消费 lifecycle API，也没有发现已提交生产代码消费 cancellation registry，因此两项均为“领域基础完成、生产接线未完成”，不能提前宣称“所有入口状态同义”或“取消后动作数为 0”。工作树中的 A-04 MCP 改动属于未提交草稿，单独标记为进行中且未验收。 |
+| V2.6 | 2026-07-31 | 完成文档治理通用化：唯一综合入口固定为 `docs/optimization-guide.md`，仓库级协作入口固定为 `AGENTS.md`；移除按具体 coding agent 命名的项目说明、启动配置、重复旧总纲和 Markdown 中的仓库外私有记忆引用，保留真实 provider、MCP 客户端、兼容 adapter 与历史研究语境。同步 README/AGENTS 的 MCP 默认 loopback 与远程 token 事实；修正 F-02/F-03/F-04/F-07/F-09、Phase A/B 状态和质量门禁说明。另识别出源码注释/测试 docstring 中 20 处同类外部引用，因本轮只改文档未动代码，登记为 F-19/B-13。此轮只做静态文档复核，没有运行测试、lint、build 或 live 任务。 |
+| V2.7 | 2026-07-31 | ✅ A-03/A-04：stop/cancel 此前只改状态字段并落盘·后台 daemon thread(Web)与 CTF dispatcher 长 await(MCP)不受句柄控制→操作者见 stopped/cancelled 后工具仍可能继续跑(F-01/F-02)。消费 A-02 registry 落地真中止：**A-04(MCP)**=`run_task_async` 原 `asyncio.create_task` 丢弃句柄→存入 `_task_handles`·`_drive_task` 起时 open scope、finally pop 句柄+close scope·`cancel_task` 先置协作 status 再 latch token(“user_cancel”)再 `handle.cancel()`→泊在 dispatcher 长 await 的后台任务经既有 `CancelledError` 路径及时 unwind(阻塞式 `run_task` 保持内联·其调用方本就在 await 结果)。**A-03(Web)**=task 跑在 daemon thread 自有 event loop(与 `/stop` 所在 aiohttp loop 异线程)→managed task runner：`_run_agent_task` 把协程作具名 asyncio task 驱动·`_register_task_runner((loop,handle))`·`_cancel_web_task` latch token 后经 `loop.call_soon_threadsafe(handle.cancel)` 跨线程调度真取消·新增 `CancelledError` 臂记诚实 `stopped` 终态(带 token reason·不计解题失败)·`stop_task` 先 `_cancel_web_task` 再翻 UI status。测试=`test_mcp_task_cancellation.py`(4·泊 await 中断/token latch/未知 id/终态 no-op)+`test_web_task_cancellation.py`(3·跨线程 <5s 中断 vs 30s await/token latch/无 runner False)·434 interface/mcp/domain/layers 回归零退化·import-linter KEPT。**A-01/A-02/A-03/A-04 合计=§1.2 最优先第①件"停止/取消真实等价"闭环**。剩 timeout/success 等价见 A-05(✅)+超时轴(A-11/A-12 P1)。 |
+| V2.8 | 2026-07-31 | ✅ A-09：Web 控制面此前对每个请求回 `Access-Control-Allow-Origin: *`→操作者访问的任意站点都能跨源脚本读控制台 API(F-05·A-07/A-08 的 token-header 鉴权正交但不挡浏览器跨源读)。新增纯 stdlib FOUNDATION origin 策略(`config/remote_access.py`)：loopback origin(本地控制台自身)默认可信 + 操作者 `FLAGHUNTER_WEB_ALLOWED_ORIGINS` allowlist·其余一律不可信。函数 `is_loopback_origin`/`resolve_allowed_origins`/`is_allowed_origin`/`origin_permitted_for_request`(CSRF 门：safe method 与无 Origin 的非浏览器客户端放行·带不可信 Origin 的写请求拒绝)·origin 规范化大小写/尾斜杠无关·`null`/裸 host 等畸形不可信。接入 Web：模块级通配 `cors_middleware`→`make_cors_middleware(allowed_origins)`——仅对可信 origin 回显 ACAO(绝不 `*`)+ `Vary: Origin` + credentials·带不可信 Origin 的状态改写在触及 handler 前 403(在 auth middleware 外层)·SSE StreamResponse 自决 CORS 头(middleware 无法改已 prepare 的流)。验收(A-09 非 allowlist 来源被拒绝)由端到端 middleware 测试钉死(通配从不出现/不可信 origin 无 grant/不可信写 →403/loopback 与无 Origin 放行)。9 policy + 6 web 测试·557 interface/config/mcp/domain 回归零退化·import-linter KEPT(domain/config 纯净)。**A-09 收官=Phase A P0 全清(A-01..A-10 全 ✅)**；§1.2 最优先第②件"Web/MCP 远程控制面鉴权/授权"三支(A-07 token + A-08 token + A-09 origin/CSRF)闭环。 |
+| V2.9 | 2026-07-31 | ✅ B-07(F-11)：依赖同存 `pyproject.toml`+`requirements.txt`+`requirements-local-tools.txt` 且无锁文件——`requirements.txt` 已漂移成只声明 `jinja2` 而 pyproject 声明 24 包→构建不可复现、回滚/漏洞定位难。**pyproject.toml `[project.dependencies]` 定为唯一真相源**(两个 Dockerfile 本就 `pip install -e ".[rag]"` 从 pyproject 装→canonical 已喂构建)。新增 `scripts/lock_dependencies.py`：从 pyproject 派生两下游文件——`requirements.txt`(canonical specifier 的**生成镜像**·带 do-not-edit banner·修复漂移·`pip install -r` 路径现与 pyproject 一致)+ `requirements.lock`(**可复现锁**=全传递运行时闭包的精确 `==` pin·经 `importlib.metadata` walk `Requires-Dist`·marker 本地求值排除 extras·76 包)；`--check` 校验新鲜度不重写。lock header 诚实标注可复现范围=生成时的解释器/OS(marker 本地求值·跨平台 universal lock + hash pin 归 B-05 release 供应链后续·本机 TLS 代理挡 clean network resolve 故不做)。guard=`test_dependency_manifest.py`(7·requirements.txt 逐字节等于 canonical render 防漂移/lock 全精确 pin 无 `>=`/lock 覆盖每个顶层 dep + 含传递闭包/banner 存在)·146 config/dockerignore/version 回归零退化·import-linter KEPT。**残留**=`requirements-local-tools.txt` 仍手维护(localtools profile·非核心运行时·可后续纳入生成)+ hash-level pin 与 base image digest pin(B-05)。 |
+| V2.10 | 2026-08-03 | ✅ 质量门禁 + 验收证据框架(为 B 阶段后续各项提供可执行验收基础)：新增 `flaghunter/quality/acceptance.py`(执行门禁·解析 backlog·匹配证据·原子写报告)+ `flaghunter/quality/__init__.py` 公共入口；新增 `quality-gates.json`(25 个门禁 × 67 个验收规则全映射 = Phase A/B/C/D/E/F 全部 backlog 都有 owner + (gates 或 evidenceRequirements))，由 `scripts/build_quality_gates.py` 单一真相派生；新增 `scripts/check_source_rationale.py`(B-13 私有记忆引用扫描)与 `scripts/run_changed_lint.py`(B-01/B-11 改文件 lint/format 阻断)；测试 `tests/unit/quality/test_acceptance.py`(12 · profile 未知门禁/重复 gate/coverage 与 guide 一致/失败门禁决定 exit code/缺失工具 UNAVAILABLE/changed-file 空集 SKIP/混合外部不传证据永远 PENDING/陈旧 evidence 不被接受/JSON+Markdown 报告原子写/仓内 manifest 覆盖 67 项)全过。`ruff check`/`black --check`/`isort` 干净。B-13 门禁首次扫描命中 22 处 [[project_*]]/[[feedback_*]]/[[reference_*]] 私有记忆引用——B-13 实际清理留作 B-13 实施(独立逻辑单元)；当前 manifest 把 B-13 标为 automated，验收状态为 PENDING 直到清理完成。**注意**：本机已有的 1 处 `test_attack_taxonomy.py::test_every_registered_strategy_is_tagged_or_exempt` 失败是 HEAD 残留(4 个 strategy kind 未打技术标签)，与本切片无关。 |

@@ -209,4 +209,4 @@ pentest = 广度,尽量枚举并利用更多漏洞,findings 给系统 owner,透�
 - Cybench — https://cybench.github.io/ · NYU CTF Bench — https://nyu-llm-ctf.github.io/
 - Google Big Sleep — https://blog.google/innovation-and-ai/technology/safety-security/cybersecurity-updates-summer-2025/
 
-相关:[[project-topdown-architecture]] [[project-web-chain-reachability-sqli]] [[project-ctf-mode]] [[project-exploitation-modes-antcolony]]
+相关:[[FlagHunter_架构决策记录_自顶向下骨架与两关节契约_2026-06-17_V1]]、[[CTF_web链可达性静态审计_2026-06-17_V1]]。

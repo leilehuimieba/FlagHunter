@@ -28,4 +28,4 @@ Tornado 模板注入经典题。FlagHunter dispatcher web 快路径 **11s** 解�
 
 ## 4. 产出归位(数据治理 policy)
 ① 原始 loot/reports + 注册表(gitignore);② 自动回填 ctf_sessions(本次已触发);
-③ 本题解(committed);④ 框架教训:两 gap 已修并复验,记 [[project_data_governance]]。
+③ 本题解(committed);④ 框架教训:两 gap 已修并复验,治理结论回填 `数据治理与知识回填_policy_2026-06-29_V1.md`。

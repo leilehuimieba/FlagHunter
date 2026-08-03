@@ -5,7 +5,7 @@
 # build context and image layers. This file MUST keep local runtime products,
 # collected evidence (loot), logs, reports, per-challenge working dirs,
 # conversations, workspaces, RAG session caches, secrets and databases OUT of
-# the image. See docs/dev/FlagHunter_优化总纲.md item F-06 / A-10.
+# the image. See docs/optimization-guide.md item F-06 / A-10.
 # Guarded by tests/unit/test_dockerignore_hardening.py — keep in sync.
 # ==========================================================================
 

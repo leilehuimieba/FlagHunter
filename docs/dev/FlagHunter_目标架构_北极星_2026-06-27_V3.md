@@ -128,7 +128,7 @@
 - **C5 主动探索归代码侧**（N9）：ε-greedy/强制试未试链作为**确定性重排加成**落在 `hypothesis_engine` 排序里，受 C1 覆盖底线约束（只重排不删），不夺 C2 链内自由。
 
 **"强能力够不着"的真正杠杆 = `chain_order` 播种，不是控制哲学**：
-- 历史实证（记忆 [[project_web_chain_reachability_sqli]]）：随便注 SQLi 6m27s 未解，把 `generic_param_sqli` 追加进 web 链后 59s 解出——根因是该 chain **不在 chain_order 里，内层黑板再聪明也轮不到**。
+- 历史实证（见 `CTF_web链可达性静态审计_2026-06-17_V1.md` 与对应 Git 记录）：随便注 SQLi 6m27s 未解，把 `generic_param_sqli` 追加进 web 链后 59s 解出——根因是该 chain **不在 chain_order 里，内层黑板再聪明也轮不到**。
 - 目标修法：**让黑板高分 intent 能把不在 chain_order 里的链动态顶进来**（intent→动态扩 chain_order），而非重写控制器。这是一刀小手术（见 §6-N4）。I5 守护应相应升级为"注册策略在真实运行里可达"。
 
 ### 3.2 KnowledgeMemory 门面 = 待建第三关节（关节 C）
@@ -336,7 +336,7 @@ class KnowledgeMemory:
    = "感知 → 认知 → 决策"闭环，接回 §3.1 混合控制面
 ```
 
-**架构原则落点**：你全局 CLAUDE.md 的"先被动观察"在此**字面编码**——先 diagnose 探针、再渲染态采集、curl 兜底、失败软记录，全程不抛异常。
+**架构原则落点**：仓库级协作规范中的"先被动观察"在此**字面编码**——先 diagnose 探针、再渲染态采集、curl 兜底、失败软记录，全程不抛异常。
 
 **这条链上的三处断点（机制丰富，认知通道窄）**：
 

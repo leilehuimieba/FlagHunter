@@ -58,8 +58,8 @@
 - [ ] 有**验证命令**(默认 `.venv/Scripts/python.exe -m pytest tests/unit/agents/ -q -p no:cacheprovider`)。
 - [ ] 标注**风险级别**;高风险(真改调用路径)须写明"需 live eval 回放兜底"且不与同文件卡并行。
 - [ ] 继承通用纪律:双提交(refactor/feat + docs)、直接提交 main 不 push、
-      `git commit -F <tempfile>`(勿用 PowerShell here-string)、commit 结尾署名
-      `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`、不碰 challenges/。
+      `git commit -F <tempfile>`(勿用 PowerShell here-string)、提交信息遵循仓库规范且不固定
+      任何工具或模型署名、不碰 challenges/。
 
 ## 收产出——审核清单
 - [ ] **测试**:全 agents 套件(或该卡指定范围)绿、零回归;让产出方报出 `N passed`。
@@ -72,9 +72,9 @@
 ## 回写经验的去处(分三层)
 - **架构/重构决策、每刀完成记录** → ADR §8。
 - **可复用的任务切片** → backlog 加新卡;完成的卡标 `✅(commit)`。
-- **跨会话才有价值、仓库里查不到的项目经验/坑**(如并发写手行为、某类失败模式)→ 提示用户写进
-  长期记忆(`...\.claude\projects\D--webstudy-FlagHunter\memory\`)。仓库已记录的(代码结构、
-  历史提交)**不要**重复存。
+- **跨会话才有价值、仓库里查不到的项目经验/坑**(如并发写手行为、某类失败模式)→ 蒸馏后回写
+  最相关的现有权威文档；稳定约束写 `AGENTS.md`，综合风险和路线写 `docs/optimization-guide.md`，
+  架构取舍写对应 ADR。外部会话记忆不作为项目真相源，仓库已记录的内容**不要**重复存。
 
 ## 每轮输出格式(对用户)
 1. **台账表**(当前所有卡状态)。

@@ -45,12 +45,12 @@
 2. **快路径报告偏薄**:`loot/reports/*.md` 的 "Commands Executed: 0" —— dispatcher
    在 agent 命令记录之前就解出,报告只有 flag 没有链路 trace(本 WP 补足链路)。
 
-两者都是"能力够强反而绕过了观测/回填挂点"的同构问题,记入
-[[project_data_governance]] / [[project_operating_model_vision]] 后续 backlog。
+两者都是"能力够强反而绕过了观测/回填挂点"的同构问题，后续 backlog 统一回写
+`数据治理与知识回填_policy_2026-06-29_V1.md` 与 `FlagHunter_运行方式愿景与上线问题清单_2026-06-28_V1.md`。
 
 ## 4. 产出归位（按数据治理 policy）
 
 - ① 原始:`loot/reports/http_4afb...md`、artifact_registry/checkpoints/session_ledgers(gitignore)
 - ② 自动回填:本次**未触发**(见发现 1)
 - ③ 本题解:本文(committed)
-- ④ 框架教训:回填 Claude memory(provider 池 live 验证 + 两发现)
+- ④ 框架教训:回填仓库内项目治理文档(provider 池 live 验证 + 两发现)

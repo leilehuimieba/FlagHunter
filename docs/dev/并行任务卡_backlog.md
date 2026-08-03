@@ -24,8 +24,8 @@
    **不要 push**(本地有意领先 origin/main)。
 7. **commit message 用文件方式**:`git commit -F <tempfile>`(临时文件放 `D:/tmp`)。
    **不要**在 Bash 工具里用 PowerShell here-string `@'...'@`(Bash 工具是 Git Bash/POSIX sh,
-   会把 `@` 混进提交标题)。消息结尾固定:
-   `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`。
+   会把 `@` 混进提交标题)。提交信息遵循 Conventional Commits；作者或协作者信息只记录
+   实际参与者，不固定任何工具或模型署名。
 8. **抽取/改名后、跑套件前先做 monkeypatch 路径预扫**:`grep "<旧模块>.<被移符号>"`,
    把 setattr-rebind 的 patch 路径改到新使用点(消除失败往返)。
 
@@ -209,7 +209,7 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 通用纪律:
   - 双提交:① fix/refactor(m4 修复或注释澄清 + 测试)② docs(对照表 §4 更新)。
   - 直接提交 main 不 push;git commit -F <tempfile>(临时文件写 D:\tmp);
-    每个 commit 结尾署名 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>;
+    作者或协作者信息只记录实际参与者，不固定任何工具或模型署名;
     不碰 challenges/。
 ```
 
@@ -284,7 +284,7 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 [7] 通用纪律
   双提交：fix 与 docs 分两个 commit。main 不 push。
   提交用 git commit -F D:\tmp\<msgfile>（消息文件写在 D:\tmp）。
-  每条 commit 末尾署名：Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+  作者或协作者信息只记录实际参与者，不固定任何工具或模型署名。
   不碰 challenges/。
 ```
 
@@ -383,7 +383,7 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 > **切法 A**:`flag_observer.py` 抽独立 `FlagObserver` 类(无 `__init__`、零 eager 持 state/context);`observe_flag` 把 state/两个 context **per-call 传值**(每轮+resume rebind 不能 eager 持),`verifier` + 4 个兄弟方法(`_store_note`/`_record_session_event`/`_hydrate_flag_proof`/`_record_wrong_flag_feedback`)**per-call 注入 bound method**(壳里现取跟随 MRO);mixin `_observe_flag` 保留原签名退化委派壳(35 调用站零改);dispatcher `__init__` 持 `self._flag_observer = FlagObserver()`。不动 MRO/调用站/coordinator。
 > **不变量**:candidate/runtime/verified/rejected + None-guard 各分支逐字;rejected 仅当 `verification.flag` 真值才 `record_wrong_flag_feedback`;`store_note` 4 类 key(`ctf_flag_candidate`/`_runtime`/`ctf_flag`/`_rejected`)+ artifact 参数逐字;`build_verification_decision_event` payload 逐字。
 > **门禁(风险略升·独占 pa_agent)**:`tests/unit/agents` 全量零回归 + 新 detached 单测(假 state/verifier + Mock 协作者,4 分支/None 守卫/rejected 条件/per-call 不 eager)+ **`tests/eval/test_replay_harness.py` 5 passed live 回放兜底**(热路径+落盘链路,委派壳零行为须回放坐实)。边界:`flag_observer.py` + `ctf_dispatcher.py` + `test_ctf_flag_observer.py`。
-> **✅ 完工(563d525)**:`FlagObserver` 独立类(无 `__init__`、零 eager 持 state/context),`observe_flag` 把 state/两个 active context **per-call 传值**、verifier + 4 兄弟方法(`_store_note`/`_record_session_event`/`_hydrate_flag_proof`/`_record_wrong_flag_feedback`)**per-call 注入 bound method**;mixin `_observe_flag` 保留原签名退化委派壳(35 调用站零改),仍在 flag_observer 模块。`ctf_dispatcher.__init__` 持 `self._flag_observer = FlagObserver()`;MRO/调用站/coordinator 零改。3 文件 +224/−18。门禁:`tests/unit/agents` **515 passed**(零回归,`test_ctf_flag_observer.py` 11 passed)+ `test_replay_harness.py` **5 passed**(live 回放零差)。⚠ 过程注记:执行 agent 代码改完后撞 Anthropic 服务端 529 过载(连带安全分类器 `claude-opus-4-8` 不可用→主控写/执行操作全被挡),改动滞留工作树未提交;主控核实 `--stat` 形态符合切法 A 后,经用户 `!` 自助跑门禁+提交落地(见 [[feedback-handoff-scripts-when-blocked]]),零丢失。
+> **✅ 完工(563d525)**:`FlagObserver` 独立类(无 `__init__`、零 eager 持 state/context),`observe_flag` 把 state/两个 active context **per-call 传值**、verifier + 4 兄弟方法(`_store_note`/`_record_session_event`/`_hydrate_flag_proof`/`_record_wrong_flag_feedback`)**per-call 注入 bound method**;mixin `_observe_flag` 保留原签名退化委派壳(35 调用站零改),仍在 flag_observer 模块。`ctf_dispatcher.__init__` 持 `self._flag_observer = FlagObserver()`;MRO/调用站/coordinator 零改。3 文件 +224/−18。门禁:`tests/unit/agents` **515 passed**(零回归,`test_ctf_flag_observer.py` 11 passed)+ `test_replay_harness.py` **5 passed**(live 回放零差)。⚠ 过程注记:执行 agent 代码改完后撞 Anthropic 服务端 529 过载(连带安全分类器 `claude-opus-4-8` 不可用→主控写/执行操作全被挡),改动滞留工作树未提交;主控核实 `--stat` 形态符合切法 A 后,经用户 `!` 自助跑门禁+提交落地(见本文件通用交接纪律),零丢失。
 
 ---
 
@@ -393,7 +393,7 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 > **唯一真坑 = `_notes_log` 归属**:dispatcher 持有的可变 `list[str]`(`ctf_dispatcher.py:299`),`:574 result.notes = list(self._notes_log)` 直接读它。**必须留 dispatcher、委派壳 per-call 传 list 引用**(靠引用语义原地 `.append`),**绝不搬进 NoteStore 实例持有**(否则断 result.notes 取数=非零行为)。
 > **切法 A**:`NoteStore` stateless 类,`store_note(state, *, runtime, register_artifact_record, emit, notes_log, key, value, category, **metadata)` 等——state per-call 传值、兄弟方法(`_record_session_event`/`_register_artifact_record`/`_select_hypothesis_for_chain`/`_emit`)per-call 注入 bound method、`_notes_log` 传引用;两个 `_derive_*` 纯函数随搬;mixin 6 方法保原签名退委派壳;dispatcher `__init__` 持 `self._note_store=NoteStore()`。不动 MRO/调用站/coordinator/Protocol 桩。
 > **不变量**:notes.json 内容/格式逐字(notes_tool 负责);`_notes_log` 追加 `f"[{category}] {key}: {value}"` 逐字 + `result.notes` 取同一 list;artifact 注册/session 事件/`state.add_artifact` 参数逐字;`derive_*` 映射逐 key。
-> **门禁(独占 pa_agent)**:`tests/unit/agents` 全量零回归 + 新 detached 单测(脱离 dispatcher + `set_notes_file(tmp)` + 独立 list 充 notes_log 证传引用)+ `test_replay_harness.py` 5 passed(落盘隔离零差兜底)。边界:`note_store.py` + `ctf_dispatcher.py` + `test_ctf_note_store.py`。⚠ 若执行 agent 撞 529/分类器不可用,改动留工作树未提交,主控核 `--stat` 后经用户 `!` 落地(见 [[feedback-handoff-scripts-when-blocked]])。
+> **门禁(独占 pa_agent)**:`tests/unit/agents` 全量零回归 + 新 detached 单测(脱离 dispatcher + `set_notes_file(tmp)` + 独立 list 充 notes_log 证传引用)+ `test_replay_harness.py` 5 passed(落盘隔离零差兜底)。边界:`note_store.py` + `ctf_dispatcher.py` + `test_ctf_note_store.py`。⚠ 若执行 agent 撞 529/分类器不可用,改动留工作树未提交,主控核 `--stat` 后经用户 `!` 落地(见本文件通用交接纪律)。
 
 ---
 
@@ -422,7 +422,7 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 > **测绘裁决**:RT 簇(L3e)已抽走,剩约 10 方法(session ledger / artifact registry / checkpoint / source hint / `_record_recovery_decision`)**一次抽全到单个 stateless `AuditStore`**(分簇会制造 `_record_session_event` sink 跨 class 注入、不划算)。切法 A 4 簇全适用:三个 store 对象 + 三个 run_id + `_registered_local_source_hints_loaded` flag **留 dispatcher**(coordinator 直读 `_ledger_run_id`/Protocol 声明它 + flag;`_restore_context:1644/1661/1663` 直读 `_checkpoint_store`);`_setup_*` 委派壳**返回 `(run_id, store)` 写回 `self._xxx`**(保 setup 接力 + coordinator 回读语义);写事件簇 per-call 传 store 引用+run_id+state+`record_session_event` bound method;`_ingest` 的 loaded-flag 守卫留壳里。`_restore_context` 零改(store 留 dispatcher 传引用的关键收益)。
 > **门禁(独占 pa_agent)**:`tests/unit/agents` 全量零回归(含 `test_ctf_audit_infra`/`test_ctf_dispatcher_artifact_registry`/`test_ctf_dispatcher_checkpoint_store`/`test_ctf_coordinator`)+ **replay 产物对拍**(依赖甲:抽前抽后 tmp 内 session_ledger/artifact_registry/checkpoint 逐字节相同)。理论上**不需改 coordinator**(委派壳保名保签,coordinator 只调 `_setup_*` 名 + 读 `_ledger_run_id`)。边界:`audit_infra.py` + `ctf_dispatcher.py`(+ 必要时测试)。**需主控先确认甲已合再派**。
 > **✅ 完工(8ecd999)**:剩余 10 方法一次抽全到 stateless `AuditStore`(`vars()=={}` 零自持);`build_session_ledger`/`build_artifact_registry`/`build_checkpoint_store` 返回 `(run_id, store)`,`_setup_*` 壳回写 `self._x_run_id, self._x`(artifact/checkpoint 经 `fallback_run_id=self._ledger_run_id` 保两步 fallback 接力);写事件簇 per-call 传 store/run_id/state + `record_session_event` 注入;`_ingest` 的 `state is None`→`loaded` 守卫顺序逐字保留在壳、收尾置 `loaded=True`;三 store/三 run_id/flag 全留 dispatcher `__init__`;**`_restore_context` 零改、coordinator 零改、MRO/调用站零改**;落盘默认 `Path("loot")/...` 三处不变。3 文件原子提交。**门禁**:`tests/unit/agents` **534 passed**(零回归)+ DoD 四件套 81 passed + 整文件 replay 6 passed——**主控独立坐实**(亲跑 DoD 四件套 81 passed + 整文件 replay 6 passed + 隔离测试单跑绿)。⚠ agent 报告里 replay 出现的 1 failed(`test_replay_does_not_touch_real_loot_stores`)经查证**与本刀无关**:整文件在主控环境 6 passed、隔离测试单跑绿、534 全量零回归——是 L3f-1 隔离补洞未闭合留下的**间歇旁路泄漏**(见卡 L3g),非 L3f-2 引入。**AuditInfra 至此整体对象化完毕**(RT 簇 L3e + store 簇 L3f-2)。
-> **✅ 完工(2de4d1f)**:`NoteStore` stateless 独立类(6 方法逐字搬入,`_derive_*`→`derive_*`),state/runtime/4 兄弟方法/reasoning_layer 全 per-call 传值;**`_notes_log` 留 dispatcher、委派壳 per-call 传 list 引用、NoteStore 仅 `.append` 从不自持**(新测专门断言 NoteStore 实例无 `_notes_log` 属性 + 传入独立 list 被原地追加),故 `:574 result.notes=list(self._notes_log)` 仍读同一 list 字节级等价。`NoteStoreMixin` 6 方法保原名原签名退委派壳(`__module__` 锚定 note_store);`ctf_dispatcher.__init__` 持 `self._note_store=NoteStore()`;MRO/调用站/coordinator Protocol 桩零改。3 文件 +372/−34。门禁:`tests/unit/agents` **519 passed**(零回归)+ `test_replay_harness.py` **5 passed**(落盘零差)——**主控亲跑门禁独立印证**(519 passed + replay 5 passed,与 agent 报告一致)。⚠ 过程:执行 agent 给非结论 rest("等 monitor")疑似假死,主控先核 git 真相(同 [[feedback-handoff-scripts-when-blocked]] 教训)——实为 agent 在等自起的长 pytest,随后真完成并提交 2de4d1f,无重复派单。**后续**:AuditInfra(底座·166 反向调用·三磁盘 store rebind,留最后/单独立项)→ recon/llm/jwt(难)。
+> **✅ 完工(2de4d1f)**:`NoteStore` stateless 独立类(6 方法逐字搬入,`_derive_*`→`derive_*`),state/runtime/4 兄弟方法/reasoning_layer 全 per-call 传值;**`_notes_log` 留 dispatcher、委派壳 per-call 传 list 引用、NoteStore 仅 `.append` 从不自持**(新测专门断言 NoteStore 实例无 `_notes_log` 属性 + 传入独立 list 被原地追加),故 `:574 result.notes=list(self._notes_log)` 仍读同一 list 字节级等价。`NoteStoreMixin` 6 方法保原名原签名退委派壳(`__module__` 锚定 note_store);`ctf_dispatcher.__init__` 持 `self._note_store=NoteStore()`;MRO/调用站/coordinator Protocol 桩零改。3 文件 +372/−34。门禁:`tests/unit/agents` **519 passed**(零回归)+ `test_replay_harness.py` **5 passed**(落盘零差)——**主控亲跑门禁独立印证**(519 passed + replay 5 passed,与 agent 报告一致)。⚠ 过程:执行 agent 给非结论 rest("等 monitor")疑似假死,主控先核 git 真相(同本文件通用交接纪律)——实为 agent 在等自起的长 pytest,随后真完成并提交 2de4d1f,无重复派单。**后续**:AuditInfra(底座·166 反向调用·三磁盘 store rebind,留最后/单独立项)→ recon/llm/jwt(难)。
 
 ---
 
@@ -554,7 +554,7 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 > - **卡 D1 负反馈回路闭合——真做(`4cddf0d`)**:`record_failure` 把失败 payload 写进 `failed_payloads`/`failure_reasons`,但全仓 grep **零 reader** = "写了没消费"悬空半成品(与 M5 蚁群同型,但长在**每次求解的热路径**上),系统会在相似题上反复重试已知失败 payload。补消费端:`strategy_memory.recall_failed_payloads(matches)` 纯聚合(0.45 相似度门槛=与 hypothesis 调整同口径、复用装配点已 query 的 matches→零额外 IO、冷记忆 no-op)→ coordinator 装配 `dispatcher._known_failed_payloads`(+Protocol+reset)→ planner prompt(`call_llm_for_action`,经 `run_llm_driven_exploration` 到达)注入"勿重提",与会话内 Rejected flags/REFUTED-intent 同构的协议增强(暴露失败不强制选择);**冷记忆 prompt 字节不变=零回归**。
 > - **卡 D2 `_CHAIN_BY_KIND` 死映射归位——真做(`39c3a0c`,卡面翻转)**:映射把 `graphql_introspection`/`nosql_injection` 指向裸 `graphql`/`nosql` 链名,而 `_chain_handler_map` 无此 key→落 robots.txt 兜底。**卡面初判"热路径白耗迭代",主控亲核 + empirical 核实后翻转**:这两 kind 当前**从不被生成**(基准_CTF能力与可达性 §3.2),故是**潜伏死映射**(正是基准 §1 点名的头号误报陷阱"映射有 kind ≠ 可达"),非活跃浪费——一旦将来任一 kind 获生成点就会误派兜底。graphql/nosql 实为 web 链内部策略(§3.3/§4),归位映射到 `web` 使其与策略真实运行处对齐、消除地雷。
 >
-> **方法论复用**:D2 再次印证"`_CHAIN_BY_KIND` 测绘须 empirical 核实生成点,勿凭映射表下可达/浪费结论"(基准 §1 警告 + 本轮亲核翻转卡面)。**门禁**:两 commit 各自独立 + 全量 `tests/` **2014 passed/8 skipped/0 failed**(19m47s,+3 新测试)主控独立坐实零回归。诊断全貌见 [[reference-redteam-architecture-v2]] 邻近、信息素主线见 [[project-topdown-architecture]]。
+> **方法论复用**:D2 再次印证"`_CHAIN_BY_KIND` 测绘须 empirical 核实生成点,勿凭映射表下可达/浪费结论"(基准 §1 警告 + 本轮亲核翻转卡面)。**门禁**:两 commit 各自独立 + 全量 `tests/` **2014 passed/8 skipped/0 failed**(19m47s,+3 新测试)主控独立坐实零回归。诊断背景与信息素主线见 `FlagHunter_红队智能体架构_对标顶级红队工程学_2026-06-17_V2.md` 和 `FlagHunter_架构决策记录_自顶向下骨架与两关节契约_2026-06-17_V1.md`。
 
 ---
 
@@ -565,7 +565,7 @@ D:\webstudy\FlagHunter(Windows),Python 用 .venv\Scripts\python.exe。
 > - **共享无头运行器(`4bbdfa9`)**:新增 `agents/pa_agent/ctf_crew_runner.py` `run_ctf_crew_solve` = 从 TUI 抽出的**单题 crew 核心**(建 planning dispatcher→recon→capability→detect_type→hypothesis→worker_runner→`CTFCrewCoordinator`→`SolveResult`),UI 无关(progress=str 回调、worker 生命周期=可选事件回调,**不 import 任何 interface 代码**);返回 `(SolveResult, dispatcher)` 让各入口从单一产物取 `.state`/`._challenge_context`。`derive_crew_stop_reason` 纯函数抽为单一真相源。**不含** TUI 的平台自治多题循环(TUI 专属)。
 > - **CLI**:`run_cli` 加 `crew` 参数 + `--crew` flag;`--mode ctf --crew` 路由到运行器(正交,不碰渗透 crew=`mode==crew`)。**web**:CTF 路径检测 `executionMode=="crew"`/`crew` 标志路由;返回的 dispatcher 让下游 chain_used/snapshot/derived-target 管线零改。**TUI**:`_derive_ctf_crew_stop_reason` 改委托 `derive_crew_stop_reason`(零风险去重,三入口归一口径)。
 >
-> **测试**:`derive_crew_stop_reason` 全分支纯单测 + `run_ctf_crew_solve` 装配/映射 + already_solved 短路(假 dispatcher/coordinator);CLI/web 路由源码检视(贴合 I2 守护测试风格)。**门禁**:全量 `tests/` **2019 passed/8 skipped/0 failed**(22m50s,+5 新测试)主控独立坐实零回归。**诚实留坑**:TUI 仍保留平台自治超集版本(无单测保护、改动风险高、本轮用户只要 CLI/web),后续可低风险让 TUI 每题委托同一运行器;`ingress_handoff` 不穿进 crew worker(与 TUI crew 行为一致)。CTF 欠债清单见 [[project-ctf-intelligence-debts]],剩 D3(M5蚁群)/D5(链mixin半解耦)暂缓。
+> **测试**:`derive_crew_stop_reason` 全分支纯单测 + `run_ctf_crew_solve` 装配/映射 + already_solved 短路(假 dispatcher/coordinator);CLI/web 路由源码检视(贴合 I2 守护测试风格)。**门禁**:全量 `tests/` **2019 passed/8 skipped/0 failed**(22m50s,+5 新测试)主控独立坐实零回归。**诚实留坑**:TUI 仍保留平台自治超集版本(无单测保护、改动风险高、本轮用户只要 CLI/web),后续可低风险让 TUI 每题委托同一运行器;`ingress_handoff` 不穿进 crew worker(与 TUI crew 行为一致)。CTF 欠债统一以 `docs/optimization-guide.md` 当前 backlog 为准，D3(M5蚁群)/D5(链mixin半解耦)暂缓。
 
 ---
 

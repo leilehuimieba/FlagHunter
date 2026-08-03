@@ -1,135 +1,120 @@
-# FlagHunter 文档总入口
+# 项目文档总入口
 
-> 适用仓库：`D:\webstudy\FlagHunter`
+> 状态：Active / Canonical Index
 >
-> 最后更新：`2026-07-04`
+> 最近更新：2026-07-31
 >
-> 目标：把当前最值得先读、先维护、先对齐的文档收口到一个低成本入口。
-> 历史快照、阶段验收证据与已实现特性的设计草案已于 2026-06-18 清理，本入口只保留仍然有效的文档。
+> 目标：只保留少量权威入口；历史设计、审计、阶段记录和单题 WP 作为证据资料，不与当前路线竞争。
 
 ---
 
-## 1. 先读什么
+## 1. 最短阅读路径
 
-如果你是第一次接手 FlagHunter，建议按下面顺序读：
+第一次接手项目只需按顺序阅读：
 
-1. `README.md` —— 项目定位、能力域、快速开始
-2. `docs/README.md` —— 本文件，文档导航
-3. `AGENTS.md` —— 仓库结构、架构模式、开发协作约束
-4. `docs/dev/FlagHunter_架构决策记录_自顶向下骨架与两关节契约_2026-06-17_V1.md` —— 当前骨架与不变量(ADR)
-5. `docs/dev/FlagHunter_红队智能体架构_对标顶级红队工程学_2026-06-17_V2.md` —— 架构方向锚
-6. `docs/dev/项目工程治理流程_V1.md` —— 怎么把本项目当工程治理(7 阶段生命周期 + 文档=控制面 + 宏观调控)
-7. `docs/dev/并行开发分工_2026-06-18_V1.md` —— 多 agent 同仓并行的分工/契约/worktree/合并(开新会话前必读)
-8. `docs/dev/FlagHunter_Clean_Architecture_Development_Guidelines_v0.1_2026-07-04.md` —— clean architecture、ports/adapters、proof authority、source guard 总规范
-9. `docs/dev/FlagHunter_Domain_Neutral_Naming_Policy_v0.1_2026-07-04.md` —— 新公共契约去安全/CTF领域化命名规则
-10. `docs/dev/FlagHunter_Clean_Architecture_Migration_Playbook_v0.1_2026-07-04.md` —— legacy 到 clean architecture 的分阶段迁移、审批门、提交粒度、验收与测试标准
+1. `README.md`：项目定位、能力和快速开始。
+2. `AGENTS.md`：仓库结构、架构规则和开发约束。
+3. `docs/optimization-guide.md`：当前问题、优化优先级、功能域、代码质量、运维、安全、数据、成本和实施路线。
+
+综合优化、现状判断和后续优先级以第 3 份为准，不再从旧 Gap Report、Roadmap 或阶段审计中拼接“最新结论”。
 
 ---
 
-## 2. 文档分层
+## 2. 当前权威文档
 
-### 2.1 架构主线（当前最重要）
+| 领域 | 权威入口 | 作用 |
+|---|---|---|
+| 产品与使用 | `README.md` | 项目定位、稳定能力、安装和运行入口 |
+| 开发约束 | `AGENTS.md` | 架构边界、命名、proof authority、协作纪律 |
+| 综合优化 | `docs/optimization-guide.md` | 唯一综合优化与治理指南和最新阶段路线 |
+| Clean Architecture | `docs/dev/FlagHunter_Clean_Architecture_Development_Guidelines_v0.1_2026-07-04.md` | Domain、Application、Ports、Adapters、Presentation 和 Composition Root 规则 |
+| 中立命名 | `docs/dev/FlagHunter_Domain_Neutral_Naming_Policy_v0.1_2026-07-04.md` | 新公共 contract/port/domain 命名规则 |
+| 真实能力评估 | `docs/dev/真实解题率基线_方法论与harness_2026-07-25_V1.md` | 分层 corpus、judge、runner、cold/warm 和成本护栏 |
+| 版本变化 | `CHANGELOG.md` | 对协作者可感知的版本变化 |
+| 发布 | `docs/release-policy.md`、`docs/release-checklist.md`、`docs/release-playbook.md` | 当前发布规则、检查和操作；后续计划收敛为单一发布手册 |
 
-这些文档是当前架构演进的核心，构成"领域知识 + 工程实现 + 已落地骨架 + 后续解耦规范"的闭环：
-
-- `docs/dev/FlagHunter_架构决策记录_自顶向下骨架与两关节契约_2026-06-17_V1.md`
-  —— 目标骨架、两关节契约、不变量 I1–I4、P0–P5 路线与进度（ADR，source of truth）
-- `docs/dev/FlagHunter_红队智能体架构_对标顶级红队工程学_2026-06-17_V2.md`
-  —— 对标 ATT&CK / UKC / Diamond / PTES / WSTG 与顶级红队思维，框架优化的方向锚
-- `docs/dev/FlagHunter_agent引擎工程层优化_知识库补遗_2026-06-17_V1.md`
-  —— 记忆 / 控制面 / 评估 / 工具四类工程层优化清单与 Do-First 短名单
-- `docs/dev/FlagHunter_Clean_Architecture_Development_Guidelines_v0.1_2026-07-04.md`
-  —— Domain/Contracts、Application Services、Ports、Adapters、Presentation、Composition Root 的依赖规则与 proof authority 约束
-- `docs/dev/FlagHunter_Module_Boundary_Review_v0.1_2026-07-04.md`
-  —— 当前耦合点、模块化评分、ports skeleton 路线、分阶段解耦计划
-- `docs/dev/FlagHunter_Domain_Neutral_Naming_Policy_v0.1_2026-07-04.md`
-  —— 新公共 contract/port/domain 命名使用 challenge/task/claim/evidence/proof 等中性词，历史 CTF/security 名称作为 adapter/legacy 细节逐步迁移
-- `docs/dev/FlagHunter_Clean_Architecture_Migration_Playbook_v0.1_2026-07-04.md`
-  —— 从 legacy implementation 逐步迁移到 neutral clean architecture 的执行手册，包含审批门、每功能点一 commit、回退策略、阶段路线、验收标准和测试标准
-- `docs/dev/FlagHunter_P5_Pre_Eval_Plan_v0.1_2026-07-04.md`
-  —— P5 仅 pre-eval 的计划与边界，未经明确授权不实现学习闭环
-
-愿景背景：
-
-- `docs/dev/FlagHunter_红队黑板智能体架构学习笔记_2026-06-17_V1.md` —— 黑板群智体的初始愿景笔记（被 V2 取代，保留作背景）
-
-### 2.2 背景分析与学习笔记
-
-解释"为什么这样做"，不直接作为执行指令：
-
-- `docs/dev/Cairn_源码深度分析_围绕Blackboard与Dispatcher_V1.md`
-- `docs/dev/FlagHunter_Harness优化方案_借鉴Cairn_V1.md`
-- `docs/dev/御网杯_AI复盘文章学习笔记_离线复盘导向_V1.md`
-
-### 2.3 基准（baseline，代码真相 + 不变量 + 守护测试）
-
-把"能力/验证/评估"的现状钉成**活基准**：每条结论带 `file:line`，配不变量与守护测试，随代码维护。改了对应子系统**必须回这三份更新**（见 §5）。
-
-- `docs/dev/基准_CTF能力与可达性_2026-06-18_V1.md` —— 23 策略注册清单 + 双分发路径 + 可达性矩阵 + 不变量 I5 + 守护测试规格（**当前已确认 graphql/nosql 两处可达性缺口，修法落 P4**）
-- `docs/dev/基准_验证与解题判定_2026-06-18_V1.md` —— verifier.py 现状基线（已达目标 ~70–80%）+ 双轴/三态/runtime-grounding 标准 + done-criteria
-- `docs/dev/基准_评估指标与失败分类_2026-06-18_V1.md` —— recovery 10 类失败 + 链成功率 vs 节点均值 + 预算分层 + harness 证据基底
-
-### 2.4 运营 / 验证事实层
-
-最接近当前代码真相的运行与验证记录：
-
-- `docs/dev/FlagHunter_live_CTF能力与端到端测试台账_2026-06-09_V1.md` —— live CTF 能力与端到端测试台账
-- `docs/dev/CTF_web链可达性静态审计_2026-06-17_V1.md` —— web 链"能力够不够得着"的静态审计（已被 §2.3 可达性基准升级取代，保留作过程记录）
-- `docs/dev/FlagHunter_预存验收链失败_根因characterization_2026-06-16_V1.md` —— 预存验收链失败根因
-- `docs/dev/FlagHunter_架构优化方案_黑板控制单元与façade收尾_2026-06-16_V1.md` —— 黑板控制单元与 façade 收尾方案
-- `docs/dev/CHANGELOG_schema.md` —— changelog 结构约定
-
-### 2.5 CTF 做题 WP（知识沉淀）
-
-`docs/dev/DASCTF_*` —— 8 篇真实赛题做题/阶段 WP（piapiapia、urlstorage RPO、Unicorn shop、WarmUp、SSRFme、强网杯 Upload/随便注、easy_tornado SSTI），作为能力验证与知识沉淀保留。
-
-### 2.6 发布与协作流程
-
-- `docs/release-policy.md` / `docs/release-checklist.md` / `docs/release-playbook.md`
-- `docs/label-strategy.md`
-- `docs/agent-intelligence-roadmap.md`
+仓库级协作说明只维护 `AGENTS.md`，不再按具体 coding agent、模型或 provider 创建重复的项目说明文件。具体品牌名称仅在真实 provider 兼容、客户端接入或历史证据中出现，不承担项目身份和治理入口职责。
 
 ---
 
-## 3. 当前架构主线
+## 3. 其他文档如何理解
 
-主线已从"叶子打补丁"转向**自顶向下优化**：先保证骨架与层间契约优秀，再逐层下沉。
+### 3.1 架构决策与迁移记录
 
-- **关节 A（入口→编排）**：4 个入口（TUI / CLI / web / MCP）统一经 `AgentSession` 门面装配，事件统一经中立 `EventBus`。
-- **关节 B（编排→策略）**：`_execute_chain` registry 驱动分发；chains 子包化（mixin 拆分），逐步收敛 `ChainContext` 上帝对象透传。
-- **不变量**：I1 依赖单向向下 / I2 唯一装配入口 / I3 事件单源 / I4 chain 不读上帝对象。
+以下类型记录“当时为什么这样设计”和“迁移如何进行”，用于追溯，不自动代表当前状态：
 
-进度与下一步以 ADR（§2.1 第一份）的进展日志为准。
+- `FlagHunter_架构决策记录_*`
+- `FlagHunter_目标架构_*`
+- `FlagHunter_Clean_Architecture_Migration_Playbook_*`
+- `FlagHunter_Module_Boundary_Review_*`
+- `FlagHunter_Claim_VerificationRecord_*`
+
+发生重大架构决策时仍应新增 ADR；综合结论和执行优先级同步回写 `docs/optimization-guide.md`。
+
+### 3.2 旧规格、Gap Report 和 Roadmap
+
+以下文档是历史阶段快照，不再作为当前路线真相源：
+
+- `FlagHunter_CTF_Solver_Spec_*`
+- `FlagHunter_CTF_Solver_Gap_Report_*`
+- `FlagHunter_CTF_Solver_Implementation_Roadmap_*`
+- `FlagHunter_P1_Claim_Verification_Backlog_*`
+- 旧结构债、阶段优化方案和上线问题清单。
+
+需要了解历史缺口或迁移原因时再查阅；当前优先级统一看项目优化与治理指南。
+
+### 3.3 Baseline、审计和验收记录
+
+`基准_*`、live 台账、可达性审计、失败 characterization 和 eval 记录属于事实证据层。它们可以更新具体测量结果，但不单独维护综合路线。
+
+### 3.4 学习笔记和单题 WP
+
+- `DASCTF_*`：题目过程、能力证据和知识沉淀。
+- `Cairn_*`、学习笔记、文章复盘：设计背景和参考资料。
+
+这些资料进入知识检索时应标记为历史/参考，不覆盖当前代码和运行证据。
 
 ---
 
-## 4. 运行环境说明
+## 4. 冲突处理顺序
 
-本仓库默认使用虚拟环境解释器：
+文档或代码结论冲突时，按以下顺序判断：
 
-```powershell
-.\.venv\Scripts\python.exe
-.\.venv\Scripts\python.exe -m pytest
-```
+1. 当前 live runtime 行为。
+2. 当前 trace、receipt、traffic 和 actively served assets。
+3. 当前进程配置与持久化状态。
+4. 当前仓库代码。
+5. 当前权威文档。
+6. 历史设计、审计、Roadmap、注释和学习笔记。
 
-不要默认用系统 Python 判断是否回归，否则容易把环境问题误判成代码问题。
+代码用于解释运行真相，历史文档不得覆盖已变化的实现。
 
 ---
 
 ## 5. 文档维护规则
 
-改了下面任意一类内容，请同步更新对应文档：
+1. 同一主题只能有一份 Active/Canonical 文档。
+2. 综合优化只更新 `docs/optimization-guide.md`，不再创建带日期、项目名或工具名的新优化方案。
+3. 历史文档保留原事实，只增加 Historical/Superseded 状态和替代指向。
+4. README 只描述稳定、可验证的用户能力，不承载详细开发 backlog。
+5. AGENTS 只维护开发必须遵守的不变量，不写阶段进度日记。
+6. Baseline 文档只记录测量方法、环境和结果，不单独发明架构路线。
+7. 版本、路径、配置和链接变化后同步更新本入口。
+8. 每个 minor release 至少复查一次权威文档的状态和链接。
 
-- 入口装配 / 事件契约（关节 A）→ ADR
-- 策略分发 / chains 结构（关节 B）→ ADR + **可达性基准（§2.3，跑 I5 守护测试）**
-- 架构方向 / 红队工程学映射 → V2 与工程层补遗
-- CTF 能力与端到端验证 → live 台账 / 可达性审计
-- 策略注册 / detect_type / 假设生成 / web 桥接清单 → **可达性基准（§2.3）**
-- verifier 来源集合 / 门控 / FlagProof schema → **验证判定基准（§2.3）**
-- recovery 失败动作 / 预算阈值 / harness 字段 → **评估与失败分类基准（§2.3）**
-- 新公共 ports/contracts/domain/application 命名 → **Domain-Neutral Naming Policy + Clean Architecture Guidelines**
-- 模块边界、接口契约、source guard、composition root 变化 → **Clean Architecture Guidelines + Module Boundary Review**
+---
 
-维护原则只有一句话：
+## 6. 当前唯一综合优化与治理入口
 
-> **以最新代码真相为准，文档只记录已确认的事实、已决定的优先级和已对齐的执行边界。**
+`docs/optimization-guide.md`
+
+该文档已经合并：
+
+- 当前静态审计和高风险事实。
+- 架构与 proof authority 不变量。
+- 各功能域职责、问题、优化方法、质量检测和预期效果。
+- 代码质量检测与分层门禁。
+- 部署、监控、告警、备份、恢复、发布和事件响应。
+- 控制面安全、供应链、schema、持久化、性能和成本。
+- 容易遗漏的跨平台、多用户、配置、时间、ID、回压和文档债问题。
+- 分阶段 backlog、实施流程和完成定义。

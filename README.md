@@ -1,7 +1,7 @@
 # FlagHunter
 
-[![Status](https://img.shields.io/badge/status-active-2ea44f)](https://github.com/leilehuimieba/FlagHunter/releases/tag/v0.4.0)
-[![Version](https://img.shields.io/badge/version-v0.4.0-0969da)](https://github.com/leilehuimieba/FlagHunter/releases/tag/v0.4.0)
+[![Status](https://img.shields.io/badge/status-active-2ea44f)](https://github.com/leilehuimieba/FlagHunter/releases)
+[![Version](https://img.shields.io/badge/version-v0.4.1-0969da)](./pyproject.toml)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue)](#license)
 [![Runtime](https://img.shields.io/badge/runtime-local%20%7C%20docker%20%7C%20ssh-8250df)](#典型工作模式)
@@ -234,13 +234,13 @@ flaghunter
 
 ### 推荐起步路径
 
-如果你是第一次接手这个仓库，建议按下面顺序理解：
+如果你是第一次接手这个仓库，只需按下面顺序阅读：
 
-1. 先读本页 `README`
-2. 再看 `docs/README.md`（文档总入口）
-3. 然后看 `AGENTS.md`（仓库结构与开发约束）
-4. 接着看 `docs/dev/FlagHunter_架构决策记录_自顶向下骨架与两关节契约_2026-06-17_V1.md`（当前骨架与不变量）
-5. 如果要继续开发，再看 `docs/dev/FlagHunter_红队智能体架构_对标顶级红队工程学_2026-06-17_V2.md`（架构方向锚）
+1. 本页 `README.md`：项目定位、安装和使用入口。
+2. `AGENTS.md`：仓库结构、架构不变量和开发约束。
+3. `docs/optimization-guide.md`：当前风险、优化优先级、质量检测、运维和阶段路线。
+
+需要查历史设计、基线、审计或发布资料时，再通过 `docs/README.md` 按类别定位，不必逐份阅读 `docs/dev/`。
 
 ---
 
@@ -264,8 +264,10 @@ flaghunter run -t example.com --playbook thp3_web
 
 ```bash
 flaghunter mcp_server --type stdio
-flaghunter mcp_server --type sse --host 0.0.0.0 --port 8080
+flaghunter mcp_server --type sse
 ```
+
+SSE 默认仅监听 `127.0.0.1:8080`。绑定任何非 loopback 地址前，必须设置 `FLAGHUNTER_MCP_AUTH_TOKEN`，或设置 Web/MCP 共用的 `FLAGHUNTER_REMOTE_AUTH_TOKEN`；缺少 token 时服务会拒绝启动。网络客户端使用 `Authorization: Bearer <token>`，MCP session ID 只用于请求关联，不作为身份凭据。
 
 ---
 
@@ -291,23 +293,18 @@ flaghunter mcp_server --type sse --host 0.0.0.0 --port 8080
 
 | 文档 | 说明 |
 |------|------|
+| `README.md` | 项目定位、安装、运行方式和稳定能力 |
 | `AGENTS.md` | 仓库结构、架构模式与开发协作约束 |
-| `docs/README.md` | 文档总入口与分层导航 |
-| `.github/CODEOWNERS` | 私有仓库默认 owner 与关键路径 review 归属 |
-| `docs/dev/FlagHunter_架构决策记录_自顶向下骨架与两关节契约_2026-06-17_V1.md` | 当前骨架、两关节契约与不变量(ADR) |
-| `docs/dev/FlagHunter_红队智能体架构_对标顶级红队工程学_2026-06-17_V2.md` | 对标真实红队工程学的架构方向锚 |
-| `docs/dev/FlagHunter_agent引擎工程层优化_知识库补遗_2026-06-17_V1.md` | agent 引擎工程层优化清单 |
+| `docs/optimization-guide.md` | 项目优化与治理指南：现状、功能、质量、运维、安全、数据、成本与路线 |
+| `docs/README.md` | 其他文档的分类索引；仅在需要历史设计、基线、审计或专题资料时查阅 |
 | `CHANGELOG.md` | 版本与仓库演进记录 |
-| `docs/release-policy.md` | 版本号、changelog 与 release 规则 |
-| `docs/release-checklist.md` | 发版前人工检查清单 |
-| `docs/label-strategy.md` | Issue / PR 标签分层与使用规则 |
-| `docs/release-playbook.md` | 从检查到发版的实际操作手册 |
+| `docs/release-policy.md`、`docs/release-checklist.md`、`docs/release-playbook.md` | 发布规则、检查清单与操作手册；后续按优化指南收敛为单一发布入口 |
 
 ---
 
 ## 版本发布
 
-- **Current Release**：`v0.1.0`
+- **Current Release**：`v0.4.1`
 - **Changelog**：见 [`CHANGELOG.md`](./CHANGELOG.md)
 - **Release Policy**：见 [`docs/release-policy.md`](./docs/release-policy.md)
 - **Release Checklist**：见 [`docs/release-checklist.md`](./docs/release-checklist.md)

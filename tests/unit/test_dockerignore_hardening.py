@@ -6,7 +6,7 @@ The Dockerfiles ship the whole tree with ``COPY . .``. Anything not listed in
 session caches, secrets (``.env``) and local databases.
 
 This test pins the exclusion policy for governance item F-06 / A-10 in
-``docs/dev/FlagHunter_优化总纲.md``. If you intentionally change the policy,
+``docs/optimization-guide.md``. If you intentionally change the policy,
 update both files together.
 """
 

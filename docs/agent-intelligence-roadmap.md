@@ -15,9 +15,9 @@
 | 双模式 | 通用渗透模式（playbook 驱动）+ CTF 模式（自主解题流水线） |
 | 已有智能设施 | Hypothesis 引擎、Reasoning 层、Strategy Memory、CTF Dispatcher、Recovery Controller、Platform Orchestrator |
 | 已有外部接口 | MCP Server（对外暴露）、TUI + CLI、Docker/SSH Runtime |
-| 版本 | v0.4.0 |
+| 版本 | v0.4.1 |
 
-**这个定性意味着**：改进方案不能照搬 coding agent（Claude Code）的模式，而必须适配**渗透测试**的场景特征——工具风险更高（bash/shell）、任务天然可并行（recon/exploit/post-exploit）、上下文以扫描结果和攻击链为主（而非代码文件）。
+**这个定性意味着**：改进方案不能照搬通用 coding agent 的模式，而必须适配**渗透测试**的场景特征——工具风险更高（bash/shell）、任务天然可并行（recon/exploit/post-exploit）、上下文以扫描结果和攻击链为主（而非代码文件）。
 
 ---
 
@@ -47,17 +47,17 @@
 
 ---
 
-## 2. 与 Claude Code 架构的实质性差距
+## 2. 与通用 Coding Agent 架构的实质性差距
 
 将 BB-331 的 7 原则映射到渗透测试场景：
 
-| # | Claude Code 原则 | FlagHunter 当前状态 | 渗透场景的具体含义 |
+| # | 通用 Coding Agent 原则 | FlagHunter 当前状态 | 渗透场景的具体含义 |
 |---|-----------------|-------------------|-------------------|
 | 1 | 工程化 ReAct（事件模型+hook+compact） | 基础 while loop，无事件模型 | 一条 nmap 扫描结果不应只是"输出"，而应触发后续攻击假设生成 |
 | 2 | 统一工具契约（权限声明附在工具上） | Tool 类无 required_permission | 30+ 安全工具，有些该只读（nmap -sL），有些是攻击性的（sqlmap --os-shell） |
 | 3 | 权限硬门禁 | **完全缺失** | 渗透测试工具天然有"侦察→攻击→后渗透"的破坏力梯度，需要硬门控制 |
 | 4 | 子代理一等公民 | **缺失** | 渗透天然可并行：recon agent + vuln agent + exploit agent 同时工作 |
-| 5 | 外化记忆（CLAUDE.md） | 有 strategy_memory（CTF 专用）+ notes | 渗透方法论、工具偏好、常用 payload 应形成可复用知识工件 |
+| 5 | 外化记忆（仓库级指令与知识文件） | 有 strategy_memory（CTF 专用）+ notes | 渗透方法论、工具偏好、常用 payload 应形成可复用知识工件 |
 | 6 | GSSC 上下文流水线 | 有 RAG + notes，但散装 | 扫描结果、工具输出、flag 线索需要统一装配而非全量灌入 |
 | 7 | 可演化生态 | MCP Server 对外暴露，无 MCP Client | 各厂商扫描器（AWVS/Nessus/Xray）可作为 MCP 工具接入 |
 
@@ -161,7 +161,7 @@ class ReasoningDecision:
 
 #### 2.2 子代理系统（渗透场景定制）
 
-与 Claude Code 的子代理不同类型的工具白名单：
+与通用 coding agent 的子代理不同类型的工具白名单：
 
 | 子代理类型 | 允许工具 | 用途 |
 |-----------|---------|------|
@@ -253,7 +253,7 @@ class Task:
 
 适用于：批量化 CTF 解题、多目标渗透任务的进度追踪。
 
-#### 3.2 渗透方法论记忆（CLAUDE.md 等价物）
+#### 3.2 渗透方法论记忆（仓库级知识工件）
 
 ```python
 class ProjectMemory:
@@ -338,7 +338,7 @@ class HookRunner:
 
 ### 决策 1：权限模型是"工具破坏力梯度"而非"文件读写边界"
 
-Claude Code 的权限是围绕文件操作（read/write/workspace）建模的。FlagHunter 的权限应围绕**攻击行为的破坏力梯度**建模：
+通用 coding agent 的权限通常围绕文件操作（read/write/workspace）建模。FlagHunter 的权限应围绕**攻击行为的破坏力梯度**建模：
 
 ```
 侦察(只读网络) < 漏洞扫描(可产生恶意请求) < 漏洞利用(可能破坏目标) < 后渗透(可在目标执行代码)
@@ -348,7 +348,7 @@ Claude Code 的权限是围绕文件操作（read/write/workspace）建模的。
 
 ### 决策 2：子代理按渗透阶段划分，非工程角色
 
-Claude Code 的子代理按"工程角色"分（Explore/Plan/Verification），FlagHunter 应按"渗透阶段"分（Recon/VulnScan/Exploit/Analysis）。
+通用 coding agent 的子代理常按"工程角色"分（Explore/Plan/Verification），FlagHunter 应按"渗透阶段"分（Recon/VulnScan/Exploit/Analysis）。
 
 ### 决策 3：Strategy Memory 的升级路径
 
