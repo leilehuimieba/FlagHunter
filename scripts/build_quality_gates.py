@@ -200,7 +200,22 @@ GATES: list[dict] = [
             "-q",
             "--tb=line",
         ],
-        "covers": ["C-01", "C-02", "C-04", "C-10"],
+        "covers": ["C-02", "C-04", "C-10"],
+    },
+    {
+        "id": "unit-tests-schema-registry",
+        "title": "Schema registry port + domain catalog + acceptance",
+        "category": "tests",
+        "kind": "command",
+        "blocking": True,
+        "timeoutSeconds": 60,
+        "command": [
+            "pytest",
+            "tests/unit/quality/test_schema_registry.py",
+            "-q",
+            "--tb=line",
+        ],
+        "covers": ["C-01"],
     },
     {
         "id": "unit-tests-runtime",
@@ -624,7 +639,7 @@ ACCEPTANCE: dict[str, dict] = {
     # --- Phase C: data & state reliability --------------------------------
     "C-01": {
         "mode": "automated",
-        "gates": ["unit-tests-receipts"],
+        "gates": ["unit-tests-schema-registry"],
         "owner": "data",
         "evidenceRequirements": [],
     },

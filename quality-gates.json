@@ -14,6 +14,7 @@
       "unit-tests-dependency-manifest",
       "unit-tests-version-truth",
       "unit-tests-receipts",
+      "unit-tests-schema-registry",
       "unit-tests-runtime",
       "unit-tests-dispatcher",
       "unit-tests-tools",
@@ -250,10 +251,26 @@
         "--tb=line"
       ],
       "covers": [
-        "C-01",
         "C-02",
         "C-04",
         "C-10"
+      ]
+    },
+    {
+      "id": "unit-tests-schema-registry",
+      "title": "Schema registry port + domain catalog + acceptance",
+      "category": "tests",
+      "kind": "command",
+      "blocking": true,
+      "timeoutSeconds": 60,
+      "command": [
+        "pytest",
+        "tests/unit/quality/test_schema_registry.py",
+        "-q",
+        "--tb=line"
+      ],
+      "covers": [
+        "C-01"
       ]
     },
     {
@@ -781,7 +798,7 @@
     "C-01": {
       "mode": "automated",
       "gates": [
-        "unit-tests-receipts"
+        "unit-tests-schema-registry"
       ],
       "owner": "data",
       "evidenceRequirements": []

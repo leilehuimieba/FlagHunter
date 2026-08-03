@@ -9,6 +9,7 @@ from .audit_store import (
 from .crew_bridge import CrewBridgePort, TaskDAGRunnerPort
 from .proof_authority import ProofAuthorityPort, VerifierPort
 from .runtime_action import RuntimeActionPort
+from .schema_registry import SchemaRegistryPort
 from .state_store import ClaimStorePort, StateStorePort
 from .task_ingress import TaskIngressPort
 from .tool_runner import ToolRunnerPort
@@ -22,6 +23,7 @@ __all__ = [
     "ProofAuthorityPort",
     "ReadModelStorePort",
     "RuntimeActionPort",
+    "SchemaRegistryPort",
     "StateStorePort",
     "TaskDAGRunnerPort",
     "TaskIngressPort",
