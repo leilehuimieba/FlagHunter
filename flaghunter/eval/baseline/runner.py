@@ -137,7 +137,7 @@ def run_one(
         return _skipped_row(challenge, memory_mode, "no target resolved (supply --targets)")
 
     base_cmd = base_cmd or _DEFAULT_BASE_CMD
-    runs_dir = runs_dir or Path(tempfile.mkdtemp(prefix="fh_baseline_"))
+    runs_dir = (runs_dir or Path(tempfile.mkdtemp(prefix="fh_baseline_"))).resolve()
     runs_dir.mkdir(parents=True, exist_ok=True)
     report_path = runs_dir / f"{challenge.id}_{memory_mode}.md"
     stamp = time.strftime("%Y-%m-%dT%H:%M:%S")
@@ -149,8 +149,28 @@ def run_one(
         row.wall_time_s = 0.0
         return row
 
-    # --- env isolation: cold → fresh per-challenge memory; warm → shared store.
+    # --- filesystem isolation (D-03, §6.18 item 4): each run gets a private
+    # working directory so every CWD-relative write surface (loot/notes.json,
+    # loot/reports, session_ledgers, artifact_registry, checkpoints, sessions,
+    # token_usage, conversations, knowledge backfill drafts) lands in a throwaway
+    # dir instead of accumulating in the repo across the sweep — so cold is truly
+    # cold and warm's only shared state is strategy memory (below). flaghunter is
+    # editable-installed so ``-m flaghunter`` still resolves under a changed cwd;
+    # PYTHONPATH is pinned to the repo root as a belt-and-suspenders for a
+    # non-editable checkout. Known residuals, out of this scope: loot/target_profiles/
+    # is package-anchored (target-keyed, so a distinct-target sweep doesn't
+    # cross-contaminate) and in-VM /tmp/flaghunter_* temp files outlive the host
+    # subprocess boundary.
     env = dict(os.environ)
+    repo_root = Path(__file__).resolve().parents[3]
+    env["PYTHONPATH"] = os.pathsep.join(
+        p for p in (str(repo_root), env.get("PYTHONPATH", "")) if p
+    )
+    work_dir = Path(tempfile.mkdtemp(prefix=f"fh_work_{challenge.id}_"))
+
+    # cold → fresh per-challenge strategy memory; warm → shared absolute store.
+    # The reader anchors on the package root, so a cwd change alone would desync
+    # it from the writer; we always pin the env var to keep both on one file.
     strategy_dir = tempfile.mkdtemp(prefix=f"fh_mem_{challenge.id}_")
     if memory_mode == "warm" and warm_memory_path is not None:
         env["FLAGHUNTER_STRATEGY_MEMORY_PATH"] = str(warm_memory_path)
@@ -169,6 +189,7 @@ def run_one(
         proc = subprocess.run(
             cmd,
             env=env,
+            cwd=str(work_dir),
             capture_output=True,
             text=True,
             timeout=challenge.timeout_s,
@@ -253,7 +274,7 @@ def run_baseline(
     ``cold`` gives each challenge a fresh store.
     """
     targets = targets or {}
-    runs_dir = runs_dir or Path(tempfile.mkdtemp(prefix="fh_baseline_"))
+    runs_dir = (runs_dir or Path(tempfile.mkdtemp(prefix="fh_baseline_"))).resolve()
     warm_memory_path = runs_dir / "warm_strategy_memory.json" if memory_mode == "warm" else None
 
     rows: list[ScorecardRow] = []

@@ -9,6 +9,7 @@ prove the wiring holds and the tier/expectation/verdict logic is correct — the
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 from flaghunter.eval.baseline.corpus import Challenge, Tier, load_corpus
@@ -20,7 +21,7 @@ from flaghunter.eval.baseline.judge import (
     judge_run,
 )
 from flaghunter.eval.baseline.report import format_markdown, summarize
-from flaghunter.eval.baseline.runner import run_baseline
+from flaghunter.eval.baseline.runner import run_baseline, run_one
 
 # A realistic slice of a fast live-solve stdout (easysql shape): the blackboard
 # loop solves in 2 steps, so the Finished panel shows "Loops: 0/12" while the
@@ -205,6 +206,65 @@ def test_judge_false_terminal_outcome_is_not_solved():
               "[CTF dispatcher] done: stopped=budget_exhausted steps=12 solved=False\n")
     res = judge_run(ch, stdout=stdout)
     assert res.verdict is not Verdict.SOLVED
+
+
+def test_run_one_isolates_cwd_write_surfaces(tmp_path: Path, monkeypatch):
+    """A run's CWD-relative writes (loot/notes.json et al.) land in a private
+    per-run workdir, never the harness cwd — so a cold sweep can't leak state
+    from one challenge into the next (D-03, §6.18 item 4)."""
+    # A stand-in for ``flaghunter`` that does what the real tool does: write a
+    # CWD-relative loot file, then print a proof-backed terminal outcome.
+    script = tmp_path / "fake_fh.py"
+    script.write_text(
+        "import pathlib\n"
+        "d = pathlib.Path('loot'); d.mkdir(exist_ok=True)\n"
+        "(d / 'notes.json').write_text('leak', encoding='utf-8')\n"
+        "print('[CTF dispatcher] done: stopped=goal_met steps=1 solved=True')\n",
+        encoding="utf-8",
+    )
+    ch = Challenge("t0", "anchor", Tier.T0, "web", "solve it",
+                   r"CTF2\{[^}]+\}", "solved")
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    monkeypatch.chdir(scratch)  # if cwd leaked, the fake would write here
+
+    row = run_one(ch, "http://target", base_cmd=[sys.executable, str(script)],
+                  runs_dir=tmp_path / "runs")
+
+    assert row.verdict == "solved"  # proof-backed terminal line honored
+    # The fake's loot write went to its private workdir, not the harness cwd.
+    assert not (scratch / "loot" / "notes.json").exists()
+
+
+def test_warm_runs_share_strategy_memory_but_not_cwd(tmp_path: Path, monkeypatch):
+    """warm mode shares ONE strategy-memory file across challenges (the intended
+    warm signal, kept working across per-run cwds by pinning an absolute env
+    path) while each run's CWD writes stay private (D-03)."""
+    script = tmp_path / "fake_fh.py"
+    script.write_text(
+        "import os, pathlib\n"
+        "p = pathlib.Path(os.environ['FLAGHUNTER_STRATEGY_MEMORY_PATH'])\n"
+        "p.parent.mkdir(parents=True, exist_ok=True)\n"
+        "prev = p.read_text(encoding='utf-8') if p.exists() else ''\n"
+        "p.write_text(prev + 'x', encoding='utf-8')\n"
+        "pathlib.Path('leak.txt').write_text('y', encoding='utf-8')\n"
+        "print('[CTF dispatcher] done: stopped=goal_met steps=1 solved=True')\n",
+        encoding="utf-8",
+    )
+    chs = [Challenge(f"c{i}", "a", Tier.T0, "web", "s", r"CTF2\{[^}]+\}", "solved")
+           for i in range(2)]
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    monkeypatch.chdir(scratch)
+    runs_dir = tmp_path / "runs"
+
+    run_baseline(chs, {"c0": "http://t", "c1": "http://t"}, memory_mode="warm",
+                 base_cmd=[sys.executable, str(script)], runs_dir=runs_dir)
+
+    # Both runs appended to the SAME shared warm store → two chars.
+    assert (runs_dir / "warm_strategy_memory.json").read_text(encoding="utf-8") == "xx"
+    # Neither run's private CWD write leaked into the harness cwd.
+    assert not (scratch / "leak.txt").exists()
 
 
 def test_report_renders_tiers_and_cold_warm_delta():
