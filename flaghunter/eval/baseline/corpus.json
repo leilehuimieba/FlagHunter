@@ -1,4 +1,5 @@
 {
+  "schema_version": "1",
   "_comment": "Solve-rate baseline corpus. Metadata only — live target URLs are supplied at run time via `--targets id=url` (containers are deployed on-demand from ctf2.dasctf.com/dashboard/practice and get an ephemeral URL). Tiers encode expectation: T0 smoke anchor / T1 in-repertoire (expect solved) / T2 edge (expect near) / T3 out-of-repertoire (expect fail = honest ceiling). METHODOLOGY: T0 anchors keep a technique hint (they measure non-regression, not discovery); T1-T3 use a NEUTRAL task (goal only, no technique spoon-feeding) so the baseline measures real discovery+exploitation, not 'can it run a chain I named'. Challenges sourced from the BUUCTF-migrated arena (id b9bbb32f-f186-458f-b90b-12440c0f6aea); friendly_id in notes lets the operator locate + deploy the container.",
   "challenges": [
     {

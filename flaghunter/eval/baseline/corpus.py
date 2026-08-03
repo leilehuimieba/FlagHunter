@@ -26,6 +26,15 @@ from typing import Any
 
 _CORPUS_PATH = Path(__file__).parent / "corpus.json"
 
+# Corpus manifest schema version. Bump this (and add the old value to
+# _SUPPORTED_VERSIONS with a migration) whenever the on-disk shape of
+# corpus.json changes in a way readers must be aware of — a new required
+# field, a renamed field, or changed semantics. A dict-form manifest that
+# omits ``schema_version`` is rejected loudly rather than loaded with
+# silently-defaulted fields (D-01, §13.5).
+SCHEMA_VERSION = "1"
+_SUPPORTED_VERSIONS = frozenset({"1"})
+
 
 class Tier(str, Enum):
     T0 = "T0"  # smoke anchor (known-solvable)
@@ -98,6 +107,20 @@ def load_corpus(
     """
     src = path or _CORPUS_PATH
     raw = json.loads(src.read_text(encoding="utf-8"))
+    if isinstance(raw, dict):
+        version = raw.get("schema_version")
+        if version is None:
+            raise ValueError(
+                f"corpus {src.name} is missing the required 'schema_version' "
+                f"field (expected one of {sorted(_SUPPORTED_VERSIONS)}); add "
+                f'`"schema_version": "{SCHEMA_VERSION}"` to the top of the file'
+            )
+        if version not in _SUPPORTED_VERSIONS:
+            raise ValueError(
+                f"corpus {src.name} has unsupported schema_version={version!r}; "
+                f"this build supports {sorted(_SUPPORTED_VERSIONS)} — regenerate "
+                f"or migrate the manifest"
+            )
     entries = raw["challenges"] if isinstance(raw, dict) else raw
     challenges = [Challenge.from_dict(e) for e in entries]
 

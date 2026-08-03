@@ -55,7 +55,7 @@ def test_seed_corpus_loads_and_has_t0_anchors():
 
 def test_load_corpus_rejects_duplicate_ids(tmp_path: Path):
     dup = tmp_path / "dup.json"
-    dup.write_text(json.dumps({"challenges": [
+    dup.write_text(json.dumps({"schema_version": "1", "challenges": [
         {"id": "x", "title": "a", "tier": "T1", "type": "web", "task": "t",
          "flag_pattern": "f", "expected_verdict": "solved"},
         {"id": "x", "title": "b", "tier": "T1", "type": "web", "task": "t",
@@ -66,6 +66,36 @@ def test_load_corpus_rejects_duplicate_ids(tmp_path: Path):
         assert False, "duplicate id must raise"
     except ValueError as exc:
         assert "duplicate" in str(exc)
+
+
+def test_load_corpus_requires_schema_version(tmp_path: Path):
+    """A dict-form manifest without schema_version is rejected, not silently
+    loaded with defaulted fields (D-01 versioned corpus, §13.5)."""
+    bad = tmp_path / "no_version.json"
+    bad.write_text(json.dumps({"challenges": [
+        {"id": "x", "title": "a", "tier": "T1", "type": "web", "task": "t",
+         "flag_pattern": "f", "expected_verdict": "solved"},
+    ]}), encoding="utf-8")
+    try:
+        load_corpus(bad)
+        assert False, "missing schema_version must raise"
+    except ValueError as exc:
+        assert "schema_version" in str(exc)
+
+
+def test_load_corpus_rejects_unsupported_schema_version(tmp_path: Path):
+    """An unknown schema_version fails loudly so an operator on an old build
+    can't score a newer manifest against stale reader assumptions."""
+    bad = tmp_path / "future_version.json"
+    bad.write_text(json.dumps({"schema_version": "999", "challenges": [
+        {"id": "x", "title": "a", "tier": "T1", "type": "web", "task": "t",
+         "flag_pattern": "f", "expected_verdict": "solved"},
+    ]}), encoding="utf-8")
+    try:
+        load_corpus(bad)
+        assert False, "unsupported schema_version must raise"
+    except ValueError as exc:
+        assert "schema_version" in str(exc)
 
 
 def test_extract_flag_rejects_placeholder_bodies():
