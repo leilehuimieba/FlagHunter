@@ -10,6 +10,10 @@ from .atomic_file import (
     InMemoryAtomicFile,
     request_from_mapping,
 )
+from .identity_service import (
+    InMemoryIdentityService,
+    UuidIdentityService,
+)
 from .process_lock import (
     FilesystemProcessLock,
     InMemoryProcessLock,
@@ -24,18 +28,27 @@ from .schema_catalog import (
     is_reader_compatible,
     record_from_mapping,
 )
+from .time_service import (
+    FixedTimeService,
+    SystemTimeService,
+)
 
 __all__ = [
     "AtomicWriteError",
     "FilesystemProcessLock",
     "FilesystemAtomicFile",
+    "FixedTimeService",
     "InMemoryAtomicFile",
+    "InMemoryIdentityService",
     "InMemoryProcessLock",
     "LockHandle",
     "InMemorySchemaRegistry",
     "SCHEMA_REGISTRY_DOMAIN_VERSION",
     "SchemaRecord",
     "SchemaStatus",
+    "FixedTimeService",
+    "SystemTimeService",
+    "UuidIdentityService",
     "is_reader_compatible",
     "known_active_schema_count",
     "path_from_mapping",

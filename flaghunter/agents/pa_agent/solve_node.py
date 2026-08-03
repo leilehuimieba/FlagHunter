@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field, fields
-from enum import Enum
 import re
 import time
+from dataclasses import asdict, dataclass, field, fields
+from enum import Enum
 from typing import Any
-import uuid
 
+from flaghunter.domain import UuidIdentityService
 
 SCHEMA_VERSION = "p3.solve_node_snapshot.v1"
 GRAPH_SCHEMA_VERSION = "p3.solve_node_graph.v1"
@@ -21,7 +21,8 @@ NODE_RECEIPT_STATUSES = frozenset(
 
 
 def _new_id(prefix: str) -> str:
-    return f"{prefix}_{uuid.uuid4().hex[:16]}"
+    # C-05 / ADR 0002: full 32-hex uuid4 via the identity port.
+    return UuidIdentityService().new_id(prefix)
 
 
 def _now_ts() -> float:
@@ -80,7 +81,9 @@ class SolveNode:
         self.trace_ids = _coerce_str_list(self.trace_ids)
         self.receipt_ids = _coerce_str_list(self.receipt_ids)
         self.artifact_refs = _coerce_str_list(self.artifact_refs)
-        self.metadata = dict(self.metadata or {}) if isinstance(self.metadata, dict) else {}
+        self.metadata = (
+            dict(self.metadata or {}) if isinstance(self.metadata, dict) else {}
+        )
         self.created_at = _coerce_float(self.created_at, default=_now_ts())
         self.updated_at = _coerce_float(self.updated_at, default=self.created_at)
         self.started_at = _coerce_optional_float(self.started_at)
@@ -108,9 +111,7 @@ class SolveNode:
         )
         allowed_fields = {item.name for item in fields(cls)}
         payload = {
-            key: value
-            for key, value in payload.items()
-            if key in allowed_fields
+            key: value for key, value in payload.items() if key in allowed_fields
         }
         return cls(**payload)
 
@@ -128,7 +129,9 @@ class SolveNodeEdge:
         self.target_id = str(self.target_id or "").strip()
         self.relation = _coerce_relation(self.relation)
         self.created_at = _coerce_float(self.created_at, default=_now_ts())
-        self.metadata = dict(self.metadata or {}) if isinstance(self.metadata, dict) else {}
+        self.metadata = (
+            dict(self.metadata or {}) if isinstance(self.metadata, dict) else {}
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -152,9 +155,7 @@ class SolveNodeEdge:
         )
         allowed_fields = {item.name for item in fields(cls)}
         payload = {
-            key: value
-            for key, value in payload.items()
-            if key in allowed_fields
+            key: value for key, value in payload.items() if key in allowed_fields
         }
         return cls(**payload)
 
@@ -290,9 +291,7 @@ class SolveNodeGraph:
                 continue
             seen.add(node_id)
             stack.extend(
-                edge.target_id
-                for edge in self.edges
-                if edge.source_id == node_id
+                edge.target_id for edge in self.edges if edge.source_id == node_id
             )
         return False
 
@@ -328,7 +327,9 @@ class TaskBrief:
         self.trace_ids = _coerce_str_list(self.trace_ids)
         self.artifact_refs = _coerce_str_list(self.artifact_refs)
         self.created_at = _coerce_float(self.created_at, default=_now_ts())
-        self.metadata = dict(self.metadata or {}) if isinstance(self.metadata, dict) else {}
+        self.metadata = (
+            dict(self.metadata or {}) if isinstance(self.metadata, dict) else {}
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -352,9 +353,7 @@ class TaskBrief:
         )
         allowed_fields = {item.name for item in fields(cls)}
         payload = {
-            key: value
-            for key, value in payload.items()
-            if key in allowed_fields
+            key: value for key, value in payload.items() if key in allowed_fields
         }
         return cls(**payload)
 
@@ -396,7 +395,9 @@ class SolveNodeReceipt:
         self.artifact_refs = _coerce_str_list(self.artifact_refs)
         self.error_class = str(self.error_class or "").strip()
         self.error_summary = str(self.error_summary or "")
-        self.metadata = dict(self.metadata or {}) if isinstance(self.metadata, dict) else {}
+        self.metadata = (
+            dict(self.metadata or {}) if isinstance(self.metadata, dict) else {}
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -414,9 +415,7 @@ class SolveNodeReceipt:
         )
         allowed_fields = {item.name for item in fields(cls)}
         payload = {
-            key: value
-            for key, value in payload.items()
-            if key in allowed_fields
+            key: value for key, value in payload.items() if key in allowed_fields
         }
         return cls(**payload)
 
@@ -501,12 +500,16 @@ def empty_solve_graph_snapshot() -> dict[str, Any]:
 
 
 def build_solve_node_readback(
-    nodes: list[SolveNode | dict[str, Any]] | tuple[SolveNode | dict[str, Any], ...] | None,
+    nodes: (
+        list[SolveNode | dict[str, Any]] | tuple[SolveNode | dict[str, Any], ...] | None
+    ),
     *,
     limit: int = 20,
     preview_limit: int = 160,
 ) -> dict[str, Any]:
-    normalized_nodes = [solve_node_from_dict(solve_node_to_dict(item)) for item in list(nodes or [])]
+    normalized_nodes = [
+        solve_node_from_dict(solve_node_to_dict(item)) for item in list(nodes or [])
+    ]
     normalized_limit = max(0, int(limit))
     selected = normalized_nodes[-normalized_limit:] if normalized_limit else []
     preview = max(1, int(preview_limit))
@@ -532,9 +535,7 @@ def build_solve_graph_readback(
     preview_limit: int = 160,
 ) -> dict[str, Any]:
     normalized = (
-        graph
-        if isinstance(graph, SolveNodeGraph)
-        else SolveNodeGraph.from_dict(graph)
+        graph if isinstance(graph, SolveNodeGraph) else SolveNodeGraph.from_dict(graph)
     )
     nodes = list(normalized.nodes_by_id.values())
     edges = list(normalized.edges)
@@ -567,7 +568,9 @@ def build_solve_graph_readback(
 
 
 def build_task_brief_readback(
-    briefs: list[TaskBrief | dict[str, Any]] | tuple[TaskBrief | dict[str, Any], ...] | None,
+    briefs: (
+        list[TaskBrief | dict[str, Any]] | tuple[TaskBrief | dict[str, Any], ...] | None
+    ),
     *,
     limit: int = 20,
     preview_limit: int = 160,
@@ -578,7 +581,9 @@ def build_task_brief_readback(
     normalized_limit = max(0, int(limit))
     selected = normalized_briefs[-normalized_limit:] if normalized_limit else []
     preview = max(1, int(preview_limit))
-    projected = [_task_brief_projection(brief, preview_limit=preview) for brief in selected]
+    projected = [
+        _task_brief_projection(brief, preview_limit=preview) for brief in selected
+    ]
     return {
         "schemaVersion": TASK_BRIEF_SCHEMA_VERSION,
         "briefs": projected,
@@ -595,9 +600,11 @@ def build_task_brief_readback(
 
 
 def build_solve_node_receipt_readback(
-    receipts: list[SolveNodeReceipt | dict[str, Any]]
-    | tuple[SolveNodeReceipt | dict[str, Any], ...]
-    | None,
+    receipts: (
+        list[SolveNodeReceipt | dict[str, Any]]
+        | tuple[SolveNodeReceipt | dict[str, Any], ...]
+        | None
+    ),
     *,
     limit: int = 20,
     preview_limit: int = 160,

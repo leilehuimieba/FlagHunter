@@ -10,14 +10,15 @@ Phase 1 goal:
 from __future__ import annotations
 
 import asyncio
-from contextlib import asynccontextmanager
-from dataclasses import asdict, dataclass, field, fields
-from enum import Enum
 import os
 import re
 import time
-import uuid
+from contextlib import asynccontextmanager
+from dataclasses import asdict, dataclass, field, fields
+from enum import Enum
 from typing import Any, Literal
+
+from flaghunter.domain import UuidIdentityService
 
 from ...config.constants import (
     CTF_P1_CLAIM_KIND_ALLOWLIST,
@@ -36,16 +37,15 @@ from .solve_node import (
     solve_node_receipt_to_dict,
     task_brief_from_dict,
     task_brief_to_dict,
-    _preview as _p3_preview,
-    _safe_metadata as _p3_safe_metadata,
 )
+from .solve_node import _preview as _p3_preview
+from .solve_node import _safe_metadata as _p3_safe_metadata
 from .task_dag_plan import (
     TaskDAGPlan,
     sanitize_task_dag_plan,
     task_dag_plan_from_dict,
     task_dag_plan_to_dict,
 )
-
 
 FlagLevel = Literal["candidate", "runtime", "verified", "rejected"]
 
@@ -114,7 +114,8 @@ def _now_ts() -> float:
 
 
 def _new_id(prefix: str) -> str:
-    return f"{prefix}_{uuid.uuid4().hex[:16]}"
+    # C-05 / ADR 0002: full 32-hex uuid4 via the identity port.
+    return UuidIdentityService().new_id(prefix)
 
 
 def _require_text(value: Any, field_name: str) -> str:
@@ -134,7 +135,9 @@ def _llm_exploration_ceiling() -> int:
     site, not here.
     """
     try:
-        return max(8, int(os.environ.get("FLAGHUNTER_LLM_EXPLORATION_CEILING", "24") or 24))
+        return max(
+            8, int(os.environ.get("FLAGHUNTER_LLM_EXPLORATION_CEILING", "24") or 24)
+        )
     except (TypeError, ValueError):
         return 24
 
@@ -353,7 +356,9 @@ class CTFState:
     rejected_flags: list[FlagRecord] = field(default_factory=list)
     claims_by_id: dict[str, Claim] = field(default_factory=dict)
     claim_index_by_kind: dict[str, list[str]] = field(default_factory=dict)
-    verification_records_by_id: dict[str, VerificationRecord] = field(default_factory=dict)
+    verification_records_by_id: dict[str, VerificationRecord] = field(
+        default_factory=dict
+    )
     verification_index_by_claim: dict[str, list[str]] = field(default_factory=dict)
     execution_traces_by_id: dict[str, ExecutionTrace] = field(default_factory=dict)
     solve_node_graph: SolveNodeGraph = field(default_factory=SolveNodeGraph)
@@ -538,11 +543,16 @@ class CTFState:
     ) -> Artifact:
         normalized_name = str(name or "").strip()
         normalized_location = (
-            str(location).strip() if location is not None and str(location).strip() else None
+            str(location).strip()
+            if location is not None and str(location).strip()
+            else None
         )
         meta = dict(metadata or {})
         for existing in self.artifacts:
-            if existing.name == normalized_name and existing.location == normalized_location:
+            if (
+                existing.name == normalized_name
+                and existing.location == normalized_location
+            ):
                 if source and not existing.source:
                     existing.source = source
                 if meta:
@@ -781,15 +791,23 @@ class CTFState:
             sufficient_for_upgrade=bool(sufficient_for_upgrade),
             trace_id=normalized_trace,
             evidence_trace_ids=[
-                str(item).strip() for item in (evidence_trace_ids or []) if str(item).strip()
+                str(item).strip()
+                for item in (evidence_trace_ids or [])
+                if str(item).strip()
             ],
-            artifact_refs=[str(item).strip() for item in (artifact_refs or []) if str(item).strip()],
+            artifact_refs=[
+                str(item).strip() for item in (artifact_refs or []) if str(item).strip()
+            ],
             rationale=str(rationale or ""),
             evidence_summary=str(evidence_summary or ""),
             confidence_delta=float(confidence_delta or 0.0),
             replayable=bool(replayable),
-            submitted_value=str(submitted_value).strip() if submitted_value is not None else None,
-            platform_receipt=dict(platform_receipt) if isinstance(platform_receipt, dict) else None,
+            submitted_value=(
+                str(submitted_value).strip() if submitted_value is not None else None
+            ),
+            platform_receipt=(
+                dict(platform_receipt) if isinstance(platform_receipt, dict) else None
+            ),
             metadata=dict(metadata or {}),
         )
         self.verification_records_by_id[record.id] = record
@@ -813,11 +831,17 @@ class CTFState:
         if claim.level == ClaimLevel.RETRACTED or claim.status == ClaimStatus.RETRACTED:
             raise ValueError("retracted claims cannot be upgraded")
 
-        record = self.verification_records_by_id.get(str(verification_record_id or "").strip())
+        record = self.verification_records_by_id.get(
+            str(verification_record_id or "").strip()
+        )
         if record is None or record.claim_id != claim.id:
-            raise KeyError(f"verification record does not belong to claim: {verification_record_id}")
+            raise KeyError(
+                f"verification record does not belong to claim: {verification_record_id}"
+            )
         if not (record.passed and record.sufficient_for_upgrade):
-            raise ValueError("verified upgrade requires a passed sufficient verification record")
+            raise ValueError(
+                "verified upgrade requires a passed sufficient verification record"
+            )
 
         claim.level = ClaimLevel.VERIFIED
         claim.status = ClaimStatus.ACTIVE
@@ -999,7 +1023,9 @@ class CTFState:
                 for item in list(claim.verification_record_ids or [])
                 if item in self.verification_records_by_id
             ]
-            latest_record = max(records, key=lambda record: record.created_at, default=None)
+            latest_record = max(
+                records, key=lambda record: record.created_at, default=None
+            )
             evidence_trace_ids = list(
                 dict.fromkeys(
                     str(item).strip()
@@ -1021,13 +1047,17 @@ class CTFState:
             evidence_traces = [
                 projection
                 for projection in (
-                    self._compact_trace_projection(trace_id, preview_limit=preview_limit)
+                    self._compact_trace_projection(
+                        trace_id, preview_limit=preview_limit
+                    )
                     for trace_id in evidence_trace_ids
                 )
                 if projection is not None
             ]
             source_trace_id = str(claim.metadata.get("source_trace_id") or "").strip()
-            source_receipt_id = str(claim.metadata.get("source_receipt_id") or "").strip()
+            source_receipt_id = str(
+                claim.metadata.get("source_receipt_id") or ""
+            ).strip()
             if not source_receipt_id and source_trace_id:
                 source_trace = self.get_execution_trace(source_trace_id)
                 if source_trace is not None:
@@ -1049,7 +1079,9 @@ class CTFState:
                     "sourceTraceId": source_trace_id,
                     "sourceReceiptId": source_receipt_id,
                     "latestVerificationDecision": (
-                        latest_record.decision.value if latest_record is not None else ""
+                        latest_record.decision.value
+                        if latest_record is not None
+                        else ""
                     ),
                     "latestVerificationTraceId": (
                         latest_record.trace_id if latest_record is not None else ""
@@ -1074,7 +1106,8 @@ class CTFState:
         return [
             claim
             for claim in claims
-            if claim.status == ClaimStatus.ACTIVE and claim.level != ClaimLevel.RETRACTED
+            if claim.status == ClaimStatus.ACTIVE
+            and claim.level != ClaimLevel.RETRACTED
         ]
 
     def active_claims(self, kind: ClaimKind | str | None = None) -> list[Claim]:
@@ -1083,7 +1116,8 @@ class CTFState:
         return [
             claim
             for claim in self.claims_by_id.values()
-            if claim.status == ClaimStatus.ACTIVE and claim.level != ClaimLevel.RETRACTED
+            if claim.status == ClaimStatus.ACTIVE
+            and claim.level != ClaimLevel.RETRACTED
         ]
 
     def strongest_claim(self, kind: ClaimKind | str) -> Claim | None:
@@ -1148,7 +1182,9 @@ class CTFState:
     ) -> FlagRecord:
         normalized = str(value or "").strip()
         existing = self._find_existing_flag(normalized)
-        if existing is not None and self._level_rank(existing.level) >= self._level_rank(level):
+        if existing is not None and self._level_rank(
+            existing.level
+        ) >= self._level_rank(level):
             if rationale and not existing.rationale:
                 existing.rationale = rationale
             if evidence_source and not existing.evidence_source:
@@ -1206,7 +1242,9 @@ class CTFState:
                 self.rejected_flags,
             ]
         )
-        return any(record.value == normalized for bucket in buckets for record in bucket)
+        return any(
+            record.value == normalized for bucket in buckets for record in bucket
+        )
 
     def is_rejected_flag(self, value: str) -> bool:
         return self.has_flag(value, level="rejected")
@@ -1244,7 +1282,9 @@ class CTFState:
         normalized_path = str(url_or_path or "").strip()
         normalized_source = str(discovery_source or "").strip()
         normalized_strength = max(1, min(3, int(hint_strength)))
-        normalized_result = str(exploration_result) if exploration_result is not None else None
+        normalized_result = (
+            str(exploration_result) if exploration_result is not None else None
+        )
         item_added_at = float(added_at) if added_at is not None else time.time()
 
         for existing in self.exploration_agenda:
@@ -1271,7 +1311,9 @@ class CTFState:
         self.exploration_agenda.append(item)
         return item
 
-    def get_unexplored_priority_items(self, max_hint_strength: int = 2) -> list[ExplorationItem]:
+    def get_unexplored_priority_items(
+        self, max_hint_strength: int = 2
+    ) -> list[ExplorationItem]:
         # Contract:
         # Input: 读取 CTFState.exploration_agenda 与 max_hint_strength 阈值。
         # Output: 返回未探索且 hint_strength <= max_hint_strength 的条目列表，不直接改状态。
@@ -1341,7 +1383,9 @@ class CTFState:
         }
         return mapping[level]
 
-    def _remove_flag_from_other_levels(self, value: str, *, keep_level: FlagLevel) -> None:
+    def _remove_flag_from_other_levels(
+        self, value: str, *, keep_level: FlagLevel
+    ) -> None:
         for level in ("candidate", "runtime", "verified", "rejected"):
             if level == keep_level:
                 continue
@@ -1389,7 +1433,9 @@ class CTFState:
         for record in self.verification_records_by_id.values():
             if not record.claim_id or record.claim_id not in self.claims_by_id:
                 continue
-            self.verification_index_by_claim.setdefault(record.claim_id, []).append(record.id)
+            self.verification_index_by_claim.setdefault(record.claim_id, []).append(
+                record.id
+            )
 
         for claim in self.claims_by_id.values():
             ids = self.verification_index_by_claim.get(claim.id, [])
@@ -1404,7 +1450,9 @@ class CTFState:
             claim.level = ClaimLevel.RETRACTED
             claim.status = ClaimStatus.RETRACTED
             if claim.retracted_at is None:
-                claim.retracted_at = float(claim.updated_at or claim.created_at or _now_ts())
+                claim.retracted_at = float(
+                    claim.updated_at or claim.created_at or _now_ts()
+                )
 
     def _has_sufficient_verified_record(self, claim: Claim) -> bool:
         for record_id in list(claim.verification_record_ids or []):
@@ -1455,9 +1503,7 @@ def _export_state_snapshot(state: CTFState) -> dict[str, Any]:
         for brief_id, brief in state.task_briefs_by_id.items()
     }
     snapshot["solve_node_receipts_by_id"] = {
-        receipt_id: solve_node_receipt_to_dict(
-            _p3_sanitize_solve_node_receipt(receipt)
-        )
+        receipt_id: solve_node_receipt_to_dict(_p3_sanitize_solve_node_receipt(receipt))
         for receipt_id, receipt in state.solve_node_receipts_by_id.items()
     }
     snapshot["task_dag_plan"] = task_dag_plan_to_dict(
@@ -1511,9 +1557,7 @@ def _create_claim(
             else None
         ),
         parent_claim_ids=[
-            str(item).strip()
-            for item in (parent_claim_ids or [])
-            if str(item).strip()
+            str(item).strip() for item in (parent_claim_ids or []) if str(item).strip()
         ],
         content=str(content or "").strip(),
         normalized_content=normalized_content,
@@ -1530,9 +1574,7 @@ def _create_claim(
             if str(item).strip()
         ],
         artifact_refs=[
-            str(item).strip()
-            for item in (artifact_refs or [])
-            if str(item).strip()
+            str(item).strip() for item in (artifact_refs or []) if str(item).strip()
         ],
         confidence=max(0.0, min(1.0, float(confidence or 0.0))),
         confidence_reason=str(confidence_reason or ""),
@@ -1553,9 +1595,7 @@ def _restore_state_snapshot(
 ) -> CTFState:
     allowed_fields = {item.name for item in fields(state_type)}
     payload = {
-        key: value
-        for key, value in dict(data or {}).items()
-        if key in allowed_fields
+        key: value for key, value in dict(data or {}).items() if key in allowed_fields
     }
     payload["observations"] = [
         item if isinstance(item, Observation) else Observation(**dict(item or {}))
@@ -1574,25 +1614,20 @@ def _restore_state_snapshot(
         for item in list(payload.get("experiments") or [])
     ]
     payload["candidate_flags"] = [
-        _coerce_flag_record(item)
-        for item in list(payload.get("candidate_flags") or [])
+        _coerce_flag_record(item) for item in list(payload.get("candidate_flags") or [])
     ]
     payload["runtime_flags"] = [
-        _coerce_flag_record(item)
-        for item in list(payload.get("runtime_flags") or [])
+        _coerce_flag_record(item) for item in list(payload.get("runtime_flags") or [])
     ]
     payload["verified_flags"] = [
-        _coerce_flag_record(item)
-        for item in list(payload.get("verified_flags") or [])
+        _coerce_flag_record(item) for item in list(payload.get("verified_flags") or [])
     ]
     payload["rejected_flags"] = [
-        _coerce_flag_record(item)
-        for item in list(payload.get("rejected_flags") or [])
+        _coerce_flag_record(item) for item in list(payload.get("rejected_flags") or [])
     ]
     raw_claims = dict(payload.get("claims_by_id") or {})
     payload["claims_by_id"] = {
-        str(claim_id): _coerce_claim(item)
-        for claim_id, item in raw_claims.items()
+        str(claim_id): _coerce_claim(item) for claim_id, item in raw_claims.items()
     }
     raw_verifications = dict(payload.get("verification_records_by_id") or {})
     payload["verification_records_by_id"] = {
@@ -1613,9 +1648,7 @@ def _restore_state_snapshot(
     payload["solve_node_receipts_by_id"] = _coerce_solve_node_receipt_store(
         payload.get("solve_node_receipts_by_id")
     )
-    payload["task_dag_plan"] = _coerce_task_dag_plan(
-        payload.get("task_dag_plan")
-    )
+    payload["task_dag_plan"] = _coerce_task_dag_plan(payload.get("task_dag_plan"))
     payload["claim_index_by_kind"] = _coerce_string_list_index(
         payload.get("claim_index_by_kind")
     )
@@ -1623,9 +1656,11 @@ def _restore_state_snapshot(
         payload.get("verification_index_by_claim")
     )
     payload["exploration_agenda"] = [
-        item
-        if isinstance(item, ExplorationItem)
-        else ExplorationItem(**dict(item or {}))
+        (
+            item
+            if isinstance(item, ExplorationItem)
+            else ExplorationItem(**dict(item or {}))
+        )
         for item in list(payload.get("exploration_agenda") or [])
     ]
     payload["llm_exploration_log"] = [
@@ -1669,7 +1704,9 @@ def _coerce_verification_method(value: VerificationMethod | str) -> Verification
     return VerificationMethod(str(value or "").strip())
 
 
-def _coerce_verification_decision(value: VerificationDecision | str) -> VerificationDecision:
+def _coerce_verification_decision(
+    value: VerificationDecision | str,
+) -> VerificationDecision:
     if isinstance(value, VerificationDecision):
         return value
     return VerificationDecision(str(value or "").strip())
@@ -1847,9 +1884,7 @@ def _p3_sanitize_solve_node_receipt(
         output_summary=_p3_preview(receipt.output_summary, limit=160),
         claim_ids=list(receipt.claim_ids),
         trace_ids=list(receipt.trace_ids),
-        artifact_refs=[
-            _p3_preview(item, limit=160) for item in receipt.artifact_refs
-        ],
+        artifact_refs=[_p3_preview(item, limit=160) for item in receipt.artifact_refs],
         error_class=_p3_preview(receipt.error_class, limit=160),
         error_summary=_p3_preview(receipt.error_summary, limit=160),
         metadata=_p3_safe_metadata(receipt.metadata, preview_limit=160),
@@ -1933,11 +1968,7 @@ def _coerce_task_dag_plan(value: Any) -> TaskDAGPlan:
             )
     if value is None:
         return TaskDAGPlan()
-    return TaskDAGPlan(
-        restore_warnings=[
-            "invalid task_dag_plan snapshot"
-        ]
-    )
+    return TaskDAGPlan(restore_warnings=["invalid task_dag_plan snapshot"])
 
 
 def _coerce_string_list_index(value: Any) -> dict[str, list[str]]:

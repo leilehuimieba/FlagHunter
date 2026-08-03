@@ -8,12 +8,14 @@ from .audit_store import (
     ReadModelStorePort,
 )
 from .crew_bridge import CrewBridgePort, TaskDAGRunnerPort
+from .identity_service import IdentityServicePort
 from .process_lock import LockHandle, ProcessLockPort
 from .proof_authority import ProofAuthorityPort, VerifierPort
 from .runtime_action import RuntimeActionPort
 from .schema_registry import SchemaRegistryPort
 from .state_store import ClaimStorePort, StateStorePort
 from .task_ingress import TaskIngressPort
+from .time_service import TimeServicePort
 from .tool_runner import ToolRunnerPort
 
 __all__ = [
@@ -23,6 +25,7 @@ __all__ = [
     "CheckpointStorePort",
     "ClaimStorePort",
     "CrewBridgePort",
+    "IdentityServicePort",
     "LockHandle",
     "ProcessLockPort",
     "ProofAuthorityPort",
@@ -31,6 +34,7 @@ __all__ = [
     "SchemaRegistryPort",
     "StateStorePort",
     "TaskDAGRunnerPort",
+    "TimeServicePort",
     "TaskIngressPort",
     "ToolRunnerPort",
     "VerifierPort",

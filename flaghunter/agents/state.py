@@ -5,6 +5,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+from flaghunter.domain import SystemTimeService
+
 
 class AgentState(Enum):
     """Possible states for an agent."""
@@ -23,7 +25,7 @@ class StateTransition:
 
     from_state: AgentState
     to_state: AgentState
-    timestamp: datetime = field(default_factory=datetime.now)
+    timestamp: datetime = field(default_factory=lambda: SystemTimeService().utc_now())
     reason: Optional[str] = None
 
 
@@ -116,4 +118,5 @@ class AgentStateManager:
             return 0.0
 
         last_transition = self.history[-1]
-        return (datetime.now() - last_transition.timestamp).total_seconds()
+        now = SystemTimeService().utc_now()
+        return (now - last_transition.timestamp).total_seconds()

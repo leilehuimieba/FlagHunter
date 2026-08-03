@@ -4,6 +4,8 @@ import asyncio
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+from flaghunter.domain import UuidIdentityService
+
 from .models import AgentStatus, AgentWorker, WorkerCallback
 from .swarm_bridge import on_worker_complete
 
@@ -91,10 +93,14 @@ class WorkerPool:
             self.on_worker_event(worker_id, event, data)
 
     def _generate_id(self) -> str:
-        """Generate unique worker ID."""
-        worker_id = f"agent-{self._next_id}"
-        self._next_id += 1
-        return worker_id
+        """Generate a fresh worker id via the identity port.
+
+        C-05 / ADR 0002: this used to be a process-local
+        counter that reset on restart and was not safe for
+        cross-process uniqueness. The port emits a full 32-hex
+        uuid4 so the id is unique across processes too.
+        """
+        return UuidIdentityService().new_id("agent")
 
     async def spawn(
         self,
@@ -115,9 +121,7 @@ class WorkerPool:
         async with self._lock:
             worker_id = self._generate_id()
             normalized_worker_type = (
-                worker_type
-                if worker_type in self._SKILL_TOOLS
-                else "default"
+                worker_type if worker_type in self._SKILL_TOOLS else "default"
             )
 
             worker = AgentWorker(
@@ -188,8 +192,10 @@ class WorkerPool:
         if worker_prompt:
             _base_get_system_prompt = agent.get_system_prompt
             agent.get_system_prompt = (
-                lambda mode="agent", _base=_base_get_system_prompt, _extra=worker_prompt:
-                _base(mode) + f"\n\nWorker specialization:\n{_extra}"
+                lambda mode="agent", _base=_base_get_system_prompt, _extra=worker_prompt: _base(
+                    mode
+                )
+                + f"\n\nWorker specialization:\n{_extra}"
             )
 
         try:

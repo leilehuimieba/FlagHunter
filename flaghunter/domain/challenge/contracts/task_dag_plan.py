@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-import time
-import uuid
 from dataclasses import asdict, dataclass, field, fields
 from enum import Enum
 from typing import Any
+
+from flaghunter.domain import SystemTimeService, UuidIdentityService
 
 from .sanitization import (
     is_sensitive_key,
     looks_like_raw_body,
     redact_sensitive_text,
 )
-
 
 TASK_DAG_PLAN_SCHEMA_VERSION = "p4.task_dag_plan.v1"
 TASK_DAG_READY_SELECTION_SCHEMA_VERSION = "p4.task_dag_ready_selection.v1"
@@ -31,11 +30,14 @@ _TERMINAL_STATUSES = {
 
 
 def _new_id(prefix: str) -> str:
-    return f"{prefix}_{uuid.uuid4().hex[:16]}"
+    # C-05 / ADR 0002: full 32-hex uuid4 via the identity port, no truncation.
+    return _default_identity().new_id(prefix)
 
 
 def _now_ts() -> float:
-    return time.time()
+    # C-05 / ADR 0002: route through the time port so tests can
+    # inject a deterministic clock via FixedTimeService.
+    return _default_clock().utc_now().timestamp()
 
 
 class TaskDAGStatus(str, Enum):
@@ -82,7 +84,9 @@ class TaskDAGNode:
         self.verification_record_ids = _coerce_str_list(self.verification_record_ids)
         self.created_at = _coerce_float(self.created_at, default=_now_ts())
         self.updated_at = _coerce_float(self.updated_at, default=self.created_at)
-        self.metadata = dict(self.metadata or {}) if isinstance(self.metadata, dict) else {}
+        self.metadata = (
+            dict(self.metadata or {}) if isinstance(self.metadata, dict) else {}
+        )
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
@@ -92,7 +96,9 @@ class TaskDAGNode:
     @classmethod
     def from_dict(cls, data: dict[str, Any] | None) -> "TaskDAGNode":
         payload = dict(data or {})
-        payload["status"] = _coerce_status(payload.get("status", TaskDAGStatus.PROPOSED))
+        payload["status"] = _coerce_status(
+            payload.get("status", TaskDAGStatus.PROPOSED)
+        )
         for key in [
             "depends_on",
             "receipt_ids",
@@ -107,7 +113,9 @@ class TaskDAGNode:
             else {}
         )
         allowed_fields = {item.name for item in fields(cls)}
-        return cls(**{key: value for key, value in payload.items() if key in allowed_fields})
+        return cls(
+            **{key: value for key, value in payload.items() if key in allowed_fields}
+        )
 
 
 @dataclass
@@ -123,7 +131,9 @@ class TaskDAGEdge:
         self.target_id = str(self.target_id or "").strip()
         self.relation = _coerce_relation(self.relation)
         self.created_at = _coerce_float(self.created_at, default=_now_ts())
-        self.metadata = dict(self.metadata or {}) if isinstance(self.metadata, dict) else {}
+        self.metadata = (
+            dict(self.metadata or {}) if isinstance(self.metadata, dict) else {}
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -146,7 +156,9 @@ class TaskDAGEdge:
             else {}
         )
         allowed_fields = {item.name for item in fields(cls)}
-        return cls(**{key: value for key, value in payload.items() if key in allowed_fields})
+        return cls(
+            **{key: value for key, value in payload.items() if key in allowed_fields}
+        )
 
 
 class TaskDAGGraphError(ValueError):
@@ -169,7 +181,9 @@ class TaskDAGPlan:
     def __post_init__(self) -> None:
         self.id = str(self.id or "").strip() or _new_id("task_dag_plan")
         self.schema_version = TASK_DAG_PLAN_SCHEMA_VERSION
-        self.metadata = dict(self.metadata or {}) if isinstance(self.metadata, dict) else {}
+        self.metadata = (
+            dict(self.metadata or {}) if isinstance(self.metadata, dict) else {}
+        )
         self.restore_warnings = _coerce_str_list(self.restore_warnings)
         raw_nodes = list(dict(self.nodes_by_id or {}).values())
         raw_edges = list(self.edges or [])
@@ -329,9 +343,7 @@ class TaskDAGPlan:
                 continue
             seen.add(node_id)
             stack.extend(
-                edge.target_id
-                for edge in self.edges
-                if edge.source_id == node_id
+                edge.target_id for edge in self.edges if edge.source_id == node_id
             )
         return False
 
@@ -340,7 +352,10 @@ class TaskDAGPlan:
             node_id: [] for node_id in self.nodes_by_id
         }
         for edge in self.edges:
-            if edge.relation != "depends_on" or edge.target_id not in dependencies_by_target:
+            if (
+                edge.relation != "depends_on"
+                or edge.target_id not in dependencies_by_target
+            ):
                 continue
             if edge.source_id not in dependencies_by_target[edge.target_id]:
                 dependencies_by_target[edge.target_id].append(edge.source_id)
@@ -590,7 +605,10 @@ def mark_task_finished(
         raise TaskDAGTransitionError(f"invalid finish status: {status}")
     if node.status is TaskDAGStatus.RUNNING:
         pass
-    elif node.status in {TaskDAGStatus.PROPOSED, TaskDAGStatus.READY} and finished_status in {
+    elif node.status in {
+        TaskDAGStatus.PROPOSED,
+        TaskDAGStatus.READY,
+    } and finished_status in {
         TaskDAGStatus.SKIPPED,
         TaskDAGStatus.BLOCKED,
     }:
@@ -740,7 +758,10 @@ def _dependency_result(plan: TaskDAGPlan, node: TaskDAGNode) -> dict[str, int]:
     blocking = 0
     for dependency_id in list(node.depends_on):
         dependency = plan.get_node(dependency_id)
-        if dependency is not None and dependency.status.value in _DEPENDENCY_SATISFIED_STATUSES:
+        if (
+            dependency is not None
+            and dependency.status.value in _DEPENDENCY_SATISFIED_STATUSES
+        ):
             satisfied += 1
         else:
             blocking += 1
@@ -804,10 +825,7 @@ def _safe_metadata(
         elif isinstance(value, dict):
             safe[safe_key] = _safe_metadata(value, preview_limit=preview_limit)
         elif isinstance(value, (list, tuple)):
-            safe[safe_key] = [
-                _preview(item, limit=preview_limit)
-                for item in value
-            ]
+            safe[safe_key] = [_preview(item, limit=preview_limit) for item in value]
         else:
             safe[safe_key] = _preview(value, limit=preview_limit)
     return safe
@@ -818,3 +836,18 @@ def _preview(value: Any, *, limit: int) -> str:
     if looks_like_raw_body(text):
         return "<redacted raw body>"[: max(0, int(limit))]
     return text[: max(0, int(limit))]
+
+
+# C-05: default services for code paths that have not yet been
+# wired into a session. The session initializer (follow-up
+# slice) will replace these with injected instances.
+_default_identity_singleton = UuidIdentityService()
+_default_clock_singleton = SystemTimeService()
+
+
+def _default_identity() -> UuidIdentityService:
+    return _default_identity_singleton
+
+
+def _default_clock() -> SystemTimeService:
+    return _default_clock_singleton

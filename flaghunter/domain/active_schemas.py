@@ -220,6 +220,32 @@ _PORT_SCHEMAS: tuple[SchemaRecord, ...] = (
         writer_compat=("port.process_lock@v1",),
     ),
     SchemaRecord(
+        schema_id="port.identity_service",
+        version="v1",
+        owner="flaghunter.ports.identity_service",
+        status=SchemaStatus.ACTIVE,
+        description=(
+            "IdentityServicePort: single source of identity. Every new id is a full 32-hex uuid4 (no truncation) with an optional display prefix; the prefix is display only, the canonical id is the hex suffix. See ADR 0002."
+        ),
+        storage_location="in-process (Protocol structural type)",
+        introduced_at="2026-08-04",
+        reader_compat=("port.identity_service@v1",),
+        writer_compat=("port.identity_service@v1",),
+    ),
+    SchemaRecord(
+        schema_id="port.time_service",
+        version="v1",
+        owner="flaghunter.ports.time_service",
+        status=SchemaStatus.ACTIVE,
+        description=(
+            "TimeServicePort: single source of timestamps. utc_now() is always aware UTC; utc_now_iso() is the canonical ...Z wire form; monotonic_now() is for durations (never subtract from a wall clock). See ADR 0002."
+        ),
+        storage_location="in-process (Protocol structural type)",
+        introduced_at="2026-08-04",
+        reader_compat=("port.time_service@v1",),
+        writer_compat=("port.time_service@v1",),
+    ),
+    SchemaRecord(
         schema_id="port.atomic_file",
         version="v1",
         owner="flaghunter.ports.atomic_file",

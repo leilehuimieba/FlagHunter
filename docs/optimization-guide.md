@@ -2,7 +2,7 @@
 
 > 文档状态：Active / Canonical
 >
-> 当前版本：V2.13
+> 当前版本：V2.14
 >
 > 最近更新：2026-08-04
 >
@@ -2045,7 +2045,7 @@ Kali 工具、字典、模型、第三方二进制和知识内容可能有不同
 | C-02 | P1 | ✅ 统一原子文件写 adapter | state store port/adapter | 崩溃不产生半文件 |
 | C-03 | P1 | ✅ Single-writer 或事务存储决策 | ADR + implementation boundary | 多线程/多进程语义明确 |
 | C-04 | P1 | Ledger/checkpoint checksum 与 sequence | durable append contract | 尾部损坏可检测恢复 |
-| C-05 | P1 | ID、UTC、monotonic 统一 | identity/time service | 时序关联一致 |
+| C-05 | P1 | ✅ ID、UTC、monotonic 统一 | identity/time service | 时序关联一致 |
 | C-06 | P1 | Migration/rollback framework | migration registry | 新旧数据可控升级 |
 | C-07 | P1 | Retention 与磁盘配额 | lifecycle policy | 磁盘不会无限增长 |
 | C-08 | P1 | 备份与 restore drill | backup runbook | 达到 RTO/RPO |
@@ -2460,3 +2460,33 @@ Kali 工具、字典、模型、第三方二进制和知识内容可能有不同
 | V2.11 | 2026-08-04 | ✅ C-01 (Schema Registry)：phase C 第一项 P1 落地，domain/ports 两层加 catalog 三件套，所有 active schema 都有 owner。新增 `flaghunter/ports/schema_registry.py` 协议(边界形状=`Mapping[str, object]`·为未来 JSON 文件/远程 registry adapter 预留，不继承 dataclass)；新增 `flaghunter/domain/schema_catalog.py`(`SchemaRecord`·`SchemaStatus`·`InMemorySchemaRegistry`·`record_from_mapping`·`is_reader_compatible`·`_version_key`·与 ports Protocol 严格对齐；threading.Lock 包裹存储·`active+no owner` 阶段提交报错；`__iter__` 返回 iterator 以防 Python 3.12 严格检查；`frozen=True` 重复检查用 `to_mapping()` 相等性)；新增 `flaghunter/domain/active_schemas.py`·`register_all_active_schemas(registry)`·`known_active_schema_count()` 返回 10 (3 已版本化 `task.cancellation@v1`·`task.lifecycle@v1`·`quality.manifest@v1`+ 7 个 port 协议 `port.tool_runner@v1`·`port.runtime_action@v1`·`port.proof_authority@v1`·`port.state_store@v1`·`port.audit_store@v1`·`port.crew_bridge@v1`·`port.task_ingress@v1`，每个 owner 属实出现，接受 C-01 验收“每个 active schema 都有 owner”)。两个包的 `__init__.py` 同步暴露公共类型。测试 `tests/unit/quality/test_schema_registry.py` 28 个全过(记录验证 5 · 仓库行为 8 · 兼容性 4 · 协议一致 1 · C-01 验收 5 · 8 线程 × 50 注册线程安全 1 · 命名纪律 2 ·边界形状 1 · 双重检查 1)；`ruff check`/`black --check`/`isort` 干净；import-linter 7 kept；96 质量/定域/验证回归零退化。**命名纪律 (§10.3)**：以 `<namespace>.<noun>` 为本期接近公共 core 的最合法形式，未出现 `p2./p3./p4.`，版本统一 `v` 前缀，以 `challenge.<noun>.vN` 为公共 core 保留位；**后续**：C-01 未加入 `quality-gates.json` 门禁（预留后续依赖项中加入），B-13 仍 PENDING（22 处私有记忆引用待清），`test_attack_taxonomy.py::test_every_registered_strategy_is_tagged_or_exempt` 仍为 HEAD 残留与本切片无关。 |
 | V2.12 | 2026-08-04 | ✅ C-02 (统一原子文件写 adapter)：phase C 第二项 P1 落地，低层原子写原语上线，为后续 C-04/C-10/checkpoint/conversation/ledger 提供不会撒半文件的底层。新增 `flaghunter/ports/atomic_file.py`·`AtomicFilePort` Protocol（边界形状=`Mapping[str, object]`·不绑定 run-id/domain-key，让上层 state store 自己组装 keying）；write_text / read_text / exists / remove 四个操作。新增 `flaghunter/domain/atomic_file.py`：`request_from_mapping` 边界转换·`AtomicWriteError` 包裹原 OSError 以便调用者只捕一种·`InMemoryAtomicFile` 线程安全内存实现（测试/干跑用）·`FilesystemAtomicFile` 生产实现依照原子写餐饮：tmp in same dir → write → flush+fsync → os.replace → 失败清理 tmp；Windows 同路径并发 replace 会被文件锁拒绝，adapter 加上 per-path `threading.Lock` 使同路径串行、不同路径并行；跨进程并发由 C-03（single-writer 决策）负责。active_schemas 增加 `port.atomic_file@v1`·owner=`flaghunter.ports.atomic_file`·目前 known_active_schema_count=11（3 已版本化 + 8 port）。测试 `tests/unit/quality/test_atomic_file.py` 41 个全过：request_from_mapping 边界 8 · in-memory 原子性+port 一致 12 · filesystem 起走+sidecar+overwrite+fsync+unicode+并发 17 · 边界形状 2；`ruff check`/`black --check`/`isort` 干净；import-linter 7 kept；151 质量+state·artifact·audit·claim·checkpoint·read_model adapter 回归零退化。**名称纪律 (§10.3)**：新 schema 名 `port.atomic_file`·owner=指向协议本体，继承 C-01 的“协议本体归属协议模块”约定。**后续**：C-02 未拆迁现有调用点（如 `flaghunter/interface/conversation_store.py`·`harness/checkpoint_store.py`·`harness/session_ledger.py`·`harness/artifact_registry.py`等都是 `Path.write_text`），待 C-04/C-10 同步拆迁避免越位改造；B-13 仍 PENDING（22 处私有记忆引用待清），`test_attack_taxonomy.py::test_every_registered_strategy_is_tagged_or_exempt` 仍为 HEAD 残留与本切片无关。 |
 | V2.13 | 2026-08-04 | ✅ C-03 (Single-writer 或事务存储决策)：phase C 第三项 P1 落地，跨进程并发语义明确，为 C-04/C-10 及所有 NDJSON/JSON store 重续提供底层。**ADR 0001**：JSON snapshot 走 single-writer + 进程锁，NDJSON append 走 POSIX O_APPEND 行级原子，两者互不冲突。锁是 **advisory**（必须在代码中绕过 acquire），不是 mandatory 锁，避开 NFS/SMB 不可靠与 Windows 不可移植问题；详见 `docs/adr/0001-single-writer-decision.md`。**实现边界**：新增 `flaghunter/ports/process_lock.py`·`ProcessLockPort` Protocol（boundary=Mapping["path", object]）+ `LockHandle`（release / __enter__ / __exit__ 三个方法）；新增 `flaghunter/domain/process_lock.py`：`path_from_mapping` 边界转换；`InMemoryProcessLock` 线程安全内存实现（测试 / 同进程单写场景）；`FilesystemProcessLock` 生产实现，POSIX 走 `fcntl.flock`（LOCK_EX / LOCK_NB），Windows 走 `msvcrt.locking`（LK_NBLCK · 1 字节），锁在 `<target>.lock` sidecar，**fd 关闭 = 锁释放**，进程崩溃不会死锁。active_schemas 增加 `port.process_lock@v1`·owner=`flaghunter.ports.process_lock`·目前 known_active_schema_count=12（3 + 9 port）。**测试** `tests/unit/quality/test_process_lock.py` 26 个全过：path_from_mapping 边界 4 · LockHandle 5（释放幂等 / 上下文管理器在异常下也释放） · InMemoryProcessLock 6（串行+port 一致） · FilesystemProcessLock 10（sidecar 位置 / 锁文件创建 / 重复获取 / 丢失 parent dir / port 一致） · **跨进程 1**（spawn 子进程持锁，主进程非阻塞获取返回 None）。`ruff check`/`black --check`/`isort` 干净；import-linter 7 kept；107 质量测试零退化。**名称纪律 (§10.3)**：新 schema `port.process_lock`·owner=指向协议本体，继承 C-01/C-02 约定。**Manifest C-03**：原 hybrid mode（arch-contracts + ADR evidence）现增加 `unit-tests-process-lock`，第三个 gate；67 项仍全覆盖，28 gates。**后续**：C-03 未拆迁现有 store （conversation/checkpoint/ledger/artifact），这些调用点改造由 C-04/C-10 同步推进；B-13 仍 PENDING（22 处私有记忆引用待清），`test_attack_taxonomy.py::test_every_registered_strategy_is_tagged_or_exempt` 仍为 HEAD 残留与本切片无关。 |
+| V2.14 | 2026-08-04 | ✅ C-05 (ID/UTC/monotonic 统一)：
+phase C 第四项 P1 落地，
+为时序关联一致提供边界与现实实现。
+**ADR 0002**：ID 统一为全 32-hex uuid4 + 可选显示前缀（前缀仅显示，唯一性由 hex 后缀保证），禁止随意截断 UUID（§12.6）；
+时间统一为 aware UTC + monotonic，ISO 串统一为 `...Z` 后缀由 `utc_now_iso()` 唯一提供；duration 严格使用 monotonic，`time.time()` 仅限绝对时刻；
+保留逐步迁移原则（§12.5），不做无关全仓改造。
+**实现边界**：新增 `flaghunter/ports/identity_service.py`·`IdentityServicePort`（new_id / new_id_with_kind）；新增 `flaghunter/ports/time_service.py`·`TimeServicePort`（utc_now / utc_now_iso / monotonic_now / elapsed_since）；
+新增 `flaghunter/domain/identity_service.py`·`UuidIdentityService`（生产） + `InMemoryIdentityService`（测试·确定性计数器·线程安全）；
+新增 `flaghunter/domain/time_service.py`·`SystemTimeService`（生产，`datetime.now(timezone.utc)` + `time.monotonic`） + `FixedTimeService`（测试，注入实时值或 factory）。
+active_schemas 增加 `port.identity_service@v1` + `port.time_service@v1`·known_active_schema_count=14（3 + 11 port）。
+**迁移（本切片范围）**：`flaghunter/domain/challenge/contracts/task_dag_plan.py` 的 `_new_id` 从 `f'{prefix}_{uuid.uuid4().hex[:16]}'` 改为 `UuidIdentityService().new_id(prefix)`（全 32-hex）；`_now_ts` 从 `time.time()` 改为 `_default_clock().utc_now().timestamp()`；
+`flaghunter/agents/pa_agent/ctf_state.py` 与 `solve_node.py` 的同名 `_new_id` 同步迁移；
+`flaghunter/agents/state.py` 的 `StateTransition.timestamp` 从原 `datetime.now`（naive local）改为 `SystemTimeService().utc_now()`（aware UTC），elapsed-since 同步走穿 port；
+`flaghunter/agents/crew/worker_pool.py` 的 `_generate_id` 从计数器 `f'agent-{self._next_id}'` 改为 `UuidIdentityService().new_id('agent')`，跨进程唯一。
+**未迁移的余下 ~310 个点**（各 store 中的 `datetime.now()` / `time.time()`）保留原状、交给各领域后续切片逐个走穿。
+**测试** `tests/unit/quality/test_id_time_service.py` 32 个全过：
+UuidIdentityService 6（32-hex 形状 / 唯一性 5000 走不冲突 / port 一致）；
+InMemoryIdentityService 5（计数器 / reset / 4 线程 × 500 不冲突）；
+SystemTimeService 5（utc_now aware / utc_now_iso `Z` / monotonic 单调）；
+FixedTimeService 10（默认值 / 注入 / factory 推进 / 拒纳 naive / 拒纳互斥参数）；
+MigrationSanity 6（3 个 _new_id 现在产出 32-hex；_now_ts 是 2026 年的 epoch；StateTransition 是 aware UTC；worker_pool id 是 32-hex）。
+`ruff check`/`black --check`/`isort` 在本切片动到的文件上干净；import-linter 7 kept；139 质量测试 + 275 广范围回归零退化（含 state machine / ctf state / task dag / worker pool）。
+**名称纪律 (§10.3)**：新两个 schema `port.identity_service` / `port.time_service` 都指向协议本体，继承 C-01/C-02/C-03 约定。
+**Manifest C-05**：原 external mode（仅要求 audit evidence）现转 hybrid，新增 `unit-tests-id-time-service` 门禁＋ ADR 0002 evidence；67 项仍全覆盖，29 gates。
+**后续**：session initializer 将 UuidIdentityService / SystemTimeService 线走进 session，以便 application services 以注入而非构造的方式消费。
+import-linter 增加一个 contract：禁止 `flaghunter.domain.*` 直接 import `uuid` / `datetime.now`，必须走穿两个新端口。
+`result_cache.py` 的 TTL 修复（从 `time.time()` 走 monotonic）已在本切片范围之外，会在 C-10 / turbo 后续切片中完成。
+B-13 仍 PENDING（22 处私有记忆引用待清），
+`ctf_state.py` 中的 2 处 `list(self.claims_by_id.values())` 在 `sorted()` 中的 C414 是 HEAD 残留（本切片未动）；
+`test_attack_taxonomy.py::test_every_registered_strategy_is_tagged_or_exempt` 仍为 HEAD 残留与本切片无关。 |

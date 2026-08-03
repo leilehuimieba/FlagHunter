@@ -248,6 +248,21 @@ GATES: list[dict] = [
         "covers": ["C-03"],
     },
     {
+        "id": "unit-tests-id-time-service",
+        "title": "Identity + time service ports + in-memory + system + fixed adapters + migration sanity",
+        "category": "tests",
+        "kind": "command",
+        "blocking": True,
+        "timeoutSeconds": 60,
+        "command": [
+            "pytest",
+            "tests/unit/quality/test_id_time_service.py",
+            "-q",
+            "--tb=line",
+        ],
+        "covers": ["C-05"],
+    },
+    {
         "id": "unit-tests-runtime",
         "title": "Local / Docker / SSH runtime + session lifecycle",
         "category": "tests",
@@ -694,11 +709,11 @@ ACCEPTANCE: dict[str, dict] = {
         "evidenceRequirements": [],
     },
     "C-05": {
-        "mode": "external",
-        "gates": [],
+        "mode": "hybrid",
+        "gates": ["unit-tests-id-time-service"],
         "owner": "data",
         "evidenceRequirements": [
-            "audit showing no timestamp/ID/zone drift across stores",
+            "ADR 0002 id-and-time-policy.md accepting the format and policy",
         ],
     },
     "C-06": {
