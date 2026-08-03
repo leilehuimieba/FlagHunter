@@ -233,6 +233,21 @@ GATES: list[dict] = [
         "covers": ["C-02"],
     },
     {
+        "id": "unit-tests-process-lock",
+        "title": "Process lock port + in-memory + filesystem + cross-process",
+        "category": "tests",
+        "kind": "command",
+        "blocking": True,
+        "timeoutSeconds": 120,
+        "command": [
+            "pytest",
+            "tests/unit/quality/test_process_lock.py",
+            "-q",
+            "--tb=line",
+        ],
+        "covers": ["C-03"],
+    },
+    {
         "id": "unit-tests-runtime",
         "title": "Local / Docker / SSH runtime + session lifecycle",
         "category": "tests",
@@ -666,7 +681,7 @@ ACCEPTANCE: dict[str, dict] = {
     },
     "C-03": {
         "mode": "hybrid",
-        "gates": ["unit-tests-arch-contracts"],
+        "gates": ["unit-tests-arch-contracts", "unit-tests-process-lock"],
         "owner": "data",
         "evidenceRequirements": [
             "ADR recording the single-writer vs transactional decision",

@@ -16,6 +16,7 @@
       "unit-tests-receipts",
       "unit-tests-schema-registry",
       "unit-tests-atomic-file",
+      "unit-tests-process-lock",
       "unit-tests-runtime",
       "unit-tests-dispatcher",
       "unit-tests-tools",
@@ -289,6 +290,23 @@
       ],
       "covers": [
         "C-02"
+      ]
+    },
+    {
+      "id": "unit-tests-process-lock",
+      "title": "Process lock port + in-memory + filesystem + cross-process",
+      "category": "tests",
+      "kind": "command",
+      "blocking": true,
+      "timeoutSeconds": 120,
+      "command": [
+        "pytest",
+        "tests/unit/quality/test_process_lock.py",
+        "-q",
+        "--tb=line"
+      ],
+      "covers": [
+        "C-03"
       ]
     },
     {
@@ -832,7 +850,8 @@
     "C-03": {
       "mode": "hybrid",
       "gates": [
-        "unit-tests-arch-contracts"
+        "unit-tests-arch-contracts",
+        "unit-tests-process-lock"
       ],
       "owner": "data",
       "evidenceRequirements": [

@@ -197,6 +197,29 @@ _PORT_SCHEMAS: tuple[SchemaRecord, ...] = (
         writer_compat=("port.crew_bridge@v1",),
     ),
     SchemaRecord(
+        schema_id="port.process_lock",
+        version="v1",
+        owner="flaghunter.ports.process_lock",
+        status=SchemaStatus.ACTIVE,
+        description=(
+            "ProcessLockPort: cross-process advisory exclusive "
+            + "lock on a path. Closes the C-03 gap that AtomicFilePort "
+            + "(C-02) does not cover: per-process atomic writes are "
+            + "safe, but two processes writing the same JSON snapshot "
+            + "at the same time still race. Backed by fcntl.flock on "
+            + "POSIX and msvcrt.locking on Windows over a <target>.lock "
+            + "sidecar. JSON snapshot writers MUST acquire this lock "
+            + "across their read-modify-replace cycle; NDJSON append "
+            + "writers do NOT need it (POSIX O_APPEND is per-line "
+            + "atomic). The lock is advisory; misuse is a code review "
+            + "concern, not a runtime enforcement. See ADR 0001."
+        ),
+        storage_location="in-process (Protocol structural type)",
+        introduced_at="2026-08-04",
+        reader_compat=("port.process_lock@v1",),
+        writer_compat=("port.process_lock@v1",),
+    ),
+    SchemaRecord(
         schema_id="port.atomic_file",
         version="v1",
         owner="flaghunter.ports.atomic_file",

@@ -8,6 +8,7 @@ from .audit_store import (
     ReadModelStorePort,
 )
 from .crew_bridge import CrewBridgePort, TaskDAGRunnerPort
+from .process_lock import LockHandle, ProcessLockPort
 from .proof_authority import ProofAuthorityPort, VerifierPort
 from .runtime_action import RuntimeActionPort
 from .schema_registry import SchemaRegistryPort
@@ -22,6 +23,8 @@ __all__ = [
     "CheckpointStorePort",
     "ClaimStorePort",
     "CrewBridgePort",
+    "LockHandle",
+    "ProcessLockPort",
     "ProofAuthorityPort",
     "ReadModelStorePort",
     "RuntimeActionPort",

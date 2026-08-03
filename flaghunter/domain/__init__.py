@@ -10,6 +10,12 @@ from .atomic_file import (
     InMemoryAtomicFile,
     request_from_mapping,
 )
+from .process_lock import (
+    FilesystemProcessLock,
+    InMemoryProcessLock,
+    LockHandle,
+    path_from_mapping,
+)
 from .schema_catalog import (
     SCHEMA_REGISTRY_DOMAIN_VERSION,
     InMemorySchemaRegistry,
@@ -21,14 +27,18 @@ from .schema_catalog import (
 
 __all__ = [
     "AtomicWriteError",
+    "FilesystemProcessLock",
     "FilesystemAtomicFile",
     "InMemoryAtomicFile",
+    "InMemoryProcessLock",
+    "LockHandle",
     "InMemorySchemaRegistry",
     "SCHEMA_REGISTRY_DOMAIN_VERSION",
     "SchemaRecord",
     "SchemaStatus",
     "is_reader_compatible",
     "known_active_schema_count",
+    "path_from_mapping",
     "record_from_mapping",
     "register_all_active_schemas",
     "request_from_mapping",
