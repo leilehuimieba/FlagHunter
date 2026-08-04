@@ -35,6 +35,9 @@ from flaghunter.agents.pa_agent.exploit_replay_memory import (
     _build_php_object_injection_ssrf_payloads,
     _recognize_php_object_injection_ssrf,
 )
+from flaghunter.agents.pa_agent.php_exploit_chain import (
+    _resolve_php_oi_ssrf_injection_base,
+)
 from flaghunter.agents.pa_agent.strategy_registry import StrategyContext, StrategyRegistry
 from flaghunter.tools.notes import set_notes_file
 
@@ -134,7 +137,16 @@ class _FakebookRuntime:
     async def proxy_action(self, action: str, **kwargs):
         url = str(kwargs.get("url") or "")
         self.requests.append(url)
-        params = parse_qs(urlparse(url).query, keep_blank_values=True)
+        # The SQLi lives ONLY on /view.php, exactly like the real challenge: an
+        # injection aimed at the site root (``/?no=…``) hits the homepage, not the
+        # ``select … where no=`` query, so no serialized object is ever
+        # unserialized there. This makes the endpoint path load-bearing — the
+        # regression guard for _resolve_php_oi_ssrf_injection_base preserving
+        # view.php instead of stripping to base root.
+        parsed = urlparse(url)
+        if not parsed.path.endswith("/view.php"):
+            return {"status_code": 200, "body": _PAGE_DEFAULT}
+        params = parse_qs(parsed.query, keep_blank_values=True)
         no_value = (params.get("no") or [""])[0]
         return {"status_code": 200, "body": self._render(no_value)}
 
@@ -176,20 +188,35 @@ async def test_php_object_injection_ssrf_recovers_flag_end_to_end(monkeypatch, t
     _reset_notes(tmp_path, "notes_oi_ssrf_vuln.json")
     runtime = _FakebookRuntime(has_sink=True)
     dispatcher = _make_dispatcher(monkeypatch, runtime)
-    dispatcher.state = CTFState(target="http://ctf.local/view.php", goal="拿到flag")
+    # Production shape: ``target`` is the fixed BASE challenge URL (no path); the
+    # solve loop never re-targets it to a discovered endpoint. The concrete
+    # injectable endpoint ``view.php?no=1`` is only known because recon scraped it
+    # into the exploration agenda (query preserved). The chain must recover that
+    # path from state — injecting at the base root would miss the SQLi entirely.
+    dispatcher.state = CTFState(target="http://ctf.local/", goal="拿到flag")
     dispatcher.state.add_observation(
         "local_challenge_source_hint",
         _SOURCE,
         metadata={"path": "/tmp/fakebook/class.php.bak", "file_name": "class.php.bak"},
     )
-
-    outcome = await dispatcher._execute_web_chain(
-        "http://ctf.local/view.php", _PAGE_FEATURES, ""
+    dispatcher.state.add_exploration_item(
+        "http://ctf.local/view.php?no=1",
+        discovery_source="link_href",
+        hint_strength=2,
     )
 
+    outcome = await dispatcher._execute_web_chain("http://ctf.local/", _PAGE_FEATURES, "")
+
     assert outcome.flag == _FLAG
-    # A serialized UserInfo object rode a UNION-SELECT column (hex-encoded).
+    # A serialized UserInfo object rode a UNION-SELECT column (hex-encoded)...
     assert any("union" in url.lower() for url in runtime.requests)
+    # ...aimed at the real endpoint /view.php, NOT the stripped-to-base root. This
+    # is the Caveat-2 regression guard: before the fix the chain injected at
+    # ``http://ctf.local/?no=`` (base root) and never reached the SQLi.
+    assert any(
+        urlparse(url).path.endswith("/view.php") and "union" in url.lower()
+        for url in runtime.requests
+    ), f"expected UNION injection aimed at /view.php, got: {runtime.requests[:5]}"
     # The verified exploit is recorded as a vulnerability note.
     assert any(
         "ctf_php_object_injection_ssrf_exploit" in line for line in dispatcher._notes_log
@@ -265,6 +292,52 @@ def test_recognizer_returns_none_without_unserialize():
     echo file_get_contents($_GET['path']);
     """
     assert _recognize_php_object_injection_ssrf(no_deser) is None
+
+
+# ---------------------------------------------------------------------------
+# Unit: injection-base resolver preserves the discovered endpoint path
+# ---------------------------------------------------------------------------
+def test_injection_base_recovers_endpoint_path_from_discovered_link():
+    # The gadget must be delivered on view.php?no=, not the base root: the
+    # discovered link carries the union_param, so its script path is preserved
+    # (query stripped so _with_query can graft the injection).
+    base = _resolve_php_oi_ssrf_injection_base(
+        "http://ctf.local/",
+        "no",
+        ["http://ctf.local/about.php", "http://ctf.local/view.php?no=1"],
+    )
+    assert base == "http://ctf.local/view.php"
+
+
+def test_injection_base_prefers_script_path_over_bare_root_match():
+    # A bare-root ``/?no=`` match is a weaker signal than a concrete script path;
+    # the script endpoint must win regardless of discovery order.
+    base = _resolve_php_oi_ssrf_injection_base(
+        "http://ctf.local/",
+        "no",
+        ["http://ctf.local/?no=9", "http://ctf.local/view.php?no=1"],
+    )
+    assert base == "http://ctf.local/view.php"
+
+
+def test_injection_base_resolves_relative_candidate_against_target():
+    base = _resolve_php_oi_ssrf_injection_base(
+        "http://ctf.local/app/",
+        "no",
+        ["view.php?no=1"],
+    )
+    assert base == "http://ctf.local/app/view.php"
+
+
+def test_injection_base_falls_back_to_base_target_when_no_match():
+    # No discovered endpoint carries the union_param -> fall back to the old
+    # scheme://netloc base (never fabricate a path).
+    base = _resolve_php_oi_ssrf_injection_base(
+        "http://ctf.local/view.php",
+        "no",
+        ["http://ctf.local/about.php", "http://ctf.local/?id=1"],
+    )
+    assert base == "http://ctf.local"
 
 
 # ---------------------------------------------------------------------------
