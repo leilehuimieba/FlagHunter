@@ -45,10 +45,12 @@ from .dispatcher_helpers import (
     _collect_recon_error,
     _extract_title_from_html,
     _join_relative_url,
+    _looks_like_robots_txt,
     _normalize_exploration_url,
     _normalize_target,
     _parse_forms_from_html,
     _pick_form_field,
+    _robots_disclosed_paths,
     _strip_html_text,
 )
 
@@ -102,6 +104,7 @@ class ReconExecutor:
             "url": target,
         }
         extra_blobs: list[str] = []
+        robots_disclosed_links: list[str] = []
         if ctx.runtime is None:
             return features
 
@@ -274,6 +277,36 @@ class ReconExecutor:
             else:
                 _collect_recon_error(features, page, "proxy_get")
 
+            # robots.txt is a standard disclosure surface: challenges often list
+            # the very paths they mean to hide (backup source, admin panels) under
+            # Disallow. Recon never fetched it, so a Fakebook-class /user.php.bak
+            # leak stayed unreachable. Fold disclosed concrete paths into raw_links
+            # so the backup-source-leak / IDOR / SSRF collectors can consume them.
+            robots_url = urljoin(str(features.get("url") or target), "/robots.txt")
+            robots_resp = await ctx.runtime_proxy_action(
+                "get",
+                url=robots_url,
+                timeout=8,
+                audit_target=robots_url,
+                audit_metadata={"phase": "recon", "robots_txt": True},
+            )
+            if isinstance(robots_resp, dict) and not robots_resp.get("error"):
+                robots_body = str(robots_resp.get("body") or "")
+                if robots_body and _looks_like_robots_txt(robots_body):
+                    base_for_join = str(features.get("url") or target)
+                    for disclosed in _robots_disclosed_paths(robots_body):
+                        absolute = _normalize_exploration_url(
+                            _join_relative_url(base_for_join, disclosed)
+                        )
+                        if not absolute:
+                            continue
+                        if ctx.should_ignore_exploration_candidate(
+                            absolute, base_url=base_for_join
+                        ):
+                            continue
+                        if absolute not in robots_disclosed_links:
+                            robots_disclosed_links.append(absolute)
+
         if features["html"] and not features["forms"]:
             features["forms"] = _parse_forms_from_html(
                 str(features["html"]), features["url"]
@@ -364,6 +397,9 @@ class ReconExecutor:
         for discovered in ctx.extract_embedded_links(merged_source, str(features.get("url") or target)):
             if discovered not in raw_links:
                 raw_links.append(discovered)
+        for disclosed_link in robots_disclosed_links:
+            if disclosed_link not in raw_links:
+                raw_links.append(disclosed_link)
         features["raw_links"] = raw_links
         if features["recon_errors"]:
             ctx.emit(

@@ -146,6 +146,46 @@ def _join_relative_url(base_url: str, candidate: str) -> str:
     return urljoin(base_for_join, rel)
 
 
+def _looks_like_robots_txt(body: str) -> bool:
+    """Heuristic: does ``body`` look like a real robots.txt (not a soft-404 page)?
+
+    Many CTF apps answer ``/robots.txt`` with their normal HTML page (HTTP 200),
+    so we require at least one robots directive keyword before trusting it. This
+    keeps :func:`_robots_disclosed_paths` from mining bogus paths out of an app
+    page that merely happened to be served at the robots URL.
+    """
+    lowered = str(body or "").lower()
+    return any(token in lowered for token in ("user-agent:", "disallow:", "allow:", "sitemap:"))
+
+
+def _robots_disclosed_paths(body: str) -> list[str]:
+    """Extract concrete disclosed paths from a robots.txt body.
+
+    Parses ``Disallow:`` / ``Allow:`` / ``Sitemap:`` directives and returns their
+    concrete path/URL values (deduplicated, original order). Wildcard patterns
+    (anything containing ``*``) and the bare ``/`` root are skipped — they carry
+    no fetchable target. This is the recon primitive that surfaces backup/source
+    paths a challenge tries to hide (e.g. ``Disallow: /user.php.bak``).
+    """
+    paths: list[str] = []
+    seen: set[str] = set()
+    for raw_line in str(body or "").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        lowered = line.lower()
+        for directive in ("disallow:", "allow:", "sitemap:"):
+            if lowered.startswith(directive):
+                value = line[len(directive):].strip().split("#", 1)[0].strip()
+                if not value or value == "/" or "*" in value:
+                    break
+                if value not in seen:
+                    seen.add(value)
+                    paths.append(value)
+                break
+    return paths
+
+
 def _is_stuck_trajectory(state: "CTFState") -> bool:
     """Phase 7: online stuck-trajectory detector.
 
