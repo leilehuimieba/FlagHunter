@@ -44,6 +44,7 @@ class ScorecardRow:
     tokens: int | None = None
     tools_used: list[str] = field(default_factory=list)
     diseases: list[str] = field(default_factory=list)
+    stop_reason: str | None = None
     target: str = ""
     returncode: int | None = None
     timed_out: bool = False
@@ -248,6 +249,7 @@ def _row_from_judge(challenge, target, memory_mode, res, stamp) -> ScorecardRow:
         tokens=res.tokens,
         tools_used=res.tools_used,
         diseases=res.diseases,
+        stop_reason=res.stop_reason,
         target=target,
         detail=res.detail,
         timestamp=stamp,

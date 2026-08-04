@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections import Counter
 from statistics import mean
 
+from .failure_taxonomy import build_backlog, outcome_breakdown
 from .runner import ScorecardRow
 
 _SOLVED = "solved"
@@ -124,6 +125,47 @@ def format_markdown(rows: list[ScorecardRow], *, title: str = "FlagHunter Solve-
         lines.append("")
         for name, count in sorted(s["diseases"].items(), key=lambda kv: -kv[1]):
             lines.append(f"- {name}: {count}")
+        lines.append("")
+
+    # §6.18 item 3: the five outcome classes a baseline report must always show.
+    ob = outcome_breakdown(rows)
+    lines.append("## 结果分布 (outcome breakdown)")
+    lines.append("")
+    lines.append(
+        f"pass {ob['pass']} · honest-stop {ob['honest_stop']} · "
+        f"false-success(caught) {ob['false_success']} · "
+        f"infra-failure {ob['infra_failure']} · timeout {ob['timeout']}"
+    )
+    lines.append("")
+    if ob["false_success_uncaught"]:
+        lines.append(
+            f"🔴 false-success(uncaught) {ob['false_success_uncaught']} — "
+            "proof-less SOLVED，D-02 proof-gate 回归!"
+        )
+    else:
+        lines.append("false-success(uncaught) 0 ✓ — proof-gated 判定守住 (D-02)。")
+    lines.append("")
+
+    # §6.18 item 8: data-driven optimization backlog, ranked P0→P2.
+    backlog, ceilings = build_backlog(rows)
+    lines.append("## 优化 backlog (数据驱动)")
+    lines.append("")
+    if not backlog:
+        lines.append("无待办失败项（未解题皆为确认天花板或已全解）。")
+        lines.append("")
+    else:
+        lines.append("| 优先级 | id | tier | 失败类目 | stop | 病 | 建议动作 |")
+        lines.append("|--------|----|------|----------|------|----|----------|")
+        for b in backlog:
+            dz = ",".join(b.diseases) or "-"
+            lines.append(
+                f"| {b.priority} | {b.challenge_id} | {b.tier} | {b.failure_class} | "
+                f"{b.stop_reason or '-'} | {dz} | {b.suggested_action} |"
+            )
+        lines.append("")
+    if ceilings:
+        ids = ", ".join(f"{r.challenge_id}({r.tier})" for r in ceilings)
+        lines.append(f"确认天花板（符合预期·记录不 backlog）: {ids}")
         lines.append("")
 
     lines.append("## 逐题 (per challenge)")

@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 from flaghunter.eval.baseline.corpus import Challenge, Tier, load_corpus
+from flaghunter.eval.baseline.failure_taxonomy import build_backlog, outcome_breakdown
 from flaghunter.eval.baseline.judge import (
     Verdict,
     _parse_steps,
@@ -21,7 +22,7 @@ from flaghunter.eval.baseline.judge import (
     judge_run,
 )
 from flaghunter.eval.baseline.report import format_markdown, summarize
-from flaghunter.eval.baseline.runner import run_baseline, run_one
+from flaghunter.eval.baseline.runner import ScorecardRow, run_baseline, run_one
 
 # A realistic slice of a fast live-solve stdout (easysql shape): the blackboard
 # loop solves in 2 steps, so the Finished panel shows "Loops: 0/12" while the
@@ -265,6 +266,81 @@ def test_warm_runs_share_strategy_memory_but_not_cwd(tmp_path: Path, monkeypatch
     assert (runs_dir / "warm_strategy_memory.json").read_text(encoding="utf-8") == "xx"
     # Neither run's private CWD write leaked into the harness cwd.
     assert not (scratch / "leak.txt").exists()
+
+
+def _row(**kw) -> ScorecardRow:
+    base = dict(
+        challenge_id="c", tier="T1", type="web", verdict="fail",
+        expected_verdict="solved", matched_expectation=False, memory_mode="cold",
+    )
+    base.update(kw)
+    return ScorecardRow(**base)
+
+
+def test_outcome_breakdown_partitions_five_classes():
+    """The report must always give pass / honest-stop / false-success / infra /
+    timeout (§6.18 item 3). false-success is the *caught* monitor; uncaught stays 0
+    because the judge is proof-gated (D-02)."""
+    rows = [
+        _row(verdict="solved", stop_reason="goal_met", matched_expectation=True),
+        _row(verdict="fail", stop_reason="brain_stop"),                       # honest stop
+        _row(verdict="near", flag_found="CTF2{x}", stop_reason="budget_exhausted"),  # caught
+        _row(verdict="error", timed_out=False),                              # infra
+        _row(verdict="error", timed_out=True),                               # timeout
+        _row(verdict="skipped"),                                             # excluded
+    ]
+    ob = outcome_breakdown(rows)
+    assert ob["pass"] == 1
+    assert ob["honest_stop"] == 1
+    assert ob["false_success"] == 1
+    assert ob["infra_failure"] == 1
+    assert ob["timeout"] == 1
+    assert ob["false_success_uncaught"] == 0
+
+
+def test_backlog_ranks_regression_p0_and_excludes_confirmed_ceiling():
+    """A T0/T1 miss that defied its prediction is a P0 regression; a T2/T3 fail that
+    MATCHED its prediction is a confirmed ceiling — recorded, never backlogged
+    (§6.18 item 8: data-driven backlog, no hand-picking)."""
+    rows = [
+        _row(challenge_id="t1_reach", tier="T1", verdict="fail",
+             matched_expectation=False, diseases=["reachability"]),
+        _row(challenge_id="t3_ceiling", tier="T3", verdict="fail",
+             expected_verdict="fail", matched_expectation=True),
+        _row(challenge_id="t2_budget", tier="T2", verdict="fail",
+             matched_expectation=False, stop_reason="budget_exhausted"),
+    ]
+    backlog, ceilings = build_backlog(rows)
+    ids = [b.challenge_id for b in backlog]
+    assert "t3_ceiling" not in ids
+    assert [r.challenge_id for r in ceilings] == ["t3_ceiling"]
+    # P0 regression sorts first; its diagnosis names the reachability fix.
+    assert backlog[0].challenge_id == "t1_reach"
+    assert backlog[0].priority == "P0"
+    assert backlog[0].failure_class == "reachability_gap"
+    budget = next(b for b in backlog if b.challenge_id == "t2_budget")
+    assert budget.priority == "P1" and budget.failure_class == "budget_waste"
+
+
+def test_backlog_infra_and_timeout_are_p0():
+    """Infra failure and timeout block measurement itself → always P0, split apart
+    (not conflated under a single ERROR bucket)."""
+    backlog, _ = build_backlog([
+        _row(challenge_id="e1", verdict="error", timed_out=False),
+        _row(challenge_id="e2", verdict="error", timed_out=True),
+    ])
+    classes = {b.challenge_id: (b.priority, b.failure_class) for b in backlog}
+    assert classes["e1"] == ("P0", "infra_failure")
+    assert classes["e2"] == ("P0", "timeout")
+
+
+def test_report_renders_outcome_breakdown_and_backlog():
+    rows = run_baseline(_corpus(), {}, dry_run=True)
+    md = format_markdown(rows)
+    assert "outcome breakdown" in md
+    assert "优化 backlog" in md
+    # dry-run is proof-gated end to end → the uncaught alarm stays clear.
+    assert "false-success(uncaught) 0" in md
 
 
 def test_report_renders_tiers_and_cold_warm_delta():

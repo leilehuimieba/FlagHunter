@@ -62,6 +62,7 @@ class JudgeResult:
     tokens: int | None = None
     tools_used: list[str] = field(default_factory=list)
     diseases: list[str] = field(default_factory=list)
+    stop_reason: str | None = None
     detail: str = ""
 
 
@@ -200,7 +201,7 @@ def judge_run(
     # live run without a known flag must carry the verified terminal outcome. A
     # flag-*shaped* string with neither is only a candidate — scoring it SOLVED
     # is the false-success channel D-02 closes.
-    _stopped, proven = _parse_terminal_outcome(stdout)
+    stop_reason, proven = _parse_terminal_outcome(stdout)
     proof_backed = bool(challenge.known_flag and flag) or proven is True
     near_cue = any(cue in combined.lower() for cue in _NEAR_CUES)
 
@@ -229,5 +230,6 @@ def judge_run(
         tokens=tokens,
         tools_used=tools,
         diseases=diseases,
+        stop_reason=stop_reason,
         detail=detail,
     )
