@@ -26,6 +26,7 @@ import pytest
 
 import flaghunter.tools.notes as notes_module
 from flaghunter.agents.pa_agent.ctf_dispatcher import CTFTaskDispatcher
+from flaghunter.agents.pa_agent.ctf_state import CTFState
 from flaghunter.agents.pa_agent.sqli_executor import (
     _blind_char_gt,
     _blind_len_gt,
@@ -91,7 +92,7 @@ def _eval_sql_expr(expr: str) -> str:
     return ""
 
 
-def _eval_substr(inner: str) -> str:
+def _eval_substr(inner: str, evaluator=_eval_sql_expr) -> str:
     m = re.fullmatch(r"(?:substr|mid)\((.*)\)", inner.strip())
     if not m:
         return ""
@@ -104,21 +105,21 @@ def _eval_substr(inner: str) -> str:
         if not from_for:
             return ""
         expr, pos = from_for.group(1), int(from_for.group(2))
-    value = _eval_sql_expr(expr)
+    value = evaluator(expr)
     return value[pos - 1] if 1 <= pos <= len(value) else ""
 
 
-def _eval_condition(cond: str) -> bool:
+def _eval_condition(cond: str, evaluator=_eval_sql_expr) -> bool:
     cond = cond.strip()
     m = re.fullmatch(r"(\d+)=(\d+)", cond)
     if m:
         return m.group(1) == m.group(2)
     m = re.fullmatch(r"length\((.*)\)>(\d+)", cond)
     if m:
-        return len(_eval_sql_expr(m.group(1))) > int(m.group(2))
+        return len(evaluator(m.group(1))) > int(m.group(2))
     m = re.fullmatch(r"(?:ascii|ord)\((.*)\)>(\d+)", cond)
     if m:
-        ch = _eval_substr(m.group(1))
+        ch = _eval_substr(m.group(1), evaluator)
         return (ord(ch) if ch else 0) > int(m.group(2))
     return False
 
@@ -180,12 +181,20 @@ class _BlindRuntime:
     no boolean oracle, so the extractor must not false-positive.
     """
 
-    def __init__(self, injectable: bool = True, block_ampersand: bool = False):
+    def __init__(
+        self,
+        injectable: bool = True,
+        block_ampersand: bool = False,
+        evaluator=_eval_sql_expr,
+    ):
         self.injectable = injectable
         # When True the WAF blacklists ``&&``/``||`` outright (HackWorld-class):
         # every conjunction-style oracle is rejected, so only the ``if((cond),1,0)``
         # conditional-response context can establish a boolean oracle.
         self.block_ampersand = block_ampersand
+        # Pluggable SQL scalar evaluator so a backend can model a database whose
+        # ``information_schema`` walk truncates but whose flag is directly readable.
+        self._evaluator = evaluator
         self.environment = SimpleNamespace(available_tools=[])
         self.requests: list[str] = []
 
@@ -201,7 +210,7 @@ class _BlindRuntime:
             if call is None:
                 return _PAGE_EMPTY
             cond, true_val, false_val = call
-            resolved = true_val if _eval_condition(cond) else false_val
+            resolved = true_val if _eval_condition(cond, self._evaluator) else false_val
             return _PAGE_ROW if resolved.strip() == "1" else _PAGE_EMPTY
         if "'" in payload or '"' in payload:  # wrong context for a numeric column
             return _PAGE_EMPTY
@@ -211,7 +220,7 @@ class _BlindRuntime:
             cond = _extract_condition(payload)
             if cond is None:
                 return _PAGE_EMPTY
-            return _PAGE_ROW if _eval_condition(cond) else _PAGE_EMPTY
+            return _PAGE_ROW if _eval_condition(cond, self._evaluator) else _PAGE_EMPTY
         return _PAGE_ROW if payload.strip() == "1" else _PAGE_EMPTY
 
     async def browser_action(self, action: str, **kwargs):
@@ -333,6 +342,71 @@ async def test_blind_sqli_reconstructs_flag_through_ampersand_blocking_waf(monke
     assert any("ctf_blind_sqli_extract" in line for line in dispatcher._notes_log), (
         "expected the reconstructed flag to be verified despite the && blacklist"
     )
+    _cleanup_notes()
+
+
+# ---------------------------------------------------------------------------
+# Behavioral: CTF fast-path reaches a flag the information_schema walk can't
+# ---------------------------------------------------------------------------
+_DIRECT_FLAG = "CTF2{d1rect_fl4g_p4th}"
+_DIRECT_DB = "ctftraining"
+# A large shared database: many decoy tables whose comma-joined names overflow
+# the extractor's per-string cap (_BLIND_MAX_STR_LEN=96) well before ``flag``.
+_DIRECT_DECOY_TABLES = [f"news_article_archive_{i:02d}" for i in range(16)]
+
+
+def _direct_flag_eval(expr: str) -> str:
+    """Backend where the generic walk truncates but ``flag``.``flag`` is direct.
+
+    ``information_schema.tables`` returns a decoy blob long enough that the real
+    ``flag`` table (appended last) sits past the 96-char extraction window, so the
+    walk provably cannot reach it. The flag is only recoverable by probing the
+    obvious location ``select(group_concat(flag))from(flag)`` directly.
+    """
+    expr = _strip_outer_parens(expr)
+    if expr == "database()":
+        return _DIRECT_DB
+    if "information_schema.columns" in expr:
+        return "id,title,body"  # decoy tables carry no flag column
+    if "information_schema.tables" in expr:
+        return ",".join([*_DIRECT_DECOY_TABLES, "flag"])
+    if "concat_ws" in expr:
+        return ""  # decoy rows carry no flag
+    if re.fullmatch(r"select\(group_concat\(flag\)\)from\(flag\)", expr):
+        return _DIRECT_FLAG
+    return ""
+
+
+@pytest.mark.asyncio
+async def test_blind_sqli_fast_path_reaches_flag_when_schema_walk_truncates(monkeypatch, tmp_path):
+    """The information_schema walk group_concats every table, capped at 96 chars
+    and ordered by storage — on a large shared database (e.g. ``ctftraining``) the
+    ``flag`` table falls outside that window and the walk never reaches it. The CTF
+    fast-path probes ``flag``.``flag`` directly and recovers the flag first.
+
+    Regression guard for the live-validation residual (2026-08-04): the oracle +
+    ``database()`` extraction worked, but the generic walk could not surface the
+    flag before the request budget ran out."""
+    _reset_notes(tmp_path, "notes_blind_fastpath.json")
+    runtime = _BlindRuntime(injectable=True, evaluator=_direct_flag_eval)
+    dispatcher = _make_dispatcher(monkeypatch, runtime)
+    # Drive the extractor in isolation (no other web strategies to pollute the
+    # recorded requests); a minimal state is all _observe_flag needs to verify.
+    dispatcher.state = CTFState(target="http://ctf.local/item", goal="拿到flag")
+
+    outcome = await dispatcher._attempt_blind_sqli("http://ctf.local/item", _PAGE_FEATURES)
+
+    assert outcome.flag == _DIRECT_FLAG, "fast-path should reconstruct the direct flag"
+    # The win came from a direct flag-location probe (group_concat over the flag
+    # column of the flag table), not from the generic schema walk...
+    assert any("group_concat" in url and "flag" in url for url in runtime.requests), (
+        "expected a direct flag-location extraction request"
+    )
+    # ...and the walk was short-circuited entirely: no information_schema probe.
+    assert not any("information_schema" in url for url in runtime.requests), (
+        "fast-path must pre-empt the truncation-prone information_schema walk"
+    )
+    assert any("ctf_blind_sqli_extract" in line for line in dispatcher._notes_log)
     _cleanup_notes()
 
 

