@@ -286,12 +286,48 @@ def test_recognizer_returns_none_without_file_read_sink():
     assert _recognize_php_object_injection_ssrf(benign) is None
 
 
-def test_recognizer_returns_none_without_unserialize():
+def test_recognizer_returns_none_for_plain_lfi_with_dead_property():
+    # A file-read sink that reads a *superglobal* (plain LFI), not a class
+    # property, is not an object-injection gadget — even though the class
+    # declares a URL-ish ``$path`` property, that property never flows into the
+    # sink (``$this->path`` is never used), so the flow guard must reject it.
     no_deser = """<?php
     class Reader { public $path = ""; }
     echo file_get_contents($_GET['path']);
     """
     assert _recognize_php_object_injection_ssrf(no_deser) is None
+
+
+def test_recognizer_fires_on_split_file_leak_without_colocated_unserialize():
+    # The canonical fakebook leak: ``user.php.bak`` exposes only the ``UserInfo``
+    # class + curl/file sink reachable from ``$this->blog``. The ``unserialize``
+    # entrypoint lives in the non-leaked ``view.php``, so the leaked source
+    # contains NO ``unserialize`` — recognition must still fire via the
+    # property-flows-to-sink signal, or the whole object-injection strategy is
+    # never enabled against the real target.
+    class_only = """<?php
+    class UserInfo {
+        public $name = "";
+        public $age = 0;
+        public $blog = "";
+        function get($url) {
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $url);
+            return curl_exec($ch);
+        }
+        public function getBlogContents() {
+            return $this->get($this->blog);
+        }
+    }
+    """
+    assert "unserialize" not in class_only.lower()
+    recognized = _recognize_php_object_injection_ssrf(class_only)
+    assert recognized is not None
+    assert recognized["class_name"] == "UserInfo"
+    assert recognized["sink_prop"] == "blog"
+    # No `$_GET[...]` in the class-only leak → union_param falls back to `no`
+    # (the fakebook `view.php?no=` endpoint shape).
+    assert recognized["union_param"] == "no"
 
 
 # ---------------------------------------------------------------------------
