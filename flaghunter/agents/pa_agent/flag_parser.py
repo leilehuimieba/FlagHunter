@@ -9,11 +9,21 @@ this in, so call sites are unchanged. Pure code relocation, near-zero risk.
 
 from __future__ import annotations
 
+import base64
 import re
 from urllib.parse import urlparse
 
 from ...tools.notes import get_all_notes_sync
 from .dispatcher_helpers import _FLAG_RE, _STRICT_FLAG_RE
+
+# Flags that only arrive inside a ``data:<mime>;base64,<payload>`` URI (e.g. a
+# ``file://`` SSRF read rendered back into an ``<iframe>`` as
+# ``data:text/html;base64,...``) never match the raw-body scan. Decode any such
+# embedded payloads and re-scan them so the flag lands regardless of transport.
+_DATA_URI_BASE64_RE = re.compile(
+    r"data:[A-Za-z0-9.+-]+/[A-Za-z0-9.+-]+;base64,([A-Za-z0-9+/=\r\n]+)",
+    re.IGNORECASE,
+)
 
 
 class FlagParserMixin:
@@ -21,6 +31,14 @@ class FlagParserMixin:
 
     def _extract_flag(self, text: str) -> str | None:
         blob = str(text or "")
+        if flag := self._scan_flag_in_blob(blob):
+            return flag
+        for decoded in self._decode_embedded_base64_blobs(blob):
+            if flag := self._scan_flag_in_blob(decoded):
+                return flag
+        return None
+
+    def _scan_flag_in_blob(self, blob: str) -> str | None:
         for match in _STRICT_FLAG_RE.finditer(blob):
             candidate = match.group(1)
             if self._looks_like_css_false_flag(candidate, blob):
@@ -32,6 +50,20 @@ class FlagParserMixin:
                 continue
             return candidate
         return None
+
+    def _decode_embedded_base64_blobs(self, text: str) -> list[str]:
+        blob = str(text or "")
+        decoded_blobs: list[str] = []
+        for match in _DATA_URI_BASE64_RE.finditer(blob):
+            encoded = re.sub(r"\s+", "", match.group(1))
+            if len(encoded) < 8:
+                continue
+            try:
+                raw = base64.b64decode(encoded, validate=False)
+            except Exception:
+                continue
+            decoded_blobs.append(raw.decode("utf-8", errors="ignore"))
+        return decoded_blobs
 
     def _extract_php_var_dump_strings(self, text: str) -> list[str]:
         blob = str(text or "")
