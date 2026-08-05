@@ -108,13 +108,17 @@ class _FakebookRuntime:
         if len(columns) != _COLUMN_COUNT:
             return _PAGE_SQL_ERROR
         for col in columns:
-            hex_match = re.fullmatch(r"0x([0-9a-fA-F]+)", col)
-            if not hex_match:
+            # Real fakebook unserializes the raw *text* of the `data` column, so
+            # only a single-quoted string literal (``'O:8:…'``) delivers the
+            # object. A ``0x`` hex literal comes back as a binary string the read
+            # path never treats as the injected object — verified live against
+            # the challenge, where the hex form returns the empty profile page
+            # and only the quoted form leaks flag.php. Model that faithfully so
+            # this stays a regression guard for the delivery format.
+            quoted = re.fullmatch(r"'(O:\d+:.*)'", col)
+            if not quoted:
                 continue
-            try:
-                decoded = bytes.fromhex(hex_match.group(1)).decode("latin-1")
-            except ValueError:
-                continue
+            decoded = quoted.group(1)
             blog_match = re.search(r's:4:"blog";s:\d+:"([^"]*)"', decoded)
             if not blog_match:
                 continue
