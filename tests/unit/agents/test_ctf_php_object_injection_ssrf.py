@@ -36,6 +36,8 @@ from flaghunter.agents.pa_agent.exploit_replay_memory import (
     _recognize_php_object_injection_ssrf,
 )
 from flaghunter.agents.pa_agent.php_exploit_chain import (
+    _php_oi_ssrf_body_matches_gadget,
+    _php_oi_ssrf_viewer_candidates,
     _resolve_php_oi_ssrf_injection_base,
 )
 from flaghunter.agents.pa_agent.strategy_registry import StrategyContext, StrategyRegistry
@@ -74,6 +76,18 @@ echo $user->get($user->blog);
 
 _PAGE_DEFAULT = "<html><body>fakebook profile viewer</body></html>"
 _PAGE_SQL_ERROR = "<html><body>Warning: mysqli query column count mismatch</body></html>"
+# A benign hit on the real ``view.php`` renders the UserInfo table even with an
+# empty users row — headers ``username``/``age``/``blog`` plus the getBlogContents
+# notice. This is the leaked-field fingerprint the viewer-discovery probe keys on
+# (the homepage, by contrast, only links login.php/join.php).
+_PAGE_VIEWER = (
+    "<html><head><title>User</title></head><body>"
+    "<table class='table'>"
+    "<tr><th>username</th><th>age</th><th>blog</th></tr>"
+    "<tr><td></td><td>Trying to get property of non-object in view.php</td>"
+    "<td></td></tr></table>"
+    "</body></html>"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -100,10 +114,10 @@ class _FakebookRuntime:
         norm = re.sub(r"\s+", " ", no_value.replace("/**/", " ")).strip()
         low = norm.lower()
         if "union" not in low or "select" not in low:
-            return _PAGE_DEFAULT
+            return _PAGE_VIEWER
         match = re.search(r"union\s+select\s+(.*)$", norm, re.IGNORECASE)
         if not match:
-            return _PAGE_DEFAULT
+            return _PAGE_VIEWER
         columns = [col.strip() for col in match.group(1).split(",")]
         if len(columns) != _COLUMN_COUNT:
             return _PAGE_SQL_ERROR
@@ -125,7 +139,7 @@ class _FakebookRuntime:
             blog = blog_match.group(1)
             if blog.startswith("file://") and blog.endswith("flag.php"):
                 return f"<html><body>blog contents: {_FLAG}</body></html>"
-        return _PAGE_DEFAULT
+        return _PAGE_VIEWER
 
     async def browser_action(self, action: str, **kwargs):
         if action == "navigate":
@@ -225,6 +239,50 @@ async def test_php_object_injection_ssrf_recovers_flag_end_to_end(monkeypatch, t
     assert any(
         "ctf_php_object_injection_ssrf_exploit" in line for line in dispatcher._notes_log
     ), "expected the confirmed object-injection SSRF exploit to be recorded"
+    _cleanup_notes()
+
+
+@pytest.mark.asyncio
+async def test_php_object_injection_ssrf_probes_unlinked_viewer(monkeypatch, tmp_path):
+    # The real fakebook recon shape: the homepage links only ``login.php`` and
+    # ``join.php``; ``view.php?no=`` is unlinked until you register, so it NEVER
+    # enters the exploration agenda. _resolve_php_oi_ssrf_injection_base therefore
+    # falls back to the site root — and injecting at the root misses the SQLi.
+    # The chain must PROBE conventional viewer names and recover ``view.php`` by
+    # matching the leaked gadget's own field names. This is the live end-to-end
+    # gap that the agenda-preserving resolver test above does NOT cover.
+    _reset_notes(tmp_path, "notes_oi_ssrf_probe.json")
+    runtime = _FakebookRuntime(has_sink=True)
+    dispatcher = _make_dispatcher(monkeypatch, runtime)
+    dispatcher.state = CTFState(target="http://ctf.local/", goal="拿到flag")
+    dispatcher.state.add_observation(
+        "local_challenge_source_hint",
+        _SOURCE,
+        metadata={"path": "/tmp/fakebook/user.php.bak", "file_name": "user.php.bak"},
+    )
+    # Only the homepage's real links are on the agenda — no view.php.
+    dispatcher.state.add_exploration_item(
+        "http://ctf.local/login.php", discovery_source="link_href", hint_strength=1
+    )
+    dispatcher.state.add_exploration_item(
+        "http://ctf.local/join.php", discovery_source="link_href", hint_strength=1
+    )
+
+    outcome = await dispatcher._execute_web_chain("http://ctf.local/", _PAGE_FEATURES, "")
+
+    assert outcome.flag == _FLAG
+    # A benign fingerprint probe (``?no=1``, no UNION) hit view.php first...
+    assert any(
+        urlparse(url).path.endswith("/view.php")
+        and parse_qs(urlparse(url).query).get("no") == ["1"]
+        for url in runtime.requests
+    ), f"expected a benign ?no=1 probe of view.php, got: {runtime.requests[:8]}"
+    # ...then the winning UNION injection was aimed at the PROBED view.php, even
+    # though recon never linked it onto the agenda.
+    assert any(
+        urlparse(url).path.endswith("/view.php") and "union" in url.lower()
+        for url in runtime.requests
+    ), f"expected UNION aimed at probed /view.php, got: {runtime.requests[:8]}"
     _cleanup_notes()
 
 
@@ -378,6 +436,38 @@ def test_injection_base_falls_back_to_base_target_when_no_match():
         ["http://ctf.local/about.php", "http://ctf.local/?id=1"],
     )
     assert base == "http://ctf.local"
+
+
+# ---------------------------------------------------------------------------
+# Unit: viewer-discovery probe (candidates + leaked-field fingerprint)
+# ---------------------------------------------------------------------------
+def test_viewer_candidates_seed_stem_then_conventional_then_agenda():
+    cands = _php_oi_ssrf_viewer_candidates(
+        "http://ctf.local/",
+        ["http://ctf.local/login.php", "http://ctf.local/join.php"],
+        "/tmp/fakebook/user.php.bak",
+    )
+    # Leaked-backup stem (``user.php.bak`` → ``user.php``) is probed first.
+    assert cands[0] == "http://ctf.local/user.php"
+    # The conventional numeric-id viewer name is present...
+    assert "http://ctf.local/view.php" in cands
+    # ...and recon-discovered .php endpoints are folded in (deduped).
+    assert "http://ctf.local/login.php" in cands
+    assert cands.count("http://ctf.local/user.php") == 1
+
+
+def test_viewer_fingerprint_requires_sink_plus_another_declared_field():
+    hit = (
+        "<table><tr><th>username</th><th>age</th><th>blog</th></tr>"
+        "<tr><td></td><td></td><td></td></tr></table>"
+    )
+    assert _php_oi_ssrf_body_matches_gadget(hit, ["name", "age", "blog"], "blog") is True
+    # Sink token present but no OTHER declared field → homepage-style noise, reject.
+    assert _php_oi_ssrf_body_matches_gadget("<a href=/blog>my blog</a>", ["name", "age", "blog"], "blog") is False
+    # Short field must be a whole word: ``age`` ⊂ ``homepage``/``messages`` ≠ hit.
+    assert _php_oi_ssrf_body_matches_gadget("homepage messages", ["age"], "age") is False
+    # Empty body never matches.
+    assert _php_oi_ssrf_body_matches_gadget("", ["name", "blog"], "blog") is False
 
 
 # ---------------------------------------------------------------------------
