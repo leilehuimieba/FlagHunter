@@ -61,10 +61,10 @@ dev = [
     "pytest-asyncio>=1.0.0",
     "pytest-cov>=7.0.0",
     "pytest-mock>=3.14.0",
-    "black>=26.0.0",
+    "black>=26.10.1",
     "isort>=8.0.0",
     "mypy>=1.19.0",
-    "ruff>=0.15.0",
+    "ruff>=0.17.0",
     "import-linter>=2.0",
 ]
 rag = [
